@@ -9,6 +9,21 @@ import { labelStatusKehadiran } from "../utils/statusKehadiran";
 
 const DAFTAR_STATUS = ["tepat_waktu", "telat", "alpha", "izin", "sakit", "cuti", "urgent"];
 
+// Kartu abu-abu berkedip pelan, dipakai sebagai placeholder saat data masih dimuat
+function SkeletonKartu({ jumlah = 3 }) {
+  return (
+    <>
+      {Array.from({ length: jumlah }).map((_, i) => (
+        <div key={i} className="skeleton-pulse" style={styles.skeletonCard}>
+          <div style={{ ...styles.skeletonBar, width: "40%", height: 14 }} />
+          <div style={{ ...styles.skeletonBar, width: "60%", height: 11, marginTop: 8 }} />
+          <div style={{ ...styles.skeletonBar, width: "30%", height: 11, marginTop: 6 }} />
+        </div>
+      ))}
+    </>
+  );
+}
+
 export default function DashboardAdmin({ pengguna, onLogout }) {
   const [tab, setTab] = useState("rekap");
   const [rekap, setRekap] = useState([]);
@@ -17,6 +32,10 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
   const [loading, setLoading] = useState(true);
   const [pesan, setPesan] = useState("");
   const [pesanSukses, setPesanSukses] = useState("");
+
+  // Kata kunci pencarian, terpisah untuk tiap tab supaya tidak saling ganggu
+  const [cariRekap, setCariRekap] = useState("");
+  const [cariKaryawan, setCariKaryawan] = useState("");
 
   // Form aktivasi akun yang lagi dibuka (ganti prompt() bawaan browser)
   const [formAktivasiTerbuka, setFormAktivasiTerbuka] = useState(null); // id akun atau null
@@ -136,6 +155,21 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
     return new Date(tanggalIso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
   }
 
+  // Filter sederhana: cocok kalau kata kunci ditemukan di nama, jabatan, atau divisi
+  // (tidak peduli huruf besar/kecil)
+  function cocokKataKunci(teksTarget, kataKunci) {
+    if (!kataKunci.trim()) return true;
+    return teksTarget.toLowerCase().includes(kataKunci.trim().toLowerCase());
+  }
+
+  const rekapTersaring = rekap.filter((item) =>
+    cocokKataKunci(`${item.pengguna.nama} ${item.pengguna.jabatan || ""} ${item.pengguna.divisi || ""}`, cariRekap)
+  );
+
+  const karyawanTersaring = karyawan.filter((item) =>
+    cocokKataKunci(`${item.nama} ${item.email} ${item.jabatan || ""} ${item.divisi || ""}`, cariKaryawan)
+  );
+
   const tabs = [
     { id: "rekap", label: "Rekap Hari Ini" },
     { id: "approval", label: `Menunggu${menunggu.length > 0 ? ` (${menunggu.length})` : ""}` },
@@ -171,14 +205,26 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       </div>
 
       <div style={styles.content}>
-        {loading && <p style={styles.kosong}>Memuat data…</p>}
+        {loading && <SkeletonKartu jumlah={3} />}
         {pesan && <p style={styles.pesanError}>{pesan}</p>}
         {pesanSukses && <p style={styles.pesanSukses}>{pesanSukses}</p>}
 
         {!loading && tab === "rekap" && (
           <>
+            {rekap.length > 0 && (
+              <input
+                type="text"
+                value={cariRekap}
+                onChange={(e) => setCariRekap(e.target.value)}
+                placeholder="Cari nama, jabatan, atau divisi…"
+                style={styles.kotakCari}
+              />
+            )}
             {rekap.length === 0 && <p style={styles.kosong}>Belum ada karyawan yang absen hari ini.</p>}
-            {rekap.map((item) => {
+            {rekap.length > 0 && rekapTersaring.length === 0 && (
+              <p style={styles.kosong}>Tidak ada hasil untuk "{cariRekap}".</p>
+            )}
+            {rekapTersaring.map((item) => {
               const status = labelStatusKehadiran(item.statusFinal || item.statusOtomatis);
               const sedangEdit = editStatusTerbuka === item.id;
               return (
@@ -278,8 +324,20 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
 
         {!loading && tab === "karyawan" && (
           <>
+            {karyawan.length > 0 && (
+              <input
+                type="text"
+                value={cariKaryawan}
+                onChange={(e) => setCariKaryawan(e.target.value)}
+                placeholder="Cari nama, email, jabatan, atau divisi…"
+                style={styles.kotakCari}
+              />
+            )}
             {karyawan.length === 0 && <p style={styles.kosong}>Belum ada karyawan aktif.</p>}
-            {karyawan.map((item) => (
+            {karyawan.length > 0 && karyawanTersaring.length === 0 && (
+              <p style={styles.kosong}>Tidak ada hasil untuk "{cariKaryawan}".</p>
+            )}
+            {karyawanTersaring.map((item) => (
               <div key={item.id} style={styles.itemCard}>
                 <div style={styles.itemHeader}>
                   <strong style={styles.itemNama}>{item.nama}</strong>
@@ -378,12 +436,25 @@ const styles = {
     fontWeight: 600,
   },
   content: { maxWidth: 600, margin: "0 auto" },
+  kotakCari: {
+    width: "100%",
+    padding: "10px 14px",
+    marginBottom: 12,
+    borderRadius: 3,
+    border: `1px solid ${warna.garis}`,
+    fontSize: 13.5,
+    color: warna.tinta,
+    background: warna.panel,
+    boxSizing: "border-box",
+    fontFamily: font.display,
+  },
   itemCard: {
     background: warna.panel,
     borderRadius: 3,
     padding: 16,
     marginBottom: 8,
     border: `1px solid ${warna.garis}`,
+    transition: "border-color 0.15s ease, box-shadow 0.15s ease",
   },
   itemHeader: { display: "flex", justifyContent: "space-between", alignItems: "center" },
   itemNama: { fontSize: 14.5, color: warna.tinta },
@@ -399,6 +470,17 @@ const styles = {
     borderRadius: 3,
   },
   kosong: { textAlign: "center", color: warna.tintaSamar, padding: 24, fontSize: 13.5 },
+  skeletonCard: {
+    background: warna.panel,
+    borderRadius: 3,
+    padding: 16,
+    marginBottom: 8,
+    border: `1px solid ${warna.garis}`,
+  },
+  skeletonBar: {
+    background: warna.panelAlt,
+    borderRadius: 3,
+  },
   pesanError: { color: warna.bahaya, textAlign: "center" },
   pesanSukses: { color: warna.sukses, textAlign: "center" },
   catatanAdmin: {

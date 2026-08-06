@@ -102,3 +102,12 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+/* Animasi untuk skeleton loading (dipakai lewat class .skeleton-pulse) */
+@keyframes denyut-skeleton {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+.skeleton-pulse {
+  animation: denyut-skeleton 1.3s ease-in-out infinite;
+}

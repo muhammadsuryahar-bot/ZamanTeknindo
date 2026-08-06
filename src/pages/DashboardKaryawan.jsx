@@ -367,7 +367,12 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       </div>
 
       <div style={styles.card}>
-        {tahap === "memuat" && <p style={styles.memuatText}>Memuat status absen…</p>}
+        {tahap === "memuat" && (
+          <div className="skeleton-pulse" style={{ padding: "12px 0" }}>
+            <div style={{ width: 108, height: 108, borderRadius: "50%", background: warna.panelAlt, margin: "0 auto 16px auto" }} />
+            <div style={{ width: "50%", height: 12, borderRadius: 3, background: warna.panelAlt, margin: "0 auto" }} />
+          </div>
+        )}
 
         {tahap !== "memuat" && <DialJamKerja tahap={tahap} />}
 
