@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { API_URL, getToken } from "../utils/api";
 import { warna, font } from "../styles/theme";
 import logoHorizontal from "../assets/logo-horizontal.png";
-import logoWhite from "../assets/logo-white.png";
 import AdminIzin from "./AdminIzin";
 import PengaturanGaji from "./PengaturanGaji";
 import { labelStatusKehadiran } from "../utils/statusKehadiran";
@@ -170,6 +169,31 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
     cocokKataKunci(`${item.nama} ${item.email} ${item.jabatan || ""} ${item.divisi || ""}`, cariKaryawan)
   );
 
+  // Ringkasan angka hari ini, buat kartu statistik di atas tab Rekap —
+  // supaya Bos langsung tahu kondisi hari ini tanpa perlu scroll/baca satu-satu
+  const karyawanAktifCount = karyawan.filter((k) => k.statusAkun === "aktif").length;
+  const jumlahTepatWaktu = rekap.filter((r) => (r.statusFinal || r.statusOtomatis) === "tepat_waktu").length;
+  const jumlahTelat = rekap.filter((r) => (r.statusFinal || r.statusOtomatis) === "telat").length;
+  const jumlahIzinSakitDll = rekap.filter((r) =>
+    ["izin", "sakit", "cuti", "urgent"].includes(r.statusFinal || r.statusOtomatis)
+  ).length;
+  const jumlahBelumAbsen = Math.max(karyawanAktifCount - rekap.length, 0);
+
+  const jamSekarang = new Date().toLocaleDateString("id-ID", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
+  // Inisial 1-2 huruf dari nama, buat avatar bulat di header
+  function inisialNama(nama) {
+    if (!nama) return "?";
+    const bagian = nama.trim().split(" ");
+    if (bagian.length === 1) return bagian[0].slice(0, 2).toUpperCase();
+    return (bagian[0][0] + bagian[bagian.length - 1][0]).toUpperCase();
+  }
+
   const tabs = [
     { id: "rekap", label: "Rekap Hari Ini" },
     { id: "approval", label: `Menunggu${menunggu.length > 0 ? ` (${menunggu.length})` : ""}` },
@@ -181,13 +205,15 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
   return (
     <div style={styles.wrapper}>
       <div style={styles.header}>
-        <div>
+        <div style={styles.headerKiri}>
           <img src={logoHorizontal} alt="PT. Zaman Teknindo" style={styles.logoHeader} />
           <div style={styles.namaRow}>
-            <img src={logoWhite} alt="" style={styles.avatarBadge} />
-            <h2 style={styles.namaUser}>Dashboard</h2>
+            <div style={styles.avatarLingkaran}>{inisialNama(pengguna.nama)}</div>
+            <div>
+              <h2 style={styles.namaUser}>Halo, {pengguna.nama.split(" ")[0]}</h2>
+              <p style={styles.subNamaUser}>{jamSekarang}</p>
+            </div>
           </div>
-          <p style={styles.subNamaUser}>{pengguna.nama}</p>
         </div>
         <button onClick={onLogout} style={styles.tombolLogout}>Keluar</button>
       </div>
@@ -211,6 +237,29 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
 
         {!loading && tab === "rekap" && (
           <>
+            <div style={styles.statGrid}>
+              <div style={styles.statCard}>
+                <span style={styles.statAngka}>{karyawanAktifCount}</span>
+                <span style={styles.statLabel}>Karyawan Aktif</span>
+              </div>
+              <div style={{ ...styles.statCard, borderLeft: `3px solid ${warna.sukses}` }}>
+                <span style={{ ...styles.statAngka, color: warna.sukses }}>{jumlahTepatWaktu}</span>
+                <span style={styles.statLabel}>Tepat Waktu</span>
+              </div>
+              <div style={{ ...styles.statCard, borderLeft: `3px solid ${warna.peringatan}` }}>
+                <span style={{ ...styles.statAngka, color: warna.peringatan }}>{jumlahTelat}</span>
+                <span style={styles.statLabel}>Telat</span>
+              </div>
+              <div style={{ ...styles.statCard, borderLeft: `3px solid ${warna.aksen}` }}>
+                <span style={{ ...styles.statAngka, color: warna.aksen }}>{jumlahIzinSakitDll}</span>
+                <span style={styles.statLabel}>Izin/Sakit/Cuti</span>
+              </div>
+              <div style={{ ...styles.statCard, borderLeft: `3px solid ${warna.tintaSamar}` }}>
+                <span style={{ ...styles.statAngka, color: warna.tintaSamar }}>{jumlahBelumAbsen}</span>
+                <span style={styles.statLabel}>Belum Absen</span>
+              </div>
+            </div>
+
             {rekap.length > 0 && (
               <input
                 type="text"
@@ -220,7 +269,12 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                 style={styles.kotakCari}
               />
             )}
-            {rekap.length === 0 && <p style={styles.kosong}>Belum ada karyawan yang absen hari ini.</p>}
+            {rekap.length === 0 && (
+              <div style={styles.kosongBox}>
+                <span style={styles.kosongIkon}>📋</span>
+                <p style={styles.kosong}>Belum ada karyawan yang absen hari ini.</p>
+              </div>
+            )}
             {rekap.length > 0 && rekapTersaring.length === 0 && (
               <p style={styles.kosong}>Tidak ada hasil untuk "{cariRekap}".</p>
             )}
@@ -230,6 +284,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
               return (
                 <div key={item.id} style={styles.itemCard}>
                   <div style={styles.itemHeader}>
+
                     <strong style={styles.itemNama}>{item.pengguna.nama}</strong>
                     <span style={{ ...styles.badge, color: status.warna, background: status.latar }}>
                       {status.teks}
@@ -285,7 +340,12 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
 
         {!loading && tab === "approval" && (
           <>
-            {menunggu.length === 0 && <p style={styles.kosong}>Tidak ada akun yang menunggu konfirmasi.</p>}
+            {menunggu.length === 0 && (
+              <div style={styles.kosongBox}>
+                <span style={styles.kosongIkon}>✅</span>
+                <p style={styles.kosong}>Tidak ada akun yang menunggu konfirmasi.</p>
+              </div>
+            )}
             {menunggu.map((item) => (
               <div key={item.id} style={styles.itemCard}>
                 <strong style={styles.itemNama}>{item.nama}</strong>
@@ -333,7 +393,12 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                 style={styles.kotakCari}
               />
             )}
-            {karyawan.length === 0 && <p style={styles.kosong}>Belum ada karyawan aktif.</p>}
+            {karyawan.length === 0 && (
+              <div style={styles.kosongBox}>
+                <span style={styles.kosongIkon}>👥</span>
+                <p style={styles.kosong}>Belum ada karyawan aktif.</p>
+              </div>
+            )}
             {karyawan.length > 0 && karyawanTersaring.length === 0 && (
               <p style={styles.kosong}>Tidak ada hasil untuk "{cariKaryawan}".</p>
             )}
@@ -389,32 +454,49 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
 }
 
 const styles = {
-  wrapper: { minHeight: "100vh", background: warna.latar, fontFamily: font.display, padding: 16 },
+  wrapper: { minHeight: "100vh", background: warna.latar, fontFamily: font.display, padding: "24px 16px" },
   header: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 18,
-    maxWidth: 600,
-    margin: "0 auto 18px auto",
+    marginBottom: 22,
+    maxWidth: 920,
+    margin: "0 auto 22px auto",
   },
-  logoHeader: { height: 52, marginBottom: 12, display: "block" },
-  namaRow: { display: "flex", alignItems: "center", gap: 8 },
+  headerKiri: { flex: 1 },
+  logoHeader: { height: 40, marginBottom: 16, display: "block" },
+  namaRow: { display: "flex", alignItems: "center", gap: 12 },
+  avatarLingkaran: {
+    width: 44,
+    height: 44,
+    borderRadius: "50%",
+    background: warna.tinta,
+    color: "#fff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 15,
+    fontWeight: 700,
+    letterSpacing: "0.02em",
+    flexShrink: 0,
+  },
   avatarBadge: { width: 28, height: 28, borderRadius: 6, display: "block" },
-  namaUser: { margin: 0, fontSize: 19, color: warna.tinta, fontWeight: 700 },
+  namaUser: { margin: 0, fontSize: 20, color: warna.tinta, fontWeight: 700 },
   subNamaUser: { margin: "2px 0 0 0", fontSize: 13, color: warna.tintaLembut },
   tombolLogout: {
     background: "none",
     border: `1px solid ${warna.garis}`,
     borderRadius: 3,
-    padding: "8px 14px",
+    padding: "9px 16px",
     fontSize: 12.5,
     cursor: "pointer",
     color: warna.tintaLembut,
+    flexShrink: 0,
   },
-  tabGroup: { display: "flex", gap: 6, maxWidth: 600, margin: "0 auto 16px auto", flexWrap: "wrap" },
+  tabGroup: { display: "flex", gap: 6, maxWidth: 920, margin: "0 auto 20px auto", flexWrap: "wrap" },
   tab: {
-    flex: 1,
+    flex: "1 1 auto",
+    minWidth: 110,
     padding: "10px 6px",
     background: warna.panel,
     border: `1px solid ${warna.garis}`,
@@ -425,7 +507,8 @@ const styles = {
     fontWeight: 500,
   },
   tabAktif: {
-    flex: 1,
+    flex: "1 1 auto",
+    minWidth: 110,
     padding: "10px 6px",
     background: warna.tinta,
     border: `1px solid ${warna.tinta}`,
@@ -435,7 +518,25 @@ const styles = {
     color: "#fff",
     fontWeight: 600,
   },
-  content: { maxWidth: 600, margin: "0 auto" },
+  content: { maxWidth: 920, margin: "0 auto" },
+  statGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+    gap: 10,
+    marginBottom: 18,
+  },
+  statCard: {
+    background: warna.panel,
+    borderRadius: 4,
+    padding: "16px 18px",
+    border: `1px solid ${warna.garis}`,
+    borderLeft: `3px solid ${warna.tinta}`,
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  statAngka: { fontSize: 26, fontWeight: 700, color: warna.tinta, fontFamily: font.mono, lineHeight: 1 },
+  statLabel: { fontSize: 12, color: warna.tintaLembut, fontWeight: 500 },
   kotakCari: {
     width: "100%",
     padding: "10px 14px",
@@ -469,7 +570,15 @@ const styles = {
     padding: "3px 10px",
     borderRadius: 3,
   },
-  kosong: { textAlign: "center", color: warna.tintaSamar, padding: 24, fontSize: 13.5 },
+  kosongBox: {
+    textAlign: "center",
+    padding: "48px 24px",
+    background: warna.panel,
+    borderRadius: 4,
+    border: `1px dashed ${warna.garis}`,
+  },
+  kosongIkon: { fontSize: 28, display: "block", marginBottom: 8, opacity: 0.7 },
+  kosong: { textAlign: "center", color: warna.tintaSamar, fontSize: 13.5, margin: 0 },
   skeletonCard: {
     background: warna.panel,
     borderRadius: 3,
