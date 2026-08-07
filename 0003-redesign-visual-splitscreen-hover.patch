@@ -1,0 +1,957 @@
+From 891ce28a31344fae9e017b6d80a7d49236a07c9c Mon Sep 17 00:00:00 2001
+From: Claude Assistant <assistant@example.com>
+Date: Fri, 7 Aug 2026 09:41:31 +0000
+Subject: [PATCH] Redesign visual: Login/Daftar jadi split-screen brand panel,
+ bulatkan sudut kartu, tambah efek hover halus di seluruh halaman
+
+---
+ src/index.css                   |  38 +++++++
+ src/pages/AdminIzin.jsx         |  17 +--
+ src/pages/Daftar.jsx            | 181 ++++++++++++++++++--------------
+ src/pages/DashboardAdmin.jsx    |  46 ++++----
+ src/pages/DashboardKaryawan.jsx |   2 +-
+ src/pages/Login.jsx             | 158 ++++++++++++++++------------
+ src/pages/PengajuanIzin.jsx     |   3 +-
+ src/pages/PengaturanGaji.jsx    |  20 ++--
+ src/pages/RiwayatAbsensi.jsx    |   5 +-
+ 9 files changed, 284 insertions(+), 186 deletions(-)
+
+diff --git a/src/index.css b/src/index.css
+index 8ea5ebf..0783963 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -29,3 +29,41 @@ h1, h2, h3, p {
+ .skeleton-pulse {
+   animation: denyut-skeleton 1.3s ease-in-out infinite;
+ }
++
++/* Efek hover halus untuk semua tombol interaktif di seluruh halaman */
++button:not(:disabled) {
++  transition: filter 0.12s ease, transform 0.08s ease, box-shadow 0.12s ease;
++}
++button:not(:disabled):hover {
++  filter: brightness(1.06);
++}
++button:not(:disabled):active {
++  transform: translateY(1px);
++}
++
++/* Cincin fokus yang lebih jelas & modern untuk input, menggantikan outline default browser */
++.input-fokus:focus {
++  outline: none;
++  border-color: #1E7A3D !important;
++  box-shadow: 0 0 0 3px rgba(30, 122, 61, 0.15);
++}
++
++/* Layout split-screen di halaman Login/Daftar otomatis jadi vertikal di layar sempit */
++@media (max-width: 680px) {
++  .kartu-login-split {
++    flex-direction: column !important;
++    min-height: auto !important;
++  }
++  .panel-brand-login {
++    flex-basis: auto !important;
++    padding: 28px 24px !important;
++    align-items: flex-start !important;
++  }
++}
++
++/* Kartu item (rekap, karyawan, izin, dll) sedikit "terangkat" saat disentuh mouse */
++.kartu-hover:hover {
++  border-color: #1E7A3D !important;
++  box-shadow: 0 6px 16px rgba(22,35,61,0.08);
++  transform: translateY(-1px);
++}
+diff --git a/src/pages/AdminIzin.jsx b/src/pages/AdminIzin.jsx
+index f62cad5..fb69922 100644
+--- a/src/pages/AdminIzin.jsx
++++ b/src/pages/AdminIzin.jsx
+@@ -107,7 +107,7 @@ export default function AdminIzin() {
+           });
+ 
+           return (
+-            <div key={item.id} style={styles.itemCard}>
++            <div key={item.id} style={styles.itemCard} className="kartu-hover">
+               <div style={styles.itemHeader}>
+                 <div>
+                   <strong style={styles.itemNama}>{item.pengguna?.nama || "-"}</strong>
+@@ -172,7 +172,7 @@ const styles = {
+     background: warna.panel,
+     color: warna.tintaLembut,
+     border: `1px solid ${warna.garis}`,
+-    borderRadius: 3,
++    borderRadius: 10,
+     fontSize: 12.5,
+     fontWeight: 500,
+     cursor: "pointer",
+@@ -182,7 +182,7 @@ const styles = {
+     background: warna.tinta,
+     color: "#fff",
+     border: `1px solid ${warna.tinta}`,
+-    borderRadius: 3,
++    borderRadius: 10,
+     fontSize: 12.5,
+     fontWeight: 600,
+     cursor: "pointer",
+@@ -191,10 +191,11 @@ const styles = {
+   pesanError: { color: warna.bahaya, textAlign: "center", fontSize: 13, marginBottom: 12 },
+   itemCard: {
+     background: warna.panel,
+-    borderRadius: 3,
++    borderRadius: 10,
+     padding: 16,
+     marginBottom: 8,
+     border: `1px solid ${warna.garis}`,
++    transition: "border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease",
+   },
+   itemHeader: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 },
+   itemNama: { fontSize: 14.5, color: warna.tinta },
+@@ -202,7 +203,7 @@ const styles = {
+   itemDetail: { fontSize: 12.5, color: warna.tinta, margin: "10px 0 2px 0", fontWeight: 600 },
+   itemKeterangan: { fontSize: 12.5, color: warna.tintaLembut, margin: "2px 0 0" },
+   pemisah: { color: warna.garis },
+-  badge: { fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 3, whiteSpace: "nowrap" },
++  badge: { fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 10, whiteSpace: "nowrap" },
+   linkFoto: {
+     display: "inline-block",
+     marginTop: 8,
+@@ -218,7 +219,7 @@ const styles = {
+     background: warna.tinta,
+     color: "#fff",
+     border: "none",
+-    borderRadius: 3,
++    borderRadius: 10,
+     fontSize: 12.5,
+     fontWeight: 600,
+     cursor: "pointer",
+@@ -229,7 +230,7 @@ const styles = {
+     background: "#fff",
+     color: warna.bahaya,
+     border: `1px solid ${warna.bahaya}`,
+-    borderRadius: 3,
++    borderRadius: 10,
+     fontSize: 12.5,
+     fontWeight: 600,
+     cursor: "pointer",
+@@ -239,7 +240,7 @@ const styles = {
+     color: warna.tinta,
+     background: warna.panelAlt,
+     padding: "6px 10px",
+-    borderRadius: 3,
++    borderRadius: 10,
+     marginTop: 8,
+     borderLeft: `3px solid ${warna.aksen}`,
+   },
+diff --git a/src/pages/Daftar.jsx b/src/pages/Daftar.jsx
+index c79e896..ee7fbce 100644
+--- a/src/pages/Daftar.jsx
++++ b/src/pages/Daftar.jsx
+@@ -1,7 +1,7 @@
+ import { useState } from "react";
+ import { API_URL } from "../utils/api";
+-import { warna, font, bayangan } from "../styles/theme";
+-import logoLogin from "../assets/logo-login.png";
++import { warna, font } from "../styles/theme";
++import logo from "../assets/logo.png";
+ 
+ export default function Daftar({ keLogin }) {
+   const [nama, setNama] = useState("");
+@@ -45,61 +45,72 @@ export default function Daftar({ keLogin }) {
+ 
+   return (
+     <div style={styles.wrapper}>
+-      <div style={styles.card}>
+-        <div style={styles.bracketTL} />
+-        <div style={styles.bracketTR} />
+-        <div style={styles.bracketBL} />
+-        <div style={styles.bracketBR} />
+-        <img src={logoLogin} alt="PT. Zaman Teknindo" style={styles.logo} />
+-        <h1 style={styles.judul}>Buat Akun</h1>
+-        <p style={styles.subjudul}>Gunakan email kantor kamu untuk mendaftar.</p>
++      <div style={styles.kartuBesar} className="kartu-login-split">
++        <div style={styles.panelBrand} className="panel-brand-login">
++          <div style={styles.polaTitik} />
++          <div style={styles.panelBrandKonten}>
++            <img src={logo} alt="" style={styles.logoIkon} />
++            <h2 style={styles.brandNama}>PT. Zaman Teknindo</h2>
++            <p style={styles.brandTagline}>
++              Satu akun untuk absen, lihat riwayat, dan ajukan izin — kapan saja, di mana saja kamu bertugas.
++            </p>
++          </div>
++        </div>
+ 
+-        <form onSubmit={handleDaftar}>
+-          <label style={styles.label}>Nama Lengkap</label>
+-          <input
+-            type="text"
+-            value={nama}
+-            onChange={(e) => setNama(e.target.value)}
+-            placeholder="Nama sesuai identitas"
+-            style={styles.input}
+-            required
+-          />
++        <div style={styles.panelForm}>
++          <h1 style={styles.judul}>Buat Akun</h1>
++          <p style={styles.subjudul}>Gunakan email kantor kamu untuk mendaftar.</p>
+ 
+-          <label style={styles.label}>Email Kantor</label>
+-          <input
+-            type="email"
+-            value={email}
+-            onChange={(e) => setEmail(e.target.value)}
+-            placeholder="nama@perusahaan.com"
+-            style={styles.input}
+-            required
+-          />
++          <form onSubmit={handleDaftar}>
++            <label style={styles.label}>Nama Lengkap</label>
++            <input
++              type="text"
++              value={nama}
++              onChange={(e) => setNama(e.target.value)}
++              placeholder="Nama sesuai identitas"
++              style={styles.input}
++              className="input-fokus"
++              required
++            />
+ 
+-          <label style={styles.label}>Buat Password</label>
+-          <input
+-            type="password"
+-            value={kataSandi}
+-            onChange={(e) => setKataSandi(e.target.value)}
+-            placeholder="Minimal 6 karakter"
+-            style={styles.input}
+-            required
+-            minLength={6}
+-          />
++            <label style={styles.label}>Email Kantor</label>
++            <input
++              type="email"
++              value={email}
++              onChange={(e) => setEmail(e.target.value)}
++              placeholder="nama@perusahaan.com"
++              style={styles.input}
++              className="input-fokus"
++              required
++            />
+ 
+-          {pesanError && <p style={styles.errorText}>{pesanError}</p>}
+-          {pesanSukses && <p style={styles.successText}>{pesanSukses}</p>}
++            <label style={styles.label}>Buat Password</label>
++            <input
++              type="password"
++              value={kataSandi}
++              onChange={(e) => setKataSandi(e.target.value)}
++              placeholder="Minimal 6 karakter"
++              style={styles.input}
++              className="input-fokus"
++              required
++              minLength={6}
++            />
+ 
+-          <button type="submit" style={styles.tombol} disabled={loading}>
+-            {loading ? "Memproses…" : "Daftar"}
+-          </button>
+-        </form>
++            {pesanError && <p style={styles.errorText}>{pesanError}</p>}
++            {pesanSukses && <p style={styles.successText}>{pesanSukses}</p>}
+ 
+-        <p style={styles.linkText}>
+-          Sudah punya akun?{" "}
+-          <span style={styles.link} onClick={keLogin}>
+-            Login di sini
+-          </span>
+-        </p>
++            <button type="submit" style={styles.tombol} className="tombol-hover" disabled={loading}>
++              {loading ? "Memproses…" : "Daftar"}
++            </button>
++          </form>
++
++          <p style={styles.linkText}>
++            Sudah punya akun?{" "}
++            <span style={styles.link} onClick={keLogin}>
++              Login di sini
++            </span>
++          </p>
++        </div>
+       </div>
+     </div>
+   );
+@@ -112,45 +123,61 @@ const styles = {
+     alignItems: "center",
+     justifyContent: "center",
+     background: warna.latar,
+-    backgroundImage:
+-      "linear-gradient(#DADFE6 1px, transparent 1px), linear-gradient(90deg, #DADFE6 1px, transparent 1px)",
+-    backgroundSize: "28px 28px",
+     padding: 16,
+     fontFamily: font.display,
+   },
+-  card: {
+-    position: "relative",
+-    background: warna.panel,
+-    padding: "36px 30px",
+-    borderRadius: 4,
+-    boxShadow: bayangan,
+-    border: `1px solid ${warna.garis}`,
++  kartuBesar: {
++    display: "flex",
+     width: "100%",
+-    maxWidth: 380,
++    maxWidth: 780,
++    minHeight: 520,
++    background: warna.panel,
++    borderRadius: 18,
++    overflow: "hidden",
++    boxShadow: "0 4px 12px rgba(22,35,61,0.05), 0 20px 48px rgba(22,35,61,0.12)",
+   },
+-  bracketTL: { position: "absolute", top: 12, left: 12, width: 16, height: 16, borderTop: `2px solid ${warna.aksen}`, borderLeft: `2px solid ${warna.aksen}` },
+-  bracketTR: { position: "absolute", top: 12, right: 12, width: 16, height: 16, borderTop: `2px solid ${warna.aksen}`, borderRight: `2px solid ${warna.aksen}` },
+-  bracketBL: { position: "absolute", bottom: 12, left: 12, width: 16, height: 16, borderBottom: `2px solid ${warna.aksen}`, borderLeft: `2px solid ${warna.aksen}` },
+-  bracketBR: { position: "absolute", bottom: 12, right: 12, width: 16, height: 16, borderBottom: `2px solid ${warna.aksen}`, borderRight: `2px solid ${warna.aksen}` },
+-  logo: {
+-    width: 150,
+-    display: "block",
+-    margin: "0 auto 22px auto",
++  panelBrand: {
++    position: "relative",
++    flex: "0 0 42%",
++    background: `linear-gradient(160deg, ${warna.aksen} 0%, ${warna.aksenGelap || "#0B6E45"} 100%)`,
++    padding: "40px 32px",
++    display: "flex",
++    alignItems: "flex-end",
++    overflow: "hidden",
++  },
++  polaTitik: {
++    position: "absolute",
++    inset: 0,
++    backgroundImage: "radial-gradient(rgba(255,255,255,0.14) 1.5px, transparent 1.5px)",
++    backgroundSize: "18px 18px",
++    opacity: 0.6,
++  },
++  panelBrandKonten: { position: "relative", zIndex: 1 },
++  logoIkon: { width: 46, marginBottom: 18, filter: "brightness(0) invert(1)" },
++  brandNama: { color: "#fff", fontSize: 19, fontWeight: 700, margin: "0 0 10px 0" },
++  brandTagline: { color: "rgba(255,255,255,0.85)", fontSize: 13, lineHeight: 1.6, margin: 0 },
++  panelForm: {
++    flex: 1,
++    padding: "40px 40px",
++    display: "flex",
++    flexDirection: "column",
++    justifyContent: "center",
+   },
+-  judul: { fontSize: 22, fontWeight: 700, marginBottom: 4, color: warna.tinta, textAlign: "center" },
+-  subjudul: { fontSize: 13.5, color: warna.tintaLembut, marginBottom: 26, textAlign: "center" },
++  judul: { fontSize: 24, fontWeight: 700, marginBottom: 4, color: warna.tinta },
++  subjudul: { fontSize: 13.5, color: warna.tintaLembut, marginBottom: 24 },
+   label: { display: "block", fontSize: 12.5, fontWeight: 600, marginBottom: 6, color: warna.tinta },
+   input: {
+     width: "100%",
+-    padding: "11px 13px",
++    padding: "12px 14px",
+     marginBottom: 16,
+-    borderRadius: 3,
+-    border: `1px solid ${warna.garis}`,
++    borderRadius: 9,
++    border: `1.5px solid ${warna.garis}`,
+     fontSize: 14,
+     boxSizing: "border-box",
+     fontFamily: font.display,
+     color: warna.tinta,
+     background: warna.latar,
++    transition: "border-color 0.15s ease, box-shadow 0.15s ease",
+   },
+   tombol: {
+     width: "100%",
+@@ -158,11 +185,13 @@ const styles = {
+     background: warna.aksen,
+     color: "#fff",
+     border: "none",
+-    borderRadius: 3,
++    borderRadius: 9,
+     fontSize: 14.5,
+     fontWeight: 600,
+     cursor: "pointer",
+     marginTop: 6,
++    transition: "transform 0.12s ease, filter 0.12s ease, box-shadow 0.12s ease",
++    boxShadow: `0 4px 12px ${warna.aksenLembut}`,
+   },
+   errorText: { color: warna.bahaya, fontSize: 13, marginBottom: 12 },
+   successText: { color: warna.sukses, fontSize: 13, marginBottom: 12 },
+diff --git a/src/pages/DashboardAdmin.jsx b/src/pages/DashboardAdmin.jsx
+index 8ebf082..7630f7d 100644
+--- a/src/pages/DashboardAdmin.jsx
++++ b/src/pages/DashboardAdmin.jsx
+@@ -282,7 +282,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
+               const status = labelStatusKehadiran(item.statusFinal || item.statusOtomatis);
+               const sedangEdit = editStatusTerbuka === item.id;
+               return (
+-                <div key={item.id} style={styles.itemCard}>
++                <div key={item.id} style={styles.itemCard} className="kartu-hover">
+                   <div style={styles.itemHeader}>
+ 
+                     <strong style={styles.itemNama}>{item.pengguna.nama}</strong>
+@@ -347,7 +347,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
+               </div>
+             )}
+             {menunggu.map((item) => (
+-              <div key={item.id} style={styles.itemCard}>
++              <div key={item.id} style={styles.itemCard} className="kartu-hover">
+                 <strong style={styles.itemNama}>{item.nama}</strong>
+                 <p style={styles.itemSub}>{item.email}</p>
+ 
+@@ -403,7 +403,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
+               <p style={styles.kosong}>Tidak ada hasil untuk "{cariKaryawan}".</p>
+             )}
+             {karyawanTersaring.map((item) => (
+-              <div key={item.id} style={styles.itemCard}>
++              <div key={item.id} style={styles.itemCard} className="kartu-hover">
+                 <div style={styles.itemHeader}>
+                   <strong style={styles.itemNama}>{item.nama}</strong>
+                   <span
+@@ -480,13 +480,13 @@ const styles = {
+     letterSpacing: "0.02em",
+     flexShrink: 0,
+   },
+-  avatarBadge: { width: 28, height: 28, borderRadius: 6, display: "block" },
++  avatarBadge: { width: 28, height: 28, borderRadius: 8, display: "block" },
+   namaUser: { margin: 0, fontSize: 20, color: warna.tinta, fontWeight: 700 },
+   subNamaUser: { margin: "2px 0 0 0", fontSize: 13, color: warna.tintaLembut },
+   tombolLogout: {
+     background: "none",
+     border: `1px solid ${warna.garis}`,
+-    borderRadius: 3,
++    borderRadius: 10,
+     padding: "9px 16px",
+     fontSize: 12.5,
+     cursor: "pointer",
+@@ -500,7 +500,7 @@ const styles = {
+     padding: "10px 6px",
+     background: warna.panel,
+     border: `1px solid ${warna.garis}`,
+-    borderRadius: 3,
++    borderRadius: 10,
+     fontSize: 12.5,
+     cursor: "pointer",
+     color: warna.tintaLembut,
+@@ -512,7 +512,7 @@ const styles = {
+     padding: "10px 6px",
+     background: warna.tinta,
+     border: `1px solid ${warna.tinta}`,
+-    borderRadius: 3,
++    borderRadius: 10,
+     fontSize: 12.5,
+     cursor: "pointer",
+     color: "#fff",
+@@ -527,7 +527,7 @@ const styles = {
+   },
+   statCard: {
+     background: warna.panel,
+-    borderRadius: 4,
++    borderRadius: 10,
+     padding: "16px 18px",
+     border: `1px solid ${warna.garis}`,
+     borderLeft: `3px solid ${warna.tinta}`,
+@@ -541,7 +541,7 @@ const styles = {
+     width: "100%",
+     padding: "10px 14px",
+     marginBottom: 12,
+-    borderRadius: 3,
++    borderRadius: 10,
+     border: `1px solid ${warna.garis}`,
+     fontSize: 13.5,
+     color: warna.tinta,
+@@ -551,11 +551,11 @@ const styles = {
+   },
+   itemCard: {
+     background: warna.panel,
+-    borderRadius: 3,
++    borderRadius: 10,
+     padding: 16,
+     marginBottom: 8,
+     border: `1px solid ${warna.garis}`,
+-    transition: "border-color 0.15s ease, box-shadow 0.15s ease",
++    transition: "border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease",
+   },
+   itemHeader: { display: "flex", justifyContent: "space-between", alignItems: "center" },
+   itemNama: { fontSize: 14.5, color: warna.tinta },
+@@ -568,27 +568,27 @@ const styles = {
+     fontSize: 11,
+     fontWeight: 600,
+     padding: "3px 10px",
+-    borderRadius: 3,
++    borderRadius: 10,
+   },
+   kosongBox: {
+     textAlign: "center",
+     padding: "48px 24px",
+     background: warna.panel,
+-    borderRadius: 4,
++    borderRadius: 10,
+     border: `1px dashed ${warna.garis}`,
+   },
+   kosongIkon: { fontSize: 28, display: "block", marginBottom: 8, opacity: 0.7 },
+   kosong: { textAlign: "center", color: warna.tintaSamar, fontSize: 13.5, margin: 0 },
+   skeletonCard: {
+     background: warna.panel,
+-    borderRadius: 3,
++    borderRadius: 10,
+     padding: 16,
+     marginBottom: 8,
+     border: `1px solid ${warna.garis}`,
+   },
+   skeletonBar: {
+     background: warna.panelAlt,
+-    borderRadius: 3,
++    borderRadius: 10,
+   },
+   pesanError: { color: warna.bahaya, textAlign: "center" },
+   pesanSukses: { color: warna.sukses, textAlign: "center" },
+@@ -598,7 +598,7 @@ const styles = {
+     background: warna.panelAlt,
+     borderLeft: `3px solid ${warna.aksen}`,
+     padding: "8px 10px",
+-    borderRadius: 2,
++    borderRadius: 8,
+     margin: "8px 0 0 0",
+   },
+   tombolEditKecil: {
+@@ -607,7 +607,7 @@ const styles = {
+     background: "none",
+     color: warna.tintaLembut,
+     border: `1px solid ${warna.garis}`,
+-    borderRadius: 3,
++    borderRadius: 10,
+     fontSize: 11.5,
+     cursor: "pointer",
+     fontWeight: 500,
+@@ -624,7 +624,7 @@ const styles = {
+   inputForm: {
+     padding: "8px 10px",
+     border: `1px solid ${warna.garis}`,
+-    borderRadius: 3,
++    borderRadius: 10,
+     fontSize: 13,
+     color: warna.tinta,
+     fontFamily: font.display,
+@@ -632,7 +632,7 @@ const styles = {
+   selectForm: {
+     padding: "8px 10px",
+     border: `1px solid ${warna.garis}`,
+-    borderRadius: 3,
++    borderRadius: 10,
+     fontSize: 13,
+     color: warna.tinta,
+     fontFamily: font.display,
+@@ -641,7 +641,7 @@ const styles = {
+   textareaForm: {
+     padding: "8px 10px",
+     border: `1px solid ${warna.garis}`,
+-    borderRadius: 3,
++    borderRadius: 10,
+     fontSize: 13,
+     color: warna.tinta,
+     fontFamily: font.display,
+@@ -655,7 +655,7 @@ const styles = {
+     background: "none",
+     color: warna.tintaLembut,
+     border: `1px solid ${warna.garis}`,
+-    borderRadius: 3,
++    borderRadius: 10,
+     fontSize: 12.5,
+     cursor: "pointer",
+     fontWeight: 600,
+@@ -672,7 +672,7 @@ const styles = {
+     background: warna.tinta,
+     color: "#fff",
+     border: "none",
+-    borderRadius: 3,
++    borderRadius: 10,
+     fontSize: 12.5,
+     cursor: "pointer",
+     fontWeight: 600,
+@@ -683,7 +683,7 @@ const styles = {
+     background: "#fff",
+     color: warna.bahaya,
+     border: `1px solid ${warna.bahaya}`,
+-    borderRadius: 3,
++    borderRadius: 10,
+     fontSize: 12.5,
+     cursor: "pointer",
+     fontWeight: 600,
+diff --git a/src/pages/DashboardKaryawan.jsx b/src/pages/DashboardKaryawan.jsx
+index ce7fd64..f7dca1b 100644
+--- a/src/pages/DashboardKaryawan.jsx
++++ b/src/pages/DashboardKaryawan.jsx
+@@ -347,7 +347,7 @@ const styles = {
+   subUser: { margin: "2px 0 0 0", fontSize: 12.5, color: warna.tintaLembut },
+   tanggalHariIni: { fontSize: 11.5, color: warna.tintaSamar, margin: "10px 0 18px 0", paddingLeft: 56 },
+ 
+-  pesanBox: { padding: "11px 14px", borderRadius: 6, fontSize: 13, marginBottom: 16, textAlign: "center", fontWeight: 500 },
++  pesanBox: { padding: "11px 14px", borderRadius: 8, fontSize: 13, marginBottom: 16, textAlign: "center", fontWeight: 500 },
+ 
+   kameraBox: { position: "relative", borderRadius: 8, overflow: "hidden", marginBottom: 16, backgroundColor: "#000", aspectRatio: "4/3" },
+   video: { width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)" },
+diff --git a/src/pages/Login.jsx b/src/pages/Login.jsx
+index 2fd4185..5214019 100644
+--- a/src/pages/Login.jsx
++++ b/src/pages/Login.jsx
+@@ -1,7 +1,7 @@
+ import { useState } from "react";
+ import { API_URL, simpanSesiLogin } from "../utils/api";
+-import { warna, font, bayangan } from "../styles/theme";
+-import logoLogin from "../assets/logo-login.png";
++import { warna, font } from "../styles/theme";
++import logo from "../assets/logo.png";
+ 
+ export default function Login({ onLoginBerhasil, kePendaftaran }) {
+   const [email, setEmail] = useState("");
+@@ -40,49 +40,59 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
+ 
+   return (
+     <div style={styles.wrapper}>
+-      <div style={styles.card}>
+-        <div style={styles.bracketTL} />
+-        <div style={styles.bracketTR} />
+-        <div style={styles.bracketBL} />
+-        <div style={styles.bracketBR} />
+-        <img src={logoLogin} alt="PT. Zaman Teknindo" style={styles.logo} />
+-        <h1 style={styles.judul}>Masuk ke Akun</h1>
+-        <p style={styles.subjudul}>Catat kehadiran, tepat waktu, setiap hari.</p>
++      <div style={styles.kartuBesar} className="kartu-login-split">
++        {/* Panel kiri: identitas brand */}
++        <div style={styles.panelBrand} className="panel-brand-login">
++          <div style={styles.polaTitik} />
++          <div style={styles.panelBrandKonten}>
++            <img src={logo} alt="" style={styles.logoIkon} />
++            <h2 style={styles.brandNama}>PT. Zaman Teknindo</h2>
++            <p style={styles.brandTagline}>Catat kehadiran, tepat waktu, setiap hari — di mana pun kamu bertugas.</p>
++          </div>
++        </div>
+ 
+-        <form onSubmit={handleLogin}>
+-          <label style={styles.label}>Email</label>
+-          <input
+-            type="email"
+-            value={email}
+-            onChange={(e) => setEmail(e.target.value)}
+-            placeholder="nama@perusahaan.com"
+-            style={styles.input}
+-            required
+-          />
++        {/* Panel kanan: form login */}
++        <div style={styles.panelForm}>
++          <h1 style={styles.judul}>Masuk ke Akun</h1>
++          <p style={styles.subjudul}>Gunakan email &amp; password akun kamu.</p>
+ 
+-          <label style={styles.label}>Password</label>
+-          <input
+-            type="password"
+-            value={kataSandi}
+-            onChange={(e) => setKataSandi(e.target.value)}
+-            placeholder="Masukkan password"
+-            style={styles.input}
+-            required
+-          />
++          <form onSubmit={handleLogin}>
++            <label style={styles.label}>Email</label>
++            <input
++              type="email"
++              value={email}
++              onChange={(e) => setEmail(e.target.value)}
++              placeholder="nama@perusahaan.com"
++              style={styles.input}
++              className="input-fokus"
++              required
++            />
+ 
+-          {pesanError && <p style={styles.errorText}>{pesanError}</p>}
++            <label style={styles.label}>Password</label>
++            <input
++              type="password"
++              value={kataSandi}
++              onChange={(e) => setKataSandi(e.target.value)}
++              placeholder="Masukkan password"
++              style={styles.input}
++              className="input-fokus"
++              required
++            />
+ 
+-          <button type="submit" style={styles.tombol} disabled={loading}>
+-            {loading ? "Memproses…" : "Masuk"}
+-          </button>
+-        </form>
++            {pesanError && <p style={styles.errorText}>{pesanError}</p>}
+ 
+-        <p style={styles.linkText}>
+-          Belum punya akun?{" "}
+-          <span style={styles.link} onClick={kePendaftaran}>
+-            Daftar di sini
+-          </span>
+-        </p>
++            <button type="submit" style={styles.tombol} className="tombol-hover" disabled={loading}>
++              {loading ? "Memproses…" : "Masuk"}
++            </button>
++          </form>
++
++          <p style={styles.linkText}>
++            Belum punya akun?{" "}
++            <span style={styles.link} onClick={kePendaftaran}>
++              Daftar di sini
++            </span>
++          </p>
++        </div>
+       </div>
+     </div>
+   );
+@@ -95,45 +105,61 @@ const styles = {
+     alignItems: "center",
+     justifyContent: "center",
+     background: warna.latar,
+-    backgroundImage:
+-      "linear-gradient(#DADFE6 1px, transparent 1px), linear-gradient(90deg, #DADFE6 1px, transparent 1px)",
+-    backgroundSize: "28px 28px",
+     padding: 16,
+     fontFamily: font.display,
+   },
+-  card: {
+-    position: "relative",
+-    background: warna.panel,
+-    padding: "36px 30px",
+-    borderRadius: 4,
+-    boxShadow: bayangan,
+-    border: `1px solid ${warna.garis}`,
++  kartuBesar: {
++    display: "flex",
+     width: "100%",
+-    maxWidth: 380,
++    maxWidth: 780,
++    minHeight: 480,
++    background: warna.panel,
++    borderRadius: 18,
++    overflow: "hidden",
++    boxShadow: "0 4px 12px rgba(22,35,61,0.05), 0 20px 48px rgba(22,35,61,0.12)",
+   },
+-  bracketTL: { position: "absolute", top: 12, left: 12, width: 16, height: 16, borderTop: `2px solid ${warna.aksen}`, borderLeft: `2px solid ${warna.aksen}` },
+-  bracketTR: { position: "absolute", top: 12, right: 12, width: 16, height: 16, borderTop: `2px solid ${warna.aksen}`, borderRight: `2px solid ${warna.aksen}` },
+-  bracketBL: { position: "absolute", bottom: 12, left: 12, width: 16, height: 16, borderBottom: `2px solid ${warna.aksen}`, borderLeft: `2px solid ${warna.aksen}` },
+-  bracketBR: { position: "absolute", bottom: 12, right: 12, width: 16, height: 16, borderBottom: `2px solid ${warna.aksen}`, borderRight: `2px solid ${warna.aksen}` },
+-  logo: {
+-    width: 150,
+-    display: "block",
+-    margin: "0 auto 22px auto",
++  panelBrand: {
++    position: "relative",
++    flex: "0 0 42%",
++    background: `linear-gradient(160deg, ${warna.aksen} 0%, ${warna.aksenGelap || "#0B6E45"} 100%)`,
++    padding: "40px 32px",
++    display: "flex",
++    alignItems: "flex-end",
++    overflow: "hidden",
++  },
++  polaTitik: {
++    position: "absolute",
++    inset: 0,
++    backgroundImage: "radial-gradient(rgba(255,255,255,0.14) 1.5px, transparent 1.5px)",
++    backgroundSize: "18px 18px",
++    opacity: 0.6,
++  },
++  panelBrandKonten: { position: "relative", zIndex: 1 },
++  logoIkon: { width: 46, marginBottom: 18, filter: "brightness(0) invert(1)" },
++  brandNama: { color: "#fff", fontSize: 19, fontWeight: 700, margin: "0 0 10px 0" },
++  brandTagline: { color: "rgba(255,255,255,0.85)", fontSize: 13, lineHeight: 1.6, margin: 0 },
++  panelForm: {
++    flex: 1,
++    padding: "44px 40px",
++    display: "flex",
++    flexDirection: "column",
++    justifyContent: "center",
+   },
+-  judul: { fontSize: 22, fontWeight: 700, marginBottom: 4, color: warna.tinta, textAlign: "center" },
+-  subjudul: { fontSize: 13.5, color: warna.tintaLembut, marginBottom: 26, textAlign: "center" },
++  judul: { fontSize: 24, fontWeight: 700, marginBottom: 4, color: warna.tinta },
++  subjudul: { fontSize: 13.5, color: warna.tintaLembut, marginBottom: 28 },
+   label: { display: "block", fontSize: 12.5, fontWeight: 600, marginBottom: 6, color: warna.tinta },
+   input: {
+     width: "100%",
+-    padding: "11px 13px",
++    padding: "12px 14px",
+     marginBottom: 16,
+-    borderRadius: 3,
+-    border: `1px solid ${warna.garis}`,
++    borderRadius: 9,
++    border: `1.5px solid ${warna.garis}`,
+     fontSize: 14,
+     boxSizing: "border-box",
+     fontFamily: font.display,
+     color: warna.tinta,
+     background: warna.latar,
++    transition: "border-color 0.15s ease, box-shadow 0.15s ease",
+   },
+   tombol: {
+     width: "100%",
+@@ -141,12 +167,14 @@ const styles = {
+     background: warna.aksen,
+     color: "#fff",
+     border: "none",
+-    borderRadius: 3,
++    borderRadius: 9,
+     fontSize: 14.5,
+     fontWeight: 600,
+     letterSpacing: "0.01em",
+     cursor: "pointer",
+     marginTop: 6,
++    transition: "transform 0.12s ease, filter 0.12s ease, box-shadow 0.12s ease",
++    boxShadow: `0 4px 12px ${warna.aksenLembut}`,
+   },
+   errorText: { color: warna.bahaya, fontSize: 13, marginBottom: 12 },
+   linkText: { textAlign: "center", fontSize: 13, color: warna.tintaLembut, marginTop: 22 },
+diff --git a/src/pages/PengajuanIzin.jsx b/src/pages/PengajuanIzin.jsx
+index f253d48..51884f0 100644
+--- a/src/pages/PengajuanIzin.jsx
++++ b/src/pages/PengajuanIzin.jsx
+@@ -175,7 +175,7 @@ export default function PengajuanIzin({ kembali }) {
+               year: "numeric",
+             });
+             return (
+-              <div key={item.id} style={styles.itemCard}>
++              <div key={item.id} style={styles.itemCard} className="kartu-hover">
+                 <div style={styles.itemHeader}>
+                   <strong style={styles.itemNama}>
+                     {labelJenis(item.jenis)} — {tanggalTampil}
+@@ -259,6 +259,7 @@ const styles = {
+     padding: 16,
+     marginBottom: 8,
+     border: `1px solid ${warna.garis}`,
++    transition: "border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease",
+   },
+   itemHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 },
+   itemNama: { fontSize: 13.5, color: warna.tinta, fontWeight: 600 },
+diff --git a/src/pages/PengaturanGaji.jsx b/src/pages/PengaturanGaji.jsx
+index f0fe726..7a57f3b 100644
+--- a/src/pages/PengaturanGaji.jsx
++++ b/src/pages/PengaturanGaji.jsx
+@@ -359,7 +359,7 @@ export default function PengaturanGaji() {
+ const styles = {
+   card: {
+     background: warna.panel,
+-    borderRadius: 3,
++    borderRadius: 10,
+     padding: 20,
+     marginBottom: 12,
+     border: `1px solid ${warna.garis}`,
+@@ -373,7 +373,7 @@ const styles = {
+     color: warna.tinta,
+     background: warna.panelAlt,
+     padding: "10px 12px",
+-    borderRadius: 3,
++    borderRadius: 10,
+     borderLeft: `3px solid ${warna.aksen}`,
+     marginBottom: 12,
+   },
+@@ -384,7 +384,7 @@ const styles = {
+   input: {
+     width: "100%",
+     padding: "10px 12px",
+-    borderRadius: 3,
++    borderRadius: 10,
+     border: `1px solid ${warna.garis}`,
+     fontSize: 14,
+     boxSizing: "border-box",
+@@ -395,7 +395,7 @@ const styles = {
+   inputKecil: {
+     flex: 1,
+     padding: "8px 10px",
+-    borderRadius: 3,
++    borderRadius: 10,
+     border: `1px solid ${warna.garis}`,
+     fontSize: 12.5,
+     boxSizing: "border-box",
+@@ -408,7 +408,7 @@ const styles = {
+     display: "flex",
+     alignItems: "center",
+     border: `1px solid ${warna.garis}`,
+-    borderRadius: 3,
++    borderRadius: 10,
+     background: warna.panel,
+     boxSizing: "border-box",
+     colorScheme: "light",
+@@ -431,7 +431,7 @@ const styles = {
+     display: "flex",
+     alignItems: "center",
+     border: `1px solid ${warna.garis}`,
+-    borderRadius: 3,
++    borderRadius: 10,
+     background: warna.panel,
+     boxSizing: "border-box",
+     colorScheme: "light",
+@@ -455,7 +455,7 @@ const styles = {
+     background: warna.aksen,
+     color: "#fff",
+     border: "none",
+-    borderRadius: 3,
++    borderRadius: 10,
+     fontSize: 13.5,
+     fontWeight: 600,
+     cursor: "pointer",
+@@ -466,7 +466,7 @@ const styles = {
+     background: warna.tinta,
+     color: "#fff",
+     border: "none",
+-    borderRadius: 3,
++    borderRadius: 10,
+     fontSize: 12.5,
+     fontWeight: 600,
+     cursor: "pointer",
+@@ -477,7 +477,7 @@ const styles = {
+     background: warna.panelAlt,
+     color: warna.tinta,
+     border: `1px solid ${warna.garis}`,
+-    borderRadius: 3,
++    borderRadius: 10,
+     fontSize: 12.5,
+     fontWeight: 600,
+     cursor: "pointer",
+@@ -503,7 +503,7 @@ const styles = {
+     padding: "10px 12px",
+     background: warna.peringatanLembut,
+     border: `1px solid ${warna.peringatan}`,
+-    borderRadius: 3,
++    borderRadius: 10,
+   },
+   peringatanJudul: { fontSize: 12.5, color: warna.peringatan },
+   peringatanList: { margin: "6px 0", paddingLeft: 18, fontSize: 12, color: warna.tinta },
+diff --git a/src/pages/RiwayatAbsensi.jsx b/src/pages/RiwayatAbsensi.jsx
+index 03cf9f8..9a77100 100644
+--- a/src/pages/RiwayatAbsensi.jsx
++++ b/src/pages/RiwayatAbsensi.jsx
+@@ -73,7 +73,7 @@ export default function RiwayatAbsensi({ kembali }) {
+             riwayat.map((item) => {
+               const status = labelStatusKehadiran(item.statusFinal || item.statusOtomatis);
+               return (
+-                <div key={item.id} style={styles.itemCard}>
++                <div key={item.id} style={styles.itemCard} className="kartu-hover">
+                   <div style={styles.itemHeader}>
+                     <strong style={styles.tanggal}>{formatTanggal(item.tanggal)}</strong>
+                     <span style={{ ...styles.badge, color: status.warna, background: status.latar }}>
+@@ -119,6 +119,7 @@ const styles = {
+     padding: 16,
+     marginBottom: 8,
+     border: `1px solid ${warna.garis}`,
++    transition: "border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease",
+   },
+   itemHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 },
+   tanggal: { fontSize: 13.5, color: warna.tinta },
+@@ -131,7 +132,7 @@ const styles = {
+     color: warna.tinta,
+     background: warna.panelAlt,
+     padding: "6px 10px",
+-    borderRadius: 6,
++    borderRadius: 8,
+     marginTop: 8,
+     borderLeft: `3px solid ${warna.aksen}`,
+   },
+-- 
+2.43.0
+
