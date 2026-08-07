@@ -111,3 +111,40 @@ code {
 .skeleton-pulse {
   animation: denyut-skeleton 1.3s ease-in-out infinite;
 }
+
+/* ==== Layout Dashboard Karyawan: satu kolom di HP, panel terbelah di layar lebar ==== */
+/* Default (HP / layar sempit): topbar hijau tipis + identitas ringkas + dial di dalam kartu */
+.zt-panel-brand {
+  display: none;
+}
+
+@media (min-width: 860px) {
+  .zt-shell {
+    max-width: 760px !important;
+    display: flex;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(22,35,61,0.04), 0 8px 24px rgba(22,35,61,0.06);
+  }
+  /* Di layar lebar, identitas & dial pindah ke panel kiri -- topbar & identitas ringkas di kartu disembunyikan */
+  .zt-topbar-mobile,
+  .zt-identitas-mobile,
+  .zt-dial-mobile {
+    display: none !important;
+  }
+  .zt-panel-brand {
+    display: flex !important;
+    flex: 1;
+  }
+  .zt-panel-aksi {
+    flex: 1.3;
+    display: flex;
+    align-items: center;
+  }
+  .zt-panel-aksi > div {
+    width: 100%;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 40px 36px !important;
+  }
+}

@@ -1,5 +1,10 @@
 // Token desain dipakai bersama di semua halaman, supaya konsisten
 // dan gampang diubah dari satu tempat kalau nanti mau reskin.
+//
+// `aksen` diambil langsung dari warna logo PT. Zaman Teknindo (hijau pinus,
+// #0B6E45) -- bukan warna template. Merah dari wordmark logo sengaja TIDAK
+// dipakai sebagai warna aksi UI, karena merah di sistem ini sudah bermakna
+// "Alpha/bahaya"; motif merah brand cukup hidup lewat logo saja.
 
 export const warna = {
   latar: "#F4F5F7",
@@ -9,8 +14,9 @@ export const warna = {
   tinta: "#16233D",
   tintaLembut: "#5B6472",
   tintaSamar: "#8A93A3",
-  aksen: "#E8590C",
-  aksenLembut: "#FDE9DC",
+  aksen: "#0B6E45",
+  aksenGelap: "#08402A",
+  aksenLembut: "#E1F0E8",
   sukses: "#2F855A",
   suksesLembut: "#E4F3EA",
   peringatan: "#C77800",

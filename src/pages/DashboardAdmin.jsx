@@ -27,7 +27,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
   const [tab, setTab] = useState("rekap");
   const [rekap, setRekap] = useState([]);
   const [menunggu, setMenunggu] = useState([]);
-  const [karyawan, setKaryawan] = useState([]);
+  const [karyawan, setKaryawan] = useState([]); 
   const [loading, setLoading] = useState(true);
   const [pesan, setPesan] = useState("");
   const [pesanSukses, setPesanSukses] = useState("");

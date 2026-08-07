@@ -1,10 +1,13 @@
-// File ini berisi alamat backend & fungsi bantu untuk komunikasi ke API
+// File: src/utils/api.js
 
-// Ganti ini kalau nanti backend sudah online (bukan localhost lagi)
 const HOST_SEKARANG = window.location.hostname;
-export const API_URL = "/api";
 
-// Fungsi bantu: ambil token yang tersimpan di browser (setelah login)
+// Jika di komputer sendiri, arahkan ke port backend Anda (contoh: 5000)
+// Jika sudah online, sesuaikan dengan domain backend Anda
+export const API_URL = HOST_SEKARANG === "localhost" || HOST_SEKARANG === "127.0.0.1"
+  ? "http://localhost:5000/api" 
+  : `https://${HOST_SEKARANG}/api`;
+
 export function getToken() {
   return localStorage.getItem("token");
 }
