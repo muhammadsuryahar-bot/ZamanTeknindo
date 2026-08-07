@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import * as turf from "@turf/turf";
 import { API_URL, getToken } from "../utils/api";
-import RiwayatAbsensi from "./RiwayatAbsensi";
-import PengajuanIzin from "./PengajuanIzin";
 import { warna, font } from "../styles/theme";
-import logoWhite from "../assets/logo-white.png";
+import logoHorizontal from "../assets/logo-horizontal.png";
 
 let dataProvinsiCache = null;
 async function muatDataProvinsi() {
@@ -29,8 +28,6 @@ async function cariProvinsiResmi(latitude, longitude) {
 }
 
 async function ambilKotaKecamatanBigDataCloud(latitude, longitude) {
-  // PERBAIKAN: domain & query string sebelumnya rusak
-  // (https://bigdatacloud.net{latitude}&longitude=...) -> endpoint resmi + template literal yang benar
   const res = await fetch(
     `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=id`
   );
@@ -41,95 +38,18 @@ async function ambilKotaKecamatanBigDataCloud(latitude, longitude) {
   return bagian.join(", ");
 }
 
-// Catatan: fungsi ambilDetailNominatim / ambilDetailNominatimPadaZoom pada versi sebelumnya
-// tidak pernah dipanggil (dead code) dan URL-nya rusak (https://openstreetmap.org{latitude}...).
-// Dihapus di versi ini karena BigDataCloud + Turf sudah cukup untuk deteksi alamat/provinsi.
-// Kalau memang butuh detail nama jalan dari Nominatim, kasih tahu saya, nanti saya tambahkan
-// kembali dengan endpoint yang benar: https://nominatim.openstreetmap.org/reverse?lat=..&lon=..
-
-// ============ ELEMEN VISUAL: DIAL JAM KERJA ============
-// Catatan: komponen ini tidak dipanggil di JSX versi baru (yang dipakai sekarang tampilan
-// yang lebih sederhana). Saya biarkan tetap ada kalau-kalau masih mau dipakai lagi nanti.
-function DialJamKerja({ tahap, varian = "gelap" }) {
-  const [sekarang, setSekarang] = useState(new Date());
-
-  useEffect(() => {
-    const interval = setInterval(() => setSekarang(new Date()), 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const jamDesimal = sekarang.getHours() + sekarang.getMinutes() / 60;
-  const sudutSekarang = (jamDesimal / 24) * 360;
-  const sudutMulaiKerja = (8 / 24) * 360;
-  const sudutSelesaiKerja = (17 / 24) * 360;
-  const persenMulai = (sudutMulaiKerja / 360) * 100;
-  const persenSelesai = (sudutSelesaiKerja / 360) * 100;
-
-  const terang = varian === "terang";
-  const warnaTrek = terang ? "rgba(255,255,255,0.22)" : warna.garis;
-  const warnaDial = terang
-    ? "#FFFFFF"
-    : tahap === "selesai" ? warna.sukses : tahap === "sudah_masuk" ? warna.peringatan : warna.tintaSamar;
-  const warnaTeks = terang ? "#FFFFFF" : warna.tinta;
-  const warnaTeksSamar = terang ? "rgba(255,255,255,0.7)" : warna.tintaSamar;
-  const warnaTakik = terang ? "rgba(255,255,255,0.45)" : "#C7CDD6";
-
-  const takik = [0, 6, 12, 18].map((jam) => {
-    const sudut = (jam / 24) * 360 - 90;
-    const rad = (sudut * Math.PI) / 180;
-    const x1 = 48 + 38 * Math.cos(rad);
-    const y1 = 48 + 38 * Math.sin(rad);
-    const x2 = 48 + 44 * Math.cos(rad);
-    const y2 = 48 + 44 * Math.sin(rad);
-    return { x1, y1, x2, y2, jam };
-  });
-
-  return (
-    <div style={dialStyles.wrapper}>
-      <svg width="108" height="108" viewBox="0 0 96 96">
-        <circle cx="48" cy="48" r="42" fill="none" stroke={warnaTrek} strokeWidth="6" />
-        <circle
-          cx="48" cy="48" r="42" fill="none" stroke={warnaDial} strokeWidth="6"
-          strokeDasharray={`${((persenSelesai - persenMulai) / 100) * 264} 264`}
-          strokeDashoffset={-((persenMulai / 100) * 264)}
-          transform="rotate(-90 48 48)"
-        />
-        {takik.map((t, i) => (
-          <line key={i} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} stroke={warnaTakik} strokeWidth="1.5" />
-        ))}
-        <g transform={`rotate(${sudutSekarang - 90} 48 48)`}>
-          <circle cx="90" cy="48" r="3.5" fill={terang ? "#FFFFFF" : warna.tinta} stroke={terang ? warna.aksen : "#FFFFFF"} strokeWidth="1.5" />
-        </g>
-        <text x="48" y="45" textAnchor="middle" fontFamily={font.mono} fontSize="15" fontWeight="600" fill={warnaTeks}>
-          {sekarang.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
-        </text>
-        <text x="48" y="58" textAnchor="middle" fontFamily={font.mono} fontSize="7" fill={warnaTeksSamar} letterSpacing="1">
-          WIB
-        </text>
-      </svg>
-    </div>
-  );
-}
-
-const dialStyles = {
-  wrapper: { display: "flex", justifyContent: "center", marginBottom: 16 },
-};
-
-function BracketSudut({ warnaGaris, ukuran = 14, jarak = 10 }) {
-  const dasar = { position: "absolute", width: ukuran, height: ukuran, borderColor: warnaGaris, borderStyle: "solid", borderWidth: 0 };
-  return (
-    <>
-      <div style={{ ...dasar, top: jarak, left: jarak, borderTopWidth: 2, borderLeftWidth: 2 }} />
-      <div style={{ ...dasar, top: jarak, right: jarak, borderTopWidth: 2, borderRightWidth: 2 }} />
-      <div style={{ ...dasar, bottom: jarak, left: jarak, borderBottomWidth: 2, borderLeftWidth: 2 }} />
-      <div style={{ ...dasar, bottom: jarak, right: jarak, borderBottomWidth: 2, borderRightWidth: 2 }} />
-    </>
-  );
+// Inisial 1-2 huruf dari nama, buat avatar bulat
+function inisialNama(nama) {
+  if (!nama) return "?";
+  const bagian = nama.trim().split(" ");
+  if (bagian.length === 1) return bagian[0].slice(0, 2).toUpperCase();
+  return (bagian[0][0] + bagian[bagian.length - 1][0]).toUpperCase();
 }
 
 export default function DashboardKaryawan({ pengguna, onLogout }) {
+  const navigate = useNavigate();
+
   const [tahap, setTahap] = useState("memuat");
-  const [halaman, setHalaman] = useState("absen");
   const [kameraAktif, setKameraAktif] = useState(false);
   const [fotoTerambil, setFotoTerambil] = useState(null);
   const [lokasi, setLokasi] = useState(null);
@@ -188,12 +108,21 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     setKameraAktif(false);
   }
 
+  // PERBAIKAN BUG MIRROR: preview <video> live tampil dibalik (mirror,
+  // transform: scaleX(-1)) supaya terasa natural kayak kaca saat framing.
+  // Sebelumnya canvas cuma nge-draw frame video APA ADANYA (tidak dibalik),
+  // jadi foto hasil jepretan JUSTRU KEBALIKAN dari yang dilihat user saat
+  // framing -- kalau ada tulisan di background, misalnya, arahnya kebalik.
+  // Fix: canvas ikut dibalik horizontal saat menggambar, supaya hasil akhir
+  // konsisten dengan apa yang dilihat user di preview.
   function ambilFoto() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext("2d");
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     canvas.toBlob((blob) => setFotoTerambil(blob), "image/jpeg", 0.85);
     hentikanKamera();
@@ -229,10 +158,6 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     );
   }
 
-  // ============ FUNGSI KIRIM ABSENSI KE BACKEND ============
-  // PERBAIKAN: sebelumnya blok routing halaman & return JSX ter-nest di DALAM
-  // fungsi ini, di dalam try yang tidak ditutup dengan benar (syntax error).
-  // Sekarang fungsi ini hanya bertugas kirim data, lalu berhenti (return/finally).
   async function kirimAbsenKeBackend() {
     if (!fotoTerambil || !lokasi) {
       setPesan("Foto bukti atau data koordinat lokasi belum siap.");
@@ -269,18 +194,14 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
       const respons = await fetch(`${API_URL}${ruteApi}`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${getToken()}`,
-          // Sengaja tidak set Content-Type manual agar browser otomatis
-          // mengeset boundary multipart/form-data
-        },
+        headers: { Authorization: `Bearer ${getToken()}` },
         body: formData,
       });
 
       const hasil = await respons.json();
 
       if (!respons.ok) {
-        throw new Error(hasil.message || "Gagal memproses validasi absensi.");
+        throw new Error(hasil.pesan || hasil.message || "Gagal memproses validasi absensi.");
       }
 
       setPesan(tahap === "belum_masuk" ? "Absen masuk berhasil tercatat!" : "Absen pulang berhasil tercatat!");
@@ -295,144 +216,176 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     }
   }
 
-  // ============ ROUTING HALAMAN ============
-  // PERBAIKAN: bagian ini sebelumnya "ketiban" masuk ke dalam kirimAbsenKeBackend.
-  // Sekarang dikembalikan ke body komponen, sejajar dengan return JSX utama.
-  if (halaman === "riwayat") {
-    // Cek nama prop di RiwayatAbsensi.jsx: sebelumnya dipanggil `kembali`, di sini `onKembali`.
-    // Samakan salah satu supaya konsisten.
-    return <RiwayatAbsensi pengguna={pengguna} onKembali={() => setHalaman("absen")} />;
-  }
+  const jamSekarang = new Date().toLocaleDateString("id-ID", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
 
-  if (halaman === "izin") {
-    return <PengajuanIzin pengguna={pengguna} onKembali={() => setHalaman("absen")} />;
-  }
-
-  // ============ TAMPILAN UTAMA (JSX) ============
   return (
-    <div style={{ fontFamily: font.sans, padding: 16, color: warna.tinta, maxWidth: 500, margin: "0 auto" }}>
-
-      {/* Header / Top Bar */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <img src={logoWhite} alt="Logo" style={{ height: 32, filter: "invert(1)" }} />
-        <button
-          onClick={onLogout}
-          style={{ background: "none", border: "none", color: warna.bahaya, fontWeight: "600", cursor: "pointer" }}
-        >
-          Keluar
-        </button>
-      </div>
-
-      {/* Kotak Utama Absensi */}
-      <div style={{ backgroundColor: "#ffffff", borderRadius: 12, padding: 20, boxShadow: "0 4px 12px rgba(0,0,0,0.05)", position: "relative", marginBottom: 20 }}>
-
-        {/* Profil Pengguna */}
-        <div style={{ textAlign: "center", marginBottom: 20 }}>
-          <h2 style={{ fontSize: 18, fontWeight: "600", margin: "0 0 4px 0" }}>Halo, {pengguna?.nama}</h2>
-          <p style={{ fontSize: 14, color: warna.tintaSamar, margin: 0 }}>{pengguna?.jabatan} - {pengguna?.divisi}</p>
+    <div style={styles.wrapper}>
+      <div style={styles.shell}>
+        {/* Header */}
+        <div style={styles.header}>
+          <img src={logoHorizontal} alt="PT. Zaman Teknindo" style={styles.logo} />
+          <button onClick={onLogout} style={styles.tombolLogout}>Keluar</button>
         </div>
 
-        {/* Notifikasi Pesan Sukses / Error */}
-        {pesan && (
-          <div
-            style={{
-              padding: 12,
-              borderRadius: 8,
-              backgroundColor: pesanTipe === "sukses" ? "#e6f7ed" : "#fde8e8",
-              color: pesanTipe === "sukses" ? warna.sukses : warna.bahaya,
-              fontSize: 13,
-              marginBottom: 16,
-              textAlign: "center",
-            }}
-          >
-            {pesan}
+        {/* Kartu utama absensi */}
+        <div style={styles.card}>
+          {/* Profil */}
+          <div style={styles.profilRow}>
+            <div style={styles.avatar}>{inisialNama(pengguna?.nama)}</div>
+            <div>
+              <h2 style={styles.namaUser}>{pengguna?.nama}</h2>
+              <p style={styles.subUser}>{pengguna?.jabatan} · {pengguna?.divisi}</p>
+            </div>
           </div>
-        )}
+          <p style={styles.tanggalHariIni}>{jamSekarang}</p>
 
-        {/* Preview Kamera Aktif */}
-        {kameraAktif && (
-          <div style={{ position: "relative", borderRadius: 8, overflow: "hidden", marginBottom: 16, backgroundColor: "#000", aspectRatio: "4/3" }}>
-            <video ref={videoRef} autoPlay playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)" }} />
-            <button
-              onClick={ambilFoto}
+          {pesan && (
+            <div
               style={{
-                position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)",
-                backgroundColor: "#ffffff", border: "none", borderRadius: "50%", width: 56, height: 56,
-                cursor: "pointer", boxShadow: "0 4px 10px rgba(0,0,0,0.2)",
-              }}
-            />
-          </div>
-        )}
-
-        {/* Hasil Foto Terambil */}
-        {fotoTerambil && (
-          <div style={{ position: "relative", borderRadius: 8, overflow: "hidden", marginBottom: 16, aspectRatio: "4/3" }}>
-            <img src={URL.createObjectURL(fotoTerambil)} alt="Bukti" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            <button
-              onClick={fotoUlang}
-              style={{
-                position: "absolute", bottom: 12, right: 12, backgroundColor: "rgba(0,0,0,0.6)",
-                border: "none", color: "#fff", padding: "6px 12px", borderRadius: 20, fontSize: 12, cursor: "pointer",
+                ...styles.pesanBox,
+                background: pesanTipe === "sukses" ? warna.suksesLembut : warna.bahayaLembut,
+                color: pesanTipe === "sukses" ? warna.sukses : warna.bahaya,
               }}
             >
-              Foto Ulang
-            </button>
-          </div>
-        )}
+              {pesan}
+            </div>
+          )}
 
-        {/* Hidden Canvas untuk Proses Foto */}
-        <canvas ref={canvasRef} style={{ display: "none" }} />
+          {kameraAktif && (
+            <div style={styles.kameraBox}>
+              <video ref={videoRef} autoPlay playsInline muted style={styles.video} />
+              <button onClick={ambilFoto} style={styles.tombolJepret} aria-label="Ambil foto">
+                <span style={styles.tombolJepretDalam} />
+              </button>
+            </div>
+          )}
 
-        {/* Status Tahapan Absensi */}
-        {tahap === "memuat" ? (
-          <p style={{ textAlign: "center", color: warna.tintaSamar }}>Memeriksa status...</p>
-        ) : tahap === "selesai" ? (
-          <div style={{ textAlign: "center", padding: "12px 0", color: warna.sukses, fontWeight: "600" }}>
-            Absensi Hari Ini Selesai
-          </div>
-        ) : (
-          !kameraAktif &&
-          !fotoTerambil && (
-            <button
-              onClick={bukaKamera}
-              style={{ width: "100%", padding: "14px", backgroundColor: warna.aksen, color: "#fff", border: "none", borderRadius: 8, fontWeight: "600", fontSize: 15, cursor: "pointer" }}
-            >
+          {fotoTerambil && (
+            <div style={styles.previewBox}>
+              <img src={URL.createObjectURL(fotoTerambil)} alt="Bukti absen" style={styles.previewImg} />
+              <button onClick={fotoUlang} style={styles.tombolFotoUlang}>Foto Ulang</button>
+            </div>
+          )}
+
+          <canvas ref={canvasRef} style={{ display: "none" }} />
+
+          {tahap === "memuat" && <p style={styles.infoNetral}>Memeriksa status…</p>}
+
+          {tahap === "selesai" && (
+            <div style={styles.selesaiBox}>
+              <span style={styles.selesaiIkon}>✓</span>
+              <p style={styles.selesaiTeks}>Absensi Hari Ini Selesai</p>
+            </div>
+          )}
+
+          {tahap !== "memuat" && tahap !== "selesai" && !kameraAktif && !fotoTerambil && (
+            <button onClick={bukaKamera} style={styles.tombolUtama}>
               {tahap === "belum_masuk" ? "Absen Masuk Sekarang" : "Absen Pulang Sekarang"}
             </button>
-          )
-        )}
+          )}
 
-        {/* Tombol Kirim Data ke Server */}
-        {fotoTerambil && (
-          <button
-            onClick={kirimAbsenKeBackend}
-            disabled={loading || statusLokasi === "mencari"}
-            style={{
-              width: "100%", padding: "14px",
-              backgroundColor: statusLokasi === "siap" ? warna.sukses : warna.tintaSamar,
-              color: "#fff", border: "none", borderRadius: 8, fontWeight: "600", fontSize: 15, cursor: "pointer",
-            }}
-          >
-            {loading ? "Mengirim..." : statusLokasi === "mencari" ? "Mengunci Koordinat GPS..." : "Konfirmasi & Kirim Absen"}
+          {fotoTerambil && (
+            <button
+              onClick={kirimAbsenKeBackend}
+              disabled={loading || statusLokasi === "mencari"}
+              style={{
+                ...styles.tombolUtama,
+                background: statusLokasi === "siap" ? warna.aksen : warna.tintaSamar,
+                marginTop: 12,
+              }}
+            >
+              {loading ? "Mengirim…" : statusLokasi === "mencari" ? "Mengunci Koordinat GPS…" : "Konfirmasi & Kirim Absen"}
+            </button>
+          )}
+        </div>
+
+        {/* Menu navigasi */}
+        <div style={styles.menuGrid}>
+          <button onClick={() => navigate("/karyawan/riwayat")} style={styles.tombolMenu}>
+            <span style={styles.menuIkon}>📋</span>
+            <span>Riwayat Absen</span>
           </button>
-        )}
-      </div>
-
-      {/* Menu Navigasi Bawah */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <button
-          onClick={() => setHalaman("riwayat")}
-          style={{ padding: "12px", backgroundColor: "#fff", border: `1px solid ${warna.garis}`, borderRadius: 8, fontWeight: "500", cursor: "pointer" }}
-        >
-          Riwayat Absen
-        </button>
-        <button
-          onClick={() => setHalaman("izin")}
-          style={{ padding: "12px", backgroundColor: "#fff", border: `1px solid ${warna.garis}`, borderRadius: 8, fontWeight: "500", cursor: "pointer" }}
-        >
-          Ajukan Izin
-        </button>
+          <button onClick={() => navigate("/karyawan/izin")} style={styles.tombolMenu}>
+            <span style={styles.menuIkon}>📝</span>
+            <span>Ajukan Izin</span>
+          </button>
+        </div>
       </div>
     </div>
   );
 }
+
+const styles = {
+  wrapper: { minHeight: "100svh", background: warna.latar, fontFamily: font.display, padding: 16 },
+  shell: { maxWidth: 460, margin: "0 auto" },
+
+  header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
+  logo: { height: 30 },
+  tombolLogout: { background: "none", border: "none", color: warna.bahaya, fontWeight: 600, fontSize: 13, cursor: "pointer", padding: 0 },
+
+  card: {
+    background: warna.panel,
+    borderRadius: 10,
+    padding: 22,
+    boxShadow: "0 1px 2px rgba(22,35,61,0.04), 0 8px 24px rgba(22,35,61,0.06)",
+    marginBottom: 16,
+    border: `1px solid ${warna.garis}`,
+  },
+
+  profilRow: { display: "flex", alignItems: "center", gap: 12, marginBottom: 2 },
+  avatar: {
+    width: 44, height: 44, borderRadius: "50%",
+    background: warna.aksen, color: "#fff",
+    display: "flex", alignItems: "center", justifyContent: "center",
+    fontSize: 15, fontWeight: 700, flexShrink: 0,
+  },
+  namaUser: { margin: 0, fontSize: 16.5, fontWeight: 700, color: warna.tinta },
+  subUser: { margin: "2px 0 0 0", fontSize: 12.5, color: warna.tintaLembut },
+  tanggalHariIni: { fontSize: 11.5, color: warna.tintaSamar, margin: "10px 0 18px 0", paddingLeft: 56 },
+
+  pesanBox: { padding: "11px 14px", borderRadius: 6, fontSize: 13, marginBottom: 16, textAlign: "center", fontWeight: 500 },
+
+  kameraBox: { position: "relative", borderRadius: 8, overflow: "hidden", marginBottom: 16, backgroundColor: "#000", aspectRatio: "4/3" },
+  video: { width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)" },
+  tombolJepret: {
+    position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)",
+    background: "rgba(255,255,255,0.25)", border: "3px solid #fff", borderRadius: "50%",
+    width: 60, height: 60, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+    padding: 0,
+  },
+  tombolJepretDalam: { width: 46, height: 46, borderRadius: "50%", background: "#fff", display: "block" },
+
+  previewBox: { position: "relative", borderRadius: 8, overflow: "hidden", marginBottom: 16, aspectRatio: "4/3" },
+  previewImg: { width: "100%", height: "100%", objectFit: "cover" },
+  tombolFotoUlang: {
+    position: "absolute", bottom: 12, right: 12, backgroundColor: "rgba(22,35,61,0.75)",
+    border: "none", color: "#fff", padding: "7px 14px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: "pointer",
+  },
+
+  infoNetral: { textAlign: "center", color: warna.tintaSamar, fontSize: 13.5, margin: 0 },
+
+  selesaiBox: { textAlign: "center", padding: "16px 0" },
+  selesaiIkon: {
+    display: "inline-flex", alignItems: "center", justifyContent: "center",
+    width: 40, height: 40, borderRadius: "50%", background: warna.suksesLembut,
+    color: warna.sukses, fontSize: 18, fontWeight: 700, marginBottom: 10,
+  },
+  selesaiTeks: { margin: 0, color: warna.sukses, fontWeight: 700, fontSize: 14.5 },
+
+  tombolUtama: {
+    width: "100%", padding: "15px", background: warna.aksen, color: "#fff",
+    border: "none", borderRadius: 8, fontWeight: 700, fontSize: 15, cursor: "pointer",
+  },
+
+  menuGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 },
+  tombolMenu: {
+    display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+    padding: "16px 12px", backgroundColor: warna.panel, color: warna.tinta,
+    border: `1px solid ${warna.garis}`, borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer",
+  },
+  menuIkon: { fontSize: 20 },
+};

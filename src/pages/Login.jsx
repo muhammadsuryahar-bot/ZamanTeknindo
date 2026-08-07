@@ -41,6 +41,10 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
   return (
     <div style={styles.wrapper}>
       <div style={styles.card}>
+        <div style={styles.bracketTL} />
+        <div style={styles.bracketTR} />
+        <div style={styles.bracketBL} />
+        <div style={styles.bracketBR} />
         <img src={logoLogin} alt="PT. Zaman Teknindo" style={styles.logo} />
         <h1 style={styles.judul}>Masuk ke Akun</h1>
         <p style={styles.subjudul}>Catat kehadiran, tepat waktu, setiap hari.</p>
@@ -98,6 +102,7 @@ const styles = {
     fontFamily: font.display,
   },
   card: {
+    position: "relative",
     background: warna.panel,
     padding: "36px 30px",
     borderRadius: 4,
@@ -106,6 +111,10 @@ const styles = {
     width: "100%",
     maxWidth: 380,
   },
+  bracketTL: { position: "absolute", top: 12, left: 12, width: 16, height: 16, borderTop: `2px solid ${warna.aksen}`, borderLeft: `2px solid ${warna.aksen}` },
+  bracketTR: { position: "absolute", top: 12, right: 12, width: 16, height: 16, borderTop: `2px solid ${warna.aksen}`, borderRight: `2px solid ${warna.aksen}` },
+  bracketBL: { position: "absolute", bottom: 12, left: 12, width: 16, height: 16, borderBottom: `2px solid ${warna.aksen}`, borderLeft: `2px solid ${warna.aksen}` },
+  bracketBR: { position: "absolute", bottom: 12, right: 12, width: 16, height: 16, borderBottom: `2px solid ${warna.aksen}`, borderRight: `2px solid ${warna.aksen}` },
   logo: {
     width: 150,
     display: "block",
@@ -129,7 +138,7 @@ const styles = {
   tombol: {
     width: "100%",
     padding: "13px",
-    background: warna.tinta,
+    background: warna.aksen,
     color: "#fff",
     border: "none",
     borderRadius: 3,
