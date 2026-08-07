@@ -29,3 +29,41 @@ h1, h2, h3, p {
 .skeleton-pulse {
   animation: denyut-skeleton 1.3s ease-in-out infinite;
 }
+
+/* Efek hover halus untuk semua tombol interaktif di seluruh halaman */
+button:not(:disabled) {
+  transition: filter 0.12s ease, transform 0.08s ease, box-shadow 0.12s ease;
+}
+button:not(:disabled):hover {
+  filter: brightness(1.06);
+}
+button:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+/* Cincin fokus yang lebih jelas & modern untuk input, menggantikan outline default browser */
+.input-fokus:focus {
+  outline: none;
+  border-color: #1E7A3D !important;
+  box-shadow: 0 0 0 3px rgba(30, 122, 61, 0.15);
+}
+
+/* Layout split-screen di halaman Login/Daftar otomatis jadi vertikal di layar sempit */
+@media (max-width: 680px) {
+  .kartu-login-split {
+    flex-direction: column !important;
+    min-height: auto !important;
+  }
+  .panel-brand-login {
+    flex-basis: auto !important;
+    padding: 28px 24px !important;
+    align-items: flex-start !important;
+  }
+}
+
+/* Kartu item (rekap, karyawan, izin, dll) sedikit "terangkat" saat disentuh mouse */
+.kartu-hover:hover {
+  border-color: #1E7A3D !important;
+  box-shadow: 0 6px 16px rgba(22,35,61,0.08);
+  transform: translateY(-1px);
+}

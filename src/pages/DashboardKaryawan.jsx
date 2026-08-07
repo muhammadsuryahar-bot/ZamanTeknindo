@@ -347,7 +347,7 @@ const styles = {
   subUser: { margin: "2px 0 0 0", fontSize: 12.5, color: warna.tintaLembut },
   tanggalHariIni: { fontSize: 11.5, color: warna.tintaSamar, margin: "10px 0 18px 0", paddingLeft: 56 },
 
-  pesanBox: { padding: "11px 14px", borderRadius: 6, fontSize: 13, marginBottom: 16, textAlign: "center", fontWeight: 500 },
+  pesanBox: { padding: "11px 14px", borderRadius: 8, fontSize: 13, marginBottom: 16, textAlign: "center", fontWeight: 500 },
 
   kameraBox: { position: "relative", borderRadius: 8, overflow: "hidden", marginBottom: 16, backgroundColor: "#000", aspectRatio: "4/3" },
   video: { width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)" },

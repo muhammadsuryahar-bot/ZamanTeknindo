@@ -73,7 +73,7 @@ export default function RiwayatAbsensi({ kembali }) {
             riwayat.map((item) => {
               const status = labelStatusKehadiran(item.statusFinal || item.statusOtomatis);
               return (
-                <div key={item.id} style={styles.itemCard}>
+                <div key={item.id} style={styles.itemCard} className="kartu-hover">
                   <div style={styles.itemHeader}>
                     <strong style={styles.tanggal}>{formatTanggal(item.tanggal)}</strong>
                     <span style={{ ...styles.badge, color: status.warna, background: status.latar }}>
@@ -119,6 +119,7 @@ const styles = {
     padding: 16,
     marginBottom: 8,
     border: `1px solid ${warna.garis}`,
+    transition: "border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease",
   },
   itemHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 },
   tanggal: { fontSize: 13.5, color: warna.tinta },
@@ -131,7 +132,7 @@ const styles = {
     color: warna.tinta,
     background: warna.panelAlt,
     padding: "6px 10px",
-    borderRadius: 6,
+    borderRadius: 8,
     marginTop: 8,
     borderLeft: `3px solid ${warna.aksen}`,
   },

@@ -282,7 +282,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
               const status = labelStatusKehadiran(item.statusFinal || item.statusOtomatis);
               const sedangEdit = editStatusTerbuka === item.id;
               return (
-                <div key={item.id} style={styles.itemCard}>
+                <div key={item.id} style={styles.itemCard} className="kartu-hover">
                   <div style={styles.itemHeader}>
 
                     <strong style={styles.itemNama}>{item.pengguna.nama}</strong>
@@ -347,7 +347,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
               </div>
             )}
             {menunggu.map((item) => (
-              <div key={item.id} style={styles.itemCard}>
+              <div key={item.id} style={styles.itemCard} className="kartu-hover">
                 <strong style={styles.itemNama}>{item.nama}</strong>
                 <p style={styles.itemSub}>{item.email}</p>
 
@@ -403,7 +403,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
               <p style={styles.kosong}>Tidak ada hasil untuk "{cariKaryawan}".</p>
             )}
             {karyawanTersaring.map((item) => (
-              <div key={item.id} style={styles.itemCard}>
+              <div key={item.id} style={styles.itemCard} className="kartu-hover">
                 <div style={styles.itemHeader}>
                   <strong style={styles.itemNama}>{item.nama}</strong>
                   <span
@@ -480,13 +480,13 @@ const styles = {
     letterSpacing: "0.02em",
     flexShrink: 0,
   },
-  avatarBadge: { width: 28, height: 28, borderRadius: 6, display: "block" },
+  avatarBadge: { width: 28, height: 28, borderRadius: 8, display: "block" },
   namaUser: { margin: 0, fontSize: 20, color: warna.tinta, fontWeight: 700 },
   subNamaUser: { margin: "2px 0 0 0", fontSize: 13, color: warna.tintaLembut },
   tombolLogout: {
     background: "none",
     border: `1px solid ${warna.garis}`,
-    borderRadius: 3,
+    borderRadius: 10,
     padding: "9px 16px",
     fontSize: 12.5,
     cursor: "pointer",
@@ -500,7 +500,7 @@ const styles = {
     padding: "10px 6px",
     background: warna.panel,
     border: `1px solid ${warna.garis}`,
-    borderRadius: 3,
+    borderRadius: 10,
     fontSize: 12.5,
     cursor: "pointer",
     color: warna.tintaLembut,
@@ -512,7 +512,7 @@ const styles = {
     padding: "10px 6px",
     background: warna.tinta,
     border: `1px solid ${warna.tinta}`,
-    borderRadius: 3,
+    borderRadius: 10,
     fontSize: 12.5,
     cursor: "pointer",
     color: "#fff",
@@ -527,7 +527,7 @@ const styles = {
   },
   statCard: {
     background: warna.panel,
-    borderRadius: 4,
+    borderRadius: 10,
     padding: "16px 18px",
     border: `1px solid ${warna.garis}`,
     borderLeft: `3px solid ${warna.tinta}`,
@@ -541,7 +541,7 @@ const styles = {
     width: "100%",
     padding: "10px 14px",
     marginBottom: 12,
-    borderRadius: 3,
+    borderRadius: 10,
     border: `1px solid ${warna.garis}`,
     fontSize: 13.5,
     color: warna.tinta,
@@ -551,11 +551,11 @@ const styles = {
   },
   itemCard: {
     background: warna.panel,
-    borderRadius: 3,
+    borderRadius: 10,
     padding: 16,
     marginBottom: 8,
     border: `1px solid ${warna.garis}`,
-    transition: "border-color 0.15s ease, box-shadow 0.15s ease",
+    transition: "border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease",
   },
   itemHeader: { display: "flex", justifyContent: "space-between", alignItems: "center" },
   itemNama: { fontSize: 14.5, color: warna.tinta },
@@ -568,27 +568,27 @@ const styles = {
     fontSize: 11,
     fontWeight: 600,
     padding: "3px 10px",
-    borderRadius: 3,
+    borderRadius: 10,
   },
   kosongBox: {
     textAlign: "center",
     padding: "48px 24px",
     background: warna.panel,
-    borderRadius: 4,
+    borderRadius: 10,
     border: `1px dashed ${warna.garis}`,
   },
   kosongIkon: { fontSize: 28, display: "block", marginBottom: 8, opacity: 0.7 },
   kosong: { textAlign: "center", color: warna.tintaSamar, fontSize: 13.5, margin: 0 },
   skeletonCard: {
     background: warna.panel,
-    borderRadius: 3,
+    borderRadius: 10,
     padding: 16,
     marginBottom: 8,
     border: `1px solid ${warna.garis}`,
   },
   skeletonBar: {
     background: warna.panelAlt,
-    borderRadius: 3,
+    borderRadius: 10,
   },
   pesanError: { color: warna.bahaya, textAlign: "center" },
   pesanSukses: { color: warna.sukses, textAlign: "center" },
@@ -598,7 +598,7 @@ const styles = {
     background: warna.panelAlt,
     borderLeft: `3px solid ${warna.aksen}`,
     padding: "8px 10px",
-    borderRadius: 2,
+    borderRadius: 8,
     margin: "8px 0 0 0",
   },
   tombolEditKecil: {
@@ -607,7 +607,7 @@ const styles = {
     background: "none",
     color: warna.tintaLembut,
     border: `1px solid ${warna.garis}`,
-    borderRadius: 3,
+    borderRadius: 10,
     fontSize: 11.5,
     cursor: "pointer",
     fontWeight: 500,
@@ -624,7 +624,7 @@ const styles = {
   inputForm: {
     padding: "8px 10px",
     border: `1px solid ${warna.garis}`,
-    borderRadius: 3,
+    borderRadius: 10,
     fontSize: 13,
     color: warna.tinta,
     fontFamily: font.display,
@@ -632,7 +632,7 @@ const styles = {
   selectForm: {
     padding: "8px 10px",
     border: `1px solid ${warna.garis}`,
-    borderRadius: 3,
+    borderRadius: 10,
     fontSize: 13,
     color: warna.tinta,
     fontFamily: font.display,
@@ -641,7 +641,7 @@ const styles = {
   textareaForm: {
     padding: "8px 10px",
     border: `1px solid ${warna.garis}`,
-    borderRadius: 3,
+    borderRadius: 10,
     fontSize: 13,
     color: warna.tinta,
     fontFamily: font.display,
@@ -655,7 +655,7 @@ const styles = {
     background: "none",
     color: warna.tintaLembut,
     border: `1px solid ${warna.garis}`,
-    borderRadius: 3,
+    borderRadius: 10,
     fontSize: 12.5,
     cursor: "pointer",
     fontWeight: 600,
@@ -672,7 +672,7 @@ const styles = {
     background: warna.tinta,
     color: "#fff",
     border: "none",
-    borderRadius: 3,
+    borderRadius: 10,
     fontSize: 12.5,
     cursor: "pointer",
     fontWeight: 600,
@@ -683,7 +683,7 @@ const styles = {
     background: "#fff",
     color: warna.bahaya,
     border: `1px solid ${warna.bahaya}`,
-    borderRadius: 3,
+    borderRadius: 10,
     fontSize: 12.5,
     cursor: "pointer",
     fontWeight: 600,

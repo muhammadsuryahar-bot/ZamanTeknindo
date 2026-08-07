@@ -175,7 +175,7 @@ export default function PengajuanIzin({ kembali }) {
               year: "numeric",
             });
             return (
-              <div key={item.id} style={styles.itemCard}>
+              <div key={item.id} style={styles.itemCard} className="kartu-hover">
                 <div style={styles.itemHeader}>
                   <strong style={styles.itemNama}>
                     {labelJenis(item.jenis)} — {tanggalTampil}
@@ -259,6 +259,7 @@ const styles = {
     padding: 16,
     marginBottom: 8,
     border: `1px solid ${warna.garis}`,
+    transition: "border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease",
   },
   itemHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 },
   itemNama: { fontSize: 13.5, color: warna.tinta, fontWeight: 600 },
