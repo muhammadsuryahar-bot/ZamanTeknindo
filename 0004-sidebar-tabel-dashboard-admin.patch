@@ -1,0 +1,1118 @@
+From ab0b622919c12d556046ca1e35274e9516f8e8ec Mon Sep 17 00:00:00 2001
+From: Claude Assistant <assistant@example.com>
+Date: Mon, 10 Aug 2026 01:40:57 +0000
+Subject: [PATCH] Redesign Dashboard Admin: layout sidebar (desktop) + tabel
+ data untuk Rekap & Karyawan, drawer responsif di mobile
+
+---
+ src/index.css                |  48 ++
+ src/pages/DashboardAdmin.jsx | 907 ++++++++++++++++++-----------------
+ 2 files changed, 508 insertions(+), 447 deletions(-)
+
+diff --git a/src/index.css b/src/index.css
+index 0783963..8e8d8a6 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -67,3 +67,51 @@ button:not(:disabled):active {
+   box-shadow: 0 6px 16px rgba(22,35,61,0.08);
+   transform: translateY(-1px);
+ }
++
++/* Baris tabel disorot halus saat disentuh mouse */
++.baris-hover:hover td {
++  background: #F5F9F6;
++}
++
++/* Item navigasi sidebar */
++.nav-item-hover:hover {
++  background: #EEF1EE !important;
++}
++
++/* ===== Layout Sidebar Dashboard Admin ===== */
++/* Default (desktop): sidebar selalu tampil, topbar mobile+overlay disembunyikan */
++.overlay-mobile { display: none; }
++
++@media (max-width: 899px) {
++  /* Di layar sempit, sidebar jadi drawer yang meluncur dari kiri,
++     disembunyikan sampai tombol hamburger di topbar ditekan */
++  .admin-sidebar {
++    position: fixed;
++    top: 0;
++    left: 0;
++    height: 100vh;
++    z-index: 40;
++    transform: translateX(-100%);
++    transition: transform 0.2s ease;
++    box-shadow: 8px 0 24px rgba(0,0,0,0.12);
++  }
++  .admin-sidebar.sidebar-mobile-terbuka {
++    transform: translateX(0);
++  }
++  .overlay-mobile {
++    display: block;
++    position: fixed;
++    inset: 0;
++    background: rgba(15, 23, 20, 0.4);
++    z-index: 30;
++  }
++  .topbar-mobile {
++    display: flex !important;
++  }
++}
++
++@media (max-width: 640px) {
++  .main-area-admin {
++    padding: 16px !important;
++  }
++}
+diff --git a/src/pages/DashboardAdmin.jsx b/src/pages/DashboardAdmin.jsx
+index 7630f7d..00928b5 100644
+--- a/src/pages/DashboardAdmin.jsx
++++ b/src/pages/DashboardAdmin.jsx
+@@ -1,23 +1,32 @@
+-import { useState, useEffect } from "react";
++import { useState, useEffect, Fragment } from "react";
+ import { API_URL, getToken } from "../utils/api";
+ import { warna, font } from "../styles/theme";
+ import logoHorizontal from "../assets/logo-horizontal.png";
++import logo from "../assets/logo.png";
+ import AdminIzin from "./AdminIzin";
+ import PengaturanGaji from "./PengaturanGaji";
+ import { labelStatusKehadiran } from "../utils/statusKehadiran";
+ 
+ const DAFTAR_STATUS = ["tepat_waktu", "telat", "alpha", "izin", "sakit", "cuti", "urgent"];
+ 
++const IKON_TAB = {
++  rekap: "📋",
++  approval: "🕒",
++  karyawan: "👥",
++  izin: "📝",
++  gaji: "💵",
++};
++
+ // Kartu abu-abu berkedip pelan, dipakai sebagai placeholder saat data masih dimuat
+-function SkeletonKartu({ jumlah = 3 }) {
++function SkeletonBaris({ jumlah = 4 }) {
+   return (
+     <>
+       {Array.from({ length: jumlah }).map((_, i) => (
+-        <div key={i} className="skeleton-pulse" style={styles.skeletonCard}>
+-          <div style={{ ...styles.skeletonBar, width: "40%", height: 14 }} />
+-          <div style={{ ...styles.skeletonBar, width: "60%", height: 11, marginTop: 8 }} />
+-          <div style={{ ...styles.skeletonBar, width: "30%", height: 11, marginTop: 6 }} />
+-        </div>
++        <tr key={i} className="skeleton-pulse">
++          <td colSpan={99} style={{ padding: "14px 16px" }}>
++            <div style={{ height: 12, width: `${40 + (i % 3) * 15}%`, background: warna.panelAlt, borderRadius: 6 }} />
++          </td>
++        </tr>
+       ))}
+     </>
+   );
+@@ -27,7 +36,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
+   const [tab, setTab] = useState("rekap");
+   const [rekap, setRekap] = useState([]);
+   const [menunggu, setMenunggu] = useState([]);
+-  const [karyawan, setKaryawan] = useState([]); 
++  const [karyawan, setKaryawan] = useState([]);
+   const [loading, setLoading] = useState(true);
+   const [pesan, setPesan] = useState("");
+   const [pesanSukses, setPesanSukses] = useState("");
+@@ -47,6 +56,9 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
+   const [editStatusTerbuka, setEditStatusTerbuka] = useState(null); // id absensi atau null
+   const [formEditStatus, setFormEditStatus] = useState({ statusFinal: "", catatanAdmin: "" });
+ 
++  // Sidebar mobile (dibuka lewat hamburger di topbar kecil)
++  const [sidebarMobileTerbuka, setSidebarMobileTerbuka] = useState(false);
++
+   useEffect(() => {
+     muatData();
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+@@ -73,7 +85,6 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
+     }
+   }
+ 
+-  // Buka/tutup form aktivasi inline untuk 1 item, kosongkan isiannya tiap dibuka
+   function bukaFormAktivasi(id) {
+     setFormAktivasiTerbuka(id);
+     setFormAktivasi({ jabatan: "", divisi: "" });
+@@ -118,7 +129,6 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
+     }
+   }
+ 
+-  // Buka form edit status absensi, isi awal dengan status yang sekarang berlaku
+   function bukaEditStatus(item) {
+     setEditStatusTerbuka(item.id);
+     setFormEditStatus({
+@@ -154,8 +164,6 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
+     return new Date(tanggalIso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+   }
+ 
+-  // Filter sederhana: cocok kalau kata kunci ditemukan di nama, jabatan, atau divisi
+-  // (tidak peduli huruf besar/kecil)
+   function cocokKataKunci(teksTarget, kataKunci) {
+     if (!kataKunci.trim()) return true;
+     return teksTarget.toLowerCase().includes(kataKunci.trim().toLowerCase());
+@@ -169,8 +177,6 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
+     cocokKataKunci(`${item.nama} ${item.email} ${item.jabatan || ""} ${item.divisi || ""}`, cariKaryawan)
+   );
+ 
+-  // Ringkasan angka hari ini, buat kartu statistik di atas tab Rekap —
+-  // supaya Bos langsung tahu kondisi hari ini tanpa perlu scroll/baca satu-satu
+   const karyawanAktifCount = karyawan.filter((k) => k.statusAkun === "aktif").length;
+   const jumlahTepatWaktu = rekap.filter((r) => (r.statusFinal || r.statusOtomatis) === "tepat_waktu").length;
+   const jumlahTelat = rekap.filter((r) => (r.statusFinal || r.statusOtomatis) === "telat").length;
+@@ -180,13 +186,9 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
+   const jumlahBelumAbsen = Math.max(karyawanAktifCount - rekap.length, 0);
+ 
+   const jamSekarang = new Date().toLocaleDateString("id-ID", {
+-    weekday: "long",
+-    day: "numeric",
+-    month: "long",
+-    year: "numeric",
++    weekday: "long", day: "numeric", month: "long", year: "numeric",
+   });
+ 
+-  // Inisial 1-2 huruf dari nama, buat avatar bulat di header
+   function inisialNama(nama) {
+     if (!nama) return "?";
+     const bagian = nama.trim().split(" ");
+@@ -196,496 +198,507 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
+ 
+   const tabs = [
+     { id: "rekap", label: "Rekap Hari Ini" },
+-    { id: "approval", label: `Menunggu${menunggu.length > 0 ? ` (${menunggu.length})` : ""}` },
++    { id: "approval", label: "Menunggu", badge: menunggu.length || null },
+     { id: "karyawan", label: "Karyawan" },
+     { id: "izin", label: "Izin" },
+     { id: "gaji", label: "Gaji" },
+   ];
+ 
++  const judulTab = tabs.find((t) => t.id === tab)?.label || "";
++
++  function pindahTab(idTab) {
++    setTab(idTab);
++    setSidebarMobileTerbuka(false);
++  }
++
+   return (
+-    <div style={styles.wrapper}>
+-      <div style={styles.header}>
+-        <div style={styles.headerKiri}>
+-          <img src={logoHorizontal} alt="PT. Zaman Teknindo" style={styles.logoHeader} />
+-          <div style={styles.namaRow}>
++    <div style={styles.shell}>
++      {/* ============ SIDEBAR (tampil di desktop, tersembunyi & jadi drawer di mobile) ============ */}
++      <aside
++        className={sidebarMobileTerbuka ? "admin-sidebar sidebar-mobile-terbuka" : "admin-sidebar"}
++        style={styles.sidebar}
++      >
++        <div style={styles.sidebarAtas}>
++          <img src={logoHorizontal} alt="PT. Zaman Teknindo" style={styles.logoSidebar} />
++        </div>
++
++        <nav style={styles.navSidebar}>
++          {tabs.map((t) => (
++            <button
++              key={t.id}
++              onClick={() => pindahTab(t.id)}
++              style={tab === t.id ? styles.navItemAktif : styles.navItem}
++              className="nav-item-hover"
++            >
++              <span style={styles.navIkon}>{IKON_TAB[t.id]}</span>
++              <span style={{ flex: 1, textAlign: "left" }}>{t.label}</span>
++              {t.badge ? <span style={styles.navBadge}>{t.badge}</span> : null}
++            </button>
++          ))}
++        </nav>
++
++        <div style={styles.sidebarBawah}>
++          <div style={styles.profilSidebar}>
+             <div style={styles.avatarLingkaran}>{inisialNama(pengguna.nama)}</div>
+-            <div>
+-              <h2 style={styles.namaUser}>Halo, {pengguna.nama.split(" ")[0]}</h2>
+-              <p style={styles.subNamaUser}>{jamSekarang}</p>
++            <div style={{ overflow: "hidden" }}>
++              <p style={styles.namaProfil}>{pengguna.nama}</p>
++              <p style={styles.perananProfil}>Admin</p>
+             </div>
+           </div>
++          <button onClick={onLogout} style={styles.tombolLogout}>Keluar</button>
+         </div>
+-        <button onClick={onLogout} style={styles.tombolLogout}>Keluar</button>
+-      </div>
+-
+-      <div style={styles.tabGroup}>
+-        {tabs.map((t) => (
+-          <button
+-            key={t.id}
+-            onClick={() => setTab(t.id)}
+-            style={tab === t.id ? styles.tabAktif : styles.tab}
+-          >
+-            {t.label}
++      </aside>
++
++      {/* Overlay gelap saat sidebar mobile terbuka, klik buat nutup */}
++      {sidebarMobileTerbuka && (
++        <div className="overlay-mobile" onClick={() => setSidebarMobileTerbuka(false)} />
++      )}
++
++      {/* ============ AREA KONTEN UTAMA ============ */}
++      <div style={styles.mainArea} className="main-area-admin">
++        <div style={styles.topbarMobile} className="topbar-mobile">
++          <button onClick={() => setSidebarMobileTerbuka(true)} style={styles.tombolHamburger} aria-label="Buka menu">
++            <img src={logo} alt="" style={{ width: 22 }} />
+           </button>
+-        ))}
+-      </div>
++          <span style={styles.topbarJudul}>{judulTab}</span>
++          <div style={{ width: 22 }} />
++        </div>
+ 
+-      <div style={styles.content}>
+-        {loading && <SkeletonKartu jumlah={3} />}
+-        {pesan && <p style={styles.pesanError}>{pesan}</p>}
+-        {pesanSukses && <p style={styles.pesanSukses}>{pesanSukses}</p>}
+-
+-        {!loading && tab === "rekap" && (
+-          <>
+-            <div style={styles.statGrid}>
+-              <div style={styles.statCard}>
+-                <span style={styles.statAngka}>{karyawanAktifCount}</span>
+-                <span style={styles.statLabel}>Karyawan Aktif</span>
+-              </div>
+-              <div style={{ ...styles.statCard, borderLeft: `3px solid ${warna.sukses}` }}>
+-                <span style={{ ...styles.statAngka, color: warna.sukses }}>{jumlahTepatWaktu}</span>
+-                <span style={styles.statLabel}>Tepat Waktu</span>
+-              </div>
+-              <div style={{ ...styles.statCard, borderLeft: `3px solid ${warna.peringatan}` }}>
+-                <span style={{ ...styles.statAngka, color: warna.peringatan }}>{jumlahTelat}</span>
+-                <span style={styles.statLabel}>Telat</span>
+-              </div>
+-              <div style={{ ...styles.statCard, borderLeft: `3px solid ${warna.aksen}` }}>
+-                <span style={{ ...styles.statAngka, color: warna.aksen }}>{jumlahIzinSakitDll}</span>
+-                <span style={styles.statLabel}>Izin/Sakit/Cuti</span>
+-              </div>
+-              <div style={{ ...styles.statCard, borderLeft: `3px solid ${warna.tintaSamar}` }}>
+-                <span style={{ ...styles.statAngka, color: warna.tintaSamar }}>{jumlahBelumAbsen}</span>
+-                <span style={styles.statLabel}>Belum Absen</span>
+-              </div>
+-            </div>
++        <div style={styles.headerAtas}>
++          <div>
++            <h1 style={styles.judulHalaman}>{judulTab}</h1>
++            <p style={styles.subJudulHalaman}>{jamSekarang}</p>
++          </div>
++        </div>
+ 
+-            {rekap.length > 0 && (
+-              <input
+-                type="text"
+-                value={cariRekap}
+-                onChange={(e) => setCariRekap(e.target.value)}
+-                placeholder="Cari nama, jabatan, atau divisi…"
+-                style={styles.kotakCari}
+-              />
+-            )}
+-            {rekap.length === 0 && (
+-              <div style={styles.kosongBox}>
+-                <span style={styles.kosongIkon}>📋</span>
+-                <p style={styles.kosong}>Belum ada karyawan yang absen hari ini.</p>
+-              </div>
+-            )}
+-            {rekap.length > 0 && rekapTersaring.length === 0 && (
+-              <p style={styles.kosong}>Tidak ada hasil untuk "{cariRekap}".</p>
+-            )}
+-            {rekapTersaring.map((item) => {
+-              const status = labelStatusKehadiran(item.statusFinal || item.statusOtomatis);
+-              const sedangEdit = editStatusTerbuka === item.id;
+-              return (
+-                <div key={item.id} style={styles.itemCard} className="kartu-hover">
+-                  <div style={styles.itemHeader}>
+-
+-                    <strong style={styles.itemNama}>{item.pengguna.nama}</strong>
+-                    <span style={{ ...styles.badge, color: status.warna, background: status.latar }}>
+-                      {status.teks}
+-                    </span>
+-                  </div>
+-                  <p style={styles.itemSub}>
+-                    {item.pengguna.jabatan || "-"} · {item.pengguna.divisi || "-"}
+-                  </p>
+-                  <p style={styles.itemDetail}>
+-                    Masuk <span style={styles.mono}>{formatJam(item.jamMasuk)}</span>
+-                    <span style={styles.pemisah}>·</span>
+-                    Pulang <span style={styles.mono}>{formatJam(item.jamPulang)}</span>
+-                  </p>
+-                  {item.alamatMasuk && <p style={styles.itemAlamat}>{item.alamatMasuk}</p>}
+-                  {item.catatanAdmin && !sedangEdit && (
+-                    <p style={styles.catatanAdmin}>Catatan Admin: {item.catatanAdmin}</p>
+-                  )}
+-
+-                  {!sedangEdit ? (
+-                    <button onClick={() => bukaEditStatus(item)} style={styles.tombolEditKecil}>
+-                      Ubah Status Manual
+-                    </button>
+-                  ) : (
+-                    <div style={styles.formInline}>
+-                      <label style={styles.labelForm}>Status baru</label>
+-                      <select
+-                        value={formEditStatus.statusFinal}
+-                        onChange={(e) => setFormEditStatus({ ...formEditStatus, statusFinal: e.target.value })}
+-                        style={styles.selectForm}
+-                      >
+-                        {DAFTAR_STATUS.map((s) => (
+-                          <option key={s} value={s}>{labelStatusKehadiran(s).teks}</option>
+-                        ))}
+-                      </select>
+-                      <label style={styles.labelForm}>Catatan (wajib diisi, jadi jejak alasan perubahan)</label>
+-                      <textarea
+-                        value={formEditStatus.catatanAdmin}
+-                        onChange={(e) => setFormEditStatus({ ...formEditStatus, catatanAdmin: e.target.value })}
+-                        placeholder="Contoh: Telat karena tugas luar kota, dikonfirmasi lewat WA."
+-                        style={styles.textareaForm}
+-                      />
+-                      <div style={styles.formTombolGroup}>
+-                        <button onClick={() => setEditStatusTerbuka(null)} style={styles.tombolBatal}>Batal</button>
+-                        <button onClick={() => simpanEditStatus(item.id)} style={styles.tombolAktifkan}>Simpan</button>
+-                      </div>
+-                    </div>
+-                  )}
++        <div style={styles.content}>
++          {pesan && <p style={styles.pesanError}>{pesan}</p>}
++          {pesanSukses && <p style={styles.pesanSukses}>{pesanSukses}</p>}
++
++          {tab === "rekap" && (
++            <>
++              <div style={styles.statGrid}>
++                <div style={styles.statCard}>
++                  <span style={styles.statAngka}>{karyawanAktifCount}</span>
++                  <span style={styles.statLabel}>Karyawan Aktif</span>
++                </div>
++                <div style={{ ...styles.statCard, borderLeft: `3px solid ${warna.sukses}` }}>
++                  <span style={{ ...styles.statAngka, color: warna.sukses }}>{jumlahTepatWaktu}</span>
++                  <span style={styles.statLabel}>Tepat Waktu</span>
++                </div>
++                <div style={{ ...styles.statCard, borderLeft: `3px solid ${warna.peringatan}` }}>
++                  <span style={{ ...styles.statAngka, color: warna.peringatan }}>{jumlahTelat}</span>
++                  <span style={styles.statLabel}>Telat</span>
++                </div>
++                <div style={{ ...styles.statCard, borderLeft: `3px solid ${warna.aksen}` }}>
++                  <span style={{ ...styles.statAngka, color: warna.aksen }}>{jumlahIzinSakitDll}</span>
++                  <span style={styles.statLabel}>Izin/Sakit/Cuti</span>
++                </div>
++                <div style={{ ...styles.statCard, borderLeft: `3px solid ${warna.tintaSamar}` }}>
++                  <span style={{ ...styles.statAngka, color: warna.tintaSamar }}>{jumlahBelumAbsen}</span>
++                  <span style={styles.statLabel}>Belum Absen</span>
+                 </div>
+-              );
+-            })}
+-          </>
+-        )}
+-
+-        {!loading && tab === "approval" && (
+-          <>
+-            {menunggu.length === 0 && (
+-              <div style={styles.kosongBox}>
+-                <span style={styles.kosongIkon}>✅</span>
+-                <p style={styles.kosong}>Tidak ada akun yang menunggu konfirmasi.</p>
+-              </div>
+-            )}
+-            {menunggu.map((item) => (
+-              <div key={item.id} style={styles.itemCard} className="kartu-hover">
+-                <strong style={styles.itemNama}>{item.nama}</strong>
+-                <p style={styles.itemSub}>{item.email}</p>
+-
+-                {formAktivasiTerbuka !== item.id ? (
+-                  <button onClick={() => bukaFormAktivasi(item.id)} style={styles.tombolAktifkan}>
+-                    Aktifkan Akun
+-                  </button>
+-                ) : (
+-                  <div style={styles.formInline}>
+-                    <label style={styles.labelForm}>Jabatan</label>
+-                    <input
+-                      value={formAktivasi.jabatan}
+-                      onChange={(e) => setFormAktivasi({ ...formAktivasi, jabatan: e.target.value })}
+-                      placeholder="Contoh: Teknisi"
+-                      style={styles.inputForm}
+-                    />
+-                    <label style={styles.labelForm}>Divisi</label>
+-                    <input
+-                      value={formAktivasi.divisi}
+-                      onChange={(e) => setFormAktivasi({ ...formAktivasi, divisi: e.target.value })}
+-                      placeholder="Contoh: Operasional"
+-                      style={styles.inputForm}
+-                    />
+-                    <div style={styles.formTombolGroup}>
+-                      <button onClick={() => setFormAktivasiTerbuka(null)} style={styles.tombolBatal}>Batal</button>
+-                      <button onClick={() => kirimAktivasi(item.id)} style={styles.tombolAktifkan}>Simpan & Aktifkan</button>
+-                    </div>
+-                  </div>
+-                )}
+               </div>
+-            ))}
+-          </>
+-        )}
+-
+-        {!loading && tab === "karyawan" && (
+-          <>
+-            {karyawan.length > 0 && (
+-              <input
+-                type="text"
+-                value={cariKaryawan}
+-                onChange={(e) => setCariKaryawan(e.target.value)}
+-                placeholder="Cari nama, email, jabatan, atau divisi…"
+-                style={styles.kotakCari}
+-              />
+-            )}
+-            {karyawan.length === 0 && (
+-              <div style={styles.kosongBox}>
+-                <span style={styles.kosongIkon}>👥</span>
+-                <p style={styles.kosong}>Belum ada karyawan aktif.</p>
++
++              {rekap.length > 0 && (
++                <input
++                  type="text"
++                  value={cariRekap}
++                  onChange={(e) => setCariRekap(e.target.value)}
++                  placeholder="Cari nama, jabatan, atau divisi…"
++                  style={styles.kotakCari}
++                  className="input-fokus"
++                />
++              )}
++
++              <div style={styles.tabelWrapper}>
++                <table style={styles.tabel}>
++                  <thead>
++                    <tr>
++                      <th style={styles.th}>Karyawan</th>
++                      <th style={styles.th}>Status</th>
++                      <th style={styles.th}>Masuk</th>
++                      <th style={styles.th}>Pulang</th>
++                      <th style={styles.th}>Lokasi</th>
++                      <th style={styles.th}></th>
++                    </tr>
++                  </thead>
++                  <tbody>
++                    {loading && <SkeletonBaris jumlah={4} />}
++
++                    {!loading && rekap.length === 0 && (
++                      <tr><td colSpan={6} style={styles.tdKosong}>📋 Belum ada karyawan yang absen hari ini.</td></tr>
++                    )}
++                    {!loading && rekap.length > 0 && rekapTersaring.length === 0 && (
++                      <tr><td colSpan={6} style={styles.tdKosong}>Tidak ada hasil untuk "{cariRekap}".</td></tr>
++                    )}
++
++                    {!loading && rekapTersaring.map((item) => {
++                      const status = labelStatusKehadiran(item.statusFinal || item.statusOtomatis);
++                      const sedangEdit = editStatusTerbuka === item.id;
++                      return (
++                        <Fragment key={item.id}>
++                          <tr className="baris-hover">
++                            <td style={styles.td}>
++                              <strong style={{ color: warna.tinta, fontSize: 13.5 }}>{item.pengguna.nama}</strong>
++                              <div style={styles.tdSub}>{item.pengguna.jabatan || "-"} · {item.pengguna.divisi || "-"}</div>
++                            </td>
++                            <td style={styles.td}>
++                              <span style={{ ...styles.badge, color: status.warna, background: status.latar }}>{status.teks}</span>
++                            </td>
++                            <td style={{ ...styles.td, ...styles.mono }}>{formatJam(item.jamMasuk)}</td>
++                            <td style={{ ...styles.td, ...styles.mono }}>{formatJam(item.jamPulang)}</td>
++                            <td style={{ ...styles.td, fontSize: 12, color: warna.tintaSamar, maxWidth: 200 }}>
++                              {item.alamatMasuk || "–"}
++                            </td>
++                            <td style={{ ...styles.td, textAlign: "right" }}>
++                              <button onClick={() => (sedangEdit ? setEditStatusTerbuka(null) : bukaEditStatus(item))} style={styles.tombolEditKecil}>
++                                {sedangEdit ? "Tutup" : "Ubah Status"}
++                              </button>
++                            </td>
++                          </tr>
++                          {item.catatanAdmin && !sedangEdit && (
++                            <tr>
++                              <td colSpan={6} style={{ padding: "0 16px 10px 16px" }}>
++                                <p style={styles.catatanAdmin}>Catatan Admin: {item.catatanAdmin}</p>
++                              </td>
++                            </tr>
++                          )}
++                          {sedangEdit && (
++                            <tr>
++                              <td colSpan={6} style={{ padding: "0 16px 16px 16px", background: warna.panelAlt }}>
++                                <div style={styles.formInline}>
++                                  <label style={styles.labelForm}>Status baru</label>
++                                  <select
++                                    value={formEditStatus.statusFinal}
++                                    onChange={(e) => setFormEditStatus({ ...formEditStatus, statusFinal: e.target.value })}
++                                    style={styles.selectForm}
++                                  >
++                                    {DAFTAR_STATUS.map((s) => (
++                                      <option key={s} value={s}>{labelStatusKehadiran(s).teks}</option>
++                                    ))}
++                                  </select>
++                                  <label style={styles.labelForm}>Catatan (wajib diisi, jadi jejak alasan perubahan)</label>
++                                  <textarea
++                                    value={formEditStatus.catatanAdmin}
++                                    onChange={(e) => setFormEditStatus({ ...formEditStatus, catatanAdmin: e.target.value })}
++                                    placeholder="Contoh: Telat karena tugas luar kota, dikonfirmasi lewat WA."
++                                    style={styles.textareaForm}
++                                  />
++                                  <div style={styles.formTombolGroup}>
++                                    <button onClick={() => setEditStatusTerbuka(null)} style={styles.tombolBatal}>Batal</button>
++                                    <button onClick={() => simpanEditStatus(item.id)} style={styles.tombolAktifkan}>Simpan</button>
++                                  </div>
++                                </div>
++                              </td>
++                            </tr>
++                          )}
++                        </Fragment>
++                      );
++                    })}
++                  </tbody>
++                </table>
+               </div>
+-            )}
+-            {karyawan.length > 0 && karyawanTersaring.length === 0 && (
+-              <p style={styles.kosong}>Tidak ada hasil untuk "{cariKaryawan}".</p>
+-            )}
+-            {karyawanTersaring.map((item) => (
+-              <div key={item.id} style={styles.itemCard} className="kartu-hover">
+-                <div style={styles.itemHeader}>
+-                  <strong style={styles.itemNama}>{item.nama}</strong>
+-                  <span
+-                    style={{
+-                      ...styles.badge,
+-                      color: item.statusAkun === "aktif" ? warna.sukses : warna.tintaSamar,
+-                      background: item.statusAkun === "aktif" ? warna.suksesLembut : warna.panelAlt,
+-                    }}
+-                  >
+-                    {item.statusAkun === "aktif" ? "Aktif" : "Nonaktif"}
+-                  </span>
++            </>
++          )}
++
++          {tab === "approval" && (
++            <>
++              {menunggu.length === 0 && (
++                <div style={styles.kosongBox}>
++                  <span style={styles.kosongIkon}>✅</span>
++                  <p style={styles.kosong}>Tidak ada akun yang menunggu konfirmasi.</p>
+                 </div>
+-                <p style={styles.itemSub}>{item.email}</p>
+-                <p style={styles.itemDetail}>
+-                  {item.jabatan || "-"} · {item.divisi || "-"}
+-                  {item.kantor?.namaKantor ? ` · ${item.kantor.namaKantor}` : ""}
+-                </p>
+-                {item.statusAkun === "aktif" ? (
+-                  konfirmasiStatusTerbuka === item.id ? (
+-                    <div style={styles.konfirmasiInline}>
+-                      <span style={styles.konfirmasiTeks}>Yakin nonaktifkan {item.nama}?</span>
+-                      <div style={styles.formTombolGroup}>
+-                        <button onClick={() => setKonfirmasiStatusTerbuka(null)} style={styles.tombolBatal}>Batal</button>
+-                        <button onClick={() => ubahStatusKaryawan(item.id, "nonaktif")} style={styles.tombolNonaktifkan}>Ya, Nonaktifkan</button>
++              )}
++              <div style={styles.kartuGrid}>
++                {menunggu.map((item) => (
++                  <div key={item.id} style={styles.itemCard} className="kartu-hover">
++                    <strong style={styles.itemNama}>{item.nama}</strong>
++                    <p style={styles.itemSub}>{item.email}</p>
++
++                    {formAktivasiTerbuka !== item.id ? (
++                      <button onClick={() => bukaFormAktivasi(item.id)} style={styles.tombolAktifkan}>
++                        Aktifkan Akun
++                      </button>
++                    ) : (
++                      <div style={styles.formInline}>
++                        <label style={styles.labelForm}>Jabatan</label>
++                        <input
++                          value={formAktivasi.jabatan}
++                          onChange={(e) => setFormAktivasi({ ...formAktivasi, jabatan: e.target.value })}
++                          placeholder="Contoh: Teknisi"
++                          style={styles.inputForm}
++                        />
++                        <label style={styles.labelForm}>Divisi</label>
++                        <input
++                          value={formAktivasi.divisi}
++                          onChange={(e) => setFormAktivasi({ ...formAktivasi, divisi: e.target.value })}
++                          placeholder="Contoh: Operasional"
++                          style={styles.inputForm}
++                        />
++                        <div style={styles.formTombolGroup}>
++                          <button onClick={() => setFormAktivasiTerbuka(null)} style={styles.tombolBatal}>Batal</button>
++                          <button onClick={() => kirimAktivasi(item.id)} style={styles.tombolAktifkan}>Simpan & Aktifkan</button>
++                        </div>
+                       </div>
+-                    </div>
+-                  ) : (
+-                    <button onClick={() => setKonfirmasiStatusTerbuka(item.id)} style={styles.tombolNonaktifkan}>
+-                      Nonaktifkan
+-                    </button>
+-                  )
+-                ) : (
+-                  <button onClick={() => ubahStatusKaryawan(item.id, "aktif")} style={styles.tombolAktifkan}>
+-                    Aktifkan Kembali
+-                  </button>
+-                )}
++                    )}
++                  </div>
++                ))}
+               </div>
+-            ))}
+-          </>
+-        )}
+-
+-        {tab === "izin" && <AdminIzin />}
++            </>
++          )}
++
++          {tab === "karyawan" && (
++            <>
++              {karyawan.length > 0 && (
++                <input
++                  type="text"
++                  value={cariKaryawan}
++                  onChange={(e) => setCariKaryawan(e.target.value)}
++                  placeholder="Cari nama, email, jabatan, atau divisi…"
++                  style={styles.kotakCari}
++                  className="input-fokus"
++                />
++              )}
++
++              <div style={styles.tabelWrapper}>
++                <table style={styles.tabel}>
++                  <thead>
++                    <tr>
++                      <th style={styles.th}>Nama</th>
++                      <th style={styles.th}>Email</th>
++                      <th style={styles.th}>Jabatan / Divisi</th>
++                      <th style={styles.th}>Status</th>
++                      <th style={styles.th}></th>
++                    </tr>
++                  </thead>
++                  <tbody>
++                    {loading && <SkeletonBaris jumlah={4} />}
++
++                    {!loading && karyawan.length === 0 && (
++                      <tr><td colSpan={5} style={styles.tdKosong}>👥 Belum ada karyawan aktif.</td></tr>
++                    )}
++                    {!loading && karyawan.length > 0 && karyawanTersaring.length === 0 && (
++                      <tr><td colSpan={5} style={styles.tdKosong}>Tidak ada hasil untuk "{cariKaryawan}".</td></tr>
++                    )}
++
++                    {!loading && karyawanTersaring.map((item) => (
++                      <Fragment key={item.id}>
++                        <tr className="baris-hover">
++                          <td style={styles.td}><strong style={{ color: warna.tinta, fontSize: 13.5 }}>{item.nama}</strong></td>
++                          <td style={{ ...styles.td, color: warna.tintaLembut, fontSize: 12.5 }}>{item.email}</td>
++                          <td style={styles.td}>
++                            {item.jabatan || "-"} · {item.divisi || "-"}
++                            {item.kantor?.namaKantor ? <div style={styles.tdSub}>{item.kantor.namaKantor}</div> : null}
++                          </td>
++                          <td style={styles.td}>
++                            <span
++                              style={{
++                                ...styles.badge,
++                                color: item.statusAkun === "aktif" ? warna.sukses : warna.tintaSamar,
++                                background: item.statusAkun === "aktif" ? warna.suksesLembut : warna.panelAlt,
++                              }}
++                            >
++                              {item.statusAkun === "aktif" ? "Aktif" : "Nonaktif"}
++                            </span>
++                          </td>
++                          <td style={{ ...styles.td, textAlign: "right" }}>
++                            {item.statusAkun === "aktif" ? (
++                              <button
++                                onClick={() => setKonfirmasiStatusTerbuka(konfirmasiStatusTerbuka === item.id ? null : item.id)}
++                                style={styles.tombolNonaktifkanKecil}
++                              >
++                                {konfirmasiStatusTerbuka === item.id ? "Tutup" : "Nonaktifkan"}
++                              </button>
++                            ) : (
++                              <button onClick={() => ubahStatusKaryawan(item.id, "aktif")} style={styles.tombolEditKecil}>
++                                Aktifkan Kembali
++                              </button>
++                            )}
++                          </td>
++                        </tr>
++                        {konfirmasiStatusTerbuka === item.id && (
++                          <tr>
++                            <td colSpan={5} style={{ padding: "0 16px 16px 16px", background: warna.panelAlt }}>
++                              <div style={styles.konfirmasiInline}>
++                                <span style={styles.konfirmasiTeks}>Yakin nonaktifkan {item.nama}?</span>
++                                <div style={styles.formTombolGroup}>
++                                  <button onClick={() => setKonfirmasiStatusTerbuka(null)} style={styles.tombolBatal}>Batal</button>
++                                  <button onClick={() => ubahStatusKaryawan(item.id, "nonaktif")} style={styles.tombolNonaktifkan}>Ya, Nonaktifkan</button>
++                                </div>
++                              </div>
++                            </td>
++                          </tr>
++                        )}
++                      </Fragment>
++                    ))}
++                  </tbody>
++                </table>
++              </div>
++            </>
++          )}
+ 
+-        {tab === "gaji" && <PengaturanGaji />}
++          {tab === "izin" && <AdminIzin />}
++          {tab === "gaji" && <PengaturanGaji />}
++        </div>
+       </div>
+     </div>
+   );
+ }
+ 
+ const styles = {
+-  wrapper: { minHeight: "100vh", background: warna.latar, fontFamily: font.display, padding: "24px 16px" },
+-  header: {
++  shell: { display: "flex", minHeight: "100vh", background: warna.latar, fontFamily: font.display },
++
++  // ---------- SIDEBAR ----------
++  sidebar: {
++    width: 232,
++    background: warna.panel,
++    borderRight: `1px solid ${warna.garis}`,
+     display: "flex",
+-    justifyContent: "space-between",
+-    alignItems: "flex-start",
+-    marginBottom: 22,
+-    maxWidth: 920,
+-    margin: "0 auto 22px auto",
++    flexDirection: "column",
++    padding: "22px 14px",
++    flexShrink: 0,
+   },
+-  headerKiri: { flex: 1 },
+-  logoHeader: { height: 40, marginBottom: 16, display: "block" },
+-  namaRow: { display: "flex", alignItems: "center", gap: 12 },
+-  avatarLingkaran: {
+-    width: 44,
+-    height: 44,
+-    borderRadius: "50%",
+-    background: warna.tinta,
+-    color: "#fff",
++  sidebarAtas: { padding: "0 8px", marginBottom: 26 },
++  logoSidebar: { height: 30, display: "block" },
++  navSidebar: { display: "flex", flexDirection: "column", gap: 2, flex: 1 },
++  navItem: {
+     display: "flex",
+     alignItems: "center",
+-    justifyContent: "center",
+-    fontSize: 15,
+-    fontWeight: 700,
+-    letterSpacing: "0.02em",
+-    flexShrink: 0,
+-  },
+-  avatarBadge: { width: 28, height: 28, borderRadius: 8, display: "block" },
+-  namaUser: { margin: 0, fontSize: 20, color: warna.tinta, fontWeight: 700 },
+-  subNamaUser: { margin: "2px 0 0 0", fontSize: 13, color: warna.tintaLembut },
+-  tombolLogout: {
++    gap: 10,
++    padding: "10px 12px",
+     background: "none",
+-    border: `1px solid ${warna.garis}`,
+-    borderRadius: 10,
+-    padding: "9px 16px",
+-    fontSize: 12.5,
+-    cursor: "pointer",
++    border: "none",
++    borderRadius: 8,
++    fontSize: 13.5,
+     color: warna.tintaLembut,
+-    flexShrink: 0,
+-  },
+-  tabGroup: { display: "flex", gap: 6, maxWidth: 920, margin: "0 auto 20px auto", flexWrap: "wrap" },
+-  tab: {
+-    flex: "1 1 auto",
+-    minWidth: 110,
+-    padding: "10px 6px",
+-    background: warna.panel,
+-    border: `1px solid ${warna.garis}`,
+-    borderRadius: 10,
+-    fontSize: 12.5,
+     cursor: "pointer",
+-    color: warna.tintaLembut,
+     fontWeight: 500,
++    textAlign: "left",
+   },
+-  tabAktif: {
+-    flex: "1 1 auto",
+-    minWidth: 110,
+-    padding: "10px 6px",
+-    background: warna.tinta,
+-    border: `1px solid ${warna.tinta}`,
+-    borderRadius: 10,
+-    fontSize: 12.5,
++  navItemAktif: {
++    display: "flex",
++    alignItems: "center",
++    gap: 10,
++    padding: "10px 12px",
++    background: warna.aksenLembut,
++    border: "none",
++    borderRadius: 8,
++    fontSize: 13.5,
++    color: warna.aksen,
+     cursor: "pointer",
++    fontWeight: 700,
++    textAlign: "left",
++  },
++  navIkon: { fontSize: 15, width: 18, textAlign: "center" },
++  navBadge: {
++    background: warna.bahaya,
+     color: "#fff",
+-    fontWeight: 600,
++    fontSize: 10.5,
++    fontWeight: 700,
++    borderRadius: 20,
++    padding: "1px 7px",
+   },
+-  content: { maxWidth: 920, margin: "0 auto" },
+-  statGrid: {
+-    display: "grid",
+-    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+-    gap: 10,
+-    marginBottom: 18,
++  sidebarBawah: { borderTop: `1px solid ${warna.garis}`, paddingTop: 14, marginTop: 10 },
++  profilSidebar: { display: "flex", alignItems: "center", gap: 10, padding: "0 8px", marginBottom: 10 },
++  avatarLingkaran: {
++    width: 36, height: 36, borderRadius: "50%", background: warna.tinta, color: "#fff",
++    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, flexShrink: 0,
++  },
++  namaProfil: { margin: 0, fontSize: 13, color: warna.tinta, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
++  perananProfil: { margin: 0, fontSize: 11, color: warna.tintaSamar },
++  tombolLogout: {
++    width: "100%", background: "none", border: `1px solid ${warna.garis}`, borderRadius: 8,
++    padding: "9px 12px", fontSize: 12.5, cursor: "pointer", color: warna.tintaLembut, fontWeight: 600,
+   },
++
++  // ---------- MAIN AREA ----------
++  mainArea: { flex: 1, minWidth: 0, padding: "26px 32px" },
++  topbarMobile: { display: "none", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
++  tombolHamburger: { background: warna.panel, border: `1px solid ${warna.garis}`, borderRadius: 8, padding: 8, cursor: "pointer" },
++  topbarJudul: { fontSize: 15, fontWeight: 700, color: warna.tinta },
++  headerAtas: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 22 },
++  judulHalaman: { margin: 0, fontSize: 24, fontWeight: 700, color: warna.tinta },
++  subJudulHalaman: { margin: "4px 0 0 0", fontSize: 13, color: warna.tintaLembut },
++  content: { maxWidth: 1040 },
++
++  statGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 18 },
+   statCard: {
+-    background: warna.panel,
+-    borderRadius: 10,
+-    padding: "16px 18px",
+-    border: `1px solid ${warna.garis}`,
+-    borderLeft: `3px solid ${warna.tinta}`,
+-    display: "flex",
+-    flexDirection: "column",
+-    gap: 4,
++    background: warna.panel, borderRadius: 10, padding: "16px 18px", border: `1px solid ${warna.garis}`,
++    borderLeft: `3px solid ${warna.tinta}`, display: "flex", flexDirection: "column", gap: 4,
+   },
+   statAngka: { fontSize: 26, fontWeight: 700, color: warna.tinta, fontFamily: font.mono, lineHeight: 1 },
+   statLabel: { fontSize: 12, color: warna.tintaLembut, fontWeight: 500 },
++
+   kotakCari: {
+-    width: "100%",
+-    padding: "10px 14px",
+-    marginBottom: 12,
+-    borderRadius: 10,
+-    border: `1px solid ${warna.garis}`,
+-    fontSize: 13.5,
+-    color: warna.tinta,
+-    background: warna.panel,
+-    boxSizing: "border-box",
+-    fontFamily: font.display,
++    width: "100%", maxWidth: 360, padding: "10px 14px", marginBottom: 14, borderRadius: 10,
++    border: `1px solid ${warna.garis}`, fontSize: 13.5, color: warna.tinta, background: warna.panel,
++    boxSizing: "border-box", fontFamily: font.display,
++  },
++
++  // ---------- TABEL ----------
++  tabelWrapper: {
++    background: warna.panel, border: `1px solid ${warna.garis}`, borderRadius: 12,
++    overflow: "auto", maxWidth: "100%",
++  },
++  tabel: { width: "100%", borderCollapse: "collapse", minWidth: 640 },
++  th: {
++    textAlign: "left", fontSize: 11, fontWeight: 700, color: warna.tintaSamar, textTransform: "uppercase",
++    letterSpacing: "0.04em", padding: "12px 16px", borderBottom: `1px solid ${warna.garis}`, background: warna.panelAlt,
+   },
++  td: { padding: "13px 16px", borderBottom: `1px solid ${warna.garis}`, fontSize: 13, color: warna.tinta, verticalAlign: "top" },
++  tdSub: { fontSize: 11.5, color: warna.tintaLembut, marginTop: 2 },
++  tdKosong: { textAlign: "center", padding: "40px 16px", color: warna.tintaSamar, fontSize: 13.5 },
++  mono: { fontFamily: font.mono, fontWeight: 600 },
++
++  badge: { fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 10, whiteSpace: "nowrap" },
++
++  // ---------- KARTU (dipakai buat tab Menunggu) ----------
++  kartuGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 10 },
+   itemCard: {
+-    background: warna.panel,
+-    borderRadius: 10,
+-    padding: 16,
+-    marginBottom: 8,
+-    border: `1px solid ${warna.garis}`,
++    background: warna.panel, borderRadius: 10, padding: 16, border: `1px solid ${warna.garis}`,
+     transition: "border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease",
+   },
+-  itemHeader: { display: "flex", justifyContent: "space-between", alignItems: "center" },
+   itemNama: { fontSize: 14.5, color: warna.tinta },
+-  itemSub: { fontSize: 12.5, color: warna.tintaLembut, margin: "3px 0" },
+-  itemDetail: { fontSize: 12.5, color: warna.tinta, margin: "6px 0 2px 0" },
+-  itemAlamat: { fontSize: 11.5, color: warna.tintaSamar, margin: "3px 0 0 0" },
+-  mono: { fontFamily: font.mono, fontWeight: 600 },
+-  pemisah: { margin: "0 8px", color: warna.garis },
+-  badge: {
+-    fontSize: 11,
+-    fontWeight: 600,
+-    padding: "3px 10px",
+-    borderRadius: 10,
+-  },
+-  kosongBox: {
+-    textAlign: "center",
+-    padding: "48px 24px",
+-    background: warna.panel,
+-    borderRadius: 10,
+-    border: `1px dashed ${warna.garis}`,
+-  },
++  itemSub: { fontSize: 12.5, color: warna.tintaLembut, margin: "3px 0 12px 0" },
++
++  kosongBox: { textAlign: "center", padding: "48px 24px", background: warna.panel, borderRadius: 10, border: `1px dashed ${warna.garis}` },
+   kosongIkon: { fontSize: 28, display: "block", marginBottom: 8, opacity: 0.7 },
+   kosong: { textAlign: "center", color: warna.tintaSamar, fontSize: 13.5, margin: 0 },
+-  skeletonCard: {
+-    background: warna.panel,
+-    borderRadius: 10,
+-    padding: 16,
+-    marginBottom: 8,
+-    border: `1px solid ${warna.garis}`,
+-  },
+-  skeletonBar: {
+-    background: warna.panelAlt,
+-    borderRadius: 10,
+-  },
+-  pesanError: { color: warna.bahaya, textAlign: "center" },
+-  pesanSukses: { color: warna.sukses, textAlign: "center" },
++
++  pesanError: { color: warna.bahaya, marginBottom: 12, fontSize: 13.5 },
++  pesanSukses: { color: warna.sukses, marginBottom: 12, fontSize: 13.5 },
++
+   catatanAdmin: {
+-    fontSize: 11.5,
+-    color: warna.tintaLembut,
+-    background: warna.panelAlt,
+-    borderLeft: `3px solid ${warna.aksen}`,
+-    padding: "8px 10px",
+-    borderRadius: 8,
+-    margin: "8px 0 0 0",
++    fontSize: 11.5, color: warna.tintaLembut, background: "#fff", borderLeft: `3px solid ${warna.aksen}`,
++    padding: "8px 10px", borderRadius: 8, margin: 0,
+   },
+   tombolEditKecil: {
+-    marginTop: 10,
+-    padding: "6px 12px",
+-    background: "none",
+-    color: warna.tintaLembut,
+-    border: `1px solid ${warna.garis}`,
+-    borderRadius: 10,
+-    fontSize: 11.5,
+-    cursor: "pointer",
+-    fontWeight: 500,
+-  },
+-  formInline: {
+-    marginTop: 10,
+-    paddingTop: 10,
+-    borderTop: `1px solid ${warna.garis}`,
+-    display: "flex",
+-    flexDirection: "column",
+-    gap: 4,
++    padding: "7px 12px", background: "none", color: warna.tinta, border: `1px solid ${warna.garis}`,
++    borderRadius: 8, fontSize: 11.5, cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap",
+   },
++  formInline: { paddingTop: 12, display: "flex", flexDirection: "column", gap: 4, maxWidth: 420 },
+   labelForm: { fontSize: 11, color: warna.tintaLembut, fontWeight: 600, marginTop: 6 },
+-  inputForm: {
+-    padding: "8px 10px",
+-    border: `1px solid ${warna.garis}`,
+-    borderRadius: 10,
+-    fontSize: 13,
+-    color: warna.tinta,
+-    fontFamily: font.display,
+-  },
+-  selectForm: {
+-    padding: "8px 10px",
+-    border: `1px solid ${warna.garis}`,
+-    borderRadius: 10,
+-    fontSize: 13,
+-    color: warna.tinta,
+-    fontFamily: font.display,
+-    background: "#fff",
+-  },
+-  textareaForm: {
+-    padding: "8px 10px",
+-    border: `1px solid ${warna.garis}`,
+-    borderRadius: 10,
+-    fontSize: 13,
+-    color: warna.tinta,
+-    fontFamily: font.display,
+-    minHeight: 56,
+-    resize: "vertical",
+-  },
++  inputForm: { padding: "8px 10px", border: `1px solid ${warna.garis}`, borderRadius: 8, fontSize: 13, color: warna.tinta, fontFamily: font.display },
++  selectForm: { padding: "8px 10px", border: `1px solid ${warna.garis}`, borderRadius: 8, fontSize: 13, color: warna.tinta, fontFamily: font.display, background: "#fff" },
++  textareaForm: { padding: "8px 10px", border: `1px solid ${warna.garis}`, borderRadius: 8, fontSize: 13, color: warna.tinta, fontFamily: font.display, minHeight: 56, resize: "vertical" },
+   formTombolGroup: { display: "flex", gap: 8, marginTop: 8 },
+   tombolBatal: {
+-    flex: 1,
+-    padding: "9px 14px",
+-    background: "none",
+-    color: warna.tintaLembut,
+-    border: `1px solid ${warna.garis}`,
+-    borderRadius: 10,
+-    fontSize: 12.5,
+-    cursor: "pointer",
+-    fontWeight: 600,
+-  },
+-  konfirmasiInline: {
+-    marginTop: 10,
+-    paddingTop: 10,
+-    borderTop: `1px solid ${warna.garis}`,
++    flex: 1, padding: "9px 14px", background: "none", color: warna.tintaLembut, border: `1px solid ${warna.garis}`,
++    borderRadius: 8, fontSize: 12.5, cursor: "pointer", fontWeight: 600,
+   },
++  konfirmasiInline: { paddingTop: 12 },
+   konfirmasiTeks: { fontSize: 12.5, color: warna.tinta, fontWeight: 500 },
+   tombolAktifkan: {
+-    marginTop: 10,
+-    padding: "8px 16px",
+-    background: warna.tinta,
+-    color: "#fff",
+-    border: "none",
+-    borderRadius: 10,
+-    fontSize: 12.5,
+-    cursor: "pointer",
+-    fontWeight: 600,
++    padding: "9px 16px", background: warna.aksen, color: "#fff", border: "none", borderRadius: 8,
++    fontSize: 12.5, cursor: "pointer", fontWeight: 600,
+   },
+   tombolNonaktifkan: {
+-    marginTop: 10,
+-    padding: "8px 16px",
+-    background: "#fff",
+-    color: warna.bahaya,
+-    border: `1px solid ${warna.bahaya}`,
+-    borderRadius: 10,
+-    fontSize: 12.5,
+-    cursor: "pointer",
+-    fontWeight: 600,
++    padding: "9px 16px", background: "#fff", color: warna.bahaya, border: `1px solid ${warna.bahaya}`,
++    borderRadius: 8, fontSize: 12.5, cursor: "pointer", fontWeight: 600,
++  },
++  tombolNonaktifkanKecil: {
++    padding: "7px 12px", background: "none", color: warna.bahaya, border: `1px solid ${warna.bahaya}`,
++    borderRadius: 8, fontSize: 11.5, cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap",
+   },
+ };
+-- 
+2.43.0
+

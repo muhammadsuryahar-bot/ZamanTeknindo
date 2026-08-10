@@ -289,7 +289,7 @@ export default function PengaturanGaji() {
 
         <div style={styles.inputGroup}>
           <button onClick={hitungSemuaGaji} style={styles.tombolAktifkan} disabled={sedangHitung}>
-            {sedangHitung ? "Menghitung…" : "1. Hitung Gaji Bulan Ini"}
+            {sedangHitung ? "Menghitung…" : "Hitung Gaji Bulan Ini"}
           </button>
           <button onClick={muatLaporanBulanan} style={styles.tombolSekunder} disabled={loadingLaporan}>
             {loadingLaporan ? "Memuat…" : "Muat Data yang Sudah Ada"}
