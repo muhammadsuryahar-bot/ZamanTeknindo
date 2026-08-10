@@ -15,6 +15,7 @@ const IKON_TAB = {
   karyawan: "👥",
   izin: "📝",
   gaji: "💵",
+  kantor: "🏢",
 };
 
 // Kartu abu-abu berkedip pelan, dipakai sebagai placeholder saat data masih dimuat
@@ -47,7 +48,13 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
 
   // Form aktivasi akun yang lagi dibuka (ganti prompt() bawaan browser)
   const [formAktivasiTerbuka, setFormAktivasiTerbuka] = useState(null); // id akun atau null
-  const [formAktivasi, setFormAktivasi] = useState({ jabatan: "", divisi: "" });
+  const [formAktivasi, setFormAktivasi] = useState({ jabatan: "", divisi: "", kantorId: "" });
+
+  // Daftar kantor/cabang, dipakai di dropdown aktivasi & tab Kantor
+  const [daftarKantorState, setDaftarKantorState] = useState([]);
+  const [formKantor, setFormKantor] = useState({ namaKantor: "", alamat: "", latitude: "", longitude: "" });
+  const [kantorEditId, setKantorEditId] = useState(null); // id kantor yang lagi diedit, atau null = mode tambah baru
+  const [sedangSimpanKantor, setSedangSimpanKantor] = useState(false);
 
   // Konfirmasi ubah status karyawan yang lagi dibuka (ganti confirm() bawaan browser)
   const [konfirmasiStatusTerbuka, setKonfirmasiStatusTerbuka] = useState(null); // id karyawan atau null
@@ -77,17 +84,20 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
   async function muatData() {
     setLoading(true);
     try {
-      const [resRekap, resMenunggu, resKaryawan] = await Promise.all([
+      const [resRekap, resMenunggu, resKaryawan, resKantor] = await Promise.all([
         fetch(`${API_URL}/admin/rekap-hari-ini`, { headers: { Authorization: `Bearer ${getToken()}` } }),
         fetch(`${API_URL}/admin/akun-menunggu`, { headers: { Authorization: `Bearer ${getToken()}` } }),
         fetch(`${API_URL}/admin/karyawan`, { headers: { Authorization: `Bearer ${getToken()}` } }),
+        fetch(`${API_URL}/admin/kantor`, { headers: { Authorization: `Bearer ${getToken()}` } }),
       ]);
       const dataRekap = await resRekap.json();
       const dataMenunggu = await resMenunggu.json();
       const dataKaryawan = await resKaryawan.json();
+      const dataKantor = await resKantor.json();
       setRekap(dataRekap.data || []);
       setMenunggu(dataMenunggu.data || []);
       setKaryawan(dataKaryawan.data || []);
+      setDaftarKantorState(dataKantor.data || []);
     } catch (err) {
       setPesan("Gagal memuat data. Cek koneksi ke server.");
     } finally {
@@ -97,7 +107,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
 
   function bukaFormAktivasi(id) {
     setFormAktivasiTerbuka(id);
-    setFormAktivasi({ jabatan: "", divisi: "" });
+    setFormAktivasi({ jabatan: "", divisi: "", kantorId: daftarKantorState[0]?.id ? String(daftarKantorState[0].id) : "" });
   }
 
   async function kirimAktivasi(id) {
@@ -119,6 +129,49 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       muatData();
     } catch (err) {
       setPesan("Tidak bisa terhubung ke server.");
+    }
+  }
+
+  function bukaFormTambahKantor() {
+    setKantorEditId(null);
+    setFormKantor({ namaKantor: "", alamat: "", latitude: "", longitude: "" });
+  }
+
+  function bukaFormEditKantor(k) {
+    setKantorEditId(k.id);
+    setFormKantor({
+      namaKantor: k.namaKantor || "",
+      alamat: k.alamat || "",
+      latitude: k.latitude ?? "",
+      longitude: k.longitude ?? "",
+    });
+  }
+
+  async function simpanKantor() {
+    if (!formKantor.namaKantor.trim()) {
+      setPesan("Nama kantor wajib diisi.");
+      return;
+    }
+    setPesan("");
+    setSedangSimpanKantor(true);
+    try {
+      const sedangEdit = kantorEditId !== null;
+      const url = sedangEdit ? `${API_URL}/admin/kantor/${kantorEditId}` : `${API_URL}/admin/kantor`;
+      const res = await fetch(url, {
+        method: sedangEdit ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify(formKantor),
+      });
+      const data = await res.json();
+      if (!res.ok) return setPesan(data.pesan || "Gagal menyimpan kantor.");
+      setPesanSukses(data.pesan);
+      setKantorEditId(null);
+      setFormKantor({ namaKantor: "", alamat: "", latitude: "", longitude: "" });
+      muatData();
+    } catch (err) {
+      setPesan("Tidak bisa terhubung ke server.");
+    } finally {
+      setSedangSimpanKantor(false);
     }
   }
 
@@ -212,6 +265,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
     { id: "karyawan", label: "Karyawan" },
     { id: "izin", label: "Izin" },
     { id: "gaji", label: "Gaji" },
+    { id: "kantor", label: "Kantor" },
   ];
 
   const judulTab = tabs.find((t) => t.id === tab)?.label || "";
@@ -332,6 +386,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                     <thead>
                       <tr>
                         <th style={{ ...styles.th, ...styles.thSticky }}>Karyawan</th>
+                        <th style={styles.th}>Foto</th>
                         <th style={styles.th}>Status</th>
                         <th style={styles.th}>Masuk</th>
                         <th style={styles.th}>Pulang</th>
@@ -343,10 +398,10 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                       {loading && <SkeletonBaris jumlah={4} />}
 
                       {!loading && rekap.length === 0 && (
-                        <tr><td colSpan={6} style={styles.tdKosong}>📋 Belum ada karyawan yang absen hari ini.</td></tr>
+                        <tr><td colSpan={7} style={styles.tdKosong}>📋 Belum ada karyawan yang absen hari ini.</td></tr>
                       )}
                       {!loading && rekap.length > 0 && rekapTersaring.length === 0 && (
-                        <tr><td colSpan={6} style={styles.tdKosong}>Tidak ada hasil untuk "{cariRekap}".</td></tr>
+                        <tr><td colSpan={7} style={styles.tdKosong}>Tidak ada hasil untuk "{cariRekap}".</td></tr>
                       )}
 
                       {!loading && rekapTersaring.map((item) => {
@@ -358,6 +413,23 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                               <td style={{ ...styles.td, ...styles.tdSticky }}>
                                 <strong style={{ color: warna.tinta, fontSize: 13.5 }}>{item.pengguna.nama}</strong>
                                 <div style={styles.tdSub}>{item.pengguna.jabatan || "-"} · {item.pengguna.divisi || "-"}</div>
+                              </td>
+                              <td style={styles.td}>
+                                <div style={styles.fotoAbsenRow}>
+                                  {item.fotoMasuk && (
+                                    <a href={`/uploads/${item.fotoMasuk}`} target="_blank" rel="noopener noreferrer" title="Lihat foto absen masuk">
+                                      <img src={`/uploads/${item.fotoMasuk}`} alt="Foto absen masuk" style={styles.fotoAbsenThumb} />
+                                    </a>
+                                  )}
+                                  {item.fotoPulang && (
+                                    <a href={`/uploads/${item.fotoPulang}`} target="_blank" rel="noopener noreferrer" title="Lihat foto absen pulang">
+                                      <img src={`/uploads/${item.fotoPulang}`} alt="Foto absen pulang" style={styles.fotoAbsenThumb} />
+                                    </a>
+                                  )}
+                                  {!item.fotoMasuk && !item.fotoPulang && (
+                                    <span style={{ fontSize: 11, color: warna.tintaSamar }}>–</span>
+                                  )}
+                                </div>
                               </td>
                               <td style={styles.td}>
                                 <span style={{ ...styles.badge, color: status.warna, background: status.latar }}>{status.teks}</span>
@@ -375,14 +447,14 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                             </tr>
                             {item.catatanAdmin && !sedangEdit && (
                               <tr>
-                                <td colSpan={6} style={{ padding: "0 16px 10px 16px" }}>
+                                <td colSpan={7} style={{ padding: "0 16px 10px 16px" }}>
                                   <p style={styles.catatanAdmin}>Catatan Admin: {item.catatanAdmin}</p>
                                 </td>
                               </tr>
                             )}
                             {sedangEdit && (
                               <tr>
-                                <td colSpan={6} style={{ padding: "0 16px 16px 16px", background: warna.panelAlt }}>
+                                <td colSpan={7} style={{ padding: "0 16px 16px 16px", background: warna.panelAlt }}>
                                 <div style={styles.formInline}>
                                   <label style={styles.labelForm}>Status baru</label>
                                   <select
@@ -454,6 +526,20 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                           placeholder="Contoh: Operasional"
                           style={styles.inputForm}
                         />
+                        {daftarKantorState.length > 0 && (
+                          <>
+                            <label style={styles.labelForm}>Kantor / Lokasi Kerja</label>
+                            <select
+                              value={formAktivasi.kantorId}
+                              onChange={(e) => setFormAktivasi({ ...formAktivasi, kantorId: e.target.value })}
+                              style={styles.inputForm}
+                            >
+                              {daftarKantorState.map((k) => (
+                                <option key={k.id} value={k.id}>{k.namaKantor}</option>
+                              ))}
+                            </select>
+                          </>
+                        )}
                         <div style={styles.formTombolGroup}>
                           <button onClick={() => setFormAktivasiTerbuka(null)} style={styles.tombolBatal}>Batal</button>
                           <button onClick={() => kirimAktivasi(item.id)} style={styles.tombolAktifkan}>Simpan & Aktifkan</button>
@@ -562,6 +648,80 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
 
           {tab === "izin" && <AdminIzin />}
           {tab === "gaji" && <PengaturanGaji />}
+
+          {tab === "kantor" && (
+            <>
+              <div style={styles.kartuFormKantor}>
+                <p style={styles.judulFormKantor}>
+                  {kantorEditId !== null ? "Edit Kantor" : "Tambah Kantor Baru"}
+                </p>
+                <div style={styles.formGridKantor}>
+                  <div>
+                    <label style={styles.labelForm}>Nama Kantor</label>
+                    <input
+                      value={formKantor.namaKantor}
+                      onChange={(e) => setFormKantor({ ...formKantor, namaKantor: e.target.value })}
+                      placeholder="Contoh: Kantor Pusat Pekanbaru"
+                      style={styles.inputForm}
+                    />
+                  </div>
+                  <div>
+                    <label style={styles.labelForm}>Alamat</label>
+                    <input
+                      value={formKantor.alamat}
+                      onChange={(e) => setFormKantor({ ...formKantor, alamat: e.target.value })}
+                      placeholder="Jl. Contoh No. 1, Pekanbaru"
+                      style={styles.inputForm}
+                    />
+                  </div>
+                  <div>
+                    <label style={styles.labelForm}>Latitude (opsional)</label>
+                    <input
+                      value={formKantor.latitude}
+                      onChange={(e) => setFormKantor({ ...formKantor, latitude: e.target.value })}
+                      placeholder="0.5071"
+                      style={styles.inputForm}
+                    />
+                  </div>
+                  <div>
+                    <label style={styles.labelForm}>Longitude (opsional)</label>
+                    <input
+                      value={formKantor.longitude}
+                      onChange={(e) => setFormKantor({ ...formKantor, longitude: e.target.value })}
+                      placeholder="101.4478"
+                      style={styles.inputForm}
+                    />
+                  </div>
+                </div>
+                <div style={styles.formTombolGroup}>
+                  {kantorEditId !== null && (
+                    <button onClick={bukaFormTambahKantor} style={styles.tombolBatal}>Batal Edit</button>
+                  )}
+                  <button onClick={simpanKantor} style={styles.tombolAktifkan} disabled={sedangSimpanKantor}>
+                    {sedangSimpanKantor ? "Menyimpan…" : kantorEditId !== null ? "Simpan Perubahan" : "Tambah Kantor"}
+                  </button>
+                </div>
+              </div>
+
+              <div style={styles.kartuGrid}>
+                {daftarKantorState.map((k) => (
+                  <div key={k.id} style={styles.itemCard} className="kartu-hover">
+                    <strong style={styles.itemNama}>{k.namaKantor}</strong>
+                    <p style={styles.itemSub}>{k.alamat || "Alamat belum diisi"}</p>
+                    <p style={styles.itemSub}>
+                      {k._count?.pengguna ?? 0} karyawan ditempatkan di sini
+                    </p>
+                    <button onClick={() => bukaFormEditKantor(k)} style={styles.tombolEditKantor}>
+                      Edit
+                    </button>
+                  </div>
+                ))}
+                {daftarKantorState.length === 0 && (
+                  <p style={styles.infoKosong}>Belum ada kantor terdaftar. Tambahkan lewat form di atas.</p>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -742,4 +902,21 @@ const styles = {
     padding: "7px 12px", background: "none", color: warna.bahaya, border: `1px solid ${warna.bahaya}`,
     borderRadius: 8, fontSize: 11.5, cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap",
   },
+
+  kartuFormKantor: {
+    background: warna.panel, borderRadius: 10, padding: 20, border: `1px solid ${warna.garis}`, marginBottom: 16,
+  },
+  judulFormKantor: { fontSize: 14.5, fontWeight: 700, color: warna.tinta, margin: "0 0 4px 0" },
+  formGridKantor: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginTop: 4 },
+  tombolEditKantor: {
+    padding: "7px 14px", background: "none", color: warna.tinta, border: `1px solid ${warna.garis}`,
+    borderRadius: 8, fontSize: 12, cursor: "pointer", fontWeight: 600,
+  },
+  infoKosong: { color: warna.tintaSamar, fontSize: 13.5, gridColumn: "1 / -1" },
+
+  fotoAbsenRow: { display: "flex", gap: 8, marginTop: 10 },
+  fotoAbsenThumb: {
+    width: 56, height: 56, borderRadius: 8, objectFit: "cover", border: `1px solid ${warna.garis}`, cursor: "pointer",
+  },
+  fotoAbsenLabel: { fontSize: 10, color: warna.tintaSamar, textAlign: "center", marginTop: 3 },
 };
