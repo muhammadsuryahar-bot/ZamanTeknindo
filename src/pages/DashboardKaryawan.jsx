@@ -76,7 +76,9 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       const data = await res.json();
       setTahap(data.tahap);
     } catch (err) {
-      setPesan("Gagal memuat status absen. Cek koneksi ke server.");
+      setTahap("gagal"); // dulu: tahap tetap "memuat" selamanya, jadi "Memeriksa status…"
+                          // nempel terus bareng pesan error di bawahnya
+      setPesan("Gagal memuat status absen. Periksa koneksi internet, lalu coba lagi.");
       setPesanTipe("error");
     }
   }
@@ -224,7 +226,24 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
   return (
     <div style={styles.wrapper}>
-      <div style={styles.shell}>
+      <div className="karyawan-outer">
+        {/* Panel brand — HANYA tampil di layar desktop (lihat index.css).
+            Sebelumnya di layar besar halaman ini cuma jadi kartu kecil
+            mengambang sendirian di lautan putih kosong; panel ini mengisi
+            ruang itu dengan identitas perusahaan, konsisten dengan gaya
+            split-screen yang sudah dipakai di halaman Login. */}
+        <div className="karyawan-brand-panel" style={styles.desktopBrandPanel}>
+          <div style={styles.polaTitikKaryawan} />
+          <div style={{ position: "relative", zIndex: 1 }}>
+            <img src={logoHorizontal} alt="" style={styles.logoBrandPanel} />
+            <h2 style={styles.brandNamaKaryawan}>Selamat Bertugas!</h2>
+            <p style={styles.brandTaglineKaryawan}>
+              Catat kehadiran hari ini dengan foto & lokasi — cukup sekali klik.
+            </p>
+          </div>
+        </div>
+
+        <div style={styles.shell} className="karyawan-content-shell">
         {/* Header */}
         <div style={styles.header}>
           <img src={logoHorizontal} alt="PT. Zaman Teknindo" style={styles.logo} />
@@ -275,6 +294,15 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
           {tahap === "memuat" && <p style={styles.infoNetral}>Memeriksa status…</p>}
 
+          {tahap === "gagal" && (
+            <div style={styles.gagalBox}>
+              <p style={styles.gagalTeks}>Status absen belum berhasil dimuat.</p>
+              <button onClick={() => { setPesan(""); setTahap("memuat"); ambilStatusHariIni(); }} style={styles.tombolCobaLagi}>
+                Coba Lagi
+              </button>
+            </div>
+          )}
+
           {tahap === "selesai" && (
             <div style={styles.selesaiBox}>
               <span style={styles.selesaiIkon}>✓</span>
@@ -282,7 +310,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
             </div>
           )}
 
-          {tahap !== "memuat" && tahap !== "selesai" && !kameraAktif && !fotoTerambil && (
+          {tahap !== "memuat" && tahap !== "selesai" && tahap !== "gagal" && !kameraAktif && !fotoTerambil && (
             <button onClick={bukaKamera} style={styles.tombolUtama}>
               {tahap === "belum_masuk" ? "Absen Masuk Sekarang" : "Absen Pulang Sekarang"}
             </button>
@@ -314,6 +342,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
             <span>Ajukan Izin</span>
           </button>
         </div>
+        </div>
       </div>
     </div>
   );
@@ -322,6 +351,30 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 const styles = {
   wrapper: { minHeight: "100svh", background: warna.latar, fontFamily: font.display, padding: 16 },
   shell: { maxWidth: 460, margin: "0 auto" },
+
+  // ---------- Panel brand desktop (lihat penjelasan di JSX) ----------
+  desktopBrandPanel: {
+    position: "relative",
+    width: 360,
+    borderRadius: 20,
+    background: `linear-gradient(160deg, ${warna.aksen} 0%, ${warna.aksenGelap || "#0B6E45"} 100%)`,
+    padding: "40px 32px",
+    overflow: "hidden",
+    alignItems: "flex-end",
+    minHeight: 420,
+    // catatan: "display" SENGAJA tidak diset di sini (biar CSS
+    // .karyawan-brand-panel yang mengatur tampil/sembunyi sesuai lebar
+    // layar). Kalau diset di sini, inline style akan menang atas CSS
+    // dan panel ini malah ikut muncul di HP.
+  },
+  polaTitikKaryawan: {
+    position: "absolute", inset: 0,
+    backgroundImage: "radial-gradient(rgba(255,255,255,0.14) 1.5px, transparent 1.5px)",
+    backgroundSize: "18px 18px", opacity: 0.6,
+  },
+  logoBrandPanel: { width: 40, marginBottom: 16, filter: "brightness(0) invert(1)" },
+  brandNamaKaryawan: { color: "#fff", fontSize: 20, fontWeight: 700, margin: "0 0 10px 0" },
+  brandTaglineKaryawan: { color: "rgba(255,255,255,0.85)", fontSize: 13, lineHeight: 1.6, margin: 0 },
 
   header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
   logo: { height: 30 },
@@ -375,6 +428,13 @@ const styles = {
     color: warna.sukses, fontSize: 18, fontWeight: 700, marginBottom: 10,
   },
   selesaiTeks: { margin: 0, color: warna.sukses, fontWeight: 700, fontSize: 14.5 },
+
+  gagalBox: { textAlign: "center", padding: "10px 0 4px 0" },
+  gagalTeks: { margin: "0 0 10px 0", color: warna.tintaSamar, fontSize: 13.5 },
+  tombolCobaLagi: {
+    background: warna.panel, border: `1px solid ${warna.garis}`, color: warna.tinta,
+    fontWeight: 600, fontSize: 13, padding: "8px 20px", borderRadius: 8, cursor: "pointer",
+  },
 
   tombolUtama: {
     width: "100%", padding: "15px", background: warna.aksen, color: "#fff",

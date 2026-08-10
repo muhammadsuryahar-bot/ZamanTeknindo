@@ -115,3 +115,33 @@ button:not(:disabled):active {
     padding: 16px !important;
   }
 }
+
+/* ===== Dashboard Karyawan: panel brand khusus desktop ===== */
+/* Default (HP/tablet kecil): panel brand disembunyikan, konten tetap
+   satu kolom seperti sebelumnya -- tidak mengubah apapun di mobile. */
+.karyawan-brand-panel { display: none; }
+
+@media (min-width: 900px) {
+  .karyawan-outer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 48px;
+    min-height: 100svh;
+  }
+  .karyawan-brand-panel { display: flex !important; }
+  .karyawan-content-shell { margin: 0 !important; }
+}
+
+/* ===== Penanda tabel bisa digeser (khusus HP) ===== */
+/* Di desktop, kontainer tabel biasanya sudah lebih lebar dari isi tabel
+   (minWidth: 640px), jadi tidak ada yang perlu digeser -> hint & fade disembunyikan.
+   Di HP, tabel rekap/karyawan punya lebih banyak kolom daripada lebar layar,
+   jadi dua elemen ini muncul supaya orang tahu harus geser ke kanan. */
+.hint-geser { display: none; }
+.tabel-fade-kanan { display: none; }
+
+@media (max-width: 899px) {
+  .hint-geser { display: flex; }
+  .tabel-fade-kanan { display: block; }
+}

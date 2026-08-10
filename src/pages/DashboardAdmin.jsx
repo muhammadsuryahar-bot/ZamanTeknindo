@@ -59,6 +59,16 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
   // Sidebar mobile (dibuka lewat hamburger di topbar kecil)
   const [sidebarMobileTerbuka, setSidebarMobileTerbuka] = useState(false);
 
+  // Penanda "tabel sudah digeser sampai ujung kanan" (khusus HP) — kalau
+  // sudah di ujung, gradient fade di tepi kanan disembunyikan karena tidak
+  // ada lagi yang perlu diisyaratkan ke pengguna
+  const [rekapDiUjung, setRekapDiUjung] = useState(false);
+  const [karyawanDiUjung, setKaryawanDiUjung] = useState(false);
+  function cekUjungScroll(e, setDiUjung) {
+    const el = e.target;
+    setDiUjung(el.scrollLeft + el.clientWidth >= el.scrollWidth - 4);
+  }
+
   useEffect(() => {
     muatData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -257,11 +267,15 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       {/* ============ AREA KONTEN UTAMA ============ */}
       <div style={styles.mainArea} className="main-area-admin">
         <div style={styles.topbarMobile} className="topbar-mobile">
-          <button onClick={() => setSidebarMobileTerbuka(true)} style={styles.tombolHamburger} aria-label="Buka menu">
-            <img src={logo} alt="" style={{ width: 22 }} />
+          <button onClick={() => setSidebarMobileTerbuka(true)} style={styles.tombolHamburger} aria-label="Buka menu navigasi">
+            {/* Ikon garis tiga (hamburger) — dulu pakai logo perusahaan di sini,
+                orang tidak akan mengira logo itu bisa diklik untuk buka menu */}
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 5.5H17M3 10H17M3 14.5H17" stroke={warna.tinta} strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
           </button>
-          <span style={styles.topbarJudul}>{judulTab}</span>
-          <div style={{ width: 22 }} />
+          <img src={logo} alt="PT. Zaman Teknindo" style={styles.topbarLogoKecil} />
+          <div style={{ width: 32 }} />
         </div>
 
         <div style={styles.headerAtas}>
@@ -311,62 +325,64 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                 />
               )}
 
-              <div style={styles.tabelWrapper}>
-                <table style={styles.tabel}>
-                  <thead>
-                    <tr>
-                      <th style={styles.th}>Karyawan</th>
-                      <th style={styles.th}>Status</th>
-                      <th style={styles.th}>Masuk</th>
-                      <th style={styles.th}>Pulang</th>
-                      <th style={styles.th}>Lokasi</th>
-                      <th style={styles.th}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading && <SkeletonBaris jumlah={4} />}
+              <p style={styles.hintGeser} className="hint-geser">👉 Geser tabel ke kanan untuk lihat jam pulang & lokasi</p>
+              <div style={styles.tabelWrapperLuar}>
+                <div style={styles.tabelWrapper} className="tabel-scroll" onScroll={(e) => cekUjungScroll(e, setRekapDiUjung)}>
+                  <table style={styles.tabel}>
+                    <thead>
+                      <tr>
+                        <th style={{ ...styles.th, ...styles.thSticky }}>Karyawan</th>
+                        <th style={styles.th}>Status</th>
+                        <th style={styles.th}>Masuk</th>
+                        <th style={styles.th}>Pulang</th>
+                        <th style={styles.th}>Lokasi</th>
+                        <th style={styles.th}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loading && <SkeletonBaris jumlah={4} />}
 
-                    {!loading && rekap.length === 0 && (
-                      <tr><td colSpan={6} style={styles.tdKosong}>📋 Belum ada karyawan yang absen hari ini.</td></tr>
-                    )}
-                    {!loading && rekap.length > 0 && rekapTersaring.length === 0 && (
-                      <tr><td colSpan={6} style={styles.tdKosong}>Tidak ada hasil untuk "{cariRekap}".</td></tr>
-                    )}
+                      {!loading && rekap.length === 0 && (
+                        <tr><td colSpan={6} style={styles.tdKosong}>📋 Belum ada karyawan yang absen hari ini.</td></tr>
+                      )}
+                      {!loading && rekap.length > 0 && rekapTersaring.length === 0 && (
+                        <tr><td colSpan={6} style={styles.tdKosong}>Tidak ada hasil untuk "{cariRekap}".</td></tr>
+                      )}
 
-                    {!loading && rekapTersaring.map((item) => {
-                      const status = labelStatusKehadiran(item.statusFinal || item.statusOtomatis);
-                      const sedangEdit = editStatusTerbuka === item.id;
-                      return (
-                        <Fragment key={item.id}>
-                          <tr className="baris-hover">
-                            <td style={styles.td}>
-                              <strong style={{ color: warna.tinta, fontSize: 13.5 }}>{item.pengguna.nama}</strong>
-                              <div style={styles.tdSub}>{item.pengguna.jabatan || "-"} · {item.pengguna.divisi || "-"}</div>
-                            </td>
-                            <td style={styles.td}>
-                              <span style={{ ...styles.badge, color: status.warna, background: status.latar }}>{status.teks}</span>
-                            </td>
-                            <td style={{ ...styles.td, ...styles.mono }}>{formatJam(item.jamMasuk)}</td>
-                            <td style={{ ...styles.td, ...styles.mono }}>{formatJam(item.jamPulang)}</td>
-                            <td style={{ ...styles.td, fontSize: 12, color: warna.tintaSamar, maxWidth: 200 }}>
-                              {item.alamatMasuk || "–"}
-                            </td>
-                            <td style={{ ...styles.td, textAlign: "right" }}>
-                              <button onClick={() => (sedangEdit ? setEditStatusTerbuka(null) : bukaEditStatus(item))} style={styles.tombolEditKecil}>
-                                {sedangEdit ? "Tutup" : "Ubah Status"}
-                              </button>
-                            </td>
-                          </tr>
-                          {item.catatanAdmin && !sedangEdit && (
-                            <tr>
-                              <td colSpan={6} style={{ padding: "0 16px 10px 16px" }}>
-                                <p style={styles.catatanAdmin}>Catatan Admin: {item.catatanAdmin}</p>
+                      {!loading && rekapTersaring.map((item) => {
+                        const status = labelStatusKehadiran(item.statusFinal || item.statusOtomatis);
+                        const sedangEdit = editStatusTerbuka === item.id;
+                        return (
+                          <Fragment key={item.id}>
+                            <tr className="baris-hover">
+                              <td style={{ ...styles.td, ...styles.tdSticky }}>
+                                <strong style={{ color: warna.tinta, fontSize: 13.5 }}>{item.pengguna.nama}</strong>
+                                <div style={styles.tdSub}>{item.pengguna.jabatan || "-"} · {item.pengguna.divisi || "-"}</div>
+                              </td>
+                              <td style={styles.td}>
+                                <span style={{ ...styles.badge, color: status.warna, background: status.latar }}>{status.teks}</span>
+                              </td>
+                              <td style={{ ...styles.td, ...styles.mono }}>{formatJam(item.jamMasuk)}</td>
+                              <td style={{ ...styles.td, ...styles.mono }}>{formatJam(item.jamPulang)}</td>
+                              <td style={{ ...styles.td, fontSize: 12, color: warna.tintaSamar, maxWidth: 200 }}>
+                                {item.alamatMasuk || "–"}
+                              </td>
+                              <td style={{ ...styles.td, textAlign: "right" }}>
+                                <button onClick={() => (sedangEdit ? setEditStatusTerbuka(null) : bukaEditStatus(item))} style={styles.tombolEditKecil}>
+                                  {sedangEdit ? "Tutup" : "Ubah Status"}
+                                </button>
                               </td>
                             </tr>
-                          )}
-                          {sedangEdit && (
-                            <tr>
-                              <td colSpan={6} style={{ padding: "0 16px 16px 16px", background: warna.panelAlt }}>
+                            {item.catatanAdmin && !sedangEdit && (
+                              <tr>
+                                <td colSpan={6} style={{ padding: "0 16px 10px 16px" }}>
+                                  <p style={styles.catatanAdmin}>Catatan Admin: {item.catatanAdmin}</p>
+                                </td>
+                              </tr>
+                            )}
+                            {sedangEdit && (
+                              <tr>
+                                <td colSpan={6} style={{ padding: "0 16px 16px 16px", background: warna.panelAlt }}>
                                 <div style={styles.formInline}>
                                   <label style={styles.labelForm}>Status baru</label>
                                   <select
@@ -398,6 +414,8 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                     })}
                   </tbody>
                 </table>
+                </div>
+                <div className="tabel-fade-kanan" style={{ ...styles.tabelFade, opacity: rekapDiUjung ? 0 : 1 }} />
               </div>
             </>
           )}
@@ -461,38 +479,40 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                 />
               )}
 
-              <div style={styles.tabelWrapper}>
-                <table style={styles.tabel}>
-                  <thead>
-                    <tr>
-                      <th style={styles.th}>Nama</th>
-                      <th style={styles.th}>Email</th>
-                      <th style={styles.th}>Jabatan / Divisi</th>
-                      <th style={styles.th}>Status</th>
-                      <th style={styles.th}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading && <SkeletonBaris jumlah={4} />}
+              <p style={styles.hintGeser} className="hint-geser">👉 Geser tabel ke kanan untuk lihat status</p>
+              <div style={styles.tabelWrapperLuar}>
+                <div style={styles.tabelWrapper} className="tabel-scroll" onScroll={(e) => cekUjungScroll(e, setKaryawanDiUjung)}>
+                  <table style={styles.tabel}>
+                    <thead>
+                      <tr>
+                        <th style={{ ...styles.th, ...styles.thSticky }}>Nama</th>
+                        <th style={styles.th}>Email</th>
+                        <th style={styles.th}>Jabatan / Divisi</th>
+                        <th style={styles.th}>Status</th>
+                        <th style={styles.th}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loading && <SkeletonBaris jumlah={4} />}
 
-                    {!loading && karyawan.length === 0 && (
-                      <tr><td colSpan={5} style={styles.tdKosong}>👥 Belum ada karyawan aktif.</td></tr>
-                    )}
-                    {!loading && karyawan.length > 0 && karyawanTersaring.length === 0 && (
-                      <tr><td colSpan={5} style={styles.tdKosong}>Tidak ada hasil untuk "{cariKaryawan}".</td></tr>
-                    )}
+                      {!loading && karyawan.length === 0 && (
+                        <tr><td colSpan={5} style={styles.tdKosong}>👥 Belum ada karyawan aktif.</td></tr>
+                      )}
+                      {!loading && karyawan.length > 0 && karyawanTersaring.length === 0 && (
+                        <tr><td colSpan={5} style={styles.tdKosong}>Tidak ada hasil untuk "{cariKaryawan}".</td></tr>
+                      )}
 
-                    {!loading && karyawanTersaring.map((item) => (
-                      <Fragment key={item.id}>
-                        <tr className="baris-hover">
-                          <td style={styles.td}><strong style={{ color: warna.tinta, fontSize: 13.5 }}>{item.nama}</strong></td>
-                          <td style={{ ...styles.td, color: warna.tintaLembut, fontSize: 12.5 }}>{item.email}</td>
-                          <td style={styles.td}>
-                            {item.jabatan || "-"} · {item.divisi || "-"}
-                            {item.kantor?.namaKantor ? <div style={styles.tdSub}>{item.kantor.namaKantor}</div> : null}
-                          </td>
-                          <td style={styles.td}>
-                            <span
+                      {!loading && karyawanTersaring.map((item) => (
+                        <Fragment key={item.id}>
+                          <tr className="baris-hover">
+                            <td style={{ ...styles.td, ...styles.tdSticky }}><strong style={{ color: warna.tinta, fontSize: 13.5 }}>{item.nama}</strong></td>
+                            <td style={{ ...styles.td, color: warna.tintaLembut, fontSize: 12.5 }}>{item.email}</td>
+                            <td style={styles.td}>
+                              {item.jabatan || "-"} · {item.divisi || "-"}
+                              {item.kantor?.namaKantor ? <div style={styles.tdSub}>{item.kantor.namaKantor}</div> : null}
+                            </td>
+                            <td style={styles.td}>
+                              <span
                               style={{
                                 ...styles.badge,
                                 color: item.statusAkun === "aktif" ? warna.sukses : warna.tintaSamar,
@@ -534,6 +554,8 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                     ))}
                   </tbody>
                 </table>
+                </div>
+                <div className="tabel-fade-kanan" style={{ ...styles.tabelFade, opacity: karyawanDiUjung ? 0 : 1 }} />
               </div>
             </>
           )}
@@ -615,7 +637,8 @@ const styles = {
   // ---------- MAIN AREA ----------
   mainArea: { flex: 1, minWidth: 0, padding: "26px 32px" },
   topbarMobile: { display: "none", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
-  tombolHamburger: { background: warna.panel, border: `1px solid ${warna.garis}`, borderRadius: 8, padding: 8, cursor: "pointer" },
+  tombolHamburger: { background: warna.panel, border: `1px solid ${warna.garis}`, borderRadius: 8, padding: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: 36, height: 36 },
+  topbarLogoKecil: { height: 20, objectFit: "contain" },
   topbarJudul: { fontSize: 15, fontWeight: 700, color: warna.tinta },
   headerAtas: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 22 },
   judulHalaman: { margin: 0, fontSize: 24, fontWeight: 700, color: warna.tinta },
@@ -637,19 +660,37 @@ const styles = {
   },
 
   // ---------- TABEL ----------
+  // Wrapper diberi position:relative supaya bisa ditumpuki gradient fade
+  // (lihat "tabelFade") sebagai penanda "masih ada kolom di sebelah kanan, geser dong"
+  tabelWrapperLuar: { position: "relative" },
   tabelWrapper: {
     background: warna.panel, border: `1px solid ${warna.garis}`, borderRadius: 12,
-    overflow: "auto", maxWidth: "100%",
+    overflow: "auto", maxWidth: "100%", WebkitOverflowScrolling: "touch",
+  },
+  // Gradient tipis di tepi kanan tabel, HANYA terlihat kalau tabelnya memang
+  // lebih lebar dari kontainer (lihat className "tabel-fade" + CSS di index.css)
+  tabelFade: {
+    position: "absolute", top: 0, right: 0, bottom: 0, width: 28,
+    background: `linear-gradient(to right, transparent, ${warna.panel})`,
+    pointerEvents: "none", borderRadius: "0 12px 12px 0",
   },
   tabel: { width: "100%", borderCollapse: "collapse", minWidth: 640 },
   th: {
     textAlign: "left", fontSize: 11, fontWeight: 700, color: warna.tintaSamar, textTransform: "uppercase",
     letterSpacing: "0.04em", padding: "12px 16px", borderBottom: `1px solid ${warna.garis}`, background: warna.panelAlt,
   },
+  // Kolom pertama (nama karyawan) dibuat "lengket" ke kiri saat tabel digeser
+  // ke samping di HP, supaya orang tetap tahu baris ini punya siapa
+  thSticky: { position: "sticky", left: 0, zIndex: 1 },
   td: { padding: "13px 16px", borderBottom: `1px solid ${warna.garis}`, fontSize: 13, color: warna.tinta, verticalAlign: "top" },
+  tdSticky: { position: "sticky", left: 0, background: warna.panel, zIndex: 1, boxShadow: `1px 0 0 ${warna.garis}` },
   tdSub: { fontSize: 11.5, color: warna.tintaLembut, marginTop: 2 },
   tdKosong: { textAlign: "center", padding: "40px 16px", color: warna.tintaSamar, fontSize: 13.5 },
   mono: { fontFamily: font.mono, fontWeight: 600 },
+  hintGeser: {
+    alignItems: "center", gap: 6, fontSize: 11.5, color: warna.tintaSamar,
+    margin: "0 0 8px 2px",
+  },
 
   badge: { fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 10, whiteSpace: "nowrap" },
 
