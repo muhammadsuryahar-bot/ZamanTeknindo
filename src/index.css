@@ -67,3 +67,51 @@ button:not(:disabled):active {
   box-shadow: 0 6px 16px rgba(22,35,61,0.08);
   transform: translateY(-1px);
 }
+
+/* Baris tabel disorot halus saat disentuh mouse */
+.baris-hover:hover td {
+  background: #F5F9F6;
+}
+
+/* Item navigasi sidebar */
+.nav-item-hover:hover {
+  background: #EEF1EE !important;
+}
+
+/* ===== Layout Sidebar Dashboard Admin ===== */
+/* Default (desktop): sidebar selalu tampil, topbar mobile+overlay disembunyikan */
+.overlay-mobile { display: none; }
+
+@media (max-width: 899px) {
+  /* Di layar sempit, sidebar jadi drawer yang meluncur dari kiri,
+     disembunyikan sampai tombol hamburger di topbar ditekan */
+  .admin-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 40;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: 8px 0 24px rgba(0,0,0,0.12);
+  }
+  .admin-sidebar.sidebar-mobile-terbuka {
+    transform: translateX(0);
+  }
+  .overlay-mobile {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 20, 0.4);
+    z-index: 30;
+  }
+  .topbar-mobile {
+    display: flex !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .main-area-admin {
+    padding: 16px !important;
+  }
+}
