@@ -275,19 +275,23 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
           )}
 
           {kameraAktif && (
-            <div style={styles.kameraBox}>
-              <video ref={videoRef} autoPlay playsInline muted style={styles.video} />
-              <button onClick={ambilFoto} style={styles.tombolJepret} aria-label="Ambil foto">
+            <>
+              <div style={styles.kameraBox}>
+                <video ref={videoRef} autoPlay playsInline muted style={styles.video} />
+              </div>
+              <button onClick={ambilFoto} style={styles.tombolJepretBaris} aria-label="Ambil foto">
                 <span style={styles.tombolJepretDalam} />
               </button>
-            </div>
+            </>
           )}
 
           {fotoTerambil && (
-            <div style={styles.previewBox}>
-              <img src={URL.createObjectURL(fotoTerambil)} alt="Bukti absen" style={styles.previewImg} />
-              <button onClick={fotoUlang} style={styles.tombolFotoUlang}>Foto Ulang</button>
-            </div>
+            <>
+              <div style={styles.previewBox}>
+                <img src={URL.createObjectURL(fotoTerambil)} alt="Bukti absen" style={styles.previewImg} />
+              </div>
+              <button onClick={fotoUlang} style={styles.tombolFotoUlangBaris}>↺ Foto Ulang</button>
+            </>
           )}
 
           <canvas ref={canvasRef} style={{ display: "none" }} />
@@ -340,10 +344,6 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
           <button onClick={() => navigate("/karyawan/izin")} style={styles.tombolMenu}>
             <span style={styles.menuIkon}>📝</span>
             <span>Ajukan Izin</span>
-          </button>
-          <button onClick={() => navigate("/ganti-password")} style={styles.tombolMenu}>
-            <span style={styles.menuIkon}>🔒</span>
-            <span>Ganti Password</span>
           </button>
         </div>
         </div>
@@ -406,21 +406,28 @@ const styles = {
 
   pesanBox: { padding: "11px 14px", borderRadius: 8, fontSize: 13, marginBottom: 16, textAlign: "center", fontWeight: 500 },
 
-  kameraBox: { position: "relative", borderRadius: 8, overflow: "hidden", marginBottom: 16, backgroundColor: "#000", aspectRatio: "4/3" },
+  // Rasio 3/4 (portrait) -- lebih tinggi dari 4/3 sebelumnya, supaya area
+  // kamera lebih dominan di layar HP dan wajah lebih leluasa kelihatan
+  // penuh, tidak kepotong pendek kayak sebelumnya.
+  kameraBox: { position: "relative", borderRadius: 10, overflow: "hidden", marginBottom: 12, backgroundColor: "#000", aspectRatio: "3/4" },
   video: { width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)" },
-  tombolJepret: {
-    position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)",
-    background: "rgba(255,255,255,0.25)", border: "3px solid #fff", borderRadius: "50%",
-    width: 60, height: 60, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-    padding: 0,
-  },
-  tombolJepretDalam: { width: 46, height: 46, borderRadius: "50%", background: "#fff", display: "block" },
 
-  previewBox: { position: "relative", borderRadius: 8, overflow: "hidden", marginBottom: 16, aspectRatio: "4/3" },
+  // Tombol jepret sekarang jadi baris SENDIRI di bawah video -- bukan lagi
+  // "mengambang" di atas video yang bisa nutupin wajah pas framing foto.
+  tombolJepretBaris: {
+    display: "flex", alignItems: "center", justifyContent: "center",
+    width: 64, height: 64, margin: "0 auto 16px auto",
+    background: warna.aksen, border: `3px solid ${warna.aksenLembut}`, borderRadius: "50%",
+    cursor: "pointer", padding: 0,
+  },
+  tombolJepretDalam: { width: 44, height: 44, borderRadius: "50%", background: "#fff", display: "block" },
+
+  previewBox: { position: "relative", borderRadius: 10, overflow: "hidden", marginBottom: 12, aspectRatio: "3/4" },
   previewImg: { width: "100%", height: "100%", objectFit: "cover" },
-  tombolFotoUlang: {
-    position: "absolute", bottom: 12, right: 12, backgroundColor: "rgba(22,35,61,0.75)",
-    border: "none", color: "#fff", padding: "7px 14px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: "pointer",
+  tombolFotoUlangBaris: {
+    display: "block", width: "100%", margin: "0 auto 16px auto",
+    backgroundColor: warna.panelAlt, border: `1px solid ${warna.garis}`, color: warna.tinta,
+    padding: "10px 14px", borderRadius: 8, fontSize: 13.5, fontWeight: 600, cursor: "pointer",
   },
 
   infoNetral: { textAlign: "center", color: warna.tintaSamar, fontSize: 13.5, margin: 0 },

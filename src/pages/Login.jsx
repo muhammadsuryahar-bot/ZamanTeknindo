@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { API_URL, simpanSesiLogin } from "../utils/api";
 import { warna, font } from "../styles/theme";
 import logo from "../assets/logo.png";
@@ -7,11 +7,25 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
   const [email, setEmail] = useState("");
   const [kataSandi, setKataSandi] = useState("");
   const [pesanError, setPesanError] = useState("");
+  const [pesanInfo, setPesanInfo] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Kalau user sampai di sini karena dilempar otomatis (sesi kedaluwarsa),
+  // pesan penjelasannya sudah dititip di sessionStorage oleh interceptor
+  // di utils/api.js -- tampilkan sekali, lalu bersihkan biar tidak
+  // muncul lagi kalau nanti user refresh halaman Login berkali-kali.
+  useEffect(() => {
+    const pesanTitipan = sessionStorage.getItem("pesanSetelahLogout");
+    if (pesanTitipan) {
+      setPesanInfo(pesanTitipan);
+      sessionStorage.removeItem("pesanSetelahLogout");
+    }
+  }, []);
 
   async function handleLogin(e) {
     e.preventDefault();
     setPesanError("");
+    setPesanInfo("");
     setLoading(true);
 
     try {
@@ -79,6 +93,7 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
               required
             />
 
+            {pesanInfo && <p style={styles.infoText}>{pesanInfo}</p>}
             {pesanError && <p style={styles.errorText}>{pesanError}</p>}
 
             <button type="submit" style={styles.tombol} className="tombol-hover" disabled={loading}>
@@ -177,6 +192,14 @@ const styles = {
     boxShadow: `0 4px 12px ${warna.aksenLembut}`,
   },
   errorText: { color: warna.bahaya, fontSize: 13, marginBottom: 12 },
+  infoText: {
+    color: warna.aksen,
+    background: warna.aksenLembut,
+    fontSize: 13,
+    padding: "10px 12px",
+    borderRadius: 8,
+    marginBottom: 12,
+  },
   linkText: { textAlign: "center", fontSize: 13, color: warna.tintaLembut, marginTop: 22 },
   link: { color: warna.aksen, fontWeight: 600, cursor: "pointer" },
 };
