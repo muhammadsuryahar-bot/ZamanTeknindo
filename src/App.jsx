@@ -6,6 +6,7 @@ import DashboardKaryawan from "./pages/DashboardKaryawan";
 import RiwayatAbsensi from "./pages/RiwayatAbsensi";
 import PengajuanIzin from "./pages/PengajuanIzin";
 import DashboardAdmin from "./pages/DashboardAdmin";
+import GantiPassword from "./pages/GantiPassword";
 import { getPenggunaLogin, hapusSesiLogin } from "./utils/api";
 
 // Bungkus semua rute yang WAJIB login. Kalau belum login, otomatis
@@ -75,6 +76,15 @@ function RuteAplikasi({ pengguna, setPengguna, onLogout }) {
         element={
           <RuteTerproteksi pengguna={pengguna} peranDiizinkan={["karyawan"]}>
             <PengajuanIzin kembali={() => navigate("/karyawan")} />
+          </RuteTerproteksi>
+        }
+      />
+
+      <Route
+        path="/ganti-password"
+        element={
+          <RuteTerproteksi pengguna={pengguna}>
+            <GantiPassword kembali={() => navigate(pengguna?.peran === "admin" ? "/admin" : "/karyawan")} />
           </RuteTerproteksi>
         }
       />

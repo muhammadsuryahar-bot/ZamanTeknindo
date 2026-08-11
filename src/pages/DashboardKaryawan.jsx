@@ -341,6 +341,10 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
             <span style={styles.menuIkon}>📝</span>
             <span>Ajukan Izin</span>
           </button>
+          <button onClick={() => navigate("/ganti-password")} style={styles.tombolMenu}>
+            <span style={styles.menuIkon}>🔒</span>
+            <span>Ganti Password</span>
+          </button>
         </div>
         </div>
       </div>

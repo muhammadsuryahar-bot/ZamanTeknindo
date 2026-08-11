@@ -1,4 +1,5 @@
 import { useState, useEffect, Fragment } from "react";
+import { useNavigate } from "react-router-dom";
 import { API_URL, getToken } from "../utils/api";
 import { warna, font } from "../styles/theme";
 import logoHorizontal from "../assets/logo-horizontal.png";
@@ -34,6 +35,7 @@ function SkeletonBaris({ jumlah = 4 }) {
 }
 
 export default function DashboardAdmin({ pengguna, onLogout }) {
+  const navigate = useNavigate();
   const [tab, setTab] = useState("rekap");
   const [rekap, setRekap] = useState([]);
   const [menunggu, setMenunggu] = useState([]);
@@ -58,6 +60,10 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
 
   // Konfirmasi ubah status karyawan yang lagi dibuka (ganti confirm() bawaan browser)
   const [konfirmasiStatusTerbuka, setKonfirmasiStatusTerbuka] = useState(null); // id karyawan atau null
+
+  // Hasil reset password (password sementara) yang baru saja digenerate,
+  // ditampilkan sekali ke Admin supaya bisa disalin & disampaikan manual
+  const [resetPasswordHasil, setResetPasswordHasil] = useState(null); // { id, password } atau null
 
   // Form edit status kehadiran manual yang lagi dibuka
   const [editStatusTerbuka, setEditStatusTerbuka] = useState(null); // id absensi atau null
@@ -172,6 +178,25 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       setPesan("Tidak bisa terhubung ke server.");
     } finally {
       setSedangSimpanKantor(false);
+    }
+  }
+
+  async function bukaResetPassword(id) {
+    if (resetPasswordHasil?.id === id) {
+      setResetPasswordHasil(null);
+      return;
+    }
+    setPesan("");
+    try {
+      const res = await fetch(`${API_URL}/admin/karyawan/${id}/reset-password`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (!res.ok) return setPesan(data.pesan || "Gagal mereset password.");
+      setResetPasswordHasil({ id, password: data.passwordSementara });
+    } catch (err) {
+      setPesan("Tidak bisa terhubung ke server.");
     }
   }
 
@@ -309,6 +334,9 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
               <p style={styles.perananProfil}>Admin</p>
             </div>
           </div>
+          <button onClick={() => navigate("/ganti-password")} style={styles.tombolGantiPassword}>
+            🔒 Ganti Password
+          </button>
           <button onClick={onLogout} style={styles.tombolLogout}>Keluar</button>
         </div>
       </aside>
@@ -609,20 +637,44 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                             </span>
                           </td>
                           <td style={{ ...styles.td, textAlign: "right" }}>
-                            {item.statusAkun === "aktif" ? (
+                            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
                               <button
-                                onClick={() => setKonfirmasiStatusTerbuka(konfirmasiStatusTerbuka === item.id ? null : item.id)}
-                                style={styles.tombolNonaktifkanKecil}
+                                onClick={() => bukaResetPassword(item.id)}
+                                style={styles.tombolEditKecil}
                               >
-                                {konfirmasiStatusTerbuka === item.id ? "Tutup" : "Nonaktifkan"}
+                                Reset Password
                               </button>
-                            ) : (
-                              <button onClick={() => ubahStatusKaryawan(item.id, "aktif")} style={styles.tombolEditKecil}>
-                                Aktifkan Kembali
-                              </button>
-                            )}
+                              {item.statusAkun === "aktif" ? (
+                                <button
+                                  onClick={() => setKonfirmasiStatusTerbuka(konfirmasiStatusTerbuka === item.id ? null : item.id)}
+                                  style={styles.tombolNonaktifkanKecil}
+                                >
+                                  {konfirmasiStatusTerbuka === item.id ? "Tutup" : "Nonaktifkan"}
+                                </button>
+                              ) : (
+                                <button onClick={() => ubahStatusKaryawan(item.id, "aktif")} style={styles.tombolEditKecil}>
+                                  Aktifkan Kembali
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
+                        {resetPasswordHasil?.id === item.id && (
+                          <tr>
+                            <td colSpan={5} style={{ padding: "0 16px 16px 16px", background: warna.panelAlt }}>
+                              <div style={styles.hasilResetBox}>
+                                <p style={styles.hasilResetTeks}>
+                                  Password sementara untuk <strong>{item.nama}</strong>:
+                                </p>
+                                <div style={styles.hasilResetKode}>{resetPasswordHasil.password}</div>
+                                <p style={styles.hasilResetCatatan}>
+                                  Sampaikan ini secara manual (WA/telepon) ke karyawan, lalu minta segera diganti lewat menu "Ganti Password".
+                                </p>
+                                <button onClick={() => setResetPasswordHasil(null)} style={styles.tombolBatal}>Tutup</button>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
                         {konfirmasiStatusTerbuka === item.id && (
                           <tr>
                             <td colSpan={5} style={{ padding: "0 16px 16px 16px", background: warna.panelAlt }}>
@@ -789,6 +841,11 @@ const styles = {
   },
   namaProfil: { margin: 0, fontSize: 13, color: warna.tinta, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
   perananProfil: { margin: 0, fontSize: 11, color: warna.tintaSamar },
+  tombolGantiPassword: {
+    width: "100%", background: "none", border: "none", borderRadius: 8,
+    padding: "9px 12px", fontSize: 12.5, cursor: "pointer", color: warna.tintaLembut, fontWeight: 600,
+    textAlign: "left", marginBottom: 4,
+  },
   tombolLogout: {
     width: "100%", background: "none", border: `1px solid ${warna.garis}`, borderRadius: 8,
     padding: "9px 12px", fontSize: 12.5, cursor: "pointer", color: warna.tintaLembut, fontWeight: 600,
@@ -890,6 +947,14 @@ const styles = {
   },
   konfirmasiInline: { paddingTop: 12 },
   konfirmasiTeks: { fontSize: 12.5, color: warna.tinta, fontWeight: 500 },
+  hasilResetBox: { paddingTop: 12, maxWidth: 420 },
+  hasilResetTeks: { fontSize: 12.5, color: warna.tinta, margin: "0 0 8px 0" },
+  hasilResetKode: {
+    fontFamily: font.mono, fontSize: 18, fontWeight: 700, letterSpacing: "0.06em", color: warna.aksen,
+    background: "#fff", border: `1.5px dashed ${warna.aksen}`, borderRadius: 8, padding: "10px 14px",
+    textAlign: "center", marginBottom: 8, userSelect: "all",
+  },
+  hasilResetCatatan: { fontSize: 11.5, color: warna.tintaLembut, margin: "0 0 10px 0", lineHeight: 1.5 },
   tombolAktifkan: {
     padding: "9px 16px", background: warna.aksen, color: "#fff", border: "none", borderRadius: 8,
     fontSize: 12.5, cursor: "pointer", fontWeight: 600,
