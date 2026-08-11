@@ -247,7 +247,21 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         {/* Header */}
         <div style={styles.header}>
           <img src={logoHorizontal} alt="PT. Zaman Teknindo" style={styles.logo} />
-          <button onClick={onLogout} style={styles.tombolLogout}>Keluar</button>
+          <div style={styles.headerAksi}>
+            <button onClick={() => navigate("/ganti-password")} style={styles.tombolAksiHeader}>
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="3.5" y="7" width="9" height="6.5" rx="1.5" stroke={warna.tintaLembut} strokeWidth="1.4" />
+                <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke={warna.tintaLembut} strokeWidth="1.4" strokeLinecap="round" />
+              </svg>
+              <span className="teks-tombol-header">Password</span>
+            </button>
+            <button onClick={onLogout} style={{ ...styles.tombolAksiHeader, ...styles.tombolAksiHeaderBahaya }}>
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 3.5H4a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h2M10.5 11l3-3-3-3M13.5 8H6" stroke={warna.bahaya} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Keluar
+            </button>
+          </div>
         </div>
 
         {/* Kartu utama absensi */}
@@ -381,8 +395,14 @@ const styles = {
   brandTaglineKaryawan: { color: "rgba(255,255,255,0.85)", fontSize: 13, lineHeight: 1.6, margin: 0 },
 
   header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
+  headerAksi: { display: "flex", alignItems: "center", gap: 6 },
+  tombolAksiHeader: {
+    display: "flex", alignItems: "center", gap: 5,
+    background: warna.panel, border: `1px solid ${warna.garis}`, borderRadius: 8,
+    padding: "7px 10px", fontSize: 11.5, fontWeight: 600, color: warna.tintaLembut, cursor: "pointer",
+  },
+  tombolAksiHeaderBahaya: { color: warna.bahaya },
   logo: { height: 30 },
-  tombolLogout: { background: "none", border: "none", color: warna.bahaya, fontWeight: 600, fontSize: 13, cursor: "pointer", padding: 0 },
 
   card: {
     background: warna.panel,

@@ -1,5 +1,12 @@
 import { warna, font } from "../styles/theme";
-import logoWhite from "../assets/logo-white.png";
+// Sengaja pakai "logo.png" (bukan "logo-white.png"). Alasannya:
+// filter CSS "brightness(0) invert(1)" di bawah cuma bisa mengubah logo
+// jadi putih kalau file gambarnya punya BACKGROUND TRANSPARAN. "logo.png"
+// memang transparan (sudah dipakai & terbukti benar di halaman Login),
+// sedangkan "logo-white.png" ternyata full opaque (tidak transparan sama
+// sekali) -- itu sebabnya dulu logo di sini tampil sebagai kotak putih
+// kosong, bukan bentuk logo.
+import logoWhite from "../assets/logo.png";
 
 // Header hijau bersama, dipakai di halaman-halaman sub (dibuka dari Dashboard
 // lewat tombol "Kembali") supaya identitas visualnya konsisten dengan

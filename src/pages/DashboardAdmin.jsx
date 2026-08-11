@@ -247,6 +247,16 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
     }
   }
 
+  // Bangun URL foto dengan aman -- data lama ada yang tersimpan SUDAH
+  // pakai awalan "/uploads/" (bug lama, sudah diperbaiki di backend),
+  // ada yang cuma nama file polos. Fungsi ini menangani DUA KEMUNGKINAN
+  // itu, supaya foto lama yang sempat tersimpan salah juga ikut normal
+  // tampil lagi tanpa perlu karyawan absen ulang.
+  function urlFoto(namaFile) {
+    if (!namaFile) return null;
+    return namaFile.startsWith("/uploads/") ? namaFile : `/uploads/${namaFile}`;
+  }
+
   function formatJam(tanggalIso) {
     if (!tanggalIso) return "–";
     return new Date(tanggalIso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
@@ -334,10 +344,21 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
               <p style={styles.perananProfil}>Admin</p>
             </div>
           </div>
-          <button onClick={() => navigate("/ganti-password")} style={styles.tombolGantiPassword}>
-            🔒 Ganti Password
-          </button>
-          <button onClick={onLogout} style={styles.tombolLogout}>Keluar</button>
+          <div style={styles.aksiSidebarRow}>
+            <button onClick={() => navigate("/ganti-password")} style={styles.tombolAksiSidebar} className="tombol-aksi-sidebar">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="3.5" y="7" width="9" height="6.5" rx="1.5" stroke={warna.tintaLembut} strokeWidth="1.4" />
+                <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke={warna.tintaLembut} strokeWidth="1.4" strokeLinecap="round" />
+              </svg>
+              Password
+            </button>
+            <button onClick={onLogout} style={{ ...styles.tombolAksiSidebar, ...styles.tombolAksiSidebarBahaya }} className="tombol-aksi-sidebar-bahaya">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 3.5H4a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h2M10.5 11l3-3-3-3M13.5 8H6" stroke={warna.bahaya} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Keluar
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -445,13 +466,13 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                               <td style={styles.td}>
                                 <div style={styles.fotoAbsenRow}>
                                   {item.fotoMasuk && (
-                                    <a href={`/uploads/${item.fotoMasuk}`} target="_blank" rel="noopener noreferrer" title="Lihat foto absen masuk">
-                                      <img src={`/uploads/${item.fotoMasuk}`} alt="Foto absen masuk" style={styles.fotoAbsenThumb} />
+                                    <a href={urlFoto(item.fotoMasuk)} target="_blank" rel="noopener noreferrer" title="Lihat foto absen masuk">
+                                      <img src={urlFoto(item.fotoMasuk)} alt="Foto absen masuk" style={styles.fotoAbsenThumb} />
                                     </a>
                                   )}
                                   {item.fotoPulang && (
-                                    <a href={`/uploads/${item.fotoPulang}`} target="_blank" rel="noopener noreferrer" title="Lihat foto absen pulang">
-                                      <img src={`/uploads/${item.fotoPulang}`} alt="Foto absen pulang" style={styles.fotoAbsenThumb} />
+                                    <a href={urlFoto(item.fotoPulang)} target="_blank" rel="noopener noreferrer" title="Lihat foto absen pulang">
+                                      <img src={urlFoto(item.fotoPulang)} alt="Foto absen pulang" style={styles.fotoAbsenThumb} />
                                     </a>
                                   )}
                                   {!item.fotoMasuk && !item.fotoPulang && (
@@ -841,15 +862,15 @@ const styles = {
   },
   namaProfil: { margin: 0, fontSize: 13, color: warna.tinta, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
   perananProfil: { margin: 0, fontSize: 11, color: warna.tintaSamar },
-  tombolGantiPassword: {
-    width: "100%", background: "none", border: "none", borderRadius: 8,
-    padding: "9px 12px", fontSize: 12.5, cursor: "pointer", color: warna.tintaLembut, fontWeight: 600,
-    textAlign: "left", marginBottom: 4,
+  // Dua tombol aksi (Ganti Password & Keluar) berdampingan sebagai kartu
+  // kecil bertepi, bukan lagi teks polos tanpa bingkai
+  aksiSidebarRow: { display: "flex", gap: 6 },
+  tombolAksiSidebar: {
+    flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+    background: warna.panelAlt, border: `1px solid ${warna.garis}`, borderRadius: 8,
+    padding: "8px 6px", fontSize: 11.5, fontWeight: 600, color: warna.tintaLembut, cursor: "pointer",
   },
-  tombolLogout: {
-    width: "100%", background: "none", border: `1px solid ${warna.garis}`, borderRadius: 8,
-    padding: "9px 12px", fontSize: 12.5, cursor: "pointer", color: warna.tintaLembut, fontWeight: 600,
-  },
+  tombolAksiSidebarBahaya: { color: warna.bahaya },
 
   // ---------- MAIN AREA ----------
   mainArea: { flex: 1, minWidth: 0, padding: "26px 32px" },

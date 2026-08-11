@@ -127,7 +127,7 @@ export default function AdminIzin() {
 
               {item.fotoSurat && (
                 <a
-                  href={`/uploads/${item.fotoSurat}`}
+                  href={item.fotoSurat.startsWith("/uploads/") ? item.fotoSurat : `/uploads/${item.fotoSurat}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={styles.linkFoto}
