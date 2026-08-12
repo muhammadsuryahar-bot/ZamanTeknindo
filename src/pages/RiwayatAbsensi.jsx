@@ -3,6 +3,7 @@ import { API_URL, getToken } from "../utils/api";
 import { warna, font } from "../styles/theme";
 import { labelStatusKehadiran } from "../utils/statusKehadiran";
 import TopbarHijau from "../components/TopbarHijau";
+import { CalendarDays } from "lucide-react";
 
 export default function RiwayatAbsensi({ kembali }) {
   const [riwayat, setRiwayat] = useState([]);
@@ -64,7 +65,7 @@ export default function RiwayatAbsensi({ kembali }) {
 
           {!loading && riwayat.length === 0 && !pesan && (
             <div style={styles.kosongBox}>
-              <span style={styles.kosongIkon}>🗓️</span>
+              <CalendarDays size={26} strokeWidth={1.6} style={styles.kosongIkon} />
               <p style={styles.info}>Belum ada riwayat absensi.</p>
             </div>
           )}
@@ -110,7 +111,7 @@ const styles = {
     borderRadius: 10,
     border: `1px dashed ${warna.garis}`,
   },
-  kosongIkon: { fontSize: 26, display: "block", marginBottom: 8, opacity: 0.7 },
+  kosongIkon: { display: "block", marginBottom: 8, marginLeft: "auto", marginRight: "auto", color: warna.tintaSamar },
   skeletonCard: { background: warna.panel, borderRadius: 10, padding: 16, marginBottom: 8, border: `1px solid ${warna.garis}` },
   skeletonBar: { background: warna.panelAlt, borderRadius: 4 },
   itemCard: {

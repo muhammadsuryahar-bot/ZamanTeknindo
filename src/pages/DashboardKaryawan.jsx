@@ -4,6 +4,7 @@ import * as turf from "@turf/turf";
 import { API_URL, getToken } from "../utils/api";
 import { warna, font } from "../styles/theme";
 import logoHorizontal from "../assets/logo-horizontal.png";
+import { ClipboardList, FileEdit, Check } from "lucide-react";
 
 let dataProvinsiCache = null;
 async function muatDataProvinsi() {
@@ -323,7 +324,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
           {tahap === "selesai" && (
             <div style={styles.selesaiBox}>
-              <span style={styles.selesaiIkon}>✓</span>
+              <span style={styles.selesaiIkon}><Check size={20} strokeWidth={3} /></span>
               <p style={styles.selesaiTeks}>Absensi Hari Ini Selesai</p>
             </div>
           )}
@@ -352,11 +353,11 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         {/* Menu navigasi */}
         <div style={styles.menuGrid}>
           <button onClick={() => navigate("/karyawan/riwayat")} style={styles.tombolMenu}>
-            <span style={styles.menuIkon}>📋</span>
+            <span style={styles.menuIkon}><ClipboardList size={20} strokeWidth={1.8} /></span>
             <span>Riwayat Absen</span>
           </button>
           <button onClick={() => navigate("/karyawan/izin")} style={styles.tombolMenu}>
-            <span style={styles.menuIkon}>📝</span>
+            <span style={styles.menuIkon}><FileEdit size={20} strokeWidth={1.8} /></span>
             <span>Ajukan Izin</span>
           </button>
         </div>
@@ -478,5 +479,5 @@ const styles = {
     padding: "16px 12px", backgroundColor: warna.panel, color: warna.tinta,
     border: `1px solid ${warna.garis}`, borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer",
   },
-  menuIkon: { fontSize: 20 },
+  menuIkon: { display: "inline-flex", color: warna.aksen },
 };

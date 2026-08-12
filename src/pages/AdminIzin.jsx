@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { API_URL, getToken } from "../utils/api";
 import { warna, font } from "../styles/theme";
+import { ClipboardList } from "lucide-react";
 
 export default function AdminIzin() {
   const [daftar, setDaftar] = useState([]);
@@ -95,7 +96,7 @@ export default function AdminIzin() {
       {loading && <p style={styles.kosong}>Memuat…</p>}
       {!loading && daftar.length === 0 && (
         <div style={styles.kosongBox}>
-          <span style={styles.kosongIkon}>📋</span>
+          <ClipboardList size={22} strokeWidth={1.6} style={styles.kosongIkon} />
           <p style={styles.kosong}>Tidak ada pengajuan di kategori ini.</p>
         </div>
       )}
@@ -192,7 +193,7 @@ const styles = {
   },
   kosong: { textAlign: "center", color: warna.tintaSamar, padding: 24, fontSize: 13.5 },
   kosongBox: { textAlign: "center", padding: "24px 12px" },
-  kosongIkon: { fontSize: 22, display: "block", marginBottom: 6 },
+  kosongIkon: { display: "block", marginBottom: 6, marginLeft: "auto", marginRight: "auto", color: warna.tintaSamar },
   pesanError: { color: warna.bahaya, textAlign: "center", fontSize: 13, marginBottom: 12 },
   itemCard: {
     background: warna.panel,

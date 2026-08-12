@@ -7,16 +7,24 @@ import logo from "../assets/logo.png";
 import AdminIzin from "./AdminIzin";
 import PengaturanGaji from "./PengaturanGaji";
 import { labelStatusKehadiran } from "../utils/statusKehadiran";
+import {
+  ClipboardList, Clock, Users, FileEdit, Wallet, Building2,
+  BarChart3, ThumbsUp, ArrowRight, CheckCircle2, UsersRound,
+} from "lucide-react";
 
 const DAFTAR_STATUS = ["tepat_waktu", "telat", "alpha", "izin", "sakit", "cuti", "urgent"];
 
+// Ikon navigasi sidebar -- pakai komponen SVG (lucide-react), bukan emoji.
+// Emoji tampilannya beda-beda tergantung OS (Windows/Mac/Android beda gaya
+// gambarnya), jadi kesannya gak konsisten/kurang "produk jadi". Ikon SVG
+// gini tampilannya SAMA PERSIS di semua perangkat.
 const IKON_TAB = {
-  rekap: "📋",
-  approval: "🕒",
-  karyawan: "👥",
-  izin: "📝",
-  gaji: "💵",
-  kantor: "🏢",
+  rekap: ClipboardList,
+  approval: Clock,
+  karyawan: Users,
+  izin: FileEdit,
+  gaji: Wallet,
+  kantor: Building2,
 };
 
 // Kartu abu-abu berkedip pelan, dipakai sebagai placeholder saat data masih dimuat
@@ -351,18 +359,21 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
         </div>
 
         <nav style={styles.navSidebar}>
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => pindahTab(t.id)}
-              style={tab === t.id ? styles.navItemAktif : styles.navItem}
-              className="nav-item-hover"
-            >
-              <span style={styles.navIkon}>{IKON_TAB[t.id]}</span>
-              <span style={{ flex: 1, textAlign: "left" }}>{t.label}</span>
-              {t.badge ? <span style={styles.navBadge}>{t.badge}</span> : null}
-            </button>
-          ))}
+          {tabs.map((t) => {
+            const Ikon = IKON_TAB[t.id];
+            return (
+              <button
+                key={t.id}
+                onClick={() => pindahTab(t.id)}
+                style={tab === t.id ? styles.navItemAktif : styles.navItem}
+                className="nav-item-hover"
+              >
+                <Ikon size={17} strokeWidth={2} style={styles.navIkon} />
+                <span style={{ flex: 1, textAlign: "left" }}>{t.label}</span>
+                {t.badge ? <span style={styles.navBadge}>{t.badge}</span> : null}
+              </button>
+            );
+          })}
         </nav>
 
         <div style={styles.sidebarBawah}>
@@ -447,7 +458,10 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
               </div>
 
               <button onClick={bukaTutupRingkasan} style={styles.tombolTogglePanel} className="tombol-toggle-panel">
-                <span>📊 Tren & Analisis (7 hari terakhir)</span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+                  <BarChart3 size={15} strokeWidth={2} />
+                  Tren & Analisis (7 hari terakhir)
+                </span>
                 <span style={{ transform: ringkasanTerbuka ? "rotate(180deg)" : "none", display: "inline-block", transition: "transform 0.15s ease" }}>▾</span>
               </button>
 
@@ -487,7 +501,10 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                       <div style={styles.ringkasanKotak}>
                         <p style={styles.ringkasanJudul}>Perlu Perhatian (30 hari)</p>
                         {ringkasan.sorotanKaryawan.length === 0 && (
-                          <p style={styles.kosong}>Tidak ada yang perlu disorot. 👍</p>
+                          <p style={styles.kosong}>
+                            <ThumbsUp size={14} strokeWidth={2} style={{ verticalAlign: "-2px", marginRight: 5 }} />
+                            Tidak ada yang perlu disorot.
+                          </p>
                         )}
                         {ringkasan.sorotanKaryawan.map((k) => (
                           <div key={k.id} style={styles.sorotanBaris}>
@@ -516,7 +533,10 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                 />
               )}
 
-              <p style={styles.hintGeser} className="hint-geser">👉 Geser tabel ke kanan untuk lihat jam pulang & lokasi</p>
+              <p style={styles.hintGeser} className="hint-geser">
+                <ArrowRight size={13} strokeWidth={2} style={{ verticalAlign: "-2px", marginRight: 4 }} />
+                Geser tabel ke kanan untuk lihat jam pulang & lokasi
+              </p>
               <div style={styles.tabelWrapperLuar}>
                 <div style={styles.tabelWrapper} className="tabel-scroll" onScroll={(e) => cekUjungScroll(e, setRekapDiUjung)}>
                   <table style={styles.tabel}>
@@ -535,7 +555,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                       {loading && <SkeletonBaris jumlah={4} />}
 
                       {!loading && rekap.length === 0 && (
-                        <tr><td colSpan={7} style={styles.tdKosong}>📋 Belum ada karyawan yang absen hari ini.</td></tr>
+                        <tr><td colSpan={7} style={styles.tdKosong}>Belum ada karyawan yang absen hari ini.</td></tr>
                       )}
                       {!loading && rekap.length > 0 && rekapTersaring.length === 0 && (
                         <tr><td colSpan={7} style={styles.tdKosong}>Tidak ada hasil untuk "{cariRekap}".</td></tr>
@@ -633,7 +653,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
             <>
               {menunggu.length === 0 && (
                 <div style={styles.kosongBox}>
-                  <span style={styles.kosongIkon}>✅</span>
+                  <CheckCircle2 size={28} strokeWidth={1.6} style={{ ...styles.kosongIkon, color: warna.sukses }} />
                   <p style={styles.kosong}>Tidak ada akun yang menunggu konfirmasi.</p>
                 </div>
               )}
@@ -702,7 +722,10 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                 />
               )}
 
-              <p style={styles.hintGeser} className="hint-geser">👉 Geser tabel ke kanan untuk lihat status</p>
+              <p style={styles.hintGeser} className="hint-geser">
+                <ArrowRight size={13} strokeWidth={2} style={{ verticalAlign: "-2px", marginRight: 4 }} />
+                Geser tabel ke kanan untuk lihat status
+              </p>
               <div style={styles.tabelWrapperLuar}>
                 <div style={styles.tabelWrapper} className="tabel-scroll" onScroll={(e) => cekUjungScroll(e, setKaryawanDiUjung)}>
                   <table style={styles.tabel}>
@@ -719,7 +742,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                       {loading && <SkeletonBaris jumlah={4} />}
 
                       {!loading && karyawan.length === 0 && (
-                        <tr><td colSpan={5} style={styles.tdKosong}>👥 Belum ada karyawan aktif.</td></tr>
+                        <tr><td colSpan={5} style={styles.tdKosong}>Belum ada karyawan aktif.</td></tr>
                       )}
                       {!loading && karyawan.length > 0 && karyawanTersaring.length === 0 && (
                         <tr><td colSpan={5} style={styles.tdKosong}>Tidak ada hasil untuk "{cariKaryawan}".</td></tr>
@@ -940,7 +963,7 @@ const styles = {
     fontWeight: 700,
     textAlign: "left",
   },
-  navIkon: { fontSize: 15, width: 18, textAlign: "center" },
+  navIkon: { flexShrink: 0 },
   navBadge: {
     background: warna.bahaya,
     color: "#fff",
@@ -1061,7 +1084,7 @@ const styles = {
   itemSub: { fontSize: 12.5, color: warna.tintaLembut, margin: "3px 0 12px 0" },
 
   kosongBox: { textAlign: "center", padding: "48px 24px", background: warna.panel, borderRadius: 10, border: `1px dashed ${warna.garis}` },
-  kosongIkon: { fontSize: 28, display: "block", marginBottom: 8, opacity: 0.7 },
+  kosongIkon: { display: "block", marginBottom: 8, marginLeft: "auto", marginRight: "auto" },
   kosong: { textAlign: "center", color: warna.tintaSamar, fontSize: 13.5, margin: 0 },
 
   pesanError: { color: warna.bahaya, marginBottom: 12, fontSize: 13.5 },

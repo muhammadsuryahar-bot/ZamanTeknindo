@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { API_URL, getToken } from "../utils/api";
 import { warna, font } from "../styles/theme";
+import { Wallet, AlertTriangle, Download, ArrowRight } from "lucide-react";
 
 const NAMA_BULAN = [
   "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -242,7 +243,7 @@ export default function PengaturanGaji() {
         <p style={styles.judulKartu}>Gaji Pokok per Karyawan</p>
         {daftarGaji.length === 0 && (
           <div style={styles.kosongBox}>
-            <span style={styles.kosongIkon}>💰</span>
+            <Wallet size={26} strokeWidth={1.6} style={styles.kosongIkon} />
             <p style={styles.kosong}>Belum ada karyawan aktif untuk diatur gajinya.</p>
           </div>
         )}
@@ -310,7 +311,8 @@ export default function PengaturanGaji() {
         {daftarGagal.length > 0 && (
           <div style={styles.peringatanGagal}>
             <strong style={styles.peringatanJudul}>
-              ⚠ {daftarGagal.length} karyawan tidak ikut dihitung:
+              <AlertTriangle size={14} strokeWidth={2} style={{ verticalAlign: "-2px", marginRight: 5 }} />
+              {daftarGagal.length} karyawan tidak ikut dihitung:
             </strong>
             <ul style={styles.peringatanList}>
               {daftarGagal.map((g, i) => (
@@ -327,10 +329,20 @@ export default function PengaturanGaji() {
         {laporanBulanan.length > 0 && (
           <>
             <button onClick={unduhExcel} style={styles.tombolUtama} disabled={sedangUnduh}>
-              {sedangUnduh ? "Menyiapkan file Excel…" : "📥 Unduh sebagai Excel (.xlsx)"}
+              {sedangUnduh ? (
+                "Menyiapkan file Excel…"
+              ) : (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+                  <Download size={15} strokeWidth={2} />
+                  Unduh sebagai Excel (.xlsx)
+                </span>
+              )}
             </button>
 
-            <p style={styles.hintGeser} className="hint-geser">👉 Geser tabel ke kanan untuk lihat semua kolom</p>
+            <p style={styles.hintGeser} className="hint-geser">
+              <ArrowRight size={13} strokeWidth={2} style={{ verticalAlign: "-2px", marginRight: 4 }} />
+              Geser tabel ke kanan untuk lihat semua kolom
+            </p>
             <div style={{ position: "relative" }}>
               <div style={{ marginTop: 16, overflowX: "auto" }} onScroll={(e) => { const el = e.target; setLaporanDiUjung(el.scrollLeft + el.clientWidth >= el.scrollWidth - 4); }}>
                 <table style={styles.tabel}>
@@ -380,7 +392,7 @@ const styles = {
   keteranganTombol: { fontSize: 11.5, color: warna.tintaSamar, marginTop: 8, lineHeight: 1.5 },
   kosong: { textAlign: "center", color: warna.tintaSamar, padding: 24, fontSize: 13.5 },
   kosongBox: { textAlign: "center", padding: "24px 12px" },
-  kosongIkon: { fontSize: 22, display: "block", marginBottom: 6 },
+  kosongIkon: { display: "block", marginBottom: 6, marginLeft: "auto", marginRight: "auto", color: warna.tintaSamar },
   hintGeser: { alignItems: "center", gap: 6, fontSize: 11.5, color: warna.tintaSamar, margin: "12px 0 4px 2px" },
   pesanInfo: {
     fontSize: 13,

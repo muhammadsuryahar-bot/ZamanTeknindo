@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { API_URL, getToken } from "../utils/api";
 import { warna, font } from "../styles/theme";
 import TopbarHijau from "../components/TopbarHijau";
+import { FileEdit } from "lucide-react";
 
 export default function PengajuanIzin({ kembali }) {
   const [tanggal, setTanggal] = useState("");
@@ -165,7 +166,7 @@ export default function PengajuanIzin({ kembali }) {
           {loadingRiwayat && <p style={styles.info}>Memuat riwayat…</p>}
           {!loadingRiwayat && riwayat.length === 0 && (
             <div style={styles.kosongBox}>
-              <span style={styles.kosongIkon}>📝</span>
+              <FileEdit size={26} strokeWidth={1.6} style={styles.kosongIkon} />
               <p style={styles.info}>Belum ada pengajuan.</p>
             </div>
           )}
@@ -260,7 +261,7 @@ const styles = {
     textAlign: "center", padding: "40px 20px", background: warna.panel,
     borderRadius: 10, border: `1px dashed ${warna.garis}`,
   },
-  kosongIkon: { fontSize: 26, display: "block", marginBottom: 8, opacity: 0.7 },
+  kosongIkon: { display: "block", marginBottom: 8, marginLeft: "auto", marginRight: "auto", color: warna.tintaSamar },
   itemCard: {
     background: warna.panel,
     borderRadius: 8,
