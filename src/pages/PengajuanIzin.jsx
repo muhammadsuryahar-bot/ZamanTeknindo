@@ -164,7 +164,10 @@ export default function PengajuanIzin({ kembali }) {
 
           {loadingRiwayat && <p style={styles.info}>Memuat riwayat…</p>}
           {!loadingRiwayat && riwayat.length === 0 && (
-            <p style={styles.info}>Belum ada pengajuan.</p>
+            <div style={styles.kosongBox}>
+              <span style={styles.kosongIkon}>📝</span>
+              <p style={styles.info}>Belum ada pengajuan.</p>
+            </div>
           )}
 
           {riwayat.map((item) => {
@@ -200,7 +203,7 @@ export default function PengajuanIzin({ kembali }) {
 const bracketDasar = { position: "absolute", width: 14, height: 14, borderColor: warna.aksen, borderStyle: "solid", borderWidth: 0 };
 
 const styles = {
-  wrapper: { minHeight: "100vh", background: warna.latar, fontFamily: font.display, padding: 16 },
+  wrapper: { minHeight: "100svh", background: warna.latar, fontFamily: font.display, padding: 16 },
   shell: { maxWidth: 460, margin: "0 auto" },
   content: {},
   card: {
@@ -253,6 +256,11 @@ const styles = {
   keterangan: { fontSize: 12, color: warna.tintaSamar },
   subjudul: { fontSize: 13, fontWeight: 700, color: warna.tinta, marginBottom: 8, letterSpacing: "0.02em" },
   info: { textAlign: "center", color: warna.tintaSamar, padding: 20, fontSize: 13.5 },
+  kosongBox: {
+    textAlign: "center", padding: "40px 20px", background: warna.panel,
+    borderRadius: 10, border: `1px dashed ${warna.garis}`,
+  },
+  kosongIkon: { fontSize: 26, display: "block", marginBottom: 8, opacity: 0.7 },
   itemCard: {
     background: warna.panel,
     borderRadius: 8,

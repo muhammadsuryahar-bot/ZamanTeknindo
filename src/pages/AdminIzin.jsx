@@ -94,7 +94,10 @@ export default function AdminIzin() {
       {pesan && <p style={styles.pesanError}>{pesan}</p>}
       {loading && <p style={styles.kosong}>Memuat…</p>}
       {!loading && daftar.length === 0 && (
-        <p style={styles.kosong}>Tidak ada pengajuan di kategori ini.</p>
+        <div style={styles.kosongBox}>
+          <span style={styles.kosongIkon}>📋</span>
+          <p style={styles.kosong}>Tidak ada pengajuan di kategori ini.</p>
+        </div>
       )}
 
       {!loading &&
@@ -188,6 +191,8 @@ const styles = {
     cursor: "pointer",
   },
   kosong: { textAlign: "center", color: warna.tintaSamar, padding: 24, fontSize: 13.5 },
+  kosongBox: { textAlign: "center", padding: "24px 12px" },
+  kosongIkon: { fontSize: 22, display: "block", marginBottom: 6 },
   pesanError: { color: warna.bahaya, textAlign: "center", fontSize: 13, marginBottom: 12 },
   itemCard: {
     background: warna.panel,

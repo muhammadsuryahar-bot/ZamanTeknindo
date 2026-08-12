@@ -114,6 +114,9 @@ button:not(:disabled):active {
   .main-area-admin {
     padding: 16px !important;
   }
+  .ringkasan-grid {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 /* ===== Dashboard Karyawan: panel brand khusus desktop ===== */

@@ -34,6 +34,7 @@ export default function PengaturanGaji() {
   const [sedangHitung, setSedangHitung] = useState(false);
   const [sedangUnduh, setSedangUnduh] = useState(false);
   const [daftarGagal, setDaftarGagal] = useState([]); // karyawan yang ke-skip pas hitung gaji semua
+  const [laporanDiUjung, setLaporanDiUjung] = useState(false); // tabel laporan sudah digeser sampai ujung? (mobile)
 
   useEffect(() => {
     ambilData();
@@ -239,6 +240,12 @@ export default function PengaturanGaji() {
 
       <div style={styles.card}>
         <p style={styles.judulKartu}>Gaji Pokok per Karyawan</p>
+        {daftarGaji.length === 0 && (
+          <div style={styles.kosongBox}>
+            <span style={styles.kosongIkon}>💰</span>
+            <p style={styles.kosong}>Belum ada karyawan aktif untuk diatur gajinya.</p>
+          </div>
+        )}
         {daftarGaji.map((item) => (
           <div key={item.id} style={styles.barisVertikal}>
             <p style={styles.namaBaris}>{item.nama}</p>
@@ -323,31 +330,35 @@ export default function PengaturanGaji() {
               {sedangUnduh ? "Menyiapkan file Excel…" : "📥 Unduh sebagai Excel (.xlsx)"}
             </button>
 
-            <div style={{ marginTop: 16, overflowX: "auto" }}>
-              <table style={styles.tabel}>
-                <thead>
-                  <tr>
-                    <th style={styles.thTabel}>Nama</th>
-                    <th style={styles.thTabel}>Tepat Waktu</th>
-                    <th style={styles.thTabel}>Telat</th>
-                    <th style={styles.thTabel}>Alpha</th>
-                    <th style={styles.thTabel}>Potongan</th>
-                    <th style={styles.thTabel}>Gaji Diterima</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {laporanBulanan.map((item) => (
-                    <tr key={item.id}>
-                      <td style={styles.tdTabel}>{item.pengguna?.nama}</td>
-                      <td style={{ ...styles.tdTabel, textAlign: "center" }}>{item.jumlahTepatWaktu}</td>
-                      <td style={{ ...styles.tdTabel, textAlign: "center" }}>{item.jumlahTelat}</td>
-                      <td style={{ ...styles.tdTabel, textAlign: "center" }}>{item.jumlahAlpha}</td>
-                      <td style={{ ...styles.tdTabel, fontFamily: font.mono }}>{formatRupiah(item.totalPotongan)}</td>
-                      <td style={{ ...styles.tdTabel, fontWeight: 700, fontFamily: font.mono }}>{formatRupiah(item.gajiDiterima)}</td>
+            <p style={styles.hintGeser} className="hint-geser">👉 Geser tabel ke kanan untuk lihat semua kolom</p>
+            <div style={{ position: "relative" }}>
+              <div style={{ marginTop: 16, overflowX: "auto" }} onScroll={(e) => { const el = e.target; setLaporanDiUjung(el.scrollLeft + el.clientWidth >= el.scrollWidth - 4); }}>
+                <table style={styles.tabel}>
+                  <thead>
+                    <tr>
+                      <th style={{ ...styles.thTabel, position: "sticky", left: 0, zIndex: 1 }}>Nama</th>
+                      <th style={styles.thTabel}>Tepat Waktu</th>
+                      <th style={styles.thTabel}>Telat</th>
+                      <th style={styles.thTabel}>Alpha</th>
+                      <th style={styles.thTabel}>Potongan</th>
+                      <th style={styles.thTabel}>Gaji Diterima</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {laporanBulanan.map((item) => (
+                      <tr key={item.id}>
+                        <td style={{ ...styles.tdTabel, position: "sticky", left: 0, background: warna.panel, boxShadow: `1px 0 0 ${warna.garis}` }}>{item.pengguna?.nama}</td>
+                        <td style={{ ...styles.tdTabel, textAlign: "center" }}>{item.jumlahTepatWaktu}</td>
+                        <td style={{ ...styles.tdTabel, textAlign: "center" }}>{item.jumlahTelat}</td>
+                        <td style={{ ...styles.tdTabel, textAlign: "center" }}>{item.jumlahAlpha}</td>
+                        <td style={{ ...styles.tdTabel, fontFamily: font.mono }}>{formatRupiah(item.totalPotongan)}</td>
+                        <td style={{ ...styles.tdTabel, fontWeight: 700, fontFamily: font.mono }}>{formatRupiah(item.gajiDiterima)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="tabel-fade-kanan" style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 28, background: `linear-gradient(to right, transparent, ${warna.panel})`, pointerEvents: "none", opacity: laporanDiUjung ? 0 : 1 }} />
             </div>
           </>
         )}
@@ -368,6 +379,9 @@ const styles = {
   subKartu: { fontSize: 12.5, color: warna.tintaLembut, marginBottom: 14, lineHeight: 1.5 },
   keteranganTombol: { fontSize: 11.5, color: warna.tintaSamar, marginTop: 8, lineHeight: 1.5 },
   kosong: { textAlign: "center", color: warna.tintaSamar, padding: 24, fontSize: 13.5 },
+  kosongBox: { textAlign: "center", padding: "24px 12px" },
+  kosongIkon: { fontSize: 22, display: "block", marginBottom: 6 },
+  hintGeser: { alignItems: "center", gap: 6, fontSize: 11.5, color: warna.tintaSamar, margin: "12px 0 4px 2px" },
   pesanInfo: {
     fontSize: 13,
     color: warna.tinta,

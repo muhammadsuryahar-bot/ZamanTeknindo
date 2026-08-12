@@ -76,6 +76,35 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
   // sudah di ujung, gradient fade di tepi kanan disembunyikan karena tidak
   // ada lagi yang perlu diisyaratkan ke pengguna
   const [rekapDiUjung, setRekapDiUjung] = useState(false);
+
+  // Panel "Tren & Analisis" -- sengaja TIDAK ikut di-fetch bareng data utama
+  // (muatData), supaya buka dashboard tetap ringan/cepat setiap hari. Data ini
+  // baru diambil kalau admin sendiri yang membuka panelnya.
+  const [ringkasanTerbuka, setRingkasanTerbuka] = useState(false);
+  const [ringkasan, setRingkasan] = useState(null);
+  const [loadingRingkasan, setLoadingRingkasan] = useState(false);
+
+  async function bukaTutupRingkasan() {
+    const mauDibuka = !ringkasanTerbuka;
+    setRingkasanTerbuka(mauDibuka);
+    if (mauDibuka && !ringkasan) {
+      setLoadingRingkasan(true);
+      try {
+        const res = await fetch(`${API_URL}/admin/ringkasan`, { headers: { Authorization: `Bearer ${getToken()}` } });
+        const data = await res.json();
+        setRingkasan(data.data || null);
+      } catch (err) {
+        setPesan("Gagal memuat tren & analisis.");
+      } finally {
+        setLoadingRingkasan(false);
+      }
+    }
+  }
+
+  function namaHariSingkat(tanggalISO) {
+    const hari = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+    return hari[new Date(`${tanggalISO}T00:00:00.000Z`).getUTCDay()];
+  }
   const [karyawanDiUjung, setKaryawanDiUjung] = useState(false);
   function cekUjungScroll(e, setDiUjung) {
     const el = e.target;
@@ -416,6 +445,65 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                   <span style={styles.statLabel}>Belum Absen</span>
                 </div>
               </div>
+
+              <button onClick={bukaTutupRingkasan} style={styles.tombolTogglePanel} className="tombol-toggle-panel">
+                <span>📊 Tren & Analisis (7 hari terakhir)</span>
+                <span style={{ transform: ringkasanTerbuka ? "rotate(180deg)" : "none", display: "inline-block", transition: "transform 0.15s ease" }}>▾</span>
+              </button>
+
+              {ringkasanTerbuka && (
+                <div style={styles.panelRingkasan}>
+                  {loadingRingkasan && <p style={styles.kosong}>Memuat…</p>}
+
+                  {!loadingRingkasan && ringkasan && (
+                    <div style={styles.ringkasanGrid} className="ringkasan-grid">
+                      <div style={styles.ringkasanKotak}>
+                        <p style={styles.ringkasanJudul}>Tren Kehadiran</p>
+                        <div style={styles.chartBarGroup}>
+                          {ringkasan.tren7Hari.map((h) => {
+                            const total = h.tepatWaktu + h.telat + h.alpha + h.izinDll;
+                            const tinggiMax = 56;
+                            return (
+                              <div key={h.tanggal} style={styles.chartKolom}>
+                                <div style={styles.chartBatangWrapper}>
+                                  {total === 0 ? (
+                                    <div style={styles.chartBatangKosong} />
+                                  ) : (
+                                    <>
+                                      {h.tepatWaktu > 0 && <div style={{ ...styles.chartSegmen, height: (h.tepatWaktu / total) * tinggiMax, background: warna.sukses }} title={`Tepat waktu: ${h.tepatWaktu}`} />}
+                                      {h.telat > 0 && <div style={{ ...styles.chartSegmen, height: (h.telat / total) * tinggiMax, background: warna.peringatan }} title={`Telat: ${h.telat}`} />}
+                                      {h.izinDll > 0 && <div style={{ ...styles.chartSegmen, height: (h.izinDll / total) * tinggiMax, background: warna.aksen }} title={`Izin/Sakit/Cuti: ${h.izinDll}`} />}
+                                      {h.alpha > 0 && <div style={{ ...styles.chartSegmen, height: (h.alpha / total) * tinggiMax, background: warna.bahaya }} title={`Alpha: ${h.alpha}`} />}
+                                    </>
+                                  )}
+                                </div>
+                                <span style={styles.chartLabelHari}>{namaHariSingkat(h.tanggal)}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div style={styles.ringkasanKotak}>
+                        <p style={styles.ringkasanJudul}>Perlu Perhatian (30 hari)</p>
+                        {ringkasan.sorotanKaryawan.length === 0 && (
+                          <p style={styles.kosong}>Tidak ada yang perlu disorot. 👍</p>
+                        )}
+                        {ringkasan.sorotanKaryawan.map((k) => (
+                          <div key={k.id} style={styles.sorotanBaris}>
+                            <span style={styles.sorotanNama}>{k.nama}</span>
+                            <span style={styles.sorotanAngka}>
+                              {k.telat > 0 && <span style={{ color: warna.peringatan }}>{k.telat}× telat</span>}
+                              {k.telat > 0 && k.alpha > 0 && <span style={{ margin: "0 4px" }}>·</span>}
+                              {k.alpha > 0 && <span style={{ color: warna.bahaya }}>{k.alpha}× alpha</span>}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {rekap.length > 0 && (
                 <input
@@ -802,7 +890,13 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
 }
 
 const styles = {
-  shell: { display: "flex", minHeight: "100vh", background: warna.latar, fontFamily: font.display },
+  // Dulu "minHeight: 100vh" tanpa batas overflow -- akibatnya kalau konten
+  // sebuah tab panjang (misal halaman Gaji), SELURUH halaman ikut discroll
+  // termasuk sidebar-nya, jadi sidebar kelihatan "ikut kabur" ke atas.
+  // Sekarang shell dikunci setinggi layar (height, bukan minHeight) + overflow
+  // hidden, supaya sidebar & konten masing-masing scroll sendiri-sendiri --
+  // pola "app shell" standar: sidebar diam, cuma konten kanan yang jalan.
+  shell: { display: "flex", height: "100svh", overflow: "hidden", background: warna.latar, fontFamily: font.display },
 
   // ---------- SIDEBAR ----------
   sidebar: {
@@ -813,9 +907,10 @@ const styles = {
     flexDirection: "column",
     padding: "22px 14px",
     flexShrink: 0,
+    overflowY: "auto",
   },
   sidebarAtas: { padding: "0 8px", marginBottom: 26 },
-  logoSidebar: { height: 30, display: "block" },
+  logoSidebar: { height: 42, display: "block" },
   navSidebar: { display: "flex", flexDirection: "column", gap: 2, flex: 1 },
   navItem: {
     display: "flex",
@@ -873,10 +968,13 @@ const styles = {
   tombolAksiSidebarBahaya: { color: warna.bahaya },
 
   // ---------- MAIN AREA ----------
-  mainArea: { flex: 1, minWidth: 0, padding: "26px 32px" },
-  topbarMobile: { display: "none", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
+  mainArea: { flex: 1, minWidth: 0, padding: "26px 32px", overflowY: "auto", height: "100%" },
+  topbarMobile: {
+    display: "none", alignItems: "center", justifyContent: "space-between", marginBottom: 14,
+    position: "sticky", top: 0, zIndex: 10, background: warna.latar, padding: "4px 0",
+  },
   tombolHamburger: { background: warna.panel, border: `1px solid ${warna.garis}`, borderRadius: 8, padding: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: 36, height: 36 },
-  topbarLogoKecil: { height: 20, objectFit: "contain" },
+  topbarLogoKecil: { height: 28, objectFit: "contain" },
   topbarJudul: { fontSize: 15, fontWeight: 700, color: warna.tinta },
   headerAtas: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 22 },
   judulHalaman: { margin: 0, fontSize: 24, fontWeight: 700, color: warna.tinta },
@@ -884,6 +982,27 @@ const styles = {
   content: { maxWidth: 1040 },
 
   statGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 18 },
+
+  // ---------- Panel Tren & Analisis (collapsible) ----------
+  tombolTogglePanel: {
+    width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+    background: warna.panel, border: `1px solid ${warna.garis}`, borderRadius: 10,
+    padding: "12px 16px", fontSize: 13, fontWeight: 600, color: warna.tinta, cursor: "pointer",
+    marginBottom: 12,
+  },
+  panelRingkasan: { marginBottom: 18 },
+  ringkasanGrid: { display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 12 },
+  ringkasanKotak: { background: warna.panel, border: `1px solid ${warna.garis}`, borderRadius: 10, padding: "14px 16px" },
+  ringkasanJudul: { fontSize: 12.5, fontWeight: 600, color: warna.tintaLembut, margin: "0 0 12px 0" },
+  chartBarGroup: { display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 6, height: 76 },
+  chartKolom: { display: "flex", flexDirection: "column", alignItems: "center", gap: 5, flex: 1 },
+  chartBatangWrapper: { display: "flex", flexDirection: "column-reverse", alignItems: "center", width: "100%", maxWidth: 26 },
+  chartSegmen: { width: "100%", borderRadius: 2 },
+  chartBatangKosong: { width: "100%", height: 3, borderRadius: 2, background: warna.panelAlt },
+  chartLabelHari: { fontSize: 10.5, color: warna.tintaSamar },
+  sorotanBaris: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: `1px solid ${warna.garis}`, fontSize: 12.5 },
+  sorotanNama: { color: warna.tinta },
+  sorotanAngka: { fontSize: 11.5, color: warna.tintaLembut, fontWeight: 600, fontFamily: font.mono },
   statCard: {
     background: warna.panel, borderRadius: 10, padding: "16px 18px", border: `1px solid ${warna.garis}`,
     borderLeft: `3px solid ${warna.tinta}`, display: "flex", flexDirection: "column", gap: 4,
