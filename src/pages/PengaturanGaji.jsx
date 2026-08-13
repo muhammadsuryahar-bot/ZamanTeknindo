@@ -39,7 +39,6 @@ export default function PengaturanGaji() {
 
   useEffect(() => {
     ambilData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function ambilData() {
@@ -70,6 +69,7 @@ export default function PengaturanGaji() {
       }
       setInputGaji(isianAwal);
     } catch (err) {
+      console.error(err);
       setPesan("Gagal memuat pengaturan gaji.");
     } finally {
       setLoading(false);
@@ -92,6 +92,7 @@ export default function PengaturanGaji() {
       }
       setPesan("Pengaturan potongan berhasil disimpan.");
     } catch (err) {
+      console.error(err);
       setPesan("Tidak bisa terhubung ke server.");
     }
   }
@@ -116,6 +117,7 @@ export default function PengaturanGaji() {
       setPesan(data.pesan);
       ambilData();
     } catch (err) {
+      console.error(err);
       setPesan("Tidak bisa terhubung ke server.");
     }
   }
@@ -130,6 +132,7 @@ export default function PengaturanGaji() {
       const data = await res.json();
       setLaporanBulanan(data.data || []);
     } catch (err) {
+      console.error(err);
       setPesan("Tidak bisa terhubung ke server.");
     } finally {
       setLoadingLaporan(false);
@@ -154,6 +157,7 @@ export default function PengaturanGaji() {
       setDaftarGagal(data.gagal || []);
       muatLaporanBulanan();
     } catch (err) {
+      console.error(err);
       setPesan("Tidak bisa terhubung ke server.");
     } finally {
       setSedangHitung(false);
@@ -184,6 +188,7 @@ export default function PengaturanGaji() {
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (err) {
+      console.error(err);
       setPesan("Tidak bisa terhubung ke server.");
     } finally {
       setSedangUnduh(false);

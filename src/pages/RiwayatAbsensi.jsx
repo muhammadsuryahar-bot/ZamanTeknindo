@@ -10,10 +10,6 @@ export default function RiwayatAbsensi({ kembali }) {
   const [loading, setLoading] = useState(true);
   const [pesan, setPesan] = useState("");
 
-  useEffect(() => {
-    muatRiwayat();
-  }, []);
-
   async function muatRiwayat() {
     setLoading(true);
     setPesan("");
@@ -24,11 +20,16 @@ export default function RiwayatAbsensi({ kembali }) {
       const data = await res.json();
       setRiwayat(data.data || []);
     } catch (err) {
+      console.error(err);
       setPesan("Gagal memuat riwayat. Cek koneksi ke server.");
     } finally {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    muatRiwayat();
+  }, []);
 
   function formatTanggal(tanggalIso) {
     return new Date(tanggalIso).toLocaleDateString("id-ID", {

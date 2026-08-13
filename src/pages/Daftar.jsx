@@ -37,6 +37,7 @@ export default function Daftar({ keLogin }) {
       setEmail("");
       setKataSandi("");
     } catch (err) {
+      console.error(err);
       setPesanError("Tidak bisa terhubung ke server. Pastikan backend sudah jalan.");
     } finally {
       setLoading(false);

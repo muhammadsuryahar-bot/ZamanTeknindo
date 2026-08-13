@@ -22,6 +22,7 @@ async function cariProvinsiResmi(latitude, longitude) {
     try {
       if (turf.booleanPointInPolygon(titik, fitur)) return fitur.properties.PROVINSI;
     } catch (err) {
+      console.error(err);
       continue;
     }
   }
@@ -77,6 +78,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       const data = await res.json();
       setTahap(data.tahap);
     } catch (err) {
+      console.error(err);
       setTahap("gagal"); // dulu: tahap tetap "memuat" selamanya, jadi "Memeriksa status…"
                           // nempel terus bareng pesan error di bawahnya
       setPesan("Gagal memuat status absen. Periksa koneksi internet, lalu coba lagi.");
@@ -92,6 +94,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       setKameraAktif(true);
       ambilLokasi();
     } catch (err) {
+      console.error(err);
       setPesan("Tidak bisa mengakses kamera. Pastikan izin kamera sudah diberikan.");
       setPesanTipe("error");
     }
@@ -154,6 +157,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         setStatusLokasi("siap");
       },
       (err) => {
+        console.error(err);
         setStatusLokasi("error");
         setPesan("Gagal mengunci GPS. Pastikan izin lokasi aktif.");
       },

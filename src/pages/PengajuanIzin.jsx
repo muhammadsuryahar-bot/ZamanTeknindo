@@ -28,6 +28,7 @@ export default function PengajuanIzin({ kembali }) {
       const data = await res.json();
       setRiwayat(data.data || []);
     } catch (err) {
+      console.error(err);
       setRiwayat([]);
     } finally {
       setLoadingRiwayat(false);
@@ -85,6 +86,7 @@ export default function PengajuanIzin({ kembali }) {
       setFotoSurat(null);
       ambilRiwayat();
     } catch (err) {
+      console.error(err);
       setPesan("Tidak bisa terhubung ke server.");
       setPesanTipe("error");
     } finally {

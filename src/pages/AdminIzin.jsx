@@ -25,6 +25,7 @@ export default function AdminIzin() {
       const data = await res.json();
       setDaftar(data.data || []);
     } catch (err) {
+      console.error(err);
       setPesan("Gagal memuat daftar pengajuan.");
     } finally {
       setLoading(false);
@@ -54,6 +55,7 @@ export default function AdminIzin() {
       setPesan(data.pesan);
       ambilDaftar();
     } catch (err) {
+      console.error(err);
       setPesan("Tidak bisa terhubung ke server.");
     } finally {
       setProsesId(null);

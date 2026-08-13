@@ -48,6 +48,7 @@ export default function GantiPassword({ kembali }) {
       setPasswordBaru("");
       setKonfirmasiPasswordBaru("");
     } catch (err) {
+      console.error(err);
       setPesanTipe("error");
       setPesan("Tidak bisa terhubung ke server.");
     } finally {

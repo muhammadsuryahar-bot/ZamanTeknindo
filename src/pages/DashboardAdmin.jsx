@@ -102,6 +102,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
         const data = await res.json();
         setRingkasan(data.data || null);
       } catch (err) {
+        console.error(err);
         setPesan("Gagal memuat tren & analisis.");
       } finally {
         setLoadingRingkasan(false);
@@ -142,6 +143,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       setKaryawan(dataKaryawan.data || []);
       setDaftarKantorState(dataKantor.data || []);
     } catch (err) {
+      console.error(err);
       setPesan("Gagal memuat data. Cek koneksi ke server.");
     } finally {
       setLoading(false);
@@ -171,6 +173,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       setFormAktivasiTerbuka(null);
       muatData();
     } catch (err) {
+      console.error(err);
       setPesan("Tidak bisa terhubung ke server.");
     }
   }
@@ -212,6 +215,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       setFormKantor({ namaKantor: "", alamat: "", latitude: "", longitude: "" });
       muatData();
     } catch (err) {
+      console.error(err);
       setPesan("Tidak bisa terhubung ke server.");
     } finally {
       setSedangSimpanKantor(false);
@@ -233,6 +237,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       if (!res.ok) return setPesan(data.pesan || "Gagal mereset password.");
       setResetPasswordHasil({ id, password: data.passwordSementara });
     } catch (err) {
+      console.error(err);
       setPesan("Tidak bisa terhubung ke server.");
     }
   }
@@ -250,6 +255,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       setKonfirmasiStatusTerbuka(null);
       muatData();
     } catch (err) {
+      console.error(err);
       setPesan("Tidak bisa terhubung ke server.");
     }
   }
@@ -280,6 +286,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       setEditStatusTerbuka(null);
       muatData();
     } catch (err) {
+      console.error(err);
       setPesan("Tidak bisa terhubung ke server.");
     }
   }
