@@ -198,6 +198,19 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       setPesan("Nama kantor wajib diisi.");
       return;
     }
+    // Validasi latitude/longitude harus berupa angka KALAU diisi (boleh kosong).
+    // Sebelumnya kalau salah ketik (misal kepencet huruf), errornya baru
+    // ketahuan di backend dan muncul sebagai pesan generik yang membingungkan.
+    const latDiisi = formKantor.latitude.trim() !== "";
+    const lngDiisi = formKantor.longitude.trim() !== "";
+    if (latDiisi && isNaN(Number(formKantor.latitude))) {
+      setPesan("Latitude harus berupa angka (contoh: 0.5071). Kosongkan saja kalau tidak yakin.");
+      return;
+    }
+    if (lngDiisi && isNaN(Number(formKantor.longitude))) {
+      setPesan("Longitude harus berupa angka (contoh: 101.4478). Kosongkan saja kalau tidak yakin.");
+      return;
+    }
     setPesan("");
     setSedangSimpanKantor(true);
     try {
