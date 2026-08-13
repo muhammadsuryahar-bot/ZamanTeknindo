@@ -36,7 +36,7 @@ async function ambilKotaKecamatanBigDataCloud(latitude, longitude) {
   if (!res.ok) throw new Error("Gagal mengambil data BigDataCloud");
   const data = await res.json();
   const bagian = [data.locality, data.city && data.city !== data.locality ? data.city : null].filter(Boolean);
-  if (bagian.length === 0) throw new Error("Data BigDataCloud kosong");
+  if (bagian.length === 0) throw new or("Data BigDataCloud kosong");
   return bagian.join(", ");
 }
 
