@@ -375,7 +375,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
         style={styles.sidebar}
       >
         <div style={styles.sidebarAtas}>
-          <img src={logo}alt="Logo PT. Zaman Teknindo"className="avatar-mini"/>
+          <img src={logoHorizontal} alt="Logo PT. Zaman Teknindo" style={styles.logoSidebar} />
         </div>
 
         <nav style={styles.navSidebar}>
