@@ -9,7 +9,7 @@ import PengaturanGaji from "./PengaturanGaji";
 import { labelStatusKehadiran } from "../utils/statusKehadiran";
 import {
   ClipboardList, Clock, Users, FileEdit, Wallet, Building2,
-  BarChart3, ThumbsUp, ArrowRight, CheckCircle2, UsersRound,
+  BarChart3, ThumbsUp, ArrowRight, CheckCircle2, UsersRound, MapPin, Info,
 } from "lucide-react";
 
 const DAFTAR_STATUS = ["tepat_waktu", "telat", "alpha", "izin", "sakit", "cuti", "urgent"];
@@ -357,7 +357,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
     { id: "karyawan", label: "Karyawan" },
     { id: "izin", label: "Izin" },
     { id: "gaji", label: "Gaji" },
-    { id: "kantor", label: "Kantor" },
+    { id: "kantor", label: "Kantor Pusat" },
   ];
 
   const judulTab = tabs.find((t) => t.id === tab)?.label || "";
@@ -375,7 +375,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
         style={styles.sidebar}
       >
         <div style={styles.sidebarAtas}>
-          <img src={logoHorizontal} alt="PT. Zaman Teknindo" style={styles.logoSidebar} />
+          <img src={logo}alt="Logo PT. Zaman Teknindo"className="avatar-mini"/>
         </div>
 
         <nav style={styles.navSidebar}>
@@ -855,73 +855,174 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
 
           {tab === "kantor" && (
             <>
+              <div style={styles.kantorInfoBanner}>
+                <div style={styles.kantorInfoIcon}>
+                  <Building2 size={18} strokeWidth={2} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <p style={styles.kantorInfoTitle}>Kantor Pusat PT. Zaman Teknindo</p>
+                  <p style={styles.kantorInfoText}>
+                    Kantor perusahaan berada di Pekanbaru. Karyawan dapat bekerja atau
+                    bertugas di berbagai wilayah Indonesia, sehingga data kantor ini
+                    digunakan sebagai referensi organisasi, sedangkan lokasi absensi
+                    mengikuti lokasi aktual karyawan.
+                  </p>
+                </div>
+              </div>
+
               <div style={styles.kartuFormKantor}>
-                <p style={styles.judulFormKantor}>
-                  {kantorEditId !== null ? "Edit Kantor" : "Tambah Kantor Baru"}
-                </p>
-                <div style={styles.formGridKantor}>
+                <div style={styles.headerFormKantor}>
                   <div>
+                    <p style={styles.judulFormKantor}>
+                      {kantorEditId !== null ? "Edit Data Kantor Pusat" : "Data Kantor Pusat"}
+                    </p>
+                    <p style={styles.subJudulFormKantor}>
+                      Isi alamat dan koordinat resmi kantor. Koordinat boleh dikosongkan
+                      sampai data lokasi resmi tersedia.
+                    </p>
+                  </div>
+                  {kantorEditId !== null && (
+                    <span style={styles.badgeKantorEdit}>Mode Edit</span>
+                  )}
+                </div>
+
+                <div style={styles.formGridKantor}>
+                  <div style={styles.fieldKantor}>
                     <label style={styles.labelForm}>Nama Kantor</label>
                     <input
                       value={formKantor.namaKantor}
                       onChange={(e) => setFormKantor({ ...formKantor, namaKantor: e.target.value })}
-                      placeholder="Contoh: Kantor Pusat Pekanbaru"
-                      style={styles.inputForm}
+                      placeholder="Contoh: Kantor Pusat PT. Zaman Teknindo"
+                      style={styles.inputFormKantor}
                     />
                   </div>
-                  <div>
-                    <label style={styles.labelForm}>Alamat</label>
+
+                  <div style={styles.fieldKantor}>
+                    <label style={styles.labelForm}>Alamat Kantor</label>
                     <input
                       value={formKantor.alamat}
                       onChange={(e) => setFormKantor({ ...formKantor, alamat: e.target.value })}
-                      placeholder="Jl. Contoh No. 1, Pekanbaru"
-                      style={styles.inputForm}
+                      placeholder="Alamat resmi kantor di Pekanbaru"
+                      style={styles.inputFormKantor}
                     />
                   </div>
-                  <div>
-                    <label style={styles.labelForm}>Latitude (opsional)</label>
+
+                  <div style={styles.fieldKantor}>
+                    <label style={styles.labelForm}>
+                      <span style={styles.labelDenganIkon}>
+                        <MapPin size={13} />
+                        Latitude
+                      </span>
+                      <span style={styles.labelOpsional}>(opsional)</span>
+                    </label>
                     <input
                       value={formKantor.latitude}
                       onChange={(e) => setFormKantor({ ...formKantor, latitude: e.target.value })}
-                      placeholder="0.5071"
-                      style={styles.inputForm}
+                      placeholder="Masukkan latitude resmi"
+                      style={styles.inputFormKantor}
+                      inputMode="decimal"
                     />
                   </div>
-                  <div>
-                    <label style={styles.labelForm}>Longitude (opsional)</label>
+
+                  <div style={styles.fieldKantor}>
+                    <label style={styles.labelForm}>
+                      <span style={styles.labelDenganIkon}>
+                        <MapPin size={13} />
+                        Longitude
+                      </span>
+                      <span style={styles.labelOpsional}>(opsional)</span>
+                    </label>
                     <input
                       value={formKantor.longitude}
                       onChange={(e) => setFormKantor({ ...formKantor, longitude: e.target.value })}
-                      placeholder="101.4478"
-                      style={styles.inputForm}
+                      placeholder="Masukkan longitude resmi"
+                      style={styles.inputFormKantor}
+                      inputMode="decimal"
                     />
                   </div>
                 </div>
-                <div style={styles.formTombolGroup}>
+
+                <div style={styles.kantorActionRow}>
                   {kantorEditId !== null && (
-                    <button onClick={bukaFormTambahKantor} style={styles.tombolBatal}>Batal Edit</button>
+                    <button onClick={bukaFormTambahKantor} style={styles.tombolBatal}>
+                      Batal Edit
+                    </button>
                   )}
-                  <button onClick={simpanKantor} style={styles.tombolAktifkan} disabled={sedangSimpanKantor}>
-                    {sedangSimpanKantor ? "Menyimpan…" : kantorEditId !== null ? "Simpan Perubahan" : "Tambah Kantor"}
+                  <button
+                    onClick={simpanKantor}
+                    style={styles.tombolAktifkan}
+                    disabled={sedangSimpanKantor}
+                  >
+                    {sedangSimpanKantor
+                      ? "Menyimpan…"
+                      : kantorEditId !== null
+                        ? "Simpan Perubahan"
+                        : "Simpan Kantor Pusat"}
                   </button>
                 </div>
               </div>
 
+              <div style={styles.kantorListHeader}>
+                <div>
+                  <h2 style={styles.kantorListTitle}>Data Kantor Tersimpan</h2>
+                  <p style={styles.kantorListSubTitle}>
+                    Saat ini cukup gunakan satu data kantor pusat sesuai kondisi perusahaan.
+                  </p>
+                </div>
+                <span style={styles.kantorCountBadge}>
+                  {daftarKantorState.length} data
+                </span>
+              </div>
+
               <div style={styles.kartuGrid}>
                 {daftarKantorState.map((k) => (
-                  <div key={k.id} style={styles.itemCard} className="kartu-hover">
-                    <strong style={styles.itemNama}>{k.namaKantor}</strong>
-                    <p style={styles.itemSub}>{k.alamat || "Alamat belum diisi"}</p>
-                    <p style={styles.itemSub}>
-                      {k._count?.pengguna ?? 0} karyawan ditempatkan di sini
-                    </p>
-                    <button onClick={() => bukaFormEditKantor(k)} style={styles.tombolEditKantor}>
-                      Edit
-                    </button>
+                  <div key={k.id} style={styles.kantorCard} className="kartu-hover">
+                    <div style={styles.kantorCardTop}>
+                      <div style={styles.kantorCardIcon}>
+                        <Building2 size={18} />
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <strong style={styles.itemNama}>{k.namaKantor}</strong>
+                        <p style={styles.itemSub}>{k.alamat || "Alamat belum diisi"}</p>
+                      </div>
+                      <span style={styles.badgeKantorAktif}>Kantor Pusat</span>
+                    </div>
+
+                    <div style={styles.kantorMetaGrid}>
+                      <div style={styles.kantorMetaItem}>
+                        <span style={styles.kantorMetaLabel}>Karyawan</span>
+                        <strong style={styles.kantorMetaValue}>
+                          {k._count?.pengguna ?? 0}
+                        </strong>
+                      </div>
+                      <div style={styles.kantorMetaItem}>
+                        <span style={styles.kantorMetaLabel}>Koordinat</span>
+                        <strong style={styles.kantorMetaValue}>
+                          {k.latitude != null && k.longitude != null ? "Tersedia" : "Belum diisi"}
+                        </strong>
+                      </div>
+                    </div>
+
+                    <div style={styles.kantorCardFooter}>
+                      <span style={styles.kantorHint}>
+                        <Info size={13} />
+                        Lokasi absensi mengikuti lokasi aktual karyawan.
+                      </span>
+                      <button onClick={() => bukaFormEditKantor(k)} style={styles.tombolEditKantor}>
+                        Edit Data
+                      </button>
+                    </div>
                   </div>
                 ))}
+
                 {daftarKantorState.length === 0 && (
-                  <p style={styles.infoKosong}>Belum ada kantor terdaftar. Tambahkan lewat form di atas.</p>
+                  <div style={styles.kantorEmptyBox}>
+                    <Building2 size={28} strokeWidth={1.6} />
+                    <p style={styles.kantorEmptyTitle}>Data kantor pusat belum tersimpan</p>
+                    <p style={styles.kantorEmptyText}>
+                      Isi form di atas menggunakan alamat kantor resmi PT. Zaman Teknindo di Pekanbaru.
+                    </p>
+                  </div>
                 )}
               </div>
             </>
@@ -953,7 +1054,7 @@ const styles = {
     overflowY: "auto",
   },
   sidebarAtas: { padding: "0 8px", marginBottom: 26 },
-  logoSidebar: { height: 42, display: "block" },
+  logoSidebar: { height: 42, maxWidth: "100%", width: "auto", objectFit: "contain", objectPosition: "left center", display: "block" },
   navSidebar: { display: "flex", flexDirection: "column", gap: 2, flex: 1 },
   navItem: {
     display: "flex",
@@ -1151,15 +1252,92 @@ const styles = {
     borderRadius: 8, fontSize: 11.5, cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap",
   },
 
+  kantorInfoBanner: {
+    display: "flex", alignItems: "flex-start", gap: 12,
+    background: warna.aksenLembut, border: `1px solid ${warna.garis}`,
+    borderRadius: 12, padding: "14px 16px", marginBottom: 14,
+  },
+  kantorInfoIcon: {
+    width: 34, height: 34, borderRadius: 9, flexShrink: 0,
+    display: "flex", alignItems: "center", justifyContent: "center",
+    background: warna.panel, color: warna.aksen, border: `1px solid ${warna.garis}`,
+  },
+  kantorInfoTitle: { margin: 0, fontSize: 13.5, fontWeight: 700, color: warna.tinta },
+  kantorInfoText: { margin: "4px 0 0", fontSize: 11.5, lineHeight: 1.6, color: warna.tintaLembut },
   kartuFormKantor: {
-    background: warna.panel, borderRadius: 10, padding: 20, border: `1px solid ${warna.garis}`, marginBottom: 16,
+    background: warna.panel, borderRadius: 12, padding: 20, border: `1px solid ${warna.garis}`, marginBottom: 18,
   },
-  judulFormKantor: { fontSize: 14.5, fontWeight: 700, color: warna.tinta, margin: "0 0 4px 0" },
-  formGridKantor: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginTop: 4 },
+  headerFormKantor: {
+    display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 16,
+  },
+  judulFormKantor: { fontSize: 15, fontWeight: 700, color: warna.tinta, margin: 0 },
+  subJudulFormKantor: { fontSize: 11.5, color: warna.tintaLembut, margin: "4px 0 0", lineHeight: 1.55, maxWidth: 680 },
+  badgeKantorEdit: {
+    flexShrink: 0, padding: "4px 9px", borderRadius: 999, background: warna.peringatanLembut,
+    color: warna.peringatan, fontSize: 10.5, fontWeight: 700,
+  },
+  formGridKantor: {
+    display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 14, marginTop: 4,
+  },
+  fieldKantor: { minWidth: 0 },
+  labelDenganIkon: { display: "inline-flex", alignItems: "center", gap: 5 },
+  labelOpsional: { color: warna.tintaSamar, marginLeft: 4, fontWeight: 500 },
+  inputFormKantor: {
+    width: "100%", boxSizing: "border-box", padding: "10px 12px",
+    border: `1px solid ${warna.garis}`, borderRadius: 9, fontSize: 13, color: warna.tinta,
+    fontFamily: font.display, background: "#fff", outline: "none",
+  },
+  kantorActionRow: {
+    display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16,
+  },
+  kantorListHeader: {
+    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10,
+  },
+  kantorListTitle: { margin: 0, fontSize: 14.5, fontWeight: 700, color: warna.tinta },
+  kantorListSubTitle: { margin: "3px 0 0", fontSize: 11.5, color: warna.tintaSamar },
+  kantorCountBadge: {
+    flexShrink: 0, padding: "5px 9px", borderRadius: 999, background: warna.panelAlt,
+    color: warna.tintaLembut, border: `1px solid ${warna.garis}`, fontSize: 10.5, fontWeight: 600,
+  },
+  kantorCard: {
+    background: warna.panel, borderRadius: 12, padding: 16, border: `1px solid ${warna.garis}`,
+    transition: "border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease",
+  },
+  kantorCardTop: { display: "flex", alignItems: "flex-start", gap: 10 },
+  kantorCardIcon: {
+    width: 36, height: 36, borderRadius: 10, flexShrink: 0, display: "flex",
+    alignItems: "center", justifyContent: "center", background: warna.aksenLembut, color: warna.aksen,
+  },
+  badgeKantorAktif: {
+    flexShrink: 0, padding: "4px 8px", borderRadius: 999, background: warna.suksesLembut,
+    color: warna.sukses, fontSize: 10, fontWeight: 700,
+  },
+  kantorMetaGrid: {
+    display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 14,
+  },
+  kantorMetaItem: {
+    background: warna.panelAlt, border: `1px solid ${warna.garis}`, borderRadius: 9, padding: "9px 10px",
+  },
+  kantorMetaLabel: { display: "block", fontSize: 10.5, color: warna.tintaSamar, marginBottom: 3 },
+  kantorMetaValue: { fontSize: 12.5, color: warna.tinta },
+  kantorCardFooter: {
+    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 12,
+    paddingTop: 11, borderTop: `1px solid ${warna.garis}`,
+  },
+  kantorHint: {
+    display: "inline-flex", alignItems: "center", gap: 5, minWidth: 0, fontSize: 10.5,
+    color: warna.tintaSamar, lineHeight: 1.4,
+  },
   tombolEditKantor: {
-    padding: "7px 14px", background: "none", color: warna.tinta, border: `1px solid ${warna.garis}`,
-    borderRadius: 8, fontSize: 12, cursor: "pointer", fontWeight: 600,
+    flexShrink: 0, padding: "7px 12px", background: "none", color: warna.tinta, border: `1px solid ${warna.garis}`,
+    borderRadius: 8, fontSize: 11.5, cursor: "pointer", fontWeight: 600,
   },
+  kantorEmptyBox: {
+    gridColumn: "1 / -1", textAlign: "center", padding: "42px 24px", background: warna.panel,
+    borderRadius: 12, border: `1px dashed ${warna.garis}`, color: warna.tintaSamar,
+  },
+  kantorEmptyTitle: { margin: "8px 0 4px", color: warna.tinta, fontSize: 13.5, fontWeight: 600 },
+  kantorEmptyText: { margin: 0, maxWidth: 520, marginInline: "auto", fontSize: 11.5, lineHeight: 1.6, color: warna.tintaSamar },
   infoKosong: { color: warna.tintaSamar, fontSize: 13.5, gridColumn: "1 / -1" },
 
   fotoAbsenRow: { display: "flex", gap: 8, marginTop: 10 },

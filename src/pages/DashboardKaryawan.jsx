@@ -1,16 +1,33 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import * as turf from "@turf/turf";
+import {
+  Camera,
+  Clock3,
+  History,
+  FileText,
+  LogOut,
+  MapPin,
+  RefreshCcw,
+  CheckCircle2,
+  ShieldCheck,
+  Navigation,
+} from "lucide-react";
+
 import { API_URL, getToken } from "../utils/api";
+import RiwayatAbsensi from "./RiwayatAbsensi";
+import PengajuanIzin from "./PengajuanIzin";
 import { warna, font } from "../styles/theme";
 import logoHorizontal from "../assets/logo-horizontal.png";
-import { ClipboardList, FileEdit, Check } from "lucide-react";
+import logo from "../assets/logo.png";
 
 let dataProvinsiCache = null;
+
 async function muatDataProvinsi() {
   if (dataProvinsiCache) return dataProvinsiCache;
+
   const res = await fetch("/data/provinsi.json");
   if (!res.ok) throw new Error("Gagal memuat data provinsi.json");
+
   dataProvinsiCache = await res.json();
   return dataProvinsiCache;
 }
@@ -18,85 +35,222 @@ async function muatDataProvinsi() {
 async function cariProvinsiResmi(latitude, longitude) {
   const data = await muatDataProvinsi();
   const titik = turf.point([longitude, latitude]);
+
   for (const fitur of data.features) {
     try {
-      if (turf.booleanPointInPolygon(titik, fitur)) return fitur.properties.PROVINSI;
+      if (turf.booleanPointInPolygon(titik, fitur)) {
+        return fitur.properties.PROVINSI;
+      }
     } catch (err) {
-      console.error(err);
-      continue;
+      // Lewati polygon yang bermasalah.
     }
   }
+
   return null;
 }
 
-async function ambilKotaKecamatanBigDataCloud(latitude, longitude) {
-  const res = await fetch(
-    `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=id`
+function DialJamKerja({ tahap }) {
+  const [sekarang, setSekarang] = useState(new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => setSekarang(new Date()), 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const jamDesimal = sekarang.getHours() + sekarang.getMinutes() / 60;
+  const sudutSekarang = (jamDesimal / 24) * 360;
+  const persenMulai = (8 / 24) * 100;
+  const persenSelesai = (17 / 24) * 100;
+
+  const warnaDial =
+    tahap === "selesai"
+      ? warna.sukses
+      : tahap === "sudah_masuk"
+        ? warna.peringatan
+        : warna.aksen;
+
+  return (
+    <div style={dialStyles.wrapper}>
+      <div
+        style={{
+          ...dialStyles.cincin,
+          background: `conic-gradient(${warna.garis} 0%, ${warna.garis} ${persenMulai}%, ${warnaDial} ${persenMulai}%, ${warnaDial} ${persenSelesai}%, ${warna.garis} ${persenSelesai}%, ${warna.garis} 100%)`,
+        }}
+      >
+        <div style={dialStyles.penandaWrapper}>
+          <div
+            style={{
+              ...dialStyles.penanda,
+              transform: `rotate(${sudutSekarang}deg)`,
+            }}
+          >
+            <div style={dialStyles.titikPenanda} />
+          </div>
+        </div>
+
+        <div style={dialStyles.lubang}>
+          <span style={dialStyles.jamText}>
+            {sekarang.toLocaleTimeString("id-ID", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </span>
+          <span style={dialStyles.jamLabel}>WIB</span>
+        </div>
+      </div>
+    </div>
   );
-  if (!res.ok) throw new Error("Gagal mengambil data BigDataCloud");
-  const data = await res.json();
-  const bagian = [data.locality, data.city && data.city !== data.locality ? data.city : null].filter(Boolean);
-  if (bagian.length === 0) throw new Error("Data BigDataCloud kosong");
-  return bagian.join(", ");
 }
 
-// Inisial 1-2 huruf dari nama, buat avatar bulat
-function inisialNama(nama) {
-  if (!nama) return "?";
-  const bagian = nama.trim().split(" ");
-  if (bagian.length === 1) return bagian[0].slice(0, 2).toUpperCase();
-  return (bagian[0][0] + bagian[bagian.length - 1][0]).toUpperCase();
-}
+const dialStyles = {
+  wrapper: {
+    display: "flex",
+    justifyContent: "center",
+    marginBottom: 18,
+  },
+  cincin: {
+    width: 118,
+    height: 118,
+    borderRadius: "50%",
+    position: "relative",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  penandaWrapper: {
+    position: "absolute",
+    inset: 0,
+  },
+  penanda: {
+    position: "absolute",
+    inset: 0,
+    display: "flex",
+    justifyContent: "center",
+  },
+  titikPenanda: {
+    width: 8,
+    height: 8,
+    borderRadius: "50%",
+    background: warna.tinta,
+    marginTop: -1,
+    boxShadow: "0 0 0 2px #fff",
+  },
+  lubang: {
+    width: 90,
+    height: 90,
+    borderRadius: "50%",
+    background: warna.panel,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  jamText: {
+    fontFamily: font.mono,
+    fontSize: 18,
+    fontWeight: 600,
+    color: warna.tinta,
+    lineHeight: 1.1,
+  },
+  jamLabel: {
+    fontFamily: font.mono,
+    fontSize: 9.5,
+    color: warna.tintaSamar,
+    letterSpacing: "0.08em",
+  },
+};
 
 export default function DashboardKaryawan({ pengguna, onLogout }) {
-  const navigate = useNavigate();
-
   const [tahap, setTahap] = useState("memuat");
+  const [halaman, setHalaman] = useState("absen");
   const [kameraAktif, setKameraAktif] = useState(false);
   const [fotoTerambil, setFotoTerambil] = useState(null);
+  const [fotoPreview, setFotoPreview] = useState("");
   const [lokasi, setLokasi] = useState(null);
   const [statusLokasi, setStatusLokasi] = useState("mencari");
   const [pesan, setPesan] = useState("");
-  const [pesanTipe, setPesanTipe] = useState("error");
   const [loading, setLoading] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState(false);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
+  const lokasiTimerRef = useRef(null);
 
   useEffect(() => {
     ambilStatusHariIni();
-    return () => hentikanKamera();
+
+    return () => {
+      hentikanKamera();
+      if (lokasiTimerRef.current) {
+        clearTimeout(lokasiTimerRef.current);
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (fotoTerambil) {
+      const url = URL.createObjectURL(fotoTerambil);
+      setFotoPreview(url);
+
+      return () => URL.revokeObjectURL(url);
+    }
+
+    setFotoPreview("");
+  }, [fotoTerambil]);
+
   async function ambilStatusHariIni() {
+    setLoadingStatus(true);
+
     try {
       const res = await fetch(`${API_URL}/absensi/status-hari-ini`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
+
       const data = await res.json();
+
+      if (!res.ok) {
+        setPesan(data.pesan || "Gagal memuat status absen.");
+        return;
+      }
+
       setTahap(data.tahap);
     } catch (err) {
       console.error(err);
-      setTahap("gagal"); // dulu: tahap tetap "memuat" selamanya, jadi "Memeriksa status…"
-                          // nempel terus bareng pesan error di bawahnya
-      setPesan("Gagal memuat status absen. Periksa koneksi internet, lalu coba lagi.");
-      setPesanTipe("error");
+      setPesan("Gagal memuat status absen. Cek koneksi ke server.");
+    } finally {
+      setLoadingStatus(false);
     }
   }
 
   async function bukaKamera() {
     setPesan("");
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setPesan("Browser ini tidak mendukung akses kamera.");
+      return;
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "user" },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      });
+
       streamRef.current = stream;
+      setFotoTerambil(null);
       setKameraAktif(true);
       ambilLokasi();
     } catch (err) {
       console.error(err);
-      setPesan("Tidak bisa mengakses kamera. Pastikan izin kamera sudah diberikan.");
-      setPesanTipe("error");
+      setPesan(
+        "Tidak bisa mengakses kamera. Pastikan izin kamera diberikan pada browser."
+      );
     }
   }
 
@@ -111,377 +265,1130 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
+
     setKameraAktif(false);
   }
 
-  // PERBAIKAN BUG MIRROR: preview <video> live tampil dibalik (mirror,
-  // transform: scaleX(-1)) supaya terasa natural kayak kaca saat framing.
-  // Sebelumnya canvas cuma nge-draw frame video APA ADANYA (tidak dibalik),
-  // jadi foto hasil jepretan JUSTRU KEBALIKAN dari yang dilihat user saat
-  // framing -- kalau ada tulisan di background, misalnya, arahnya kebalik.
-  // Fix: canvas ikut dibalik horizontal saat menggambar, supaya hasil akhir
-  // konsisten dengan apa yang dilihat user di preview.
   function ambilFoto() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
+
+    if (!video || !canvas || !video.videoWidth || !video.videoHeight) {
+      setPesan("Kamera belum siap. Tunggu sebentar lalu coba lagi.");
+      return;
+    }
+
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
+
     const ctx = canvas.getContext("2d");
+
+    if (!ctx) {
+      setPesan("Tidak dapat memproses foto kamera.");
+      return;
+    }
+
+    // Kamera depan biasanya menampilkan preview mirror.
+    // Foto yang dikirim kita buat normal agar tidak terbalik.
+    ctx.save();
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob((blob) => setFotoTerambil(blob), "image/jpeg", 0.85);
-    hentikanKamera();
+    ctx.restore();
+
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          setPesan("Foto gagal diproses. Silakan coba lagi.");
+          return;
+        }
+
+        setFotoTerambil(blob);
+        hentikanKamera();
+      },
+      "image/jpeg",
+      0.86
+    );
   }
 
   function fotoUlang() {
     setFotoTerambil(null);
+    setLokasi(null);
+    setStatusLokasi("mencari");
     bukaKamera();
+  }
+
+  async function ambilKotaKecamatanBigDataCloud(latitude, longitude) {
+    const res = await fetch(
+      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=id`
+    );
+
+    const data = await res.json();
+    const bagian = [
+      data.locality,
+      data.city && data.city !== data.locality ? data.city : null,
+    ].filter(Boolean);
+
+    if (bagian.length === 0) {
+      throw new Error("Data BigDataCloud kosong");
+    }
+
+    return bagian.join(", ");
+  }
+
+  async function ambilDetailNominatim(latitude, longitude) {
+    const detail = await ambilDetailNominatimPadaZoom(
+      latitude,
+      longitude,
+      18
+    );
+
+    if (!detail.jalan) {
+      try {
+        const detailZoomLebihLuas = await ambilDetailNominatimPadaZoom(
+          latitude,
+          longitude,
+          17
+        );
+
+        if (detailZoomLebihLuas.jalan) {
+          return detailZoomLebihLuas;
+        }
+      } catch (err) {
+        // Biarkan menggunakan detail sebelumnya.
+      }
+    }
+
+    return detail;
+  }
+
+  async function ambilDetailNominatimPadaZoom(latitude, longitude, zoom) {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=${zoom}&addressdetails=1`
+    );
+
+    const data = await res.json();
+    const a = data.address || {};
+
+    const namaJalan =
+      a.road ||
+      a.pedestrian ||
+      a.residential ||
+      a.living_street ||
+      a.footway ||
+      a.cycleway ||
+      a.path ||
+      a.service ||
+      null;
+
+    const jalanLengkap = [namaJalan, a.house_number]
+      .filter(Boolean)
+      .join(" No. ");
+
+    return {
+      jalan: jalanLengkap || null,
+      kotaKecamatan:
+        [
+          a.village || a.suburb,
+          a.city || a.town || a.county,
+        ]
+          .filter(Boolean)
+          .join(", ") || null,
+    };
+  }
+
+  async function ambilAlamatDariKoordinat(latitude, longitude) {
+    const [kotaKecamatanBDC, detailNominatim, provinsiResmi] =
+      await Promise.all([
+        ambilKotaKecamatanBigDataCloud(latitude, longitude).catch(
+          () => null
+        ),
+        ambilDetailNominatim(latitude, longitude).catch(() => null),
+        cariProvinsiResmi(latitude, longitude).catch((err) => {
+          console.error("Gagal mencari provinsi resmi:", err);
+          return null;
+        }),
+      ]);
+
+    const jalan = detailNominatim?.jalan || null;
+    const kotaKecamatan =
+      kotaKecamatanBDC || detailNominatim?.kotaKecamatan || null;
+
+    const bagian = [jalan, kotaKecamatan, provinsiResmi].filter(Boolean);
+
+    if (bagian.length === 0) {
+      return `${latitude}, ${longitude}`;
+    }
+
+    return bagian.join(", ");
   }
 
   function ambilLokasi() {
     setStatusLokasi("mencari");
+
     if (!navigator.geolocation) {
-      setStatusLokasi("error");
-      setPesan("Browser perangkat tidak mendukung pembacaan koordinat GPS.");
+      setStatusLokasi("gagal");
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
+    let posisiTerbaik = null;
+    let watchId = null;
+    let sudahSelesai = false;
+
+    const selesaikan = async () => {
+      if (sudahSelesai) return;
+
+      sudahSelesai = true;
+
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+
+      if (lokasiTimerRef.current) {
+        clearTimeout(lokasiTimerRef.current);
+        lokasiTimerRef.current = null;
+      }
+
+      if (!posisiTerbaik) {
+        setStatusLokasi("gagal");
+        return;
+      }
+
+      const { latitude, longitude, akurasi } = posisiTerbaik;
+
+      setLokasi({
+        latitude,
+        longitude,
+        akurasi,
+        alamat: null,
+      });
+
+      setStatusLokasi("ditemukan");
+
+      try {
+        const alamatLengkap = await ambilAlamatDariKoordinat(
+          latitude,
+          longitude
+        );
+
         setLokasi({
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-          akurasi: pos.coords.accuracy,
+          latitude,
+          longitude,
+          akurasi,
+          alamat: alamatLengkap,
         });
-        setStatusLokasi("siap");
+      } catch (err) {
+        console.error("Reverse geocoding gagal:", err);
+      }
+    };
+
+    watchId = navigator.geolocation.watchPosition(
+      (posisi) => {
+        const akurasi = Math.round(posisi.coords.accuracy);
+
+        if (!posisiTerbaik || akurasi < posisiTerbaik.akurasi) {
+          posisiTerbaik = {
+            latitude: posisi.coords.latitude,
+            longitude: posisi.coords.longitude,
+            akurasi,
+          };
+
+          setLokasi((prev) => ({
+            latitude: posisiTerbaik.latitude,
+            longitude: posisiTerbaik.longitude,
+            akurasi: posisiTerbaik.akurasi,
+            alamat: prev?.alamat || null,
+          }));
+
+          setStatusLokasi("ditemukan");
+        }
+
+        if (akurasi <= 20) {
+          selesaikan();
+        }
       },
-      (err) => {
-        console.error(err);
-        setStatusLokasi("error");
-        setPesan("Gagal mengunci GPS. Pastikan izin lokasi aktif.");
+      (error) => {
+        console.warn("Geolocation error:", error);
+
+        if (!posisiTerbaik) {
+          setStatusLokasi("gagal");
+        }
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 15000,
+      }
     );
+
+    lokasiTimerRef.current = setTimeout(selesaikan, 6000);
   }
 
-  async function kirimAbsenKeBackend() {
-    if (!fotoTerambil || !lokasi) {
-      setPesan("Foto bukti atau data koordinat lokasi belum siap.");
-      setPesanTipe("error");
+  async function kirimAbsen() {
+    if (!fotoTerambil) {
+      setPesan("Silakan ambil foto terlebih dahulu.");
       return;
     }
 
     setLoading(true);
     setPesan("");
 
-    try {
-      const namaProvinsiResmi = await cariProvinsiResmi(lokasi.latitude, lokasi.longitude);
+    const formData = new FormData();
+    formData.append("foto", fotoTerambil, "absen.jpg");
 
-      let detailWilayah = "";
-      try {
-        detailWilayah = await ambilKotaKecamatanBigDataCloud(lokasi.latitude, lokasi.longitude);
-      } catch (e) {
-        detailWilayah = "Lokasi Operasional Teknindo";
-      }
-
-      const alamatLengkap = `${detailWilayah}, ${namaProvinsiResmi || "Luar Wilayah Jaringan"}`;
-
-      const formData = new FormData();
-      const namaFile = `absen_${tahap}_${pengguna?.id || "karyawan"}_${Date.now()}.jpg`;
-      const berkasFoto = new File([fotoTerambil], namaFile, { type: "image/jpeg" });
-
-      formData.append("foto", berkasFoto);
+    if (lokasi) {
       formData.append("latitude", lokasi.latitude);
       formData.append("longitude", lokasi.longitude);
-      formData.append("alamat", alamatLengkap);
-      formData.append("akurasi", lokasi.akurasi);
 
-      const ruteApi = tahap === "belum_masuk" ? "/absensi/masuk" : "/absensi/pulang";
+      const alamatDasar =
+        lokasi.alamat ||
+        `${lokasi.latitude}, ${lokasi.longitude}`;
 
-      const respons = await fetch(`${API_URL}${ruteApi}`, {
+      const infoAkurasi = lokasi.akurasi
+        ? ` (akurasi ±${lokasi.akurasi}m)`
+        : "";
+
+      formData.append("alamat", alamatDasar + infoAkurasi);
+    }
+
+    const endpoint =
+      tahap === "belum_masuk" ? "masuk" : "pulang";
+
+    try {
+      const res = await fetch(`${API_URL}/absensi/${endpoint}`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${getToken()}` },
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+        },
         body: formData,
       });
 
-      const hasil = await respons.json();
+      const data = await res.json();
 
-      if (!respons.ok) {
-        throw new Error(hasil.pesan || hasil.message || "Gagal memproses validasi absensi.");
+      if (!res.ok) {
+        setPesan(data.pesan || "Gagal mengirim absen.");
+        return;
       }
 
-      setPesan(tahap === "belum_masuk" ? "Absen masuk berhasil tercatat!" : "Absen pulang berhasil tercatat!");
-      setPesanTipe("sukses");
+      setPesan(data.pesan);
       setFotoTerambil(null);
+      setLokasi(null);
+      setStatusLokasi("mencari");
       await ambilStatusHariIni();
-    } catch (error) {
-      setPesan(error.message || "Terjadi kendala interaksi dengan server.");
-      setPesanTipe("error");
+    } catch (err) {
+      console.error(err);
+      setPesan("Tidak bisa terhubung ke server.");
     } finally {
       setLoading(false);
     }
   }
 
-  const jamSekarang = new Date().toLocaleDateString("id-ID", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
+  if (halaman === "riwayat") {
+    return <RiwayatAbsensi kembali={() => setHalaman("absen")} />;
+  }
+
+  if (halaman === "izin") {
+    return <PengajuanIzin kembali={() => setHalaman("absen")} />;
+  }
+
+  const judulAksi =
+    tahap === "belum_masuk"
+      ? "Absensi Masuk"
+      : tahap === "sudah_masuk"
+        ? "Absensi Pulang"
+        : "Absensi Hari Ini";
 
   return (
-    <div style={styles.wrapper}>
-      <div className="karyawan-outer">
-        {/* Panel brand — HANYA tampil di layar desktop (lihat index.css).
-            Sebelumnya di layar besar halaman ini cuma jadi kartu kecil
-            mengambang sendirian di lautan putih kosong; panel ini mengisi
-            ruang itu dengan identitas perusahaan, konsisten dengan gaya
-            split-screen yang sudah dipakai di halaman Login. */}
-        <div className="karyawan-brand-panel" style={styles.desktopBrandPanel}>
-          <div style={styles.polaTitikKaryawan} />
-          <div style={{ position: "relative", zIndex: 1 }}>
-            <img src={logoHorizontal} alt="" style={styles.logoBrandPanel} />
-            <h2 style={styles.brandNamaKaryawan}>Selamat Bertugas!</h2>
-            <p style={styles.brandTaglineKaryawan}>
-              Catat kehadiran hari ini dengan foto & lokasi — cukup sekali klik.
+    <div style={styles.page}>
+      <div style={styles.container}>
+        {/* HEADER */}
+        <header style={styles.header}>
+          <div style={styles.brandHeader}>
+            <img
+              src={logoHorizontal}
+              alt="PT. Zaman Teknindo"
+              style={styles.logoHeader}
+            />
+
+            <div style={styles.userBlock}>
+              <div style={styles.avatarBadge}>
+                {inisialNama(pengguna.nama)}
+              </div>
+
+              <div style={{ minWidth: 0 }}>
+                <p style={styles.namaUser}>{pengguna.nama}</p>
+                <p style={styles.subNamaUser}>
+                  {pengguna.jabatan || "Karyawan"}
+                  {pengguna.divisi ? ` · ${pengguna.divisi}` : ""}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div style={styles.headerActions}>
+            <button
+              onClick={() => setHalaman("izin")}
+              style={styles.headerButton}
+              type="button"
+            >
+              <FileText size={16} />
+              <span>Izin</span>
+            </button>
+
+            <button
+              onClick={() => setHalaman("riwayat")}
+              style={styles.headerButton}
+              type="button"
+            >
+              <History size={16} />
+              <span>Riwayat</span>
+            </button>
+
+            <button
+              onClick={onLogout}
+              style={styles.headerLogout}
+              type="button"
+              aria-label="Keluar"
+            >
+              <LogOut size={16} />
+              <span>Keluar</span>
+            </button>
+          </div>
+        </header>
+
+        {/* INFO HARI INI */}
+        <section style={styles.heroCard}>
+          <div>
+            <p style={styles.eyebrow}>SISTEM ABSENSI PT. ZAMAN TEKNINDO</p>
+            <h1 style={styles.heroTitle}>{judulAksi}</h1>
+            <p style={styles.heroDate}>
+              {new Date().toLocaleDateString("id-ID", {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })}
             </p>
           </div>
-        </div>
 
-        <div style={styles.shell} className="karyawan-content-shell">
-        {/* Header */}
-        <div style={styles.header}>
-          <img src={logoHorizontal} alt="PT. Zaman Teknindo" style={styles.logo} />
-          <div style={styles.headerAksi}>
-            <button onClick={() => navigate("/ganti-password")} style={styles.tombolAksiHeader}>
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="3.5" y="7" width="9" height="6.5" rx="1.5" stroke={warna.tintaLembut} strokeWidth="1.4" />
-                <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke={warna.tintaLembut} strokeWidth="1.4" strokeLinecap="round" />
-              </svg>
-              <span className="teks-tombol-header">Password</span>
-            </button>
-            <button onClick={onLogout} style={{ ...styles.tombolAksiHeader, ...styles.tombolAksiHeaderBahaya }}>
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M6 3.5H4a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h2M10.5 11l3-3-3-3M13.5 8H6" stroke={warna.bahaya} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              Keluar
-            </button>
+          <div style={styles.securityBadge}>
+            <ShieldCheck size={15} />
+            Data absensi terlindungi
           </div>
-        </div>
+        </section>
 
-        {/* Kartu utama absensi */}
-        <div style={styles.card}>
-          {/* Profil */}
-          <div style={styles.profilRow}>
-            <div style={styles.avatar}>{inisialNama(pengguna?.nama)}</div>
-            <div>
-              <h2 style={styles.namaUser}>{pengguna?.nama}</h2>
-              <p style={styles.subUser}>{pengguna?.jabatan} · {pengguna?.divisi}</p>
-            </div>
-          </div>
-          <p style={styles.tanggalHariIni}>{jamSekarang}</p>
-
-          {pesan && (
-            <div
-              style={{
-                ...styles.pesanBox,
-                background: pesanTipe === "sukses" ? warna.suksesLembut : warna.bahayaLembut,
-                color: pesanTipe === "sukses" ? warna.sukses : warna.bahaya,
-              }}
-            >
-              {pesan}
+        {/* STATUS ABSEN */}
+        <section style={styles.mainCard}>
+          {loadingStatus && (
+            <div style={styles.loadingState}>
+              <Clock3 size={18} />
+              <span>Memuat status absensi...</span>
             </div>
           )}
 
-          {kameraAktif && (
-            <>
-              <div style={styles.kameraBox}>
-                <video ref={videoRef} autoPlay playsInline muted style={styles.video} />
-              </div>
-              <button onClick={ambilFoto} style={styles.tombolJepretBaris} aria-label="Ambil foto">
-                <span style={styles.tombolJepretDalam} />
-              </button>
-            </>
-          )}
-
-          {fotoTerambil && (
-            <>
-              <div style={styles.previewBox}>
-                <img src={URL.createObjectURL(fotoTerambil)} alt="Bukti absen" style={styles.previewImg} />
-              </div>
-              <button onClick={fotoUlang} style={styles.tombolFotoUlangBaris}>↺ Foto Ulang</button>
-            </>
-          )}
-
-          <canvas ref={canvasRef} style={{ display: "none" }} />
-
-          {tahap === "memuat" && <p style={styles.infoNetral}>Memeriksa status…</p>}
-
-          {tahap === "gagal" && (
-            <div style={styles.gagalBox}>
-              <p style={styles.gagalTeks}>Status absen belum berhasil dimuat.</p>
-              <button onClick={() => { setPesan(""); setTahap("memuat"); ambilStatusHariIni(); }} style={styles.tombolCobaLagi}>
-                Coba Lagi
-              </button>
-            </div>
+          {!loadingStatus && tahap !== "memuat" && (
+            <DialJamKerja tahap={tahap} />
           )}
 
           {tahap === "selesai" && (
-            <div style={styles.selesaiBox}>
-              <span style={styles.selesaiIkon}><Check size={20} strokeWidth={3} /></span>
-              <p style={styles.selesaiTeks}>Absensi Hari Ini Selesai</p>
+            <div style={styles.successBox}>
+              <div style={styles.successIcon}>
+                <CheckCircle2 size={28} />
+              </div>
+              <h2 style={styles.sectionTitle}>
+                Absensi Hari Ini Selesai
+              </h2>
+              <p style={styles.sectionDescription}>
+                Absen masuk dan pulang kamu sudah tercatat.
+                Terima kasih, sampai jumpa besok.
+              </p>
             </div>
           )}
 
-          {tahap !== "memuat" && tahap !== "selesai" && tahap !== "gagal" && !kameraAktif && !fotoTerambil && (
-            <button onClick={bukaKamera} style={styles.tombolUtama}>
-              {tahap === "belum_masuk" ? "Absen Masuk Sekarang" : "Absen Pulang Sekarang"}
-            </button>
+          {(tahap === "belum_masuk" || tahap === "sudah_masuk") && (
+            <>
+              <div style={styles.actionHeading}>
+                <div>
+                  <p style={styles.actionEyebrow}>
+                    {tahap === "belum_masuk"
+                      ? "LANGKAH 1 · ABSEN MASUK"
+                      : "LANGKAH 1 · ABSEN PULANG"}
+                  </p>
+                  <h2 style={styles.sectionTitle}>
+                    Ambil foto untuk mencatat kehadiran
+                  </h2>
+                </div>
+              </div>
+
+              {!kameraAktif && !fotoTerambil && (
+                <div style={styles.startPanel}>
+                  <div style={styles.cameraIconCircle}>
+                    <Camera size={28} />
+                  </div>
+                  <p style={styles.startTitle}>Siapkan kamera</p>
+                  <p style={styles.startDescription}>
+                    Pastikan wajah terlihat jelas dan izinkan kamera serta
+                    lokasi pada browser HP kamu.
+                  </p>
+
+                  <button
+                    onClick={bukaKamera}
+                    style={styles.primaryButton}
+                    type="button"
+                  >
+                    <Camera size={18} />
+                    Buka Kamera
+                  </button>
+                </div>
+              )}
+
+              {kameraAktif && (
+                <div style={styles.cameraSection}>
+                  <div style={styles.cameraFrame}>
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      style={styles.video}
+                    />
+
+                    <div style={styles.cameraOverlay}>
+                      <div style={styles.faceGuide} />
+                    </div>
+                  </div>
+
+                  <p style={styles.cameraHelp}>
+                    Posisikan wajah di tengah area panduan.
+                  </p>
+
+                  <button
+                    onClick={ambilFoto}
+                    style={styles.primaryButton}
+                    type="button"
+                  >
+                    <Camera size={18} />
+                    Ambil Foto
+                  </button>
+                </div>
+              )}
+
+              {fotoTerambil && (
+                <div style={styles.previewSection}>
+                  <div style={styles.previewFrame}>
+                    <img
+                      src={fotoPreview}
+                      alt="Foto absen"
+                      style={styles.previewImage}
+                    />
+                  </div>
+
+                  <div style={styles.locationCard}>
+                    <div style={styles.locationHeader}>
+                      <div style={styles.locationIcon}>
+                        <MapPin size={17} />
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <p style={styles.locationTitle}>
+                          Lokasi Absensi
+                        </p>
+                        <p style={styles.locationStatus}>
+                          {statusLokasi === "mencari" &&
+                            "Sedang mencari lokasi terbaik..."}
+                          {statusLokasi === "ditemukan" &&
+                            (lokasi?.alamat ||
+                              "Lokasi ditemukan, membaca alamat...")}
+                          {statusLokasi === "gagal" &&
+                            "Lokasi tidak terdeteksi. Kamu masih dapat mencoba absen."}
+                        </p>
+                      </div>
+                    </div>
+
+                    {statusLokasi === "ditemukan" && lokasi?.akurasi && (
+                      <div style={styles.locationMeta}>
+                        <span>
+                          Akurasi ±{lokasi.akurasi} meter
+                        </span>
+
+                        {lokasi.akurasi > 100 && (
+                          <span style={styles.locationWarning}>
+                            Kurang presisi
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {statusLokasi === "ditemukan" &&
+                      lokasi?.latitude !== undefined &&
+                      lokasi?.longitude !== undefined && (
+                        <a
+                          href={`https://www.google.com/maps?q=${lokasi.latitude},${lokasi.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={styles.mapsLink}
+                        >
+                          <Navigation size={14} />
+                          Lihat lokasi di Google Maps
+                        </a>
+                      )}
+                  </div>
+
+                  <div style={styles.actionButtons}>
+                    <button
+                      onClick={fotoUlang}
+                      style={styles.secondaryButton}
+                      type="button"
+                      disabled={loading}
+                    >
+                      <RefreshCcw size={17} />
+                      Foto Ulang
+                    </button>
+
+                    <button
+                      onClick={kirimAbsen}
+                      style={styles.primaryButton}
+                      type="button"
+                      disabled={loading}
+                    >
+                      {loading ? "Mengirim..." : "Kirim Absen"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
-          {fotoTerambil && (
-            <button
-              onClick={kirimAbsenKeBackend}
-              disabled={loading || statusLokasi === "mencari"}
-              style={{
-                ...styles.tombolUtama,
-                background: statusLokasi === "siap" ? warna.aksen : warna.tintaSamar,
-                marginTop: 12,
-              }}
-            >
-              {loading ? "Mengirim…" : statusLokasi === "mencari" ? "Mengunci Koordinat GPS…" : "Konfirmasi & Kirim Absen"}
-            </button>
+          {pesan && (
+            <div style={styles.messageBox} role="alert">
+              {pesan}
+            </div>
           )}
-        </div>
+        </section>
 
-        {/* Menu navigasi */}
-        <div style={styles.menuGrid}>
-          <button onClick={() => navigate("/karyawan/riwayat")} style={styles.tombolMenu}>
-            <span style={styles.menuIkon}><ClipboardList size={20} strokeWidth={1.8} /></span>
-            <span>Riwayat Absen</span>
-          </button>
-          <button onClick={() => navigate("/karyawan/izin")} style={styles.tombolMenu}>
-            <span style={styles.menuIkon}><FileEdit size={20} strokeWidth={1.8} /></span>
-            <span>Ajukan Izin</span>
-          </button>
-        </div>
+        {/* CATATAN BAWAH */}
+        <div style={styles.footerNote}>
+          <ShieldCheck size={14} />
+          <span>
+            Gunakan koneksi internet yang stabil saat mengirim absensi.
+          </span>
         </div>
       </div>
+
+      <canvas ref={canvasRef} style={{ display: "none" }} />
+
+      <style>{`
+        * { box-sizing: border-box; }
+
+        .karyawan-button-hover:hover {
+          transform: translateY(-1px);
+        }
+
+        @media (min-width: 761px) {
+          .karyawan-page-container {
+            padding-top: 32px;
+            padding-bottom: 40px;
+          }
+        }
+
+        @media (max-width: 760px) {
+          .karyawan-desktop-only {
+            display: none;
+          }
+        }
+
+        @media (max-width: 520px) {
+          .karyawan-header-actions {
+            width: 100%;
+            display: grid !important;
+            grid-template-columns: repeat(3, 1fr);
+          }
+
+          .karyawan-header-button {
+            width: 100% !important;
+            justify-content: center !important;
+            min-height: 42px !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
 
+function inisialNama(nama) {
+  if (!nama) return "?";
+
+  const bagian = nama.trim().split(/\s+/);
+
+  if (bagian.length === 1) {
+    return bagian[0].slice(0, 2).toUpperCase();
+  }
+
+  return (
+    bagian[0][0] + bagian[bagian.length - 1][0]
+  ).toUpperCase();
+}
+
 const styles = {
-  wrapper: { minHeight: "100svh", background: warna.latar, fontFamily: font.display, padding: 16 },
-  shell: { maxWidth: 460, margin: "0 auto" },
+  page: {
+    minHeight: "100dvh",
+    background: "#FFFFFF",
+    fontFamily: font.display,
+    color: warna.tinta,
+    padding: "max(12px, env(safe-area-inset-top)) 12px max(20px, env(safe-area-inset-bottom))",
+  },
 
-  // ---------- Panel brand desktop (lihat penjelasan di JSX) ----------
-  desktopBrandPanel: {
-    position: "relative",
-    width: 360,
-    borderRadius: 20,
-    background: `linear-gradient(160deg, ${warna.aksen} 0%, ${warna.aksenGelap || "#0B6E45"} 100%)`,
-    padding: "40px 32px",
+  container: {
+    width: "100%",
+    maxWidth: 760,
+    margin: "0 auto",
+  },
+
+  header: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 16,
+    padding: "4px 2px 16px",
+    flexWrap: "wrap",
+  },
+
+  brandHeader: {
+    minWidth: 0,
+  },
+
+  logoHeader: {
+    width: "min(190px, 68vw)",
+    height: "auto",
+    maxHeight: 42,
+    objectFit: "contain",
+    objectPosition: "left center",
+    display: "block",
+    marginBottom: 12,
+  },
+
+  userBlock: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    minWidth: 0,
+  },
+
+  avatarBadge: {
+    width: 38,
+    height: 38,
+    flexShrink: 0,
+    borderRadius: "50%",
+    background: warna.aksen,
+    color: "#fff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 12,
+    fontWeight: 700,
+  },
+
+  namaUser: {
+    margin: 0,
+    fontSize: 16,
+    fontWeight: 700,
+    color: warna.tinta,
+    whiteSpace: "nowrap",
     overflow: "hidden",
-    alignItems: "flex-end",
-    minHeight: 420,
-    // catatan: "display" SENGAJA tidak diset di sini (biar CSS
-    // .karyawan-brand-panel yang mengatur tampil/sembunyi sesuai lebar
-    // layar). Kalau diset di sini, inline style akan menang atas CSS
-    // dan panel ini malah ikut muncul di HP.
+    textOverflow: "ellipsis",
   },
-  polaTitikKaryawan: {
-    position: "absolute", inset: 0,
-    backgroundImage: "radial-gradient(rgba(255,255,255,0.14) 1.5px, transparent 1.5px)",
-    backgroundSize: "18px 18px", opacity: 0.6,
-  },
-  logoBrandPanel: { width: 40, marginBottom: 16, filter: "brightness(0) invert(1)" },
-  brandNamaKaryawan: { color: "#fff", fontSize: 20, fontWeight: 700, margin: "0 0 10px 0" },
-  brandTaglineKaryawan: { color: "rgba(255,255,255,0.85)", fontSize: 13, lineHeight: 1.6, margin: 0 },
 
-  header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
-  headerAksi: { display: "flex", alignItems: "center", gap: 6 },
-  tombolAksiHeader: {
-    display: "flex", alignItems: "center", gap: 5,
-    background: warna.panel, border: `1px solid ${warna.garis}`, borderRadius: 8,
-    padding: "7px 10px", fontSize: 11.5, fontWeight: 600, color: warna.tintaLembut, cursor: "pointer",
+  subNamaUser: {
+    margin: "2px 0 0",
+    fontSize: 12,
+    color: warna.tintaLembut,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
-  tombolAksiHeaderBahaya: { color: warna.bahaya },
-  logo: { height: 30 },
 
-  card: {
+  headerActions: {
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+
+  headerButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    minHeight: 40,
+    padding: "8px 12px",
     background: warna.panel,
-    borderRadius: 10,
-    padding: 22,
-    boxShadow: "0 1px 2px rgba(22,35,61,0.04), 0 8px 24px rgba(22,35,61,0.06)",
-    marginBottom: 16,
     border: `1px solid ${warna.garis}`,
+    borderRadius: 10,
+    color: warna.tinta,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer",
   },
 
-  profilRow: { display: "flex", alignItems: "center", gap: 12, marginBottom: 2 },
-  avatar: {
-    width: 44, height: 44, borderRadius: "50%",
-    background: warna.aksen, color: "#fff",
-    display: "flex", alignItems: "center", justifyContent: "center",
-    fontSize: 15, fontWeight: 700, flexShrink: 0,
-  },
-  namaUser: { margin: 0, fontSize: 16.5, fontWeight: 700, color: warna.tinta },
-  subUser: { margin: "2px 0 0 0", fontSize: 12.5, color: warna.tintaLembut },
-  tanggalHariIni: { fontSize: 11.5, color: warna.tintaSamar, margin: "10px 0 18px 0", paddingLeft: 56 },
-
-  pesanBox: { padding: "11px 14px", borderRadius: 8, fontSize: 13, marginBottom: 16, textAlign: "center", fontWeight: 500 },
-
-  // Rasio 3/4 (portrait) -- lebih tinggi dari 4/3 sebelumnya, supaya area
-  // kamera lebih dominan di layar HP dan wajah lebih leluasa kelihatan
-  // penuh, tidak kepotong pendek kayak sebelumnya.
-  kameraBox: { position: "relative", borderRadius: 10, overflow: "hidden", marginBottom: 12, backgroundColor: "#000", aspectRatio: "3/4" },
-  video: { width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)" },
-
-  // Tombol jepret sekarang jadi baris SENDIRI di bawah video -- bukan lagi
-  // "mengambang" di atas video yang bisa nutupin wajah pas framing foto.
-  tombolJepretBaris: {
-    display: "flex", alignItems: "center", justifyContent: "center",
-    width: 64, height: 64, margin: "0 auto 16px auto",
-    background: warna.aksen, border: `3px solid ${warna.aksenLembut}`, borderRadius: "50%",
-    cursor: "pointer", padding: 0,
-  },
-  tombolJepretDalam: { width: 44, height: 44, borderRadius: "50%", background: "#fff", display: "block" },
-
-  previewBox: { position: "relative", borderRadius: 10, overflow: "hidden", marginBottom: 12, aspectRatio: "3/4" },
-  previewImg: { width: "100%", height: "100%", objectFit: "cover" },
-  tombolFotoUlangBaris: {
-    display: "block", width: "100%", margin: "0 auto 16px auto",
-    backgroundColor: warna.panelAlt, border: `1px solid ${warna.garis}`, color: warna.tinta,
-    padding: "10px 14px", borderRadius: 8, fontSize: 13.5, fontWeight: 600, cursor: "pointer",
+  headerLogout: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    minHeight: 40,
+    padding: "8px 12px",
+    background: "transparent",
+    border: `1px solid ${warna.garis}`,
+    borderRadius: 10,
+    color: warna.bahaya,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer",
   },
 
-  infoNetral: { textAlign: "center", color: warna.tintaSamar, fontSize: 13.5, margin: 0 },
-
-  selesaiBox: { textAlign: "center", padding: "16px 0" },
-  selesaiIkon: {
-    display: "inline-flex", alignItems: "center", justifyContent: "center",
-    width: 40, height: 40, borderRadius: "50%", background: warna.suksesLembut,
-    color: warna.sukses, fontSize: 18, fontWeight: 700, marginBottom: 10,
-  },
-  selesaiTeks: { margin: 0, color: warna.sukses, fontWeight: 700, fontSize: 14.5 },
-
-  gagalBox: { textAlign: "center", padding: "10px 0 4px 0" },
-  gagalTeks: { margin: "0 0 10px 0", color: warna.tintaSamar, fontSize: 13.5 },
-  tombolCobaLagi: {
-    background: warna.panel, border: `1px solid ${warna.garis}`, color: warna.tinta,
-    fontWeight: 600, fontSize: 13, padding: "8px 20px", borderRadius: 8, cursor: "pointer",
+  heroCard: {
+    background: `linear-gradient(145deg, ${warna.aksenLembut}, ${warna.panel})`,
+    border: `1px solid ${warna.garis}`,
+    borderRadius: 18,
+    padding: "18px 18px",
+    marginBottom: 12,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+    flexWrap: "wrap",
   },
 
-  tombolUtama: {
-    width: "100%", padding: "15px", background: warna.aksen, color: "#fff",
-    border: "none", borderRadius: 8, fontWeight: 700, fontSize: 15, cursor: "pointer",
+  eyebrow: {
+    margin: 0,
+    fontSize: 10.5,
+    fontWeight: 800,
+    letterSpacing: "0.1em",
+    color: warna.aksen,
   },
 
-  menuGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 },
-  tombolMenu: {
-    display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
-    padding: "16px 12px", backgroundColor: warna.panel, color: warna.tinta,
-    border: `1px solid ${warna.garis}`, borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer",
+  heroTitle: {
+    margin: "6px 0 2px",
+    fontSize: "clamp(24px, 5vw, 34px)",
+    lineHeight: 1.1,
+    fontWeight: 750,
+    color: warna.tinta,
   },
-  menuIkon: { display: "inline-flex", color: warna.aksen },
+
+  heroDate: {
+    margin: 0,
+    fontSize: 12.5,
+    color: warna.tintaLembut,
+  },
+
+  securityBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "8px 10px",
+    borderRadius: 999,
+    background: "rgba(255,255,255,0.7)",
+    border: `1px solid ${warna.garis}`,
+    color: warna.aksen,
+    fontSize: 10.5,
+    fontWeight: 650,
+    whiteSpace: "nowrap",
+  },
+
+  mainCard: {
+    background: warna.panel,
+    borderRadius: 18,
+    padding: "22px 18px 20px",
+    border: `1px solid ${warna.garis}`,
+    boxShadow: "0 8px 30px rgba(22,35,61,0.05)",
+  },
+
+  loadingState: {
+    minHeight: 180,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    color: warna.tintaLembut,
+    fontSize: 13,
+  },
+
+  actionHeading: {
+    marginBottom: 18,
+    textAlign: "center",
+  },
+
+  actionEyebrow: {
+    margin: 0,
+    fontSize: 10.5,
+    fontWeight: 800,
+    letterSpacing: "0.08em",
+    color: warna.tintaSamar,
+  },
+
+  sectionTitle: {
+    margin: "5px 0 0",
+    fontSize: 20,
+    lineHeight: 1.2,
+    fontWeight: 750,
+    color: warna.tinta,
+  },
+
+  sectionDescription: {
+    margin: "8px auto 0",
+    maxWidth: 420,
+    color: warna.tintaLembut,
+    fontSize: 13,
+    lineHeight: 1.65,
+  },
+
+  startPanel: {
+    textAlign: "center",
+    padding: "18px 10px 4px",
+  },
+
+  cameraIconCircle: {
+    width: 68,
+    height: 68,
+    margin: "0 auto 14px",
+    borderRadius: "50%",
+    background: warna.aksenLembut,
+    color: warna.aksen,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  startTitle: {
+    margin: 0,
+    fontSize: 15,
+    fontWeight: 700,
+    color: warna.tinta,
+  },
+
+  startDescription: {
+    margin: "7px auto 16px",
+    maxWidth: 430,
+    fontSize: 12.5,
+    lineHeight: 1.65,
+    color: warna.tintaLembut,
+  },
+
+  primaryButton: {
+    width: "100%",
+    minHeight: 48,
+    padding: "12px 16px",
+    background: warna.aksen,
+    color: "#fff",
+    border: "none",
+    borderRadius: 12,
+    fontSize: 14,
+    fontWeight: 700,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+
+  secondaryButton: {
+    width: "100%",
+    minHeight: 48,
+    padding: "12px 16px",
+    background: warna.panelAlt,
+    color: warna.tinta,
+    border: `1px solid ${warna.garis}`,
+    borderRadius: 12,
+    fontSize: 14,
+    fontWeight: 700,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+
+  cameraSection: {
+    width: "100%",
+  },
+
+  cameraFrame: {
+    position: "relative",
+    width: "100%",
+    overflow: "hidden",
+    borderRadius: 16,
+    background: "#0B1110",
+    border: `1px solid ${warna.garis}`,
+    aspectRatio: "3 / 4",
+    maxHeight: 560,
+  },
+
+  video: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    display: "block",
+    transform: "scaleX(-1)",
+  },
+
+  cameraOverlay: {
+    position: "absolute",
+    inset: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    pointerEvents: "none",
+  },
+
+  faceGuide: {
+    width: "58%",
+    height: "56%",
+    border: "2px solid rgba(255,255,255,0.82)",
+    borderRadius: "42%",
+    boxShadow: "0 0 0 999px rgba(0,0,0,0.12)",
+  },
+
+  cameraHelp: {
+    margin: "9px 0 12px",
+    textAlign: "center",
+    color: warna.tintaLembut,
+    fontSize: 11.5,
+  },
+
+  previewSection: {
+    width: "100%",
+  },
+
+  previewFrame: {
+    width: "100%",
+    borderRadius: 16,
+    overflow: "hidden",
+    background: "#0B1110",
+    border: `1px solid ${warna.garis}`,
+    aspectRatio: "3 / 4",
+    maxHeight: 560,
+  },
+
+  previewImage: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    display: "block",
+  },
+
+  locationCard: {
+    marginTop: 12,
+    padding: 13,
+    background: warna.panelAlt,
+    border: `1px solid ${warna.garis}`,
+    borderRadius: 14,
+    textAlign: "left",
+  },
+
+  locationHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+
+  locationIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    background: warna.aksenLembut,
+    color: warna.aksen,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+
+  locationTitle: {
+    margin: 0,
+    fontSize: 12,
+    fontWeight: 750,
+    color: warna.tinta,
+  },
+
+  locationStatus: {
+    margin: "3px 0 0",
+    fontSize: 12,
+    lineHeight: 1.55,
+    color: warna.tintaLembut,
+    wordBreak: "break-word",
+  },
+
+  locationMeta: {
+    display: "flex",
+    alignItems: "center",
+    gap: 7,
+    flexWrap: "wrap",
+    marginTop: 9,
+    fontSize: 10.5,
+    fontFamily: font.mono,
+    color: warna.tintaSamar,
+  },
+
+  locationWarning: {
+    color: warna.peringatan,
+    fontFamily: font.display,
+    fontWeight: 700,
+  },
+
+  mapsLink: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 10,
+    color: warna.aksen,
+    fontSize: 11.5,
+    fontWeight: 700,
+    textDecoration: "none",
+  },
+
+  actionButtons: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 8,
+    marginTop: 12,
+  },
+
+  successBox: {
+    textAlign: "center",
+    padding: "4px 0 10px",
+  },
+
+  successIcon: {
+    width: 64,
+    height: 64,
+    margin: "0 auto 14px",
+    borderRadius: "50%",
+    background: warna.suksesLembut,
+    color: warna.sukses,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  messageBox: {
+    marginTop: 14,
+    padding: "11px 12px",
+    borderRadius: 12,
+    borderLeft: `3px solid ${warna.aksen}`,
+    background: warna.panelAlt,
+    color: warna.tinta,
+    fontSize: 12.5,
+    lineHeight: 1.55,
+    textAlign: "left",
+  },
+
+  footerNote: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    padding: "14px 4px 4px",
+    color: warna.tintaSamar,
+    fontSize: 10.5,
+    textAlign: "center",
+  },
 };
