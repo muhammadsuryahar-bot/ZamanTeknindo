@@ -9,7 +9,7 @@ import PengaturanGaji from "./PengaturanGaji";
 import { labelStatusKehadiran } from "../utils/statusKehadiran";
 import {
   ClipboardList, Clock, Users, FileEdit, Wallet, Building2,
-  BarChart3, ThumbsUp, ArrowRight, CheckCircle2, UsersRound, MapPin, Info,
+  BarChart3, ThumbsUp, ArrowRight, CheckCircle2, MapPin, Info,
 } from "lucide-react";
 
 const DAFTAR_STATUS = ["tepat_waktu", "telat", "alpha", "izin", "sakit", "cuti", "urgent"];

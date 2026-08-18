@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { API_URL, getToken } from "../utils/api";
-import { warna, font } from "../styles/theme";
+import { warna } from "../styles/theme";
 import { ClipboardList } from "lucide-react";
 
 export default function AdminIzin() {

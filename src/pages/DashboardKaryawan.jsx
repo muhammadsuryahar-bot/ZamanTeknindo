@@ -18,7 +18,6 @@ import RiwayatAbsensi from "./RiwayatAbsensi";
 import PengajuanIzin from "./PengajuanIzin";
 import { warna, font } from "../styles/theme";
 import logoHorizontal from "../assets/logo-horizontal.png";
-import logo from "../assets/logo.png";
 
 let dataProvinsiCache = null;
 
@@ -42,6 +41,7 @@ async function cariProvinsiResmi(latitude, longitude) {
         return fitur.properties.PROVINSI;
       }
     } catch (err) {
+      console.error(err);
       // Lewati polygon yang bermasalah.
     }
   }
@@ -355,6 +355,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
           return detailZoomLebihLuas;
         }
       } catch (err) {
+        console.error(err);
         // Biarkan menggunakan detail sebelumnya.
       }
     }
