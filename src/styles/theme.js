@@ -31,3 +31,24 @@ export const font = {
 };
 
 export const bayangan = "0 1px 2px rgba(22,35,61,0.04), 0 8px 24px rgba(22,35,61,0.06)";
+
+// Skala ukuran font -- SENGAJA cuma 6 pilihan (bukan angka bebas kayak
+// 13.5/14/14.5 dst). Dipakai berulang di semua halaman supaya hierarki
+// teksnya konsisten dan kerasa "dirancang", bukan ditambal komponen per
+// komponen dengan angka acak.
+export const teks = {
+  kecil: 11,      // label kecil, keterangan tambahan, badge
+  badan: 13,      // teks isi/body biasa -- paling sering dipakai
+  subjudul: 15,   // sub-judul di dalam kartu
+  judul: 18,      // judul halaman/section
+  besar: 24,      // angka statistik besar
+  hero: 32,       // judul utama (halaman Login, dsb)
+};
+
+// Skala jarak (padding/margin/gap) -- kelipatan 4px, konvensi umum di
+// design system (Material, Apple HIG, Tailwind) supaya jarak antar elemen
+// terasa beraturan, bukan angka acak yang bedanya nyaris tak kerasa.
+export const jarak = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 };
+
+// Skala sudut kartu/tombol -- cuma 3 pilihan.
+export const radius = { kecil: 6, sedang: 10, besar: 16 };

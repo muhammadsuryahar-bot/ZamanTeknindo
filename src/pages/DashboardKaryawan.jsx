@@ -18,6 +18,8 @@ import RiwayatAbsensi from "./RiwayatAbsensi";
 import PengajuanIzin from "./PengajuanIzin";
 import { warna, font } from "../styles/theme";
 import logoHorizontal from "../assets/logo-horizontal.png";
+import logo from "../assets/logo.png";
+import { jumlahAntrian, sinkronkanAntrian, simpanKeAntrian } from "../utils/antrianOffline";
 
 let dataProvinsiCache = null;
 
@@ -41,7 +43,6 @@ async function cariProvinsiResmi(latitude, longitude) {
         return fitur.properties.PROVINSI;
       }
     } catch (err) {
-      console.error(err);
       // Lewati polygon yang bermasalah.
     }
   }
@@ -171,6 +172,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   const [pesan, setPesan] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(false);
+  const [jumlahTertunda, setJumlahTertunda] = useState(0);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -179,6 +181,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
   useEffect(() => {
     ambilStatusHariIni();
+    cobaSinkronAntrian();
 
     return () => {
       hentikanKamera();
@@ -188,6 +191,35 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Begitu koneksi internet HP balik nyala (event bawaan browser),
+  // otomatis coba kirim ulang absen yang sempat tertahan di antrian.
+  useEffect(() => {
+    window.addEventListener("online", cobaSinkronAntrian);
+    return () => window.removeEventListener("online", cobaSinkronAntrian);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function cobaSinkronAntrian() {
+    try {
+      const sisa = await jumlahAntrian();
+      setJumlahTertunda(sisa);
+      if (sisa === 0) return;
+
+      const hasil = await sinkronkanAntrian({ apiUrl: API_URL, getToken });
+      const sisaTerbaru = await jumlahAntrian();
+      setJumlahTertunda(sisaTerbaru);
+
+      if (hasil.berhasil > 0) {
+        setPesan(`${hasil.berhasil} absen yang sempat tertunda berhasil terkirim.`);
+        await ambilStatusHariIni();
+      }
+    } catch (err) {
+      // Diam-diam saja kalau gagal cek antrian -- tidak perlu ganggu
+      // pengalaman utama karyawan, nanti dicoba lagi otomatis.
+      console.error(err);
+    }
+  }
 
   useEffect(() => {
     if (fotoTerambil) {
@@ -355,7 +387,6 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
           return detailZoomLebihLuas;
         }
       } catch (err) {
-        console.error(err);
         // Biarkan menggunakan detail sebelumnya.
       }
     }
@@ -577,8 +608,32 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       setStatusLokasi("mencari");
       await ambilStatusHariIni();
     } catch (err) {
+      // Kalau ini beneran soal koneksi (bukan server yang menolak --
+      // itu sudah ditangani di blok `if (!res.ok)` di atas), simpan dulu
+      // ke antrian lokal supaya foto+data absen TIDAK hilang. Nanti
+      // otomatis dikirim ulang begitu sinyal balik normal.
       console.error(err);
-      setPesan("Tidak bisa terhubung ke server.");
+      try {
+        await simpanKeAntrian({
+          foto: fotoTerambil,
+          latitude: lokasi?.latitude,
+          longitude: lokasi?.longitude,
+          alamat: formData.get("alamat"),
+          endpoint,
+        });
+        setPesan(
+          "Sinyal lagi tidak stabil. Absen kamu sudah tersimpan aman di HP dan akan otomatis terkirim begitu koneksi kembali normal -- tidak perlu ulangi."
+        );
+        setFotoTerambil(null);
+        setLokasi(null);
+        setStatusLokasi("mencari");
+      } catch (errSimpan) {
+        // Kalau IndexedDB-nya sendiri gagal (jarang terjadi, misal
+        // browser mode privat yang membatasi penyimpanan), baru
+        // tampilkan pesan gagal biasa.
+        console.error(errSimpan);
+        setPesan("Tidak bisa terhubung ke server, dan gagal menyimpan absen secara offline. Coba lagi.");
+      }
     } finally {
       setLoading(false);
     }
@@ -662,6 +717,11 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
           <div>
             <p style={styles.eyebrow}>SISTEM ABSENSI PT. ZAMAN TEKNINDO</p>
             <h1 style={styles.heroTitle}>{judulAksi}</h1>
+            {jumlahTertunda > 0 && (
+              <p style={styles.badgeTertunda}>
+                ⏳ {jumlahTertunda} absen menunggu dikirim (tersimpan offline)
+              </p>
+            )}
             <p style={styles.heroDate}>
               {new Date().toLocaleDateString("id-ID", {
                 weekday: "long",
@@ -1079,6 +1139,17 @@ const styles = {
     margin: 0,
     fontSize: 12.5,
     color: warna.tintaLembut,
+  },
+
+  badgeTertunda: {
+    margin: "6px 0",
+    fontSize: 12,
+    fontWeight: 600,
+    color: warna.peringatan,
+    background: warna.peringatanLembut,
+    display: "inline-block",
+    padding: "4px 10px",
+    borderRadius: 20,
   },
 
   securityBadge: {
