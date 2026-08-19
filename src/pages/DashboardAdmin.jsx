@@ -127,24 +127,104 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
 
   async function muatData() {
     setLoading(true);
+    setPesan("");
+
+    const token = getToken();
+
+    if (!token) {
+      setPesan("Sesi login tidak ditemukan. Silakan login kembali.");
+      setLoading(false);
+      return;
+    }
+
+    const headers = {
+      Authorization: `Bearer ${token}`,
+    };
+
     try {
-      const [resRekap, resMenunggu, resKaryawan, resKantor] = await Promise.all([
-        fetch(`${API_URL}/admin/rekap-hari-ini`, { headers: { Authorization: `Bearer ${getToken()}` } }),
-        fetch(`${API_URL}/admin/akun-menunggu`, { headers: { Authorization: `Bearer ${getToken()}` } }),
-        fetch(`${API_URL}/admin/karyawan`, { headers: { Authorization: `Bearer ${getToken()}` } }),
-        fetch(`${API_URL}/admin/kantor`, { headers: { Authorization: `Bearer ${getToken()}` } }),
+      const responses = await Promise.all([
+        fetch(`${API_URL}/admin/rekap-hari-ini`, { headers }),
+        fetch(`${API_URL}/admin/akun-menunggu`, { headers }),
+        fetch(`${API_URL}/admin/karyawan`, { headers }),
+        fetch(`${API_URL}/admin/kantor`, { headers }),
       ]);
-      const dataRekap = await resRekap.json();
-      const dataMenunggu = await resMenunggu.json();
-      const dataKaryawan = await resKaryawan.json();
-      const dataKantor = await resKantor.json();
-      setRekap(dataRekap.data || []);
-      setMenunggu(dataMenunggu.data || []);
-      setKaryawan(dataKaryawan.data || []);
-      setDaftarKantorState(dataKantor.data || []);
+
+      const [
+        resRekap,
+        resMenunggu,
+        resKaryawan,
+        resKantor,
+      ] = responses;
+
+      const daftarResponse = [
+        { response: resRekap, nama: "rekap absensi" },
+        { response: resMenunggu, nama: "akun menunggu" },
+        { response: resKaryawan, nama: "daftar karyawan" },
+        { response: resKantor, nama: "data kantor" },
+      ];
+
+      for (const item of daftarResponse) {
+        if (!item.response.ok) {
+          let dataError = {};
+
+          try {
+            dataError = await item.response.json();
+          } catch {
+            // Response bukan JSON; gunakan pesan umum di bawah.
+          }
+
+          if (item.response.status === 401 || item.response.status === 403) {
+            throw new Error(
+              dataError?.pesan ||
+                "Sesi login tidak valid atau Anda tidak memiliki akses."
+            );
+          }
+
+          throw new Error(
+            dataError?.pesan ||
+              `Gagal memuat ${item.nama}.`
+          );
+        }
+      }
+
+      const [
+        dataRekap,
+        dataMenunggu,
+        dataKaryawan,
+        dataKantor,
+      ] = await Promise.all([
+        resRekap.json(),
+        resMenunggu.json(),
+        resKaryawan.json(),
+        resKantor.json(),
+      ]);
+
+      if (!Array.isArray(dataRekap.data)) {
+        throw new Error("Format data rekap absensi dari server tidak valid.");
+      }
+
+      if (!Array.isArray(dataMenunggu.data)) {
+        throw new Error("Format data akun menunggu dari server tidak valid.");
+      }
+
+      if (!Array.isArray(dataKaryawan.data)) {
+        throw new Error("Format data karyawan dari server tidak valid.");
+      }
+
+      if (!Array.isArray(dataKantor.data)) {
+        throw new Error("Format data kantor dari server tidak valid.");
+      }
+
+      setRekap(dataRekap.data);
+      setMenunggu(dataMenunggu.data);
+      setKaryawan(dataKaryawan.data);
+      setDaftarKantorState(dataKantor.data);
     } catch (err) {
-      console.error(err);
-      setPesan("Gagal memuat data. Cek koneksi ke server.");
+      console.error("Gagal memuat data Dashboard Admin:", err);
+      setPesan(
+        err?.message ||
+          "Gagal memuat data dashboard. Cek koneksi ke server."
+      );
     } finally {
       setLoading(false);
     }
