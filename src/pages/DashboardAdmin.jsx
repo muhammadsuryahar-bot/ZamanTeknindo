@@ -46,6 +46,8 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
   const navigate = useNavigate();
   const [tab, setTab] = useState("rekap");
   const [rekap, setRekap] = useState([]);
+  const [belumAbsen, setBelumAbsen] = useState([]);
+  const [belumAbsenTerbuka, setBelumAbsenTerbuka] = useState(false);
   const [menunggu, setMenunggu] = useState([]);
   const [karyawan, setKaryawan] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -203,6 +205,10 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
         throw new Error("Format data rekap absensi dari server tidak valid.");
       }
 
+      if (dataRekap.belumAbsen !== undefined && !Array.isArray(dataRekap.belumAbsen)) {
+        throw new Error("Format data karyawan yang belum absen dari server tidak valid.");
+      }
+
       if (!Array.isArray(dataMenunggu.data)) {
         throw new Error("Format data akun menunggu dari server tidak valid.");
       }
@@ -216,6 +222,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       }
 
       setRekap(dataRekap.data);
+      setBelumAbsen(dataRekap.belumAbsen || []);
       setMenunggu(dataMenunggu.data);
       setKaryawan(dataKaryawan.data);
       setDaftarKantorState(dataKantor.data);
@@ -418,7 +425,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
   const jumlahIzinSakitDll = rekap.filter((r) =>
     ["izin", "sakit", "cuti", "urgent"].includes(r.statusFinal || r.statusOtomatis)
   ).length;
-  const jumlahBelumAbsen = Math.max(karyawanAktifCount - rekap.length, 0);
+  const jumlahBelumAbsen = belumAbsen.length;
 
   const jamSekarang = new Date().toLocaleDateString("id-ID", {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
@@ -551,11 +558,57 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                   <span style={{ ...styles.statAngka, color: warna.aksen }}>{jumlahIzinSakitDll}</span>
                   <span style={styles.statLabel}>Izin/Sakit/Cuti</span>
                 </div>
-                <div style={{ ...styles.statCard, borderLeft: `3px solid ${warna.tintaSamar}` }}>
+                <button
+                  type="button"
+                  onClick={() => setBelumAbsenTerbuka((v) => !v)}
+                  style={{ ...styles.statCard, borderLeft: `3px solid ${warna.tintaSamar}`, cursor: "pointer", textAlign: "left", width: "100%" }}
+                  className="stat-card-belum-absen"
+                  aria-expanded={belumAbsenTerbuka}
+                >
                   <span style={{ ...styles.statAngka, color: warna.tintaSamar }}>{jumlahBelumAbsen}</span>
                   <span style={styles.statLabel}>Belum Absen</span>
-                </div>
+                  <span style={styles.statHint}>Klik untuk lihat siapa yang belum absen</span>
+                </button>
               </div>
+
+              {belumAbsenTerbuka && (
+                <div style={styles.panelBelumAbsen}>
+                  <div style={styles.panelBelumAbsenHeader}>
+                    <div>
+                      <p style={styles.panelBelumAbsenJudul}>Karyawan Belum Absen ({jumlahBelumAbsen})</p>
+                      <p style={styles.panelBelumAbsenSub}>Karyawan aktif yang belum memiliki record absensi untuk hari ini.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setBelumAbsenTerbuka(false)}
+                      style={styles.tombolTutupPanel}
+                    >
+                      Tutup
+                    </button>
+                  </div>
+
+                  {belumAbsen.length === 0 ? (
+                    <div style={styles.belumAbsenKosong}>
+                      <CheckCircle2 size={18} strokeWidth={1.8} style={{ color: warna.sukses }} />
+                      <span>Semua karyawan aktif sudah memiliki absensi hari ini.</span>
+                    </div>
+                  ) : (
+                    <div style={styles.belumAbsenGrid}>
+                      {belumAbsen.map((item) => (
+                        <div key={item.id} style={styles.belumAbsenItem}>
+                          <div style={styles.avatarMini}>{inisialNama(item.nama)}</div>
+                          <div style={{ minWidth: 0 }}>
+                            <strong style={styles.belumAbsenNama}>{item.nama}</strong>
+                            <p style={styles.belumAbsenSubItem}>
+                              {item.jabatan || "-"} · {item.divisi || "-"}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <button onClick={bukaTutupRingkasan} style={styles.tombolTogglePanel} className="tombol-toggle-panel">
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
@@ -1233,6 +1286,20 @@ const styles = {
   },
   statAngka: { fontSize: 26, fontWeight: 700, color: warna.tinta, fontFamily: font.mono, lineHeight: 1 },
   statLabel: { fontSize: 12, color: warna.tintaLembut, fontWeight: 500 },
+  statHint: { fontSize: 10.5, color: warna.tintaSamar, marginTop: 1 },
+  panelBelumAbsen: {
+    background: warna.panel, border: `1px solid ${warna.garis}`, borderRadius: 10, padding: "14px 16px", marginBottom: 12,
+  },
+  panelBelumAbsenHeader: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 12 },
+  panelBelumAbsenJudul: { margin: 0, fontSize: 13, fontWeight: 700, color: warna.tinta },
+  panelBelumAbsenSub: { margin: "3px 0 0", fontSize: 11.5, color: warna.tintaSamar },
+  tombolTutupPanel: { background: "transparent", border: `1px solid ${warna.garis}`, color: warna.tintaLembut, borderRadius: 7, padding: "6px 9px", fontSize: 11.5, cursor: "pointer", flexShrink: 0 },
+  belumAbsenGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 8 },
+  belumAbsenItem: { display: "flex", alignItems: "center", gap: 9, padding: "9px 10px", background: warna.panelAlt, border: `1px solid ${warna.garis}`, borderRadius: 8, minWidth: 0 },
+  avatarMini: { width: 32, height: 32, borderRadius: "50%", background: warna.aksen, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10.5, fontWeight: 700, flexShrink: 0 },
+  belumAbsenNama: { display: "block", fontSize: 12.5, color: warna.tinta, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+  belumAbsenSubItem: { margin: "2px 0 0", fontSize: 10.5, color: warna.tintaSamar, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+  belumAbsenKosong: { display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 8, background: warna.panelAlt, color: warna.tintaLembut, fontSize: 12 },
 
   kotakCari: {
     width: "100%", maxWidth: 360, padding: "10px 14px", marginBottom: 14, borderRadius: 10,
