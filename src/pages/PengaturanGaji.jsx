@@ -189,8 +189,13 @@ export default function PengaturanGaji() {
     setPesanImpor("");
     setHasilImpor(null);
     try {
-      const res = await fetch(`https://api-hari-libur.vercel.app/api?year=${tahunPilih}`);
-      if (!res.ok) throw new Error("Sumber data tidak merespons.");
+      const res = await fetch(`${API_URL}/admin/hari-libur-usulan?tahun=${tahunPilih}`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (!res.ok) {
+        const dataError = await res.json().catch(() => ({}));
+        throw new Error(dataError.pesan || "Sumber data tidak merespons.");
+      }
       const data = await res.json();
       const daftarTanggalSudahAda = new Set(
         daftarHariLibur.map((h) => new Date(h.tanggal).toISOString().slice(0, 10))
