@@ -4,7 +4,7 @@ import { API_URL, getToken } from "../utils/api";
 import RiwayatAbsensi from "./RiwayatAbsensi";
 import PengajuanIzin from "./PengajuanIzin";
 import { warna, font } from "../styles/theme";
-import logoWhite from "../assets/logo-white.png";
+import logo from "../assets/logo.png";
 
 let dataProvinsiCache = null;
 async function muatDataProvinsi() {
@@ -343,7 +343,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       
       {/* Header / Top Bar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <img src={logoWhite} alt="Logo" style={{ height: 32, filter: "invert(1)" }} />
+        <img src={logo} alt="Logo" style={{ height: 32, filter: "invert(1)" }} />
         <button onClick={onLogout} style={{ background: "none", border: "none", color: warna.error, fontWeight: "600", cursor: "pointer" }}>
           Keluar
         </button>
