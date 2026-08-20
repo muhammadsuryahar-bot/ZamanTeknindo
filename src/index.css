@@ -3,13 +3,28 @@
    kebenaran dan tidak ketiban dark-mode bawaan OS/browser secara tidak
    sengaja (itu penyebab bug "teks nyaris tak terlihat" sebelumnya). */
 
+:root {
+  color-scheme: light;
+  -webkit-tap-highlight-color: transparent;
+}
+
 * {
   box-sizing: border-box;
 }
 
-html, body {
+html {
   margin: 0;
   padding: 0;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: #F4F5F7;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 #root {
@@ -17,43 +32,99 @@ html, body {
   min-height: 100svh;
 }
 
-h1, h2, h3, p {
+h1, h2, h3, h4, h5, h6, p {
   margin: 0;
 }
 
-/* Animasi untuk skeleton loading (dipakai lewat class .skeleton-pulse) */
-@keyframes denyut-skeleton {
-  0%, 100% { opacity: 0.55; }
-  50% { opacity: 1; }
-}
-.skeleton-pulse {
-  animation: denyut-skeleton 1.3s ease-in-out infinite;
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* Efek hover halus untuk semua tombol interaktif di seluruh halaman */
 button:not(:disabled) {
   transition: filter 0.12s ease, transform 0.08s ease, box-shadow 0.12s ease;
 }
+
 button:not(:disabled):hover {
-  filter: brightness(1.06);
+  filter: brightness(1.04);
 }
+
 button:not(:disabled):active {
   transform: translateY(1px);
 }
 
-/* Cincin fokus yang lebih jelas & modern untuk input, menggantikan outline default browser */
-.input-fokus:focus {
-  outline: none;
-  border-color: #1E7A3D !important;
-  box-shadow: 0 0 0 3px rgba(30, 122, 61, 0.15);
+button:disabled {
+  cursor: not-allowed;
 }
 
-/* Layout split-screen di halaman Login/Daftar otomatis jadi vertikal di layar sempit */
+button:not(:disabled),
+a,
+select,
+input[type="checkbox"],
+input[type="radio"] {
+  cursor: pointer;
+}
+
+button:not(:disabled):focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(11, 110, 69, 0.18) !important;
+  outline-offset: 2px;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #8A93A3;
+  opacity: 1;
+}
+
+input[type="date"],
+input[type="time"],
+input[type="number"],
+select {
+  color-scheme: light;
+}
+
+/* Animasi skeleton */
+@keyframes denyut-skeleton {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+.skeleton-pulse {
+  animation: denyut-skeleton 1.3s ease-in-out infinite;
+}
+
+/* Fokus field yang konsisten di seluruh aplikasi */
+.input-fokus:focus,
+.gaji-input:focus,
+.auth-input:focus,
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: #0B6E45 !important;
+  box-shadow: 0 0 0 3px rgba(11, 110, 69, 0.14);
+}
+
+/* Layout split-screen Login/Daftar */
 @media (max-width: 680px) {
   .kartu-login-split {
     flex-direction: column !important;
     min-height: auto !important;
   }
+
   .panel-brand-login {
     flex-basis: auto !important;
     padding: 28px 24px !important;
@@ -61,50 +132,55 @@ button:not(:disabled):active {
   }
 }
 
-/* Kartu item (rekap, karyawan, izin, dll) sedikit "terangkat" saat disentuh mouse */
-.kartu-hover:hover {
-  border-color: #1E7A3D !important;
-  box-shadow: 0 6px 16px rgba(22,35,61,0.08);
-  transform: translateY(-1px);
+/* Kartu dan item interaktif */
+.kartu-hover {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 
-/* Baris tabel disorot halus saat disentuh mouse */
-.baris-hover:hover td {
-  background: #F5F9F6;
-}
+@media (hover: hover) and (pointer: fine) {
+  .kartu-hover:hover {
+    border-color: #0B6E45 !important;
+    box-shadow: 0 6px 16px rgba(22,35,61,0.08);
+    transform: translateY(-1px);
+  }
 
-/* Item navigasi sidebar */
-.nav-item-hover:hover {
-  background: #EEF1EE !important;
+  .baris-hover:hover td {
+    background: #F5F9F6;
+  }
+
+  .nav-item-hover:hover {
+    background: #EEF7F1 !important;
+  }
 }
 
 /* ===== Layout Sidebar Dashboard Admin ===== */
-/* Default (desktop): sidebar selalu tampil, topbar mobile+overlay disembunyikan */
 .overlay-mobile { display: none; }
 
 @media (max-width: 899px) {
-  /* Di layar sempit, sidebar jadi drawer yang meluncur dari kiri,
-     disembunyikan sampai tombol hamburger di topbar ditekan */
   .admin-sidebar {
     position: fixed;
     top: 0;
     left: 0;
-    height: 100vh;
+    height: 100dvh;
     z-index: 40;
     transform: translateX(-100%);
-    transition: transform 0.2s ease;
+    transition: transform 0.22s ease;
     box-shadow: 8px 0 24px rgba(0,0,0,0.12);
+    padding-bottom: env(safe-area-inset-bottom);
   }
+
   .admin-sidebar.sidebar-mobile-terbuka {
     transform: translateX(0);
   }
+
   .overlay-mobile {
     display: block;
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 20, 0.4);
+    background: rgba(15, 23, 20, 0.42);
     z-index: 30;
   }
+
   .topbar-mobile {
     display: flex !important;
   }
@@ -113,15 +189,15 @@ button:not(:disabled):active {
 @media (max-width: 640px) {
   .main-area-admin {
     padding: 16px !important;
+    padding-bottom: max(24px, env(safe-area-inset-bottom)) !important;
   }
+
   .ringkasan-grid {
     grid-template-columns: 1fr !important;
   }
 }
 
-/* ===== Dashboard Karyawan: panel brand khusus desktop ===== */
-/* Default (HP/tablet kecil): panel brand disembunyikan, konten tetap
-   satu kolom seperti sebelumnya -- tidak mengubah apapun di mobile. */
+/* ===== Dashboard Karyawan ===== */
 .karyawan-brand-panel { display: none; }
 
 @media (min-width: 900px) {
@@ -132,19 +208,95 @@ button:not(:disabled):active {
     gap: 48px;
     min-height: 100svh;
   }
-  .karyawan-brand-panel { display: flex !important; }
-  .karyawan-content-shell { margin: 0 !important; }
+
+  .karyawan-brand-panel {
+    display: flex !important;
+  }
+
+  .karyawan-content-shell {
+    margin: 0 !important;
+  }
+}
+
+/* Mobile: nyaman untuk notch/safe area dan layar kecil */
+@media (max-width: 760px) {
+  .karyawan-content-shell {
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+  }
+
+  .karyawan-outer {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+@media (max-width: 680px) {
+  /* Ukuran teks form jangan terlalu kecil di mobile */
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  /* Touch target yang nyaman */
+  button:not(.tombolHapusKecil):not(.tombolStepperTahun):not(.password-button) {
+    min-height: 42px;
+  }
+
+  .admin-sidebar {
+    width: min(86vw, 330px) !important;
+  }
 }
 
 /* ===== Penanda tabel bisa digeser (khusus HP) ===== */
-/* Di desktop, kontainer tabel biasanya sudah lebih lebar dari isi tabel
-   (minWidth: 640px), jadi tidak ada yang perlu digeser -> hint & fade disembunyikan.
-   Di HP, tabel rekap/karyawan punya lebih banyak kolom daripada lebar layar,
-   jadi dua elemen ini muncul supaya orang tahu harus geser ke kanan. */
 .hint-geser { display: none; }
 .tabel-fade-kanan { display: none; }
 
 @media (max-width: 899px) {
   .hint-geser { display: flex; }
-  .tabel-fade-kanan { display: block; }
+  .tabel-fade-kanan { display: block; transition: opacity 0.2s ease; }
+}
+
+/* Feedback state lebih halus */
+.message,
+.pesanInfo,
+.pesanErrorKecil,
+.pesanImporKecil,
+.statusKosongLaporan,
+.statusTersediaLaporan,
+.statusBelumDicek {
+  transition: opacity 0.18s ease, transform 0.18s ease, background-color 0.18s ease, border-color 0.18s ease;
+}
+
+/* Upload file tidak melebar keluar layar */
+input[type="file"] {
+  max-width: 100%;
+}
+
+/* Empty state konsisten */
+.kosongBox {
+  min-height: 120px;
+}
+
+/* Hormati pengaturan reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Login di layar yang tingginya pendek */
+@media (max-height: 720px) and (max-width: 680px) {
+  .auth-button {
+    min-height: 46px !important;
+  }
 }
