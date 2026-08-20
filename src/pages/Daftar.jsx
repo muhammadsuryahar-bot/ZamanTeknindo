@@ -15,6 +15,8 @@ import {
 import { API_URL } from "../utils/api";
 import AuthLayout from "../components/AuthLayout";
 
+const DOMAIN_PERUSAHAAN = "zmanteknindo.com";
+
 export default function Daftar({ keLogin }) {
   const [nama, setNama] = useState("");
   const [email, setEmail] = useState("");
@@ -30,13 +32,28 @@ export default function Daftar({ keLogin }) {
   const [emailFokus, setEmailFokus] = useState(false);
   const [passwordFokus, setPasswordFokus] = useState(false);
 
+  function emailKantorValid(nilai) {
+    const emailBersih = nilai.trim().toLowerCase();
+    const pola = new RegExp(`^[^\\s@]+@${DOMAIN_PERUSAHAAN.replace(".", "\\.")}$`);
+    return pola.test(emailBersih);
+  }
+
   async function handleDaftar(e) {
     e.preventDefault();
     setPesanError("");
     setPesanSukses("");
 
+    const emailBersih = email.trim().toLowerCase();
+
     if (!nama.trim()) return setPesanError("Nama lengkap wajib diisi.");
-    if (!email.trim()) return setPesanError("Email wajib diisi.");
+    if (!emailBersih) return setPesanError("Email kantor wajib diisi.");
+
+    if (!emailKantorValid(emailBersih)) {
+      return setPesanError(
+        `Gunakan email kantor dengan domain @${DOMAIN_PERUSAHAAN}. Contoh: hrd@${DOMAIN_PERUSAHAAN}.`
+      );
+    }
+
     if (kataSandi.length < 6) return setPesanError("Password minimal 6 karakter.");
 
     setLoading(true);
@@ -44,7 +61,7 @@ export default function Daftar({ keLogin }) {
       const res = await fetch(`${API_URL}/auth/daftar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nama: nama.trim(), email: email.trim(), kataSandi }),
+        body: JSON.stringify({ nama: nama.trim(), email: emailBersih, kataSandi }),
       });
 
       const data = await res.json();
@@ -54,13 +71,18 @@ export default function Daftar({ keLogin }) {
         return;
       }
 
-      setPesanSukses(data.pesan || "Pendaftaran berhasil! Menunggu konfirmasi Admin sebelum bisa login.");
+      setPesanSukses(
+        data.pesan ||
+          "Pendaftaran berhasil! Menunggu konfirmasi Admin sebelum bisa login."
+      );
       setNama("");
       setEmail("");
       setKataSandi("");
     } catch (err) {
       console.error("Daftar error:", err);
-      setPesanError("Tidak bisa terhubung ke server. Pastikan backend sudah berjalan.");
+      setPesanError(
+        "Tidak bisa terhubung ke server. Pastikan backend sudah berjalan."
+      );
     } finally {
       setLoading(false);
     }
@@ -70,7 +92,7 @@ export default function Daftar({ keLogin }) {
     <AuthLayout
       tagline="Satu akun untuk absen, lihat riwayat, dan ajukan izin — kapan saja, di mana saja kamu bertugas."
       formTitle="Buat Akun"
-      formSubtitle="Gunakan email kantor kamu untuk mendaftar. Akun akan aktif setelah dikonfirmasi Admin."
+      formSubtitle={`Gunakan email kantor @${DOMAIN_PERUSAHAAN}. Akun akan aktif setelah dikonfirmasi Admin.`}
     >
       <form onSubmit={handleDaftar} noValidate>
         <div className="field">
@@ -104,13 +126,16 @@ export default function Daftar({ keLogin }) {
               onChange={(e) => { setEmail(e.target.value); setPesanError(""); }}
               onFocus={() => setEmailFokus(true)}
               onBlur={() => setEmailFokus(false)}
-              placeholder="nama@perusahaan.com"
+              placeholder={`nama@${DOMAIN_PERUSAHAAN}`}
               className="auth-input"
               autoComplete="username"
               disabled={loading}
               required
             />
           </div>
+          <p style={styles.hintEmail}>
+            Hanya email dengan domain <strong>@{DOMAIN_PERUSAHAAN}</strong> yang diperbolehkan.
+          </p>
         </div>
 
         <div className="field">
@@ -187,3 +212,12 @@ export default function Daftar({ keLogin }) {
     </AuthLayout>
   );
 }
+
+const styles = {
+  hintEmail: {
+    margin: "6px 0 0",
+    fontSize: 11.5,
+    lineHeight: 1.45,
+    color: "#7A8494",
+  },
+};
