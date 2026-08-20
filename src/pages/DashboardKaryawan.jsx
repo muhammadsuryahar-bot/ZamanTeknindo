@@ -328,103 +328,102 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     }
   }
 
-// --- BAGIAN NAVIGASI / ROUTING HALAMAN ---
-if (halaman === "riwayat") {
-  return <RiwayatAbsensi pengguna={pengguna} onKembali={() => setHalaman("absen")} />;
-}
+  // --- BAGIAN NAVIGASI / ROUTING HALAMAN ---
+  if (halaman === "riwayat") {
+    return <RiwayatAbsensi pengguna={pengguna} onKembali={() => setHalaman("absen")} />;
+  }
 
-if (halaman === "izin") {
-  return <PengajuanIzin pengguna={pengguna} onKembali={() => setHalaman("absen")} />;
-}
+  if (halaman === "izin") {
+    return <PengajuanIzin pengguna={pengguna} onKembali={() => setHalaman("absen")} />;
+  }
 
-
-// --- BAGIAN TAMPILAN UTAMA (JSX) ---
-return (
-  <div style={{ fontFamily: font.sans, padding: 16, color: warna.tinta, maxWidth: 500, margin: "0 auto" }}>
-    
-    {/* Header / Top Bar */}
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-      <img src={logoWhite} alt="Logo" style={{ height: 32, filter: "invert(1)" }} />
-      <button onClick={onLogout} style={{ background: "none", border: "none", color: warna.error, fontWeight: "600", cursor: "pointer" }}>
-        Keluar
-      </button>
-    </div>
-
-    {/* Kotak Utama Absensi */}
-    <div style={{ backgroundColor: "#ffffff", borderRadius: 12, padding: 20, boxShadow: "0 4px 12px rgba(0,0,0,0.05)", position: "relative", marginBottom: 20 }}>
+  // --- BAGIAN TAMPILAN UTAMA (JSX) ---
+  return (
+    <div style={{ fontFamily: font.sans, padding: 16, color: warna.tinta, maxWidth: 500, margin: "0 auto" }}>
       
-      {/* Profil Pengguna */}
-      <div style={{ textAlign: "center", marginBottom: 20 }}>
-        <h2 style={{ fontSize: 18, fontWeight: "600", margin: "0 0 4px 0" }}>Halo, {pengguna?.nama}</h2>
-        <p style={{ fontSize: 14, color: warna.tintaSamar, margin: 0 }}>{pengguna?.jabatan} - {pengguna?.divisi}</p>
+      {/* Header / Top Bar */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+        <img src={logoWhite} alt="Logo" style={{ height: 32, filter: "invert(1)" }} />
+        <button onClick={onLogout} style={{ background: "none", border: "none", color: warna.error, fontWeight: "600", cursor: "pointer" }}>
+          Keluar
+        </button>
       </div>
 
-      {/* Notifikasi Pesan Sukses / Error */}
-      {pesan && (
-        <div style={{ padding: 12, borderRadius: 8, backgroundColor: pesanTipe === "sukses" ? "#e6f7ed" : "#fde8e8", color: pesanTipe === "sukses" ? warna.sukses : warna.error, fontSize: 13, marginBottom: 16, textAlign: "center" }}>
-          {pesan}
+      {/* Kotak Utama Absensi */}
+      <div style={{ backgroundColor: "#ffffff", borderRadius: 12, padding: 20, boxShadow: "0 4px 12px rgba(0,0,0,0.05)", position: "relative", marginBottom: 20 }}>
+        
+        {/* Profil Pengguna */}
+        <div style={{ textAlign: "center", marginBottom: 20 }}>
+          <h2 style={{ fontSize: 18, fontWeight: "600", margin: "0 0 4px 0" }}>Halo, {pengguna?.nama}</h2>
+          <p style={{ fontSize: 14, color: warna.tintaSamar, margin: 0 }}>{pengguna?.jabatan} - {pengguna?.divisi}</p>
         </div>
-      )}
 
-      {/* Preview Kamera Aktif */}
-      {kameraAktif && (
-        <div style={{ position: "relative", borderRadius: 8, overflow: "hidden", marginBottom: 16, backgroundColor: "#000", aspectRatio: "4/3" }}>
-          <video ref={videoRef} autoPlay playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-          <BracketSudut warnaGaris="#fff" />
-          <button onClick={ambilFoto} style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", backgroundColor: "#ffffff", border: "none", borderRadius: "50%", width: 56, height: 56, cursor: "pointer", boxShadow: "0 4px 10px rgba(0,0,0,0.2)" }} />
-        </div>
-      )}
+        {/* Notifikasi Pesan Sukses / Error */}
+        {pesan && (
+          <div style={{ padding: 12, borderRadius: 8, backgroundColor: pesanTipe === "sukses" ? "#e6f7ed" : "#fde8e8", color: pesanTipe === "sukses" ? warna.sukses : warna.error, fontSize: 13, marginBottom: 16 }}>
+            {pesan}
+          </div>
+        )}
 
-      {/* Hasil Foto Terambil */}
-      {fotoTerambil && fotoPreviewUrl && (
-        <div style={{ position: "relative", borderRadius: 8, overflow: "hidden", marginBottom: 16, aspectRatio: "4/3" }}>
-          <img src={fotoPreviewUrl} alt="Bukti" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-          <button onClick={fotoUlang} style={{ position: "absolute", bottom: 12, right: 12, backgroundColor: "rgba(0,0,0,0.6)", border: "none", color: "#fff", padding: "6px 12px", borderRadius: 20, fontSize: 12, cursor: "pointer" }}>
-            Foto Ulang
+        {/* Preview Kamera Aktif */}
+        {kameraAktif && (
+          <div style={{ position: "relative", borderRadius: 8, overflow: "hidden", marginBottom: 16, backgroundColor: "#000", aspectRatio: "4/3" }}>
+            <video ref={videoRef} autoPlay playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            <BracketSudut warnaGaris="#fff" />
+            <button onClick={ambilFoto} style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", backgroundColor: "#ffffff", border: "none", borderRadius: "50%", width: 60, height: 60, cursor: "pointer", fontWeight: "600" }}>
+              📷
+            </button>
+          </div>
+        )}
+
+        {/* Hasil Foto Terambil */}
+        {fotoTerambil && fotoPreviewUrl && (
+          <div style={{ position: "relative", borderRadius: 8, overflow: "hidden", marginBottom: 16, aspectRatio: "4/3" }}>
+            <img src={fotoPreviewUrl} alt="Bukti" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <button onClick={fotoUlang} style={{ position: "absolute", bottom: 12, right: 12, backgroundColor: "rgba(0,0,0,0.6)", border: "none", color: "#fff", padding: "6px 12px", borderRadius: 4, cursor: "pointer", fontSize: 13, fontWeight: "500" }}>
+              Foto Ulang
+            </button>
+          </div>
+        )}
+
+        {/* Hidden Canvas untuk Proses Foto */}
+        <canvas ref={canvasRef} style={{ display: "none" }} />
+
+        {/* Handler Status Tahapan Absensi */}
+        {tahap === "memuat" ? (
+          <p style={{ textAlign: "center", color: warna.tintaSamar }}>Memeriksa status...</p>
+        ) : tahap === "selesai" ? (
+          <div style={{ textAlign: "center", padding: "12px 0", color: warna.sukses, fontWeight: "600" }}>
+            Absensi Hari Ini Selesai
+          </div>
+        ) : (
+          /* Tombol Buka Kamera jika belum ada foto */
+          !kameraAktif && !fotoTerambil && (
+            <button onClick={bukaKamera} style={{ width: "100%", padding: "14px", backgroundColor: warna.aksen, color: "#fff", border: "none", borderRadius: 8, fontWeight: "600", fontSize: 15, cursor: "pointer" }}>
+              {tahap === "belum_masuk" ? "Absen Masuk Sekarang" : "Absen Pulang Sekarang"}
+            </button>
+          )
+        )}
+
+        {/* Tombol Kirim Data ke Server */}
+        {fotoTerambil && (
+          <button onClick={kirimAbsenKeBackend} disabled={loading || statusLokasi === "mencari"} style={{ width: "100%", padding: "14px", backgroundColor: statusLokasi === "siap" ? warna.sukses : warna.tintaSamar, color: "#fff", border: "none", borderRadius: 8, fontWeight: "600", fontSize: 15, cursor: "pointer", opacity: loading || statusLokasi === "mencari" ? 0.6 : 1 }}>
+            {loading ? "Mengirim..." : statusLokasi === "mencari" ? "Mengunci Koordinat GPS..." : "Konfirmasi & Kirim Absen"}
           </button>
-        </div>
-      )}
+        )}
 
-      {/* Hidden Canvas untuk Proses Foto */}
-      <canvas ref={canvasRef} style={{ display: "none" }} />
+      </div>
 
-      {/* Handler Status Tahapan Absensi */}
-      {tahap === "memuat" ? (
-        <p style={{ textAlign: "center", color: warna.tintaSamar }}>Memeriksa status...</p>
-      ) : tahap === "selesai" ? (
-        <div style={{ textAlign: "center", padding: "12px 0", color: warna.sukses, fontWeight: "600" }}>
-          Absensi Hari Ini Selesai
-        </div>
-      ) : (
-        /* Tombol Buka Kamera jika belum ada foto */
-        !kameraAktif && !fotoTerambil && (
-          <button onClick={bukaKamera} style={{ width: "100%", padding: "14px", backgroundColor: warna.aksen, color: "#fff", border: "none", borderRadius: 8, fontWeight: "600", fontSize: 15, cursor: "pointer" }}>
-            {tahap === "belum_masuk" ? "Absen Masuk Sekarang" : "Absen Pulang Sekarang"}
-          </button>
-        )
-      )}
-
-      {/* Tombol Kirim Data ke Server */}
-      {fotoTerambil && (
-        <button onClick={kirimAbsenKeBackend} disabled={loading || statusLokasi === "mencari"} style={{ width: "100%", padding: "14px", backgroundColor: statusLokasi === "siap" ? warna.sukses : warna.tintaSamar, color: "#fff", border: "none", borderRadius: 8, fontWeight: "600", fontSize: 15, cursor: "pointer" }}>
-          {loading ? "Mengirim..." : statusLokasi === "mencari" ? "Mengunci Koordinat GPS..." : "Konfirmasi & Kirim Absen"}
+      {/* Menu Navigasi Bawah */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <button onClick={() => setHalaman("riwayat")} style={{ padding: "12px", backgroundColor: "#fff", border: `1px solid ${warna.garis}`, borderRadius: 8, fontWeight: "500", cursor: "pointer" }}>
+          Riwayat Absen
         </button>
-      )}
+        <button onClick={() => setHalaman("izin")} style={{ padding: "12px", backgroundColor: "#fff", border: `1px solid ${warna.garis}`, borderRadius: 8, fontWeight: "500", cursor: "pointer" }}>
+          Ajukan Izin
+        </button>
+      </div>
 
     </div>
-
-    {/* Menu Navigasi Bawah */}
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-      <button onClick={() => setHalaman("riwayat")} style={{ padding: "12px", backgroundColor: "#fff", border: `1px solid ${warna.garis}`, borderRadius: 8, fontWeight: "500", cursor: "pointer" }}>
-        Riwayat Absen
-      </button>
-      <button onClick={() => setHalaman("izin")} style={{ padding: "12px", backgroundColor: "#fff", border: `1px solid ${warna.garis}`, borderRadius: 8, fontWeight: "500", cursor: "pointer" }}>
-        Ajukan Izin
-      </button>
-    </div>
-
-  </div>
-);
-}
-
+  );
 }
