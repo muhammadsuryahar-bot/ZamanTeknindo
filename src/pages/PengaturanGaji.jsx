@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { API_URL, getToken } from "../utils/api";
 import { warna, font } from "../styles/theme";
-import { Wallet, AlertTriangle, Download, ArrowRight, Info, CheckCircle2 } from "lucide-react";
+import { Wallet, AlertTriangle, Download, ArrowRight, Info, CheckCircle2, Calendar } from "lucide-react";
 
 const NAMA_BULAN = [
   "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -529,8 +529,44 @@ export default function PengaturanGaji() {
         </form>
         {pesanLibur && <p style={styles.pesanErrorKecil}>{pesanLibur}</p>}
 
+        {/* Selector tahun KHUSUS di kartu ini, biar jelas & gampang ditemukan --
+            sebelumnya kontrol tahun cuma ada di kartu "Laporan Gaji Bulanan"
+            (di bawah), padahal dipakai bareng juga sama tombol impor di sini.
+            Fisik kontrolnya jauh dari tombolnya = orang gak nyadar bisa
+            diganti, kerasa kayak "gak bisa update ke tahun depan". */}
+        <div style={styles.pilihTahunLiburRow}>
+          <span style={styles.pilihTahunLiburLabel}>
+            <Calendar size={13} strokeWidth={2} style={{ verticalAlign: "-2px", marginRight: 5 }} />
+            Tahun kalender:
+          </span>
+          <button
+            type="button"
+            onClick={() => setTahunPilih((t) => t - 1)}
+            style={styles.tombolStepperTahun}
+            aria-label="Tahun sebelumnya"
+          >
+            −
+          </button>
+          <input
+            type="number"
+            min="2020"
+            max="2100"
+            value={tahunPilih}
+            onChange={(e) => setTahunPilih(Number(e.target.value))}
+            style={styles.inputTahunLibur}
+          />
+          <button
+            type="button"
+            onClick={() => setTahunPilih((t) => t + 1)}
+            style={styles.tombolStepperTahun}
+            aria-label="Tahun berikutnya"
+          >
+            +
+          </button>
+        </div>
+
         <button onClick={cariUsulanImpor} style={styles.tombolImporOtomatis} disabled={sedangCariImpor}>
-          {sedangCariImpor ? "Mencari…" : `📅 Impor Otomatis dari Kalender ${tahunPilih}`}
+          {sedangCariImpor ? "Mencari…" : `Impor Otomatis dari Kalender ${tahunPilih}`}
         </button>
         {pesanImpor && <p style={styles.pesanImporKecil}>{pesanImpor}</p>}
 
@@ -925,6 +961,47 @@ const styles = {
     fontWeight: 600,
     cursor: "pointer",
     padding: "4px 8px",
+  },
+  pilihTahunLiburRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  pilihTahunLiburLabel: {
+    fontSize: 12.5,
+    color: warna.tintaLembut,
+    fontWeight: 600,
+    fontFamily: font.display,
+  },
+  tombolStepperTahun: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    border: `1px solid ${warna.garis}`,
+    background: warna.panel,
+    color: warna.tinta,
+    fontSize: 16,
+    fontWeight: 700,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 0,
+    lineHeight: 1,
+  },
+  inputTahunLibur: {
+    width: 76,
+    height: 28,
+    borderRadius: 8,
+    border: `1px solid ${warna.garis}`,
+    background: warna.panel,
+    color: warna.tinta,
+    fontSize: 13,
+    fontFamily: font.mono,
+    fontWeight: 600,
+    textAlign: "center",
   },
   tombolImporOtomatis: {
     width: "100%",
