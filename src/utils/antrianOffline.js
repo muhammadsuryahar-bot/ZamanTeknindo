@@ -83,6 +83,7 @@ export async function sinkronkanAntrian({ apiUrl, getToken }) {
       if (item.latitude != null) formData.append("latitude", item.latitude);
       if (item.longitude != null) formData.append("longitude", item.longitude);
       if (item.alamat) formData.append("alamat", item.alamat);
+      if (item.waktuAsli) formData.append("waktuAsli", item.waktuAsli);
 
       const respons = await fetch(`${apiUrl}/absensi/${item.endpoint}`, {
         method: "POST",

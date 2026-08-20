@@ -565,8 +565,17 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     setLoading(true);
     setPesan("");
 
+    // Dicatat SEKARANG (saat tombol ditekan), bukan nanti pas request
+    // berhasil terkirim. Ini penting buat kasus antrian offline: kalau
+    // sinyal jelek dan baru terkirim 1-2 jam kemudian, server tetap tahu
+    // kapan SEBENARNYA karyawan menekan tombol absen -- bukan ikut jam
+    // terkirimnya. Tanpa ini, karyawan yang absen tepat waktu tapi sinyalnya
+    // jelek bisa salah tercatat "Telat" gara-gara baru terkirim belakangan.
+    const waktuAsli = new Date().toISOString();
+
     const formData = new FormData();
     formData.append("foto", fotoTerambil, "absen.jpg");
+    formData.append("waktuAsli", waktuAsli);
 
     if (lokasi) {
       formData.append("latitude", lokasi.latitude);
@@ -619,6 +628,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
           latitude: lokasi?.latitude,
           longitude: lokasi?.longitude,
           alamat: formData.get("alamat"),
+          waktuAsli,
           endpoint,
         });
         setPesan(

@@ -40,6 +40,18 @@ export default function PengaturanGaji() {
   const [daftarGagal, setDaftarGagal] = useState([]);
   const [laporanDiUjung, setLaporanDiUjung] = useState(false);
 
+  // ---------- Hari Libur ----------
+  const [daftarHariLibur, setDaftarHariLibur] = useState([]);
+  const [formLibur, setFormLibur] = useState({ tanggal: "", keterangan: "" });
+  const [pesanLibur, setPesanLibur] = useState("");
+  const [sedangSimpanLibur, setSedangSimpanLibur] = useState(false);
+
+  // ---------- Impor Otomatis Hari Libur ----------
+  const [hasilImpor, setHasilImpor] = useState(null); // null = belum pernah diimpor, [] = hasil impor
+  const [sedangCariImpor, setSedangCariImpor] = useState(false);
+  const [sedangSimpanImpor, setSedangSimpanImpor] = useState(false);
+  const [pesanImpor, setPesanImpor] = useState("");
+
   // Status khusus laporan bulanan:
   // belum_dimuat = belum pernah dicek untuk bulan/tahun yang dipilih
   // memuat       = sedang mengambil data
@@ -52,6 +64,7 @@ export default function PengaturanGaji() {
 
   useEffect(() => {
     ambilData();
+    ambilHariLibur();
   }, []);
 
   // Saat bulan/tahun berubah, jangan pertahankan tabel bulan sebelumnya.
@@ -114,6 +127,122 @@ export default function PengaturanGaji() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function ambilHariLibur() {
+    try {
+      const res = await fetch(`${API_URL}/admin/hari-libur`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await bacaJsonAman(res);
+      setDaftarHariLibur(Array.isArray(data.data) ? data.data : []);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function tambahHariLibur(e) {
+    e.preventDefault();
+    setPesanLibur("");
+    if (!formLibur.tanggal) return setPesanLibur("Tanggal wajib diisi.");
+    if (!formLibur.keterangan.trim()) return setPesanLibur("Keterangan wajib diisi (contoh: Hari Kemerdekaan).");
+
+    setSedangSimpanLibur(true);
+    try {
+      const res = await fetch(`${API_URL}/admin/hari-libur`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${getToken()}`, "Content-Type": "application/json" },
+        body: JSON.stringify(formLibur),
+      });
+      const data = await bacaJsonAman(res);
+      if (!res.ok) return setPesanLibur(data.pesan || "Gagal menambahkan hari libur.");
+      setFormLibur({ tanggal: "", keterangan: "" });
+      ambilHariLibur();
+    } catch (err) {
+      console.error(err);
+      setPesanLibur("Tidak bisa terhubung ke server.");
+    } finally {
+      setSedangSimpanLibur(false);
+    }
+  }
+
+  async function hapusHariLiburKlik(id) {
+    try {
+      const res = await fetch(`${API_URL}/admin/hari-libur/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (res.ok) ambilHariLibur();
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  // Ambil daftar usulan hari libur nasional dari sumber publik (bersumber
+  // dari SKB 3 Menteri), TAPI cuma buat "usulan" -- admin tetap yang pilih
+  // mana yang mau disimpan, sesuai prinsip "bos tetap pegang kendali penuh".
+  // Kalau sumber publiknya lagi tidak bisa diakses (server luar down, dsb),
+  // fitur input manual di atas tetap jalan seperti biasa -- ini cuma
+  // pelengkap buat hemat waktu ketik, bukan satu-satunya cara.
+  async function cariUsulanImpor() {
+    setSedangCariImpor(true);
+    setPesanImpor("");
+    setHasilImpor(null);
+    try {
+      const res = await fetch(`https://api-hari-libur.vercel.app/api?year=${tahunPilih}`);
+      if (!res.ok) throw new Error("Sumber data tidak merespons.");
+      const data = await res.json();
+      const daftarTanggalSudahAda = new Set(
+        daftarHariLibur.map((h) => new Date(h.tanggal).toISOString().slice(0, 10))
+      );
+
+      const usulan = (data.data || [])
+        .filter((item) => !daftarTanggalSudahAda.has(item.date)) // sembunyikan yang sudah terdaftar
+        .map((item) => ({ tanggal: item.date, keterangan: item.description, dipilih: true }));
+
+      if (usulan.length === 0) {
+        setPesanImpor(
+          data.data && data.data.length > 0
+            ? "Semua hari libur tahun ini sudah terdaftar."
+            : "Tidak ada data untuk tahun ini dari sumber publik."
+        );
+      }
+      setHasilImpor(usulan);
+    } catch (err) {
+      console.error(err);
+      setPesanImpor("Tidak bisa mengambil data dari sumber publik. Silakan tambahkan manual saja.");
+      setHasilImpor([]);
+    } finally {
+      setSedangCariImpor(false);
+    }
+  }
+
+  function toggleUsulanImpor(index) {
+    setHasilImpor((prev) => prev.map((u, i) => (i === index ? { ...u, dipilih: !u.dipilih } : u)));
+  }
+
+  async function simpanUsulanTerpilih() {
+    const terpilih = hasilImpor.filter((u) => u.dipilih);
+    if (terpilih.length === 0) return;
+
+    setSedangSimpanImpor(true);
+    let berhasil = 0;
+    for (const u of terpilih) {
+      try {
+        const res = await fetch(`${API_URL}/admin/hari-libur`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${getToken()}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ tanggal: u.tanggal, keterangan: u.keterangan }),
+        });
+        if (res.ok) berhasil += 1;
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    setSedangSimpanImpor(false);
+    setHasilImpor(null);
+    setPesanImpor(`${berhasil} hari libur berhasil ditambahkan.`);
+    ambilHariLibur();
   }
 
   async function simpanPotongan(e) {
@@ -366,6 +495,76 @@ export default function PengaturanGaji() {
             Simpan Pengaturan
           </button>
         </form>
+      </div>
+
+      <div style={styles.card}>
+        <p style={styles.judulKartu}>Hari Libur</p>
+        <p style={styles.subKartu}>
+          Tanggal yang didaftarkan di sini TIDAK akan dihitung "Alpha" walau jatuh di hari kerja
+          (Senin–Jumat) -- misal hari libur nasional atau cuti bersama.
+        </p>
+
+        <form onSubmit={tambahHariLibur} style={styles.formHariLibur}>
+          <input
+            type="date"
+            value={formLibur.tanggal}
+            onChange={(e) => setFormLibur({ ...formLibur, tanggal: e.target.value })}
+            style={styles.inputTanggalLibur}
+          />
+          <input
+            type="text"
+            placeholder="Keterangan (contoh: Hari Kemerdekaan)"
+            value={formLibur.keterangan}
+            onChange={(e) => setFormLibur({ ...formLibur, keterangan: e.target.value })}
+            style={styles.inputKeteranganLibur}
+          />
+          <button type="submit" style={styles.tombolTambahLibur} disabled={sedangSimpanLibur}>
+            {sedangSimpanLibur ? "Menyimpan…" : "Tambah"}
+          </button>
+        </form>
+        {pesanLibur && <p style={styles.pesanErrorKecil}>{pesanLibur}</p>}
+
+        <button onClick={cariUsulanImpor} style={styles.tombolImporOtomatis} disabled={sedangCariImpor}>
+          {sedangCariImpor ? "Mencari…" : `📅 Impor Otomatis dari Kalender ${tahunPilih}`}
+        </button>
+        {pesanImpor && <p style={styles.pesanImporKecil}>{pesanImpor}</p>}
+
+        {hasilImpor && hasilImpor.length > 0 && (
+          <div style={styles.kotakUsulanImpor}>
+            <p style={styles.judulUsulanImpor}>
+              Ditemukan {hasilImpor.length} usulan. Centang yang mau disimpan, lalu klik "Impor Terpilih".
+              Ini masih usulan -- belum tersimpan sampai kamu konfirmasi.
+            </p>
+            {hasilImpor.map((u, i) => (
+              <label key={u.tanggal} style={styles.barisUsulanImpor}>
+                <input type="checkbox" checked={u.dipilih} onChange={() => toggleUsulanImpor(i)} />
+                <span style={styles.tanggalHariLibur}>
+                  {new Date(`${u.tanggal}T00:00:00.000Z`).toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" })}
+                </span>
+                <span style={styles.keteranganHariLibur}>{u.keterangan}</span>
+              </label>
+            ))}
+            <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+              <button onClick={simpanUsulanTerpilih} style={styles.tombolTambahLibur} disabled={sedangSimpanImpor}>
+                {sedangSimpanImpor ? "Menyimpan…" : `Impor ${hasilImpor.filter((u) => u.dipilih).length} Terpilih`}
+              </button>
+              <button onClick={() => setHasilImpor(null)} style={styles.tombolBatalImpor}>Batal</button>
+            </div>
+          </div>
+        )}
+
+        {daftarHariLibur.length === 0 && (
+          <p style={styles.keteranganKosong}>Belum ada hari libur yang didaftarkan.</p>
+        )}
+        {daftarHariLibur.map((h) => (
+          <div key={h.id} style={styles.barisHariLibur}>
+            <span style={styles.tanggalHariLibur}>
+              {new Date(h.tanggal).toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" })}
+            </span>
+            <span style={styles.keteranganHariLibur}>{h.keterangan}</span>
+            <button onClick={() => hapusHariLiburKlik(h.id)} style={styles.tombolHapusKecil}>Hapus</button>
+          </div>
+        ))}
       </div>
 
       <div style={styles.card}>
@@ -634,6 +833,144 @@ const styles = {
     color: warna.tinta,
     fontFamily: font.display,
     fontSize: 14,
+  },
+
+  // ---------- Hari Libur ----------
+  formHariLibur: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 10,
+    alignItems: "stretch",
+    marginBottom: 10,
+  },
+  inputTanggalLibur: {
+    minHeight: 44,
+    boxSizing: "border-box",
+    padding: "0 12px",
+    border: `1px solid ${warna.garis}`,
+    borderRadius: 10,
+    background: warna.panel,
+    color: warna.tinta,
+    fontFamily: font.display,
+    fontSize: 14,
+    minWidth: 170,
+  },
+  inputKeteranganLibur: {
+    flex: 1,
+    minWidth: 200,
+    minHeight: 44,
+    boxSizing: "border-box",
+    padding: "0 12px",
+    border: `1px solid ${warna.garis}`,
+    borderRadius: 10,
+    background: warna.panel,
+    color: warna.tinta,
+    fontFamily: font.display,
+    fontSize: 14,
+  },
+  tombolTambahLibur: {
+    minHeight: 44,
+    padding: "0 20px",
+    border: "none",
+    borderRadius: 10,
+    background: warna.aksen,
+    color: "#fff",
+    fontFamily: font.display,
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    transition: "transform .15s ease, filter .15s ease",
+  },
+  pesanErrorKecil: {
+    color: warna.bahaya,
+    fontSize: 12.5,
+    margin: "0 0 12px",
+  },
+  keteranganKosong: {
+    color: warna.tintaSamar,
+    fontSize: 13,
+    fontFamily: font.display,
+    margin: "8px 0 0",
+  },
+  barisHariLibur: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    padding: "10px 0",
+    borderBottom: `1px solid ${warna.garis}`,
+  },
+  tanggalHariLibur: {
+    fontFamily: font.mono,
+    fontSize: 12.5,
+    fontWeight: 600,
+    color: warna.tinta,
+    minWidth: 130,
+  },
+  keteranganHariLibur: {
+    flex: 1,
+    fontSize: 13.5,
+    color: warna.tintaLembut,
+  },
+  tombolHapusKecil: {
+    background: "none",
+    border: "none",
+    color: warna.bahaya,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer",
+    padding: "4px 8px",
+  },
+  tombolImporOtomatis: {
+    width: "100%",
+    minHeight: 42,
+    marginTop: 4,
+    marginBottom: 4,
+    border: `1px dashed ${warna.garis}`,
+    borderRadius: 10,
+    background: warna.panelAlt || "#F7F8FA",
+    color: warna.tinta,
+    fontFamily: font.display,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+  pesanImporKecil: {
+    color: warna.tintaLembut,
+    fontSize: 12.5,
+    margin: "0 0 12px",
+  },
+  kotakUsulanImpor: {
+    border: `1px solid ${warna.garis}`,
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 14,
+    background: warna.panel,
+  },
+  judulUsulanImpor: {
+    fontSize: 12.5,
+    color: warna.tintaLembut,
+    margin: "0 0 10px",
+    lineHeight: 1.5,
+  },
+  barisUsulanImpor: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "6px 0",
+    cursor: "pointer",
+  },
+  tombolBatalImpor: {
+    minHeight: 44,
+    padding: "0 18px",
+    border: `1px solid ${warna.garis}`,
+    borderRadius: 10,
+    background: "none",
+    color: warna.tintaLembut,
+    fontFamily: font.display,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
   },
   inputRupiah: {
     display: "flex",
