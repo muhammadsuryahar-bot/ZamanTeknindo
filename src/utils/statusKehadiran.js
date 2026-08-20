@@ -1,25 +1,54 @@
 import { warna } from "../styles/theme";
 
-// Satu sumber kebenaran untuk label & warna tiap status kehadiran.
-// Dipakai di DashboardAdmin.jsx dan RiwayatAbsensi.jsx supaya konsisten
-// dan tidak perlu diubah di 2 tempat kalau nanti ada status baru lagi.
+/**
+ * Mengembalikan label, warna, dan latar untuk status kehadiran
+ * @param {string} status - Status kehadiran: tepat_waktu, telat, alpha, izin, sakit, cuti, urgent
+ * @returns {object} { teks, warna, latar }
+ */
 export function labelStatusKehadiran(status) {
-  switch (status) {
-    case "tepat_waktu":
-      return { teks: "Tepat Waktu", warna: warna.sukses, latar: warna.suksesLembut };
-    case "telat":
-      return { teks: "Telat", warna: warna.peringatan, latar: warna.peringatanLembut };
-    case "alpha":
-      return { teks: "Alpha", warna: warna.bahaya, latar: warna.bahayaLembut };
-    case "izin":
-      return { teks: "Izin", warna: warna.aksen, latar: warna.aksenLembut };
-    case "sakit":
-      return { teks: "Sakit", warna: warna.aksen, latar: warna.aksenLembut };
-    case "cuti":
-      return { teks: "Cuti", warna: warna.aksen, latar: warna.aksenLembut };
-    case "urgent":
-      return { teks: "Urgent", warna: warna.aksen, latar: warna.aksenLembut };
-    default:
-      return { teks: "-", warna: warna.tintaSamar, latar: warna.panelAlt };
-  }
+  const statusMap = {
+    tepat_waktu: {
+      teks: "Tepat Waktu",
+      warna: warna.sukses,
+      latar: warna.suksesLembut,
+    },
+    telat: {
+      teks: "Telat",
+      warna: warna.peringatan,
+      latar: warna.peringatanLembut,
+    },
+    alpha: {
+      teks: "Alpha",
+      warna: warna.bahaya,
+      latar: warna.bahayaLembut,
+    },
+    izin: {
+      teks: "Izin",
+      warna: warna.aksen,
+      latar: warna.aksenLembut,
+    },
+    sakit: {
+      teks: "Sakit",
+      warna: warna.aksen,
+      latar: warna.aksenLembut,
+    },
+    cuti: {
+      teks: "Cuti",
+      warna: warna.aksen,
+      latar: warna.aksenLembut,
+    },
+    urgent: {
+      teks: "Urgent",
+      warna: warna.peringatan,
+      latar: warna.peringatanLembut,
+    },
+  };
+
+  return (
+    statusMap[status] || {
+      teks: "Unknown",
+      warna: warna.tintaSamar,
+      latar: warna.panelAlt,
+    }
+  );
 }

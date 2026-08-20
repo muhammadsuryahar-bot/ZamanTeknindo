@@ -53,7 +53,6 @@ function DialJamKerja({ tahap, varian = "gelap" }) {
   const warnaTeksSamar = terang ? "rgba(255,255,255,0.7)" : warna.tintaSamar;
   const warnaTakik = terang ? "rgba(255,255,255,0.45)" : "#C7CDD6";
 
-  // PERBAIKAN: Angka takik jam [0, 6, 12, 18] sudah dikembalikan
   const takik = [0, 6, 12, 18].map((jam) => {
     const sudut = (jam / 24) * 360 - 90;
     const rad = (sudut * Math.PI) / 180;
@@ -147,6 +146,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       const data = await res.json();
       setTahap(data.tahap);
     } catch (err) {
+      console.error("Error ambil status:", err);
       setPesan("Gagal memuat status absen. Cek koneksi ke server.");
       setPesanTipe("error");
     }
@@ -160,6 +160,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       setKameraAktif(true);
       ambilLokasi();
     } catch (err) {
+      console.error("Error kamera:", err);
       setPesan("Tidak bisa mengakses kamera. Pastikan izin kamera sudah diberikan.");
       setPesanTipe("error");
     }
@@ -182,11 +183,17 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   function ambilFoto() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+    
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob((blob) => setFotoTerambil(blob), "image/jpeg", 0.85);
+    canvas.toBlob((blob) => {
+      if (blob) setFotoTerambil(blob);
+    }, "image/jpeg", 0.85);
     hentikanKamera();
   }
 
@@ -196,33 +203,56 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   }
 
   async function ambilKotaKecamatanBigDataCloud(latitude, longitude) {
-    const res = await fetch(
-      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}&localityLanguage=id`
-    );
-    const data = await res.json();
-    const bagian = [data.locality, data.city && data.city !== data.locality ? data.city : null].filter(Boolean);
-    if (bagian.length === 0) throw new Error("Data BigDataCloud kosong");
-    return bagian.join(", ");
+    try {
+      const res = await fetch(
+        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}&localityLanguage=id`
+      );
+      if (!res.ok) throw new Error("BigDataCloud API error");
+      
+      const data = await res.json();
+      const bagian = [
+        data.locality,
+        data.city && data.city !== data.locality ? data.city : null
+      ].filter(Boolean);
+      
+      if (bagian.length === 0) throw new Error("Data BigDataCloud kosong");
+      return bagian.join(", ");
+    } catch (err) {
+      console.error("BigDataCloud error:", err);
+      throw err;
+    }
   }
 
   async function ambilDetailNominatim(latitude, longitude) {
-    const detail = await ambilDetailNominatimPadaZoom(latitude, longitude, 18);
-    if (!detail.jalan) {
-      try {
-        const detailZoomLebihLuas = await ambilDetailNominatimPadaZoom(latitude, longitude, 17);
-        if (detailZoomLebihLuas.jalan) return detailZoomLebihLuas;
-      } catch (err) {
-        // Mengabaikan kegagalan pencarian zoom luar
+    try {
+      const detail = await ambilDetailNominatimPadaZoom(latitude, longitude, 18);
+      if (!detail.jalan) {
+        try {
+          const detailZoomLebihLuas = await ambilDetailNominatimPadaZoom(latitude, longitude, 17);
+          if (detailZoomLebihLuas.jalan) return detailZoomLebihLuas;
+        } catch (err) {
+          console.warn("Zoom lebih luas gagal:", err);
+        }
       }
+      return detail;
+    } catch (err) {
+      console.error("Nominatim detail error:", err);
+      throw err;
     }
-    return detail;
   }
 
   async function ambilDetailNominatimPadaZoom(latitude, longitude, zoom) {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}&format=json&zoom=${zoom}&addressdetails=1&accept-language=id`
-    );
-    if (!res.ok) throw new Error("Gagal mengambil data Nominatim");
+    const url = new URL("https://nominatim.openstreetmap.org/reverse");
+    url.searchParams.set("lat", latitude.toString());
+    url.searchParams.set("lon", longitude.toString());
+    url.searchParams.set("format", "json");
+    url.searchParams.set("zoom", zoom.toString());
+    url.searchParams.set("addressdetails", "1");
+    url.searchParams.set("accept-language", "id");
+    
+    const res = await fetch(url.toString());
+    if (!res.ok) throw new Error(`Nominatim error: ${res.status}`);
+    
     const data = await res.json();
     const a = data.address || {};
     return {
@@ -236,6 +266,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     if (!navigator.geolocation) {
       setStatusLokasi("error");
       setPesan("Browser perangkat tidak mendukung pembacaan koordinat GPS.");
+      setPesanTipe("error");
       return;
     }
 
@@ -249,8 +280,10 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         setStatusLokasi("siap");
       },
       (err) => {
+        console.error("Geolocation error:", err);
         setStatusLokasi("error");
         setPesan("Gagal mengunci GPS. Pastikan izin lokasi aktif.");
+        setPesanTipe("error");
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
@@ -271,6 +304,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       try {
         namaProvinsiResmi = await cariProvinsiResmi(lokasi.latitude, lokasi.longitude);
       } catch (e) {
+        console.warn("Province lookup failed:", e);
         namaProvinsiResmi = null;
       }
 
@@ -278,10 +312,12 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       try {
         detailWilayah = await ambilKotaKecamatanBigDataCloud(lokasi.latitude, lokasi.longitude);
       } catch (e) {
+        console.warn("BigDataCloud failed, trying Nominatim:", e);
         try {
           const detail = await ambilDetailNominatim(lokasi.latitude, lokasi.longitude);
           detailWilayah = [detail.jalan, detail.desa].filter(Boolean).join(", ");
         } catch (err) {
+          console.warn("Nominatim juga gagal, menggunakan default:", err);
           detailWilayah = "Lokasi Operasional Teknindo";
         }
       }
@@ -308,10 +344,15 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       });
 
       let hasil = null;
-      try { hasil = await respons.json(); } catch (e) { hasil = null; }
+      try {
+        hasil = await respons.json();
+      } catch (e) {
+        console.warn("Response parsing error:", e);
+        hasil = null;
+      }
 
       if (!respons.ok) {
-        throw new Error(hasil?.message || "Gagal memproses validasi absensi.");
+        throw new Error(hasil?.pesan || hasil?.message || "Gagal memproses validasi absensi.");
       }
 
       setPesan(tahap === "belum_masuk" ? "Absen masuk berhasil tercatat!" : "Absen pulang berhasil tercatat!");
@@ -321,6 +362,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       setStatusLokasi("mencari");
       await ambilStatusHariIni();
     } catch (error) {
+      console.error("Kirim absen error:", error);
       setPesan(error.message || "Terjadi kendala interaksi dengan server.");
       setPesanTipe("error");
     } finally {
