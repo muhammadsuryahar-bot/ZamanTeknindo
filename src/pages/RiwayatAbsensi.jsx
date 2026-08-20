@@ -3,7 +3,7 @@ import { API_URL, getToken } from "../utils/api";
 import { warna, font } from "../styles/theme";
 import { labelStatusKehadiran } from "../utils/statusKehadiran";
 import TopbarHijau from "../components/TopbarHijau";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, RefreshCcw, AlertCircle } from "lucide-react";
 
 export default function RiwayatAbsensi({ kembali }) {
   const [riwayat, setRiwayat] = useState([]);
@@ -13,15 +13,28 @@ export default function RiwayatAbsensi({ kembali }) {
   async function muatRiwayat() {
     setLoading(true);
     setPesan("");
+
     try {
       const res = await fetch(`${API_URL}/absensi/riwayat-saya`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
-      const data = await res.json();
-      setRiwayat(data.data || []);
+
+      let data = {};
+      try {
+        data = await res.json();
+      } catch {
+        data = {};
+      }
+
+      if (!res.ok) {
+        throw new Error(data?.pesan || "Gagal memuat riwayat absensi.");
+      }
+
+      setRiwayat(Array.isArray(data.data) ? data.data : []);
     } catch (err) {
       console.error(err);
-      setPesan("Gagal memuat riwayat. Cek koneksi ke server.");
+      setRiwayat([]);
+      setPesan(err?.message || "Gagal memuat riwayat. Cek koneksi ke server.");
     } finally {
       setLoading(false);
     }
@@ -42,7 +55,10 @@ export default function RiwayatAbsensi({ kembali }) {
 
   function formatJam(tanggalIso) {
     if (!tanggalIso) return "–";
-    return new Date(tanggalIso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+    return new Date(tanggalIso).toLocaleTimeString("id-ID", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   }
 
   return (
@@ -57,43 +73,58 @@ export default function RiwayatAbsensi({ kembali }) {
                 <div key={i} className="skeleton-pulse" style={styles.skeletonCard}>
                   <div style={{ ...styles.skeletonBar, width: "50%", height: 13 }} />
                   <div style={{ ...styles.skeletonBar, width: "35%", height: 11, marginTop: 10 }} />
+                  <div style={{ ...styles.skeletonBar, width: "75%", height: 10, marginTop: 9 }} />
                 </div>
               ))}
             </>
           )}
 
-          {pesan && <p style={styles.info}>{pesan}</p>}
-
-          {!loading && riwayat.length === 0 && !pesan && (
-            <div style={styles.kosongBox}>
-              <CalendarDays size={26} strokeWidth={1.6} style={styles.kosongIkon} />
-              <p style={styles.info}>Belum ada riwayat absensi.</p>
+          {!loading && pesan && (
+            <div style={styles.errorBox} role="alert">
+              <AlertCircle size={18} strokeWidth={2} style={{ flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <strong style={styles.errorTitle}>Riwayat belum dapat dimuat</strong>
+                <p style={styles.errorText}>{pesan}</p>
+                <button type="button" onClick={muatRiwayat} style={styles.retryButton}>
+                  <RefreshCcw size={14} />
+                  Coba Lagi
+                </button>
+              </div>
             </div>
           )}
 
-          {!loading &&
-            riwayat.map((item) => {
-              const status = labelStatusKehadiran(item.statusFinal || item.statusOtomatis);
-              return (
-                <div key={item.id} style={styles.itemCard} className="kartu-hover">
-                  <div style={styles.itemHeader}>
-                    <strong style={styles.tanggal}>{formatTanggal(item.tanggal)}</strong>
-                    <span style={{ ...styles.badge, color: status.warna, background: status.latar }}>
-                      {status.teks}
-                    </span>
-                  </div>
-                  <p style={styles.itemDetail}>
-                    Masuk <span style={styles.mono}>{formatJam(item.jamMasuk)}</span>
-                    <span style={styles.pemisah}>·</span>
-                    Pulang <span style={styles.mono}>{formatJam(item.jamPulang)}</span>
-                  </p>
-                  {item.alamatMasuk && <p style={styles.itemAlamat}>{item.alamatMasuk}</p>}
-                  {item.catatanAdmin && (
-                    <p style={styles.catatan}>Catatan Admin: {item.catatanAdmin}</p>
-                  )}
+          {!loading && !pesan && riwayat.length === 0 && (
+            <div style={styles.kosongBox}>
+              <CalendarDays size={28} strokeWidth={1.6} style={styles.kosongIkon} />
+              <p style={styles.kosongTitle}>Belum ada riwayat absensi</p>
+              <p style={styles.kosongText}>
+                Riwayat kehadiran kamu akan muncul di sini setelah melakukan absensi.
+              </p>
+            </div>
+          )}
+
+          {!loading && !pesan && riwayat.map((item) => {
+            const status = labelStatusKehadiran(item.statusFinal || item.statusOtomatis);
+            return (
+              <div key={item.id} style={styles.itemCard} className="kartu-hover">
+                <div style={styles.itemHeader}>
+                  <strong style={styles.tanggal}>{formatTanggal(item.tanggal)}</strong>
+                  <span style={{ ...styles.badge, color: status.warna, background: status.latar }}>
+                    {status.teks}
+                  </span>
                 </div>
-              );
-            })}
+                <p style={styles.itemDetail}>
+                  Masuk <span style={styles.mono}>{formatJam(item.jamMasuk)}</span>
+                  <span style={styles.pemisah}>·</span>
+                  Pulang <span style={styles.mono}>{formatJam(item.jamPulang)}</span>
+                </p>
+                {item.alamatMasuk && <p style={styles.itemAlamat}>{item.alamatMasuk}</p>}
+                {item.catatanAdmin && (
+                  <p style={styles.catatan}>Catatan Admin: {item.catatanAdmin}</p>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -104,39 +135,68 @@ const styles = {
   wrapper: { minHeight: "100svh", background: warna.latar, fontFamily: font.display, padding: 16 },
   shell: { maxWidth: 460, margin: "0 auto" },
   content: {},
-  info: { textAlign: "center", color: warna.tintaSamar, padding: 8, fontSize: 13.5, margin: 0 },
+  errorBox: {
+    display: "flex",
+    gap: 10,
+    alignItems: "flex-start",
+    padding: 14,
+    marginBottom: 12,
+    borderRadius: 12,
+    border: `1px solid ${warna.bahayaLembut}`,
+    background: warna.bahayaLembut,
+    color: warna.bahaya,
+  },
+  errorTitle: { display: "block", fontSize: 13, color: warna.tinta },
+  errorText: { margin: "4px 0 10px", fontSize: 12, color: warna.tintaLembut, lineHeight: 1.5 },
+  retryButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    minHeight: 38,
+    padding: "8px 12px",
+    borderRadius: 9,
+    border: `1px solid ${warna.garis}`,
+    background: warna.panel,
+    color: warna.tinta,
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: "pointer",
+  },
   kosongBox: {
     textAlign: "center",
-    padding: "40px 20px",
+    padding: "42px 20px",
     background: warna.panel,
-    borderRadius: 10,
+    borderRadius: 12,
     border: `1px dashed ${warna.garis}`,
   },
-  kosongIkon: { display: "block", marginBottom: 8, marginLeft: "auto", marginRight: "auto", color: warna.tintaSamar },
-  skeletonCard: { background: warna.panel, borderRadius: 10, padding: 16, marginBottom: 8, border: `1px solid ${warna.garis}` },
+  kosongIkon: { display: "block", marginBottom: 10, marginLeft: "auto", marginRight: "auto", color: warna.tintaSamar },
+  kosongTitle: { color: warna.tinta, fontSize: 14, fontWeight: 700, margin: 0 },
+  kosongText: { color: warna.tintaSamar, fontSize: 12, lineHeight: 1.55, maxWidth: 300, margin: "6px auto 0" },
+  skeletonCard: { background: warna.panel, borderRadius: 12, padding: 16, marginBottom: 9, border: `1px solid ${warna.garis}` },
   skeletonBar: { background: warna.panelAlt, borderRadius: 4 },
   itemCard: {
     background: warna.panel,
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 16,
-    marginBottom: 8,
+    marginBottom: 9,
     border: `1px solid ${warna.garis}`,
     transition: "border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease",
   },
-  itemHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 },
+  itemHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 7 },
   tanggal: { fontSize: 13.5, color: warna.tinta },
-  itemDetail: { fontSize: 12.5, color: warna.tinta, margin: "8px 0 2px 0" },
-  itemAlamat: { fontSize: 11.5, color: warna.tintaSamar, margin: "3px 0" },
+  itemDetail: { fontSize: 12.5, color: warna.tinta, margin: "8px 0 2px" },
+  itemAlamat: { fontSize: 11.5, color: warna.tintaSamar, margin: "4px 0", lineHeight: 1.45 },
   mono: { fontFamily: font.mono, fontWeight: 600 },
   pemisah: { margin: "0 8px", color: warna.garis },
   catatan: {
     fontSize: 11.5,
     color: warna.tinta,
     background: warna.panelAlt,
-    padding: "6px 10px",
+    padding: "7px 10px",
     borderRadius: 8,
-    marginTop: 8,
+    marginTop: 9,
     borderLeft: `3px solid ${warna.aksen}`,
+    lineHeight: 1.45,
   },
-  badge: { fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 6 },
+  badge: { fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 7, whiteSpace: "nowrap" },
 };
