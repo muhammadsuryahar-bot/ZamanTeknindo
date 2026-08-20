@@ -31,8 +31,15 @@ export default function PengaturanGaji() {
   const [loading, setLoading] = useState(true);
   const [pesan, setPesan] = useState("");
 
+  // Tahun khusus laporan gaji.
   const [tahunPilih, setTahunPilih] = useState(sekarang.getFullYear());
   const [bulanPilih, setBulanPilih] = useState(sekarang.getMonth() + 1);
+
+  // Tahun khusus kalender hari libur.
+  // Dipisahkan dari tahun laporan gaji supaya perubahan tahun gaji
+  // tidak ikut mengubah kalender hari libur.
+  const [tahunLibur, setTahunLibur] = useState(sekarang.getFullYear());
+
   const [laporanBulanan, setLaporanBulanan] = useState([]);
   const [loadingLaporan, setLoadingLaporan] = useState(false);
   const [sedangHitung, setSedangHitung] = useState(false);
@@ -64,10 +71,14 @@ export default function PengaturanGaji() {
 
   useEffect(() => {
     ambilData();
-    ambilHariLibur();
   }, []);
 
-  // Saat bulan/tahun berubah, jangan pertahankan tabel bulan sebelumnya.
+  // Saat tahun kalender hari libur berubah, muat ulang hanya data tahun tersebut.
+  useEffect(() => {
+    ambilHariLibur();
+  }, [tahunLibur]);
+
+  // Saat bulan/tahun laporan gaji berubah, jangan pertahankan tabel bulan sebelumnya.
   useEffect(() => {
     setLaporanBulanan([]);
     setStatusLaporan("belum_dimuat");
@@ -131,33 +142,68 @@ export default function PengaturanGaji() {
 
   async function ambilHariLibur() {
     try {
-      const res = await fetch(`${API_URL}/admin/hari-libur`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
+      const res = await fetch(
+        `${API_URL}/admin/hari-libur?tahun=${tahunLibur}`,
+        {
+          headers: { Authorization: `Bearer ${getToken()}` },
+        }
+      );
+
       const data = await bacaJsonAman(res);
+
+      if (!res.ok) {
+        setDaftarHariLibur([]);
+        setPesanLibur(data.pesan || `Gagal memuat kalender ${tahunLibur}.`);
+        return;
+      }
+
       setDaftarHariLibur(Array.isArray(data.data) ? data.data : []);
+      setPesanLibur("");
     } catch (err) {
       console.error(err);
+      setDaftarHariLibur([]);
+      setPesanLibur(`Tidak bisa memuat kalender hari libur ${tahunLibur}.`);
     }
   }
 
   async function tambahHariLibur(e) {
     e.preventDefault();
     setPesanLibur("");
-    if (!formLibur.tanggal) return setPesanLibur("Tanggal wajib diisi.");
-    if (!formLibur.keterangan.trim()) return setPesanLibur("Keterangan wajib diisi (contoh: Hari Kemerdekaan).");
+
+    if (!formLibur.tanggal) {
+      setPesanLibur("Tanggal wajib diisi.");
+      return;
+    }
+
+    if (!formLibur.keterangan.trim()) {
+      setPesanLibur("Keterangan wajib diisi (contoh: Hari Kemerdekaan).");
+      return;
+    }
+
+    const tahunTanggal = Number(formLibur.tanggal.slice(0, 4));
+
+    if (tahunTanggal !== tahunLibur) {
+      setPesanLibur(`Tanggal harus berada di tahun ${tahunLibur}.`);
+      return;
+    }
 
     setSedangSimpanLibur(true);
     try {
       const res = await fetch(`${API_URL}/admin/hari-libur`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${getToken()}`, "Content-Type": "application/json" },
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(formLibur),
       });
       const data = await bacaJsonAman(res);
-      if (!res.ok) return setPesanLibur(data.pesan || "Gagal menambahkan hari libur.");
+      if (!res.ok) {
+        return setPesanLibur(data.pesan || "Gagal menambahkan hari libur.");
+      }
+
       setFormLibur({ tanggal: "", keterangan: "" });
-      ambilHariLibur();
+      await ambilHariLibur();
     } catch (err) {
       console.error(err);
       setPesanLibur("Tidak bisa terhubung ke server.");
@@ -172,7 +218,7 @@ export default function PengaturanGaji() {
         method: "DELETE",
         headers: { Authorization: `Bearer ${getToken()}` },
       });
-      if (res.ok) ambilHariLibur();
+      if (res.ok) await ambilHariLibur();
     } catch (err) {
       console.error(err);
     }
@@ -189,9 +235,12 @@ export default function PengaturanGaji() {
     setPesanImpor("");
     setHasilImpor(null);
     try {
-      const res = await fetch(`${API_URL}/admin/hari-libur-usulan?tahun=${tahunPilih}`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
+      const res = await fetch(
+        `${API_URL}/admin/hari-libur-usulan?tahun=${tahunLibur}`,
+        {
+          headers: { Authorization: `Bearer ${getToken()}` },
+        }
+      );
       if (!res.ok) {
         const dataError = await res.json().catch(() => ({}));
         throw new Error(dataError.pesan || "Sumber data tidak merespons.");
@@ -202,20 +251,26 @@ export default function PengaturanGaji() {
       );
 
       const usulan = (data.data || [])
-        .filter((item) => !daftarTanggalSudahAda.has(item.date)) // sembunyikan yang sudah terdaftar
-        .map((item) => ({ tanggal: item.date, keterangan: item.description, dipilih: true }));
+        .filter((item) => !daftarTanggalSudahAda.has(item.date))
+        .map((item) => ({
+          tanggal: item.date,
+          keterangan: item.description,
+          dipilih: true,
+        }));
 
       if (usulan.length === 0) {
         setPesanImpor(
           data.data && data.data.length > 0
-            ? "Semua hari libur tahun ini sudah terdaftar."
-            : "Tidak ada data untuk tahun ini dari sumber publik."
+            ? `Semua hari libur ${tahunLibur} sudah terdaftar.`
+            : `Tidak ada data hari libur ${tahunLibur} dari sumber publik.`
         );
       }
       setHasilImpor(usulan);
     } catch (err) {
       console.error(err);
-      setPesanImpor("Tidak bisa mengambil data dari sumber publik. Silakan tambahkan manual saja.");
+      setPesanImpor(
+        `Tidak bisa mengambil kalender ${tahunLibur} dari sumber publik. Silakan tambahkan manual.`
+      );
       setHasilImpor([]);
     } finally {
       setSedangCariImpor(false);
@@ -223,7 +278,9 @@ export default function PengaturanGaji() {
   }
 
   function toggleUsulanImpor(index) {
-    setHasilImpor((prev) => prev.map((u, i) => (i === index ? { ...u, dipilih: !u.dipilih } : u)));
+    setHasilImpor((prev) =>
+      prev.map((u, i) => (i === index ? { ...u, dipilih: !u.dipilih } : u))
+    );
   }
 
   async function simpanUsulanTerpilih() {
@@ -236,7 +293,10 @@ export default function PengaturanGaji() {
       try {
         const res = await fetch(`${API_URL}/admin/hari-libur`, {
           method: "POST",
-          headers: { Authorization: `Bearer ${getToken()}`, "Content-Type": "application/json" },
+          headers: {
+            Authorization: `Bearer ${getToken()}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({ tanggal: u.tanggal, keterangan: u.keterangan }),
         });
         if (res.ok) berhasil += 1;
@@ -247,7 +307,7 @@ export default function PengaturanGaji() {
     setSedangSimpanImpor(false);
     setHasilImpor(null);
     setPesanImpor(`${berhasil} hari libur berhasil ditambahkan.`);
-    ambilHariLibur();
+    await ambilHariLibur();
   }
 
   async function simpanPotongan(e) {
@@ -515,6 +575,8 @@ export default function PengaturanGaji() {
             value={formLibur.tanggal}
             onChange={(e) => setFormLibur({ ...formLibur, tanggal: e.target.value })}
             style={styles.inputTanggalLibur}
+            min={`${tahunLibur}-01-01`}
+            max={`${tahunLibur}-12-31`}
           />
           <input
             type="text"
@@ -529,11 +591,6 @@ export default function PengaturanGaji() {
         </form>
         {pesanLibur && <p style={styles.pesanErrorKecil}>{pesanLibur}</p>}
 
-        {/* Selector tahun KHUSUS di kartu ini, biar jelas & gampang ditemukan --
-            sebelumnya kontrol tahun cuma ada di kartu "Laporan Gaji Bulanan"
-            (di bawah), padahal dipakai bareng juga sama tombol impor di sini.
-            Fisik kontrolnya jauh dari tombolnya = orang gak nyadar bisa
-            diganti, kerasa kayak "gak bisa update ke tahun depan". */}
         <div style={styles.pilihTahunLiburRow}>
           <span style={styles.pilihTahunLiburLabel}>
             <Calendar size={13} strokeWidth={2} style={{ verticalAlign: "-2px", marginRight: 5 }} />
@@ -541,7 +598,7 @@ export default function PengaturanGaji() {
           </span>
           <button
             type="button"
-            onClick={() => setTahunPilih((t) => t - 1)}
+            onClick={() => setTahunLibur((t) => Math.max(2020, t - 1))}
             style={styles.tombolStepperTahun}
             aria-label="Tahun sebelumnya"
           >
@@ -551,13 +608,18 @@ export default function PengaturanGaji() {
             type="number"
             min="2020"
             max="2100"
-            value={tahunPilih}
-            onChange={(e) => setTahunPilih(Number(e.target.value))}
+            value={tahunLibur}
+            onChange={(e) => {
+              const nilai = Number(e.target.value);
+              if (!Number.isNaN(nilai)) {
+                setTahunLibur(Math.min(2100, Math.max(2020, nilai)));
+              }
+            }}
             style={styles.inputTahunLibur}
           />
           <button
             type="button"
-            onClick={() => setTahunPilih((t) => t + 1)}
+            onClick={() => setTahunLibur((t) => Math.min(2100, t + 1))}
             style={styles.tombolStepperTahun}
             aria-label="Tahun berikutnya"
           >
@@ -565,8 +627,17 @@ export default function PengaturanGaji() {
           </button>
         </div>
 
+        <div style={styles.statusTahunLibur}>
+          <Calendar size={15} strokeWidth={2} style={{ flexShrink: 0 }} />
+          <span>
+            {daftarHariLibur.length > 0
+              ? `Kalender ${tahunLibur} sudah tersimpan dengan ${daftarHariLibur.length} hari libur.`
+              : `Belum ada data hari libur untuk ${tahunLibur}. Kamu bisa mengimpornya otomatis atau menambahkannya manual.`}
+          </span>
+        </div>
+
         <button onClick={cariUsulanImpor} style={styles.tombolImporOtomatis} disabled={sedangCariImpor}>
-          {sedangCariImpor ? "Mencari…" : `Impor Otomatis dari Kalender ${tahunPilih}`}
+          {sedangCariImpor ? "Mencari…" : `Impor Otomatis Kalender ${tahunLibur}`}
         </button>
         {pesanImpor && <p style={styles.pesanImporKecil}>{pesanImpor}</p>}
 
@@ -595,7 +666,7 @@ export default function PengaturanGaji() {
         )}
 
         {daftarHariLibur.length === 0 && (
-          <p style={styles.keteranganKosong}>Belum ada hari libur yang didaftarkan.</p>
+          <p style={styles.keteranganKosong}>Belum ada hari libur yang didaftarkan untuk {tahunLibur}.</p>
         )}
         {daftarHariLibur.map((h) => (
           <div key={h.id} style={styles.barisHariLibur}>
@@ -1002,6 +1073,21 @@ const styles = {
     fontFamily: font.mono,
     fontWeight: 600,
     textAlign: "center",
+  },
+  statusTahunLibur: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 8,
+    marginTop: 10,
+    marginBottom: 10,
+    padding: "10px 12px",
+    borderRadius: 10,
+    border: `1px solid ${warna.garis}`,
+    background: warna.panelAlt,
+    color: warna.tintaLembut,
+    fontFamily: font.display,
+    fontSize: 12.5,
+    lineHeight: 1.45,
   },
   tombolImporOtomatis: {
     width: "100%",
