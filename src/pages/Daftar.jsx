@@ -15,7 +15,7 @@ import {
 import { API_URL } from "../utils/api";
 import AuthLayout from "../components/AuthLayout";
 
-const DOMAIN_PERUSAHAAN = "ptzamanteknindo.com";
+const DOMAIN_PERUSAHAAN = "zamanteknindo.com";
 
 export default function Daftar({ keLogin }) {
   const [nama, setNama] = useState("");
@@ -50,7 +50,7 @@ export default function Daftar({ keLogin }) {
 
     if (!emailKantorValid(emailBersih)) {
       return setPesanError(
-        `Gunakan email kantor dengan domain @${DOMAIN_PERUSAHAAN}. Contoh: surya@${DOMAIN_PERUSAHAAN}.`
+        `Gunakan email kantor dengan domain @${DOMAIN_PERUSAHAAN}. Contoh: hrd@${DOMAIN_PERUSAHAAN}.`
       );
     }
 
