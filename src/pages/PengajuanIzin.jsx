@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { API_URL, getToken } from "../utils/api";
 import { warna, font } from "../styles/theme";
 import TopbarHijau from "../components/TopbarHijau";
-import { FileEdit } from "lucide-react";
+import { FileEdit, RefreshCcw, AlertCircle, CheckCircle2, UploadCloud } from "lucide-react";
 
 export default function PengajuanIzin({ kembali }) {
   const [tanggal, setTanggal] = useState("");
@@ -11,25 +11,45 @@ export default function PengajuanIzin({ kembali }) {
   const [fotoSurat, setFotoSurat] = useState(null);
   const [loading, setLoading] = useState(false);
   const [pesan, setPesan] = useState("");
-  const [pesanTipe, setPesanTipe] = useState("error"); // "error" | "sukses"
+  const [pesanTipe, setPesanTipe] = useState("error");
   const [riwayat, setRiwayat] = useState([]);
   const [loadingRiwayat, setLoadingRiwayat] = useState(true);
+  const [errorRiwayat, setErrorRiwayat] = useState("");
 
   useEffect(() => {
     ambilRiwayat();
   }, []);
 
+  useEffect(() => {
+    if (!pesan) return;
+    const timer = setTimeout(() => setPesan(""), 5000);
+    return () => clearTimeout(timer);
+  }, [pesan]);
+
   async function ambilRiwayat() {
     setLoadingRiwayat(true);
+    setErrorRiwayat("");
     try {
       const res = await fetch(`${API_URL}/izin/riwayat-saya`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
-      const data = await res.json();
-      setRiwayat(data.data || []);
+
+      let data = {};
+      try {
+        data = await res.json();
+      } catch {
+        data = {};
+      }
+
+      if (!res.ok) {
+        throw new Error(data?.pesan || "Gagal memuat riwayat pengajuan.");
+      }
+
+      setRiwayat(Array.isArray(data.data) ? data.data : []);
     } catch (err) {
       console.error(err);
       setRiwayat([]);
+      setErrorRiwayat(err?.message || "Gagal memuat riwayat pengajuan.");
     } finally {
       setLoadingRiwayat(false);
     }
@@ -37,18 +57,30 @@ export default function PengajuanIzin({ kembali }) {
 
   function pilihFoto(e) {
     const file = e.target.files?.[0];
-    if (file) setFotoSurat(file);
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setPesan("File surat harus berupa gambar.");
+      setPesanTipe("error");
+      return;
+    }
+
+    setFotoSurat(file);
+    setPesan("");
   }
 
   async function kirimPengajuan(e) {
     e.preventDefault();
     setPesan("");
 
-    if (!tanggal || !keterangan) {
+    const keteranganBersih = keterangan.trim();
+
+    if (!tanggal || !keteranganBersih) {
       setPesan("Tanggal dan keterangan wajib diisi.");
       setPesanTipe("error");
       return;
     }
+
     if (jenis === "sakit" && !fotoSurat) {
       setPesan("Untuk pengajuan Sakit, foto surat sakit wajib dilampirkan.");
       setPesanTipe("error");
@@ -60,7 +92,7 @@ export default function PengajuanIzin({ kembali }) {
     const formData = new FormData();
     formData.append("tanggal", tanggal);
     formData.append("jenis", jenis);
-    formData.append("keterangan", keterangan);
+    formData.append("keterangan", keteranganBersih);
     if (fotoSurat) formData.append("fotoSurat", fotoSurat);
 
     try {
@@ -69,12 +101,17 @@ export default function PengajuanIzin({ kembali }) {
         headers: { Authorization: `Bearer ${getToken()}` },
         body: formData,
       });
-      const data = await res.json();
+
+      let data = {};
+      try {
+        data = await res.json();
+      } catch {
+        data = {};
+      }
 
       if (!res.ok) {
         setPesan(data.pesan || "Gagal mengirim pengajuan.");
         setPesanTipe("error");
-        setLoading(false);
         return;
       }
 
@@ -84,7 +121,7 @@ export default function PengajuanIzin({ kembali }) {
       setJenis("izin");
       setKeterangan("");
       setFotoSurat(null);
-      ambilRiwayat();
+      await ambilRiwayat();
     } catch (err) {
       console.error(err);
       setPesan("Tidak bisa terhubung ke server.");
@@ -112,22 +149,31 @@ export default function PengajuanIzin({ kembali }) {
 
         <div style={styles.content}>
           <div style={styles.card}>
-            <div style={styles.bracketTL} />
-            <div style={styles.bracketTR} />
-            <div style={styles.bracketBL} />
-            <div style={styles.bracketBR} />
+            <div style={styles.formHeader}>
+              <div style={styles.formIcon}>
+                <FileEdit size={20} />
+              </div>
+              <div>
+                <p style={styles.formTitle}>Ajukan ketidakhadiran</p>
+                <p style={styles.formSubtitle}>Isi data dengan lengkap agar Admin dapat memproses pengajuan.</p>
+              </div>
+            </div>
 
             <form onSubmit={kirimPengajuan}>
               <label style={styles.label}>Tanggal</label>
               <input
                 type="date"
                 value={tanggal}
-                onChange={(e) => setTanggal(e.target.value)}
+                onChange={(e) => { setTanggal(e.target.value); setPesan(""); }}
                 style={styles.input}
               />
 
               <label style={styles.label}>Jenis Pengajuan</label>
-              <select value={jenis} onChange={(e) => setJenis(e.target.value)} style={styles.input}>
+              <select
+                value={jenis}
+                onChange={(e) => { setJenis(e.target.value); setPesan(""); }}
+                style={styles.input}
+              >
                 <option value="izin">Izin</option>
                 <option value="sakit">Sakit</option>
                 <option value="cuti">Cuti</option>
@@ -137,18 +183,24 @@ export default function PengajuanIzin({ kembali }) {
               <label style={styles.label}>Keterangan</label>
               <textarea
                 value={keterangan}
-                onChange={(e) => setKeterangan(e.target.value)}
+                onChange={(e) => { setKeterangan(e.target.value); setPesan(""); }}
                 placeholder="Contoh: Demam sejak semalam, perlu istirahat."
-                rows={3}
-                style={{ ...styles.input, resize: "vertical" }}
+                rows={4}
+                style={{ ...styles.input, resize: "vertical", minHeight: 108 }}
               />
 
               {jenis === "sakit" && (
-                <>
+                <div style={styles.uploadBox}>
                   <label style={styles.label}>Foto Surat Sakit (wajib)</label>
-                  <input type="file" accept="image/*" onChange={pilihFoto} style={styles.input} />
-                  {fotoSurat && <p style={styles.keterangan}>File terpilih: {fotoSurat.name}</p>}
-                </>
+                  <label style={styles.uploadLabel}>
+                    <UploadCloud size={18} />
+                    <span>{fotoSurat ? "Ganti surat sakit" : "Pilih foto surat sakit"}</span>
+                    <input type="file" accept="image/*" onChange={pilihFoto} style={styles.fileInput} />
+                  </label>
+                  <p style={styles.keteranganUpload}>
+                    {fotoSurat ? `File terpilih: ${fotoSurat.name}` : "Format gambar, gunakan foto yang jelas dan mudah dibaca."}
+                  </p>
+                </div>
               )}
 
               <button type="submit" style={styles.tombolUtama} disabled={loading}>
@@ -157,35 +209,71 @@ export default function PengajuanIzin({ kembali }) {
             </form>
 
             {pesan && (
-              <p style={{ ...styles.pesanInfo, borderLeftColor: pesanTipe === "sukses" ? warna.sukses : warna.bahaya }}>
-                {pesan}
-              </p>
+              <div
+                style={{
+                  ...styles.pesanInfo,
+                  borderLeftColor: pesanTipe === "sukses" ? warna.sukses : warna.bahaya,
+                  background: pesanTipe === "sukses" ? warna.suksesLembut : warna.bahayaLembut,
+                }}
+                role="alert"
+              >
+                {pesanTipe === "sukses" ? <CheckCircle2 size={17} /> : <AlertCircle size={17} />}
+                <span>{pesan}</span>
+              </div>
             )}
           </div>
 
-          <p style={styles.subjudul}>Riwayat Pengajuan</p>
+          <div style={styles.riwayatHeader}>
+            <div>
+              <p style={styles.subjudul}>Riwayat Pengajuan</p>
+              <p style={styles.riwayatHint}>Pantau status pengajuan yang pernah kamu kirim.</p>
+            </div>
+            {!loadingRiwayat && !errorRiwayat && (
+              <span style={styles.jumlahBadge}>{riwayat.length} data</span>
+            )}
+          </div>
 
           {loadingRiwayat && <p style={styles.info}>Memuat riwayat…</p>}
-          {!loadingRiwayat && riwayat.length === 0 && (
-            <div style={styles.kosongBox}>
-              <FileEdit size={26} strokeWidth={1.6} style={styles.kosongIkon} />
-              <p style={styles.info}>Belum ada pengajuan.</p>
+
+          {!loadingRiwayat && errorRiwayat && (
+            <div style={styles.errorBox} role="alert">
+              <AlertCircle size={18} />
+              <div style={{ flex: 1 }}>
+                <strong style={styles.errorTitle}>Riwayat belum dapat dimuat</strong>
+                <p style={styles.errorText}>{errorRiwayat}</p>
+                <button type="button" onClick={ambilRiwayat} style={styles.retryButton}>
+                  <RefreshCcw size={14} />
+                  Coba Lagi
+                </button>
+              </div>
             </div>
           )}
 
-          {riwayat.map((item) => {
+          {!loadingRiwayat && !errorRiwayat && riwayat.length === 0 && (
+            <div style={styles.kosongBox}>
+              <FileEdit size={28} strokeWidth={1.6} style={styles.kosongIkon} />
+              <p style={styles.kosongTitle}>Belum ada pengajuan</p>
+              <p style={styles.kosongText}>Pengajuan yang kamu kirim akan muncul di sini beserta status persetujuannya.</p>
+            </div>
+          )}
+
+          {!loadingRiwayat && !errorRiwayat && riwayat.map((item) => {
             const status = labelStatus(item.status);
             const tanggalTampil = new Date(item.tanggal).toLocaleDateString("id-ID", {
               day: "numeric",
               month: "long",
               year: "numeric",
             });
+
             return (
               <div key={item.id} style={styles.itemCard} className="kartu-hover">
                 <div style={styles.itemHeader}>
-                  <strong style={styles.itemNama}>
-                    {labelJenis(item.jenis)} — {tanggalTampil}
-                  </strong>
+                  <div style={{ minWidth: 0 }}>
+                    <strong style={styles.itemNama}>
+                      {labelJenis(item.jenis)}
+                    </strong>
+                    <p style={styles.itemTanggal}>{tanggalTampil}</p>
+                  </div>
                   <span style={{ ...styles.badge, color: status.warna, background: status.latar }}>
                     {status.teks}
                   </span>
@@ -203,8 +291,6 @@ export default function PengajuanIzin({ kembali }) {
   );
 }
 
-const bracketDasar = { position: "absolute", width: 14, height: 14, borderColor: warna.aksen, borderStyle: "solid", borderWidth: 0 };
-
 const styles = {
   wrapper: { minHeight: "100svh", background: warna.latar, fontFamily: font.display, padding: 16 },
   shell: { maxWidth: 460, margin: "0 auto" },
@@ -212,77 +298,42 @@ const styles = {
   card: {
     position: "relative",
     background: warna.panel,
-    borderRadius: 10,
-    padding: "24px 20px",
+    borderRadius: 14,
+    padding: "20px 18px",
     marginBottom: 20,
     border: `1px solid ${warna.garis}`,
     boxShadow: "0 1px 2px rgba(22,35,61,0.04), 0 8px 24px rgba(22,35,61,0.06)",
   },
-  bracketTL: { ...bracketDasar, top: 10, left: 10, borderTopWidth: 2, borderLeftWidth: 2 },
-  bracketTR: { ...bracketDasar, top: 10, right: 10, borderTopWidth: 2, borderRightWidth: 2 },
-  bracketBL: { ...bracketDasar, bottom: 10, left: 10, borderBottomWidth: 2, borderLeftWidth: 2 },
-  bracketBR: { ...bracketDasar, bottom: 10, right: 10, borderBottomWidth: 2, borderRightWidth: 2 },
-  label: { display: "block", fontSize: 12.5, fontWeight: 600, marginBottom: 4, marginTop: 14, color: warna.tinta },
-  input: {
-    width: "100%",
-    padding: "10px 12px",
-    borderRadius: 8,
-    border: `1px solid ${warna.garis}`,
-    fontSize: 14,
-    fontFamily: "inherit",
-    boxSizing: "border-box",
-    color: warna.tinta,
-    background: warna.panel,
-    colorScheme: "light",
-  },
-  tombolUtama: {
-    width: "100%",
-    padding: "13px",
-    background: warna.aksen,
-    color: "#fff",
-    border: "none",
-    borderRadius: 8,
-    fontSize: 14.5,
-    fontWeight: 600,
-    cursor: "pointer",
-    marginTop: 18,
-  },
-  pesanInfo: {
-    marginTop: 16,
-    fontSize: 13,
-    color: warna.tinta,
-    background: warna.panelAlt,
-    padding: "10px 12px",
-    borderRadius: 8,
-    borderLeft: `3px solid ${warna.aksen}`,
-  },
-  keterangan: { fontSize: 12, color: warna.tintaSamar },
-  subjudul: { fontSize: 13, fontWeight: 700, color: warna.tinta, marginBottom: 8, letterSpacing: "0.02em" },
-  info: { textAlign: "center", color: warna.tintaSamar, padding: 20, fontSize: 13.5 },
-  kosongBox: {
-    textAlign: "center", padding: "40px 20px", background: warna.panel,
-    borderRadius: 10, border: `1px dashed ${warna.garis}`,
-  },
-  kosongIkon: { display: "block", marginBottom: 8, marginLeft: "auto", marginRight: "auto", color: warna.tintaSamar },
-  itemCard: {
-    background: warna.panel,
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 8,
-    border: `1px solid ${warna.garis}`,
-    transition: "border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease",
-  },
-  itemHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 },
-  itemNama: { fontSize: 13.5, color: warna.tinta, fontWeight: 600 },
-  itemDetail: { fontSize: 12.5, color: warna.tintaLembut, margin: "8px 0 0 0" },
-  badge: { fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 8, whiteSpace: "nowrap" },
-  catatan: {
-    fontSize: 11.5,
-    color: warna.tinta,
-    background: warna.panelAlt,
-    padding: "6px 10px",
-    borderRadius: 8,
-    marginTop: 8,
-    borderLeft: `3px solid ${warna.aksen}`,
-  },
+  formHeader: { display: "flex", alignItems: "center", gap: 11, marginBottom: 16 },
+  formIcon: { width: 38, height: 38, borderRadius: 10, background: warna.aksenLembut, color: warna.aksen, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  formTitle: { fontSize: 15, fontWeight: 700, color: warna.tinta },
+  formSubtitle: { marginTop: 3, fontSize: 11.5, lineHeight: 1.45, color: warna.tintaSamar },
+  label: { display: "block", fontSize: 12.5, fontWeight: 700, marginBottom: 6, marginTop: 14, color: warna.tinta },
+  input: { width: "100%", padding: "11px 12px", borderRadius: 10, border: `1px solid ${warna.garis}`, fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", color: warna.tinta, background: warna.panel, colorScheme: "light" },
+  uploadBox: { marginTop: 2, padding: "10px 12px 12px", borderRadius: 11, background: warna.panelAlt, border: `1px solid ${warna.garis}` },
+  uploadLabel: { minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 10, border: `1px dashed ${warna.garis}`, background: warna.panel, color: warna.tinta, fontSize: 12.5, fontWeight: 700, cursor: "pointer" },
+  fileInput: { display: "none" },
+  keteranganUpload: { margin: "7px 0 0", fontSize: 11, color: warna.tintaSamar, lineHeight: 1.45 },
+  tombolUtama: { width: "100%", minHeight: 46, padding: "12px 13px", background: warna.aksen, color: "#fff", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 18 },
+  pesanInfo: { marginTop: 14, display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12.5, color: warna.tinta, padding: "11px 12px", borderRadius: 9, borderLeft: `3px solid ${warna.aksen}`, lineHeight: 1.5 },
+  riwayatHeader: { display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 10, marginBottom: 9 },
+  subjudul: { fontSize: 13.5, fontWeight: 700, color: warna.tinta },
+  riwayatHint: { marginTop: 3, fontSize: 11.5, color: warna.tintaSamar },
+  jumlahBadge: { padding: "4px 9px", borderRadius: 999, background: warna.panelAlt, color: warna.tintaLembut, fontSize: 10.5, fontWeight: 700, whiteSpace: "nowrap" },
+  info: { textAlign: "center", color: warna.tintaSamar, padding: 20, fontSize: 13 },
+  errorBox: { display: "flex", alignItems: "flex-start", gap: 10, padding: 14, marginBottom: 10, borderRadius: 11, border: `1px solid ${warna.bahayaLembut}`, background: warna.bahayaLembut, color: warna.bahaya },
+  errorTitle: { display: "block", fontSize: 13, color: warna.tinta },
+  errorText: { margin: "4px 0 10px", fontSize: 12, color: warna.tintaLembut, lineHeight: 1.5 },
+  retryButton: { display: "inline-flex", alignItems: "center", gap: 6, minHeight: 38, padding: "8px 12px", borderRadius: 9, border: `1px solid ${warna.garis}`, background: warna.panel, color: warna.tinta, fontSize: 12, fontWeight: 700, cursor: "pointer" },
+  kosongBox: { textAlign: "center", padding: "40px 20px", background: warna.panel, borderRadius: 12, border: `1px dashed ${warna.garis}` },
+  kosongIkon: { display: "block", marginBottom: 10, marginLeft: "auto", marginRight: "auto", color: warna.tintaSamar },
+  kosongTitle: { color: warna.tinta, fontSize: 14, fontWeight: 700 },
+  kosongText: { maxWidth: 310, margin: "6px auto 0", color: warna.tintaSamar, fontSize: 12, lineHeight: 1.5 },
+  itemCard: { background: warna.panel, borderRadius: 12, padding: 15, marginBottom: 9, border: `1px solid ${warna.garis}`, transition: "border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease" },
+  itemHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 7 },
+  itemNama: { display: "block", fontSize: 13.5, color: warna.tinta, fontWeight: 700 },
+  itemTanggal: { marginTop: 2, fontSize: 11.5, color: warna.tintaSamar },
+  itemDetail: { fontSize: 12.5, color: warna.tintaLembut, margin: "9px 0 0", lineHeight: 1.5 },
+  badge: { fontSize: 10.5, fontWeight: 700, padding: "4px 9px", borderRadius: 8, whiteSpace: "nowrap" },
+  catatan: { fontSize: 11.5, color: warna.tinta, background: warna.panelAlt, padding: "7px 10px", borderRadius: 8, marginTop: 9, borderLeft: `3px solid ${warna.aksen}`, lineHeight: 1.45 },
 };
