@@ -12,6 +12,17 @@ dist
 dist-ssr
 *.local
 
+# Environment & secrets
+.env
+.env.local
+backend/.env
+
+# Vercel
+.vercel
+
+# Prisma generated client (regenerated on every install/build)
+backend/prisma/generated
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

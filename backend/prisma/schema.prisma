@@ -1,0 +1,177 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Kantor {
+  id         Int        @id @default(autoincrement())
+  namaKantor String     @map("nama_kantor")
+  alamat     String?
+  latitude   Float?
+  longitude  Float?
+  dibuatPada DateTime   @default(now()) @map("dibuat_pada")
+  pengguna   Pengguna[]
+
+  @@map("kantor")
+}
+
+model Pengguna {
+  id            Int             @id @default(autoincrement())
+  nama          String
+  email         String          @unique
+  kataSandi     String          @map("kata_sandi")
+  peran         Peran           @default(karyawan)
+  jabatan       String?
+  divisi        String?
+  kantorId      Int?            @map("kantor_id")
+  statusAkun    StatusAkun      @default(menunggu_konfirmasi) @map("status_akun")
+  dibuatPada    DateTime        @default(now()) @map("dibuat_pada")
+  absensiDiedit Absensi[]       @relation("AbsensiDiedit")
+  absensi       Absensi[]       @relation("AbsensiPengguna")
+  gaji          GajiKaryawan?
+  laporanGaji   LaporanGaji[]
+  izinDiproses  PengajuanIzin[] @relation("IzinDiproses")
+  pengajuanIzin PengajuanIzin[] @relation("IzinPengaju")
+  kantor        Kantor?         @relation(fields: [kantorId], references: [id])
+
+  @@index([kantorId])
+  @@map("pengguna")
+}
+
+model Absensi {
+  id              Int              @id @default(autoincrement())
+  penggunaId      Int              @map("pengguna_id")
+  tanggal         DateTime         @db.Date
+  jamMasuk        DateTime?        @map("jam_masuk")
+  jamPulang       DateTime?        @map("jam_pulang")
+  fotoMasuk       String?          @map("foto_masuk")
+  fotoPulang      String?          @map("foto_pulang")
+  latitudeMasuk   Float?           @map("latitude_masuk")
+  longitudeMasuk  Float?           @map("longitude_masuk")
+  alamatMasuk     String?          @map("alamat_masuk")
+  latitudePulang  Float?           @map("latitude_pulang")
+  longitudePulang Float?           @map("longitude_pulang")
+  alamatPulang    String?          @map("alamat_pulang")
+  statusOtomatis  StatusKehadiran? @map("status_otomatis")
+  statusFinal     StatusKehadiran? @map("status_final")
+  catatanAdmin    String?          @map("catatan_admin")
+  dieditOleh      Int?             @map("diedit_oleh")
+  waktuEdit       DateTime?        @map("waktu_edit")
+  dibuatPada      DateTime         @default(now()) @map("dibuat_pada")
+  editor          Pengguna?        @relation("AbsensiDiedit", fields: [dieditOleh], references: [id])
+  pengguna        Pengguna         @relation("AbsensiPengguna", fields: [penggunaId], references: [id])
+
+  @@unique([penggunaId, tanggal])
+  @@index([dieditOleh])
+  @@map("absensi")
+}
+
+model GajiKaryawan {
+  id         Int      @id @default(autoincrement())
+  penggunaId Int      @unique @map("pengguna_id")
+  gajiPokok  Decimal  @map("gaji_pokok") @db.Decimal(12, 2)
+  diubahPada DateTime @updatedAt @map("diubah_pada")
+  pengguna   Pengguna @relation(fields: [penggunaId], references: [id])
+
+  @@map("gaji_karyawan")
+}
+
+model PengaturanPotongan {
+  id              Int      @id @default(1)
+  potonganTelat   Decimal  @default(10000.00) @map("potongan_telat") @db.Decimal(12, 2)
+  potonganAlpha   Decimal  @default(15000.00) @map("potongan_alpha") @db.Decimal(12, 2)
+  jamMasukStandar String   @default("08:00:00") @map("jam_masuk_standar")
+  diubahPada      DateTime @updatedAt @map("diubah_pada")
+
+  @@map("pengaturan_potongan")
+}
+
+model HariLibur {
+  id         Int      @id @default(autoincrement())
+  tanggal    DateTime @unique @db.Date
+  keterangan String
+  dibuatPada DateTime @default(now()) @map("dibuat_pada")
+
+  @@map("hari_libur")
+}
+
+model PengajuanIzin {
+  id           Int             @id @default(autoincrement())
+  penggunaId   Int             @map("pengguna_id")
+  tanggal      DateTime        @db.Date
+  jenis        JenisIzin
+  keterangan   String
+  fotoSurat    String?         @map("foto_surat")
+  status       StatusPengajuan @default(menunggu)
+  diprosesOleh Int?            @map("diproses_oleh")
+  waktuProses  DateTime?       @map("waktu_proses")
+  catatanAdmin String?         @map("catatan_admin")
+  dibuatPada   DateTime        @default(now()) @map("dibuat_pada")
+  admin        Pengguna?       @relation("IzinDiproses", fields: [diprosesOleh], references: [id])
+  pengguna     Pengguna        @relation("IzinPengaju", fields: [penggunaId], references: [id])
+
+  @@index([diprosesOleh])
+  @@index([penggunaId])
+  @@map("pengajuan_izin")
+}
+
+model LaporanGaji {
+  id               Int      @id @default(autoincrement())
+  penggunaId       Int      @map("pengguna_id")
+  tahun            Int
+  bulan            Int
+  jumlahTepatWaktu Int      @default(0) @map("jumlah_tepat_waktu")
+  jumlahTelat      Int      @default(0) @map("jumlah_telat")
+  jumlahAlpha      Int      @default(0) @map("jumlah_alpha")
+  jumlahIzin       Int      @default(0) @map("jumlah_izin")
+  jumlahSakit      Int      @default(0) @map("jumlah_sakit")
+  jumlahCuti       Int      @default(0) @map("jumlah_cuti")
+  gajiPokok        Decimal  @map("gaji_pokok") @db.Decimal(12, 2)
+  totalPotongan    Decimal  @map("total_potongan") @db.Decimal(12, 2)
+  gajiDiterima     Decimal  @map("gaji_diterima") @db.Decimal(12, 2)
+  dibuatPada       DateTime @default(now()) @map("dibuat_pada")
+  pengguna         Pengguna @relation(fields: [penggunaId], references: [id])
+
+  @@unique([penggunaId, tahun, bulan])
+  @@map("laporan_gaji")
+}
+
+enum Peran {
+  admin
+  karyawan
+}
+
+enum StatusAkun {
+  menunggu_konfirmasi
+  aktif
+  nonaktif
+}
+
+enum StatusKehadiran {
+  tepat_waktu
+  telat
+  alpha
+  izin
+  sakit
+  cuti
+  urgent
+}
+
+enum JenisIzin {
+  izin
+  sakit
+  cuti
+  urgent
+}
+
+enum StatusPengajuan {
+  menunggu
+  disetujui
+  ditolak
+}
