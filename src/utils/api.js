@@ -22,7 +22,14 @@ export function simpanSesiLogin(token, pengguna) {
 export function getPenggunaLogin() {
   const data = localStorage.getItem("pengguna");
 
-  return data ? JSON.parse(data) : null;
+  if (!data) return null;
+
+  try {
+    return JSON.parse(data);
+  } catch (error) {
+    console.error("Data pengguna di localStorage rusak:", error);
+    return null;
+  }
 }
 
 export function hapusSesiLogin() {
@@ -35,11 +42,10 @@ export function hapusSesiLogin() {
 // ============================================================
 //
 // 401:
-//   Token tidak valid / kedaluwarsa.
+//   Token tidak valid / kedaluwarsa / akun tidak ditemukan.
 //
 // 403:
-//   Hanya logout otomatis jika backend menyatakan
-//   akun sudah dinonaktifkan / tidak aktif.
+//   Hanya logout otomatis jika akun memang dinonaktifkan.
 //
 // 403 karena role:
 //   Tidak logout otomatis.
@@ -47,6 +53,13 @@ export function hapusSesiLogin() {
 // ============================================================
 
 export function pasangPenerjemahSesiKedaluwarsa() {
+  // Jangan pasang interceptor lebih dari satu kali
+  if (window.__interceptorSesiSudahDipasang) {
+    return;
+  }
+
+  window.__interceptorSesiSudahDipasang = true;
+
   const fetchAsli = window.fetch;
 
   window.fetch = async function (...argumen) {
@@ -55,16 +68,16 @@ export function pasangPenerjemahSesiKedaluwarsa() {
     const urlPermintaan =
       typeof argumen[0] === "string" ? argumen[0] : argumen[0]?.url || "";
 
+    // Hanya proses request ke backend kita
     const permintaanKeBackendKita = urlPermintaan.includes("/api/");
 
-    const iniPermintaanAuth = urlPermintaan.includes("/api/auth/");
-
-    // Bukan request API kita
     if (!permintaanKeBackendKita) {
       return respons;
     }
 
-    // Jangan ganggu endpoint login/register
+    // Jangan campuri login, daftar, ganti password, dll.
+    const iniPermintaanAuth = urlPermintaan.includes("/api/auth/");
+
     if (iniPermintaanAuth) {
       return respons;
     }
@@ -74,15 +87,37 @@ export function pasangPenerjemahSesiKedaluwarsa() {
     // ========================================================
 
     if (respons.status === 401) {
-      hapusSesiLogin();
+      let data = {};
 
-      sessionStorage.setItem(
-        "pesanSetelahLogout",
-        "Sesi kamu sudah berakhir. Silakan login kembali.",
-      );
+      try {
+        const salinan = respons.clone();
+        data = await salinan.json();
+      } catch {
+        // Response bukan JSON
+      }
 
-      if (window.location.pathname !== "/login") {
-        window.location.href = "/login";
+      const pesan = String(data?.pesan || "").toLowerCase();
+
+      const memangMasalahSesi =
+        pesan.includes("belum login") ||
+        pesan.includes("sesi login") ||
+        pesan.includes("token") ||
+        pesan.includes("akun tidak ditemukan") ||
+        pesan.includes("kedaluwarsa");
+
+      // Jangan logout secara buta hanya karena HTTP 401.
+      // Logout hanya jika response memang mengindikasikan masalah sesi.
+      if (memangMasalahSesi && getToken()) {
+        hapusSesiLogin();
+
+        sessionStorage.setItem(
+          "pesanSetelahLogout",
+          data?.pesan || "Sesi login sudah berakhir. Silakan login kembali.",
+        );
+
+        if (window.location.pathname !== "/login") {
+          window.location.href = "/login";
+        }
       }
 
       return respons;
@@ -95,22 +130,22 @@ export function pasangPenerjemahSesiKedaluwarsa() {
     if (respons.status === 403) {
       try {
         const salinan = respons.clone();
-
         const data = await salinan.json();
 
         const pesan = String(data?.pesan || "").toLowerCase();
 
         const akunTidakAktif =
           pesan.includes("dinonaktifkan") ||
-          pesan.includes("tidak aktif") ||
-          pesan.includes("status akun");
+          pesan.includes("menunggu konfirmasi");
 
-        if (akunTidakAktif) {
+        // Hanya logout jika memang akun tidak bisa digunakan.
+        if (akunTidakAktif && getToken()) {
           hapusSesiLogin();
 
           sessionStorage.setItem(
             "pesanSetelahLogout",
-            data?.pesan || "Akun Anda telah dinonaktifkan oleh Admin.",
+            data?.pesan ||
+              "Akun Anda tidak dapat digunakan. Silakan hubungi Admin.",
           );
 
           if (window.location.pathname !== "/login") {
