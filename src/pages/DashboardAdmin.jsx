@@ -471,9 +471,16 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
   // ada yang cuma nama file polos. Fungsi ini menangani DUA KEMUNGKINAN
   // itu, supaya foto lama yang sempat tersimpan salah juga ikut normal
   // tampil lagi tanpa perlu karyawan absen ulang.
-  function urlFoto(namaFile) {
+  function urlFoto(namaFile, urlSigned = null) {
+    if (urlSigned) return urlSigned;
     if (!namaFile) return null;
-    return namaFile.startsWith("/uploads/") ? namaFile : `/uploads/${namaFile}`;
+
+    // Untuk data lama yang masih memakai path /uploads/
+    if (namaFile.startsWith("/uploads/")) {
+      return namaFile;
+    }
+
+    return null;
   }
 
   function formatJam(tanggalIso) {
@@ -1082,7 +1089,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                                         title="Lihat foto absen masuk"
                                       >
                                         <img
-                                          src={urlFoto(item.fotoMasuk)}
+                                          src={urlFoto(item.fotoMasuk, item.fotoMasukUrl)}
                                           alt="Foto absen masuk"
                                           style={styles.fotoAbsenThumb}
                                         />
@@ -1096,7 +1103,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                                         title="Lihat foto absen pulang"
                                       >
                                         <img
-                                          src={urlFoto(item.fotoPulang)}
+                                          src={urlFoto(item.fotoPulang, item.fotoPulangUrl)}
                                           alt="Foto absen pulang"
                                           style={styles.fotoAbsenThumb}
                                         />
