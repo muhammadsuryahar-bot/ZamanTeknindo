@@ -75,7 +75,28 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
   const [belumAbsenTerbuka, setBelumAbsenTerbuka] = useState(false);
   const [menunggu, setMenunggu] = useState([]);
   const [karyawan, setKaryawan] = useState([]);
+  const [jumlahKaryawanAktif, setJumlahKaryawanAktif] = useState(0);
+
+  // Loading dibuat per menu supaya perpindahan tab tidak menahan seluruh halaman.
   const [loading, setLoading] = useState(true);
+  const [loadingKaryawan, setLoadingKaryawan] = useState(false);
+  const [loadingKantor, setLoadingKantor] = useState(false);
+
+  // Cache sederhana: data hanya diambil sekali sampai diminta refresh.
+  const [karyawanSudahDimuat, setKaryawanSudahDimuat] = useState(false);
+  const [kantorSudahDimuat, setKantorSudahDimuat] = useState(false);
+
+  // Komponen Izin/Gaji tetap mounted setelah pertama kali dibuka.
+  // Jadi pindah tab tidak memicu fetch ulang.
+  const [tabPernahDibuka, setTabPernahDibuka] = useState({
+    rekap: true,
+    approval: false,
+    karyawan: false,
+    izin: false,
+    gaji: false,
+    kantor: false,
+  });
+
   const [pesan, setPesan] = useState("");
   const [pesanSukses, setPesanSukses] = useState("");
 
@@ -167,6 +188,21 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
   }, []);
 
   useEffect(() => {
+    if (tab === "karyawan") {
+      muatKaryawan();
+    }
+
+    // Tab Kantor baru mengambil datanya saat benar-benar dibuka.
+    // Tab Menunggu tidak perlu data kantor sampai Admin menekan
+    // tombol "Aktifkan Akun".
+    if (tab === "kantor") {
+      muatKantor();
+    }
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  useEffect(() => {
     if (!pesan && !pesanSukses) return;
 
     const timer = setTimeout(() => {
@@ -194,20 +230,18 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
     };
 
     try {
+      // Initial load hanya mengambil data yang diperlukan untuk
+      // dashboard/rekap dan badge Menunggu.
       const responses = await Promise.all([
         fetch(`${API_URL}/admin/rekap-hari-ini`, { headers }),
         fetch(`${API_URL}/admin/akun-menunggu`, { headers }),
-        fetch(`${API_URL}/admin/karyawan`, { headers }),
-        fetch(`${API_URL}/admin/kantor`, { headers }),
       ]);
 
-      const [resRekap, resMenunggu, resKaryawan, resKantor] = responses;
+      const [resRekap, resMenunggu] = responses;
 
       const daftarResponse = [
         { response: resRekap, nama: "rekap absensi" },
         { response: resMenunggu, nama: "akun menunggu" },
-        { response: resKaryawan, nama: "daftar karyawan" },
-        { response: resKantor, nama: "data kantor" },
       ];
 
       for (const item of daftarResponse) {
@@ -231,13 +265,10 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
         }
       }
 
-      const [dataRekap, dataMenunggu, dataKaryawan, dataKantor] =
-        await Promise.all([
-          resRekap.json(),
-          resMenunggu.json(),
-          resKaryawan.json(),
-          resKantor.json(),
-        ]);
+      const [dataRekap, dataMenunggu] = await Promise.all([
+        resRekap.json(),
+        resMenunggu.json(),
+      ]);
 
       if (!Array.isArray(dataRekap.data)) {
         throw new Error("Format data rekap absensi dari server tidak valid.");
@@ -256,19 +287,10 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
         throw new Error("Format data akun menunggu dari server tidak valid.");
       }
 
-      if (!Array.isArray(dataKaryawan.data)) {
-        throw new Error("Format data karyawan dari server tidak valid.");
-      }
-
-      if (!Array.isArray(dataKantor.data)) {
-        throw new Error("Format data kantor dari server tidak valid.");
-      }
-
       setRekap(dataRekap.data);
       setBelumAbsen(dataRekap.belumAbsen || []);
+      setJumlahKaryawanAktif(dataRekap.jumlahKaryawanAktif || 0);
       setMenunggu(dataMenunggu.data);
-      setKaryawan(dataKaryawan.data);
-      setDaftarKantorState(dataKantor.data);
     } catch (err) {
       console.error("Gagal memuat data Dashboard Admin:", err);
       setPesan(
@@ -279,12 +301,101 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
     }
   }
 
-  function bukaFormAktivasi(id) {
+  async function muatKaryawan(force = false) {
+    if (karyawanSudahDimuat && !force) return;
+
+    const token = getToken();
+
+    if (!token) {
+      setPesan("Sesi login tidak ditemukan. Silakan login kembali.");
+      return;
+    }
+
+    setLoadingKaryawan(true);
+
+    try {
+      const res = await fetch(`${API_URL}/admin/karyawan`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(
+          data?.pesan || "Gagal memuat daftar karyawan.",
+        );
+      }
+
+      if (!Array.isArray(data.data)) {
+        throw new Error("Format data karyawan dari server tidak valid.");
+      }
+
+      setKaryawan(data.data);
+      setKaryawanSudahDimuat(true);
+    } catch (err) {
+      console.error("Gagal memuat karyawan:", err);
+      setPesan(err?.message || "Gagal memuat data karyawan.");
+    } finally {
+      setLoadingKaryawan(false);
+    }
+  }
+
+  async function muatKantor(force = false) {
+    if (kantorSudahDimuat && !force) return;
+
+    const token = getToken();
+
+    if (!token) {
+      setPesan("Sesi login tidak ditemukan. Silakan login kembali.");
+      return;
+    }
+
+    setLoadingKantor(true);
+
+    try {
+      const res = await fetch(`${API_URL}/admin/kantor`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.pesan || "Gagal memuat data kantor.");
+      }
+
+      if (!Array.isArray(data.data)) {
+        throw new Error("Format data kantor dari server tidak valid.");
+      }
+
+      setDaftarKantorState(data.data);
+      setKantorSudahDimuat(true);
+      return data.data;
+    } catch (err) {
+      console.error("Gagal memuat kantor:", err);
+      setPesan(err?.message || "Gagal memuat data kantor.");
+    } finally {
+      setLoadingKantor(false);
+    }
+
+    return [];
+  }
+
+  async function bukaFormAktivasi(id) {
+    const kantorData = kantorSudahDimuat
+      ? daftarKantorState
+      : await muatKantor();
+
     setFormAktivasiTerbuka(id);
     setFormAktivasi({
       jabatan: "",
       divisi: "",
-      kantorId: daftarKantorState[0]?.id ? String(daftarKantorState[0].id) : "",
+      kantorId: kantorData?.[0]?.id
+        ? String(kantorData[0].id)
+        : "",
     });
   }
 
@@ -307,7 +418,14 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       if (!res.ok) return setPesan(data.pesan || "Gagal mengaktifkan akun.");
       setPesanSukses(data.pesan);
       setFormAktivasiTerbuka(null);
-      muatData();
+
+      // Rekap + jumlah karyawan aktif berubah setelah aktivasi.
+      await muatData();
+
+      // Kalau daftar Karyawan sudah pernah dibuka, refresh juga.
+      if (karyawanSudahDimuat) {
+        await muatKaryawan(true);
+      }
     } catch (err) {
       console.error(err);
       setPesan("Tidak bisa terhubung ke server.");
@@ -376,7 +494,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
         latitude: "",
         longitude: "",
       });
-      muatData();
+      await muatKantor(true);
     } catch (err) {
       console.error(err);
       setPesan("Tidak bisa terhubung ke server.");
@@ -422,7 +540,12 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       if (!res.ok) return setPesan(data.pesan || "Gagal mengubah status.");
       setPesanSukses(data.pesan);
       setKonfirmasiStatusTerbuka(null);
-      muatData();
+
+      await muatData();
+
+      if (karyawanSudahDimuat) {
+        await muatKaryawan(true);
+      }
     } catch (err) {
       console.error(err);
       setPesan("Tidak bisa terhubung ke server.");
@@ -510,9 +633,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
     ),
   );
 
-  const karyawanAktifCount = karyawan.filter(
-    (k) => k.statusAkun === "aktif",
-  ).length;
+  const karyawanAktifCount = jumlahKaryawanAktif;
   const jumlahTepatWaktu = rekap.filter(
     (r) => (r.statusFinal || r.statusOtomatis) === "tepat_waktu",
   ).length;
@@ -553,6 +674,11 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
 
   function pindahTab(idTab) {
     setTab(idTab);
+
+    setTabPernahDibuka((sebelumnya) => ({
+      ...sebelumnya,
+      [idTab]: true,
+    }));
 
     // Bersihkan pesan saat berpindah menu
     setPesan("");
@@ -1359,7 +1485,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
 
           {tab === "karyawan" && (
             <>
-              {karyawan.length > 0 && (
+              {!loadingKaryawan && karyawan.length > 0 && (
                 <input
                   type="text"
                   value={cariKaryawan}
@@ -1397,9 +1523,9 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {loading && <SkeletonBaris jumlah={4} />}
+                      {loadingKaryawan && <SkeletonBaris jumlah={6} />}
 
-                      {!loading && karyawan.length === 0 && (
+                      {!loadingKaryawan && karyawan.length === 0 && (
                         <tr>
                           <td colSpan={5} style={styles.tdKosong}>
                             Belum ada karyawan aktif.
@@ -1594,8 +1720,17 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
             </>
           )}
 
-          {tab === "izin" && <AdminIzin />}
-          {tab === "gaji" && <PengaturanGaji />}
+          {tabPernahDibuka.izin && (
+            <div style={{ display: tab === "izin" ? "block" : "none" }}>
+              <AdminIzin />
+            </div>
+          )}
+
+          {tabPernahDibuka.gaji && (
+            <div style={{ display: tab === "gaji" ? "block" : "none" }}>
+              <PengaturanGaji />
+            </div>
+          )}
 
           {tab === "kantor" && (
             <>
@@ -1740,12 +1875,21 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                   </p>
                 </div>
                 <span style={styles.kantorCountBadge}>
-                  {daftarKantorState.length} data
+                  {loadingKantor ? "Memuat…" : `${daftarKantorState.length} data`}
                 </span>
               </div>
 
               <div style={styles.kartuGrid}>
-                {daftarKantorState.map((k) => (
+                {loadingKantor ? (
+                  <div style={{ width: "100%" }}>
+                    <table style={styles.tabel}>
+                      <tbody>
+                        <SkeletonBaris jumlah={4} />
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  daftarKantorState.map((k) => (
                   <div
                     key={k.id}
                     style={styles.kantorCard}
@@ -1794,9 +1938,10 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                       </button>
                     </div>
                   </div>
-                ))}
+                ))
+                )}
 
-                {daftarKantorState.length === 0 && (
+                {!loadingKantor && daftarKantorState.length === 0 && (
                   <div style={styles.kantorEmptyBox}>
                     <Building2 size={28} strokeWidth={1.6} />
                     <p style={styles.kantorEmptyTitle}>

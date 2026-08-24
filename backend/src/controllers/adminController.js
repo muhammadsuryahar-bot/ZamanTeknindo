@@ -286,6 +286,7 @@ async function rekapHariIni(req, res) {
     return res.json({
       data: dataDenganFoto,
       belumAbsen,
+      jumlahKaryawanAktif: karyawanAktif.length,
     });
   } catch (error) {
     console.error("Gagal mengambil rekap hari ini:", error);
