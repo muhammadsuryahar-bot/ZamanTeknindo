@@ -884,10 +884,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
               <div style={styles.avatarBadge}>{inisialNama(pengguna.nama)}</div>
 
               <div style={{ minWidth: 0 }}>
-                <p
-                  className="karyawan-header-user-name"
-                  style={styles.namaUser}
-                >
+                <p className="karyawan-header-user-name" style={styles.namaUser}>
                   {pengguna.nama}
                 </p>
                 <p style={styles.subNamaUser}>
@@ -1053,6 +1050,20 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
               {kameraAktif && (
                 <div style={styles.cameraSection}>
+                  <div style={styles.cameraTopbar}>
+                    <div>
+                      <p style={styles.cameraEyebrow}>KAMERA AKTIF</p>
+                      <p style={styles.cameraTitle}>
+                        Posisikan wajah di tengah panduan
+                      </p>
+                    </div>
+
+                    <div style={styles.cameraReadyBadge}>
+                      <span style={styles.cameraReadyDot} />
+                      Siap
+                    </div>
+                  </div>
+
                   <div style={styles.cameraFrame}>
                     <video
                       ref={videoRef}
@@ -1064,12 +1075,26 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
                     <div style={styles.cameraOverlay}>
                       <div style={styles.faceGuide} />
+
+                      <div style={styles.faceGuideHint}>
+                        Wajah berada di tengah
+                      </div>
+                    </div>
+
+                    <div style={styles.cameraLocationBadge}>
+                      <MapPin size={12} />
+                      <span>
+                        {statusLokasi === "mencari" && "Mencari lokasi..."}
+                        {statusLokasi === "ditemukan" && "Lokasi ditemukan"}
+                        {statusLokasi === "gagal" && "Lokasi belum ditemukan"}
+                      </span>
                     </div>
                   </div>
 
-                  <p style={styles.cameraHelp}>
-                    Posisikan wajah di tengah area panduan.
-                  </p>
+                  <div style={styles.cameraHelpRow}>
+                    <ShieldCheck size={14} color={warna.aksen} />
+                    <span>Foto diproses untuk pencatatan absensi.</span>
+                  </div>
 
                   <button
                     onClick={ambilFoto}
@@ -1097,8 +1122,31 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
                       <div style={styles.locationIcon}>
                         <MapPin size={17} />
                       </div>
-                      <div style={{ minWidth: 0 }}>
-                        <p style={styles.locationTitle}>Lokasi Absensi</p>
+
+                      <div style={styles.locationMain}>
+                        <div style={styles.locationTitleRow}>
+                          <p style={styles.locationTitle}>Lokasi Absensi</p>
+
+                          {statusLokasi === "ditemukan" && (
+                            <span
+                              style={{
+                                ...styles.locationAccuracyBadge,
+                                ...(lokasi?.akurasi <= 50
+                                  ? styles.locationAccuracyGood
+                                  : lokasi?.akurasi <= 100
+                                    ? styles.locationAccuracyMedium
+                                    : styles.locationAccuracyWeak),
+                              }}
+                            >
+                              {lokasi?.akurasi <= 50
+                                ? "Akurat"
+                                : lokasi?.akurasi <= 100
+                                  ? "Cukup"
+                                  : "Kurang presisi"}
+                            </span>
+                          )}
+                        </div>
+
                         <p style={styles.locationStatus}>
                           {statusLokasi === "mencari" &&
                             "Sedang mencari lokasi terbaik..."}
@@ -1114,27 +1162,25 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
                     {statusLokasi === "ditemukan" && lokasi?.akurasi && (
                       <div style={styles.locationMeta}>
                         <span>Akurasi ±{lokasi.akurasi} meter</span>
-
-                        {lokasi.akurasi > 100 && (
-                          <span style={styles.locationWarning}>
-                            Kurang presisi
-                          </span>
-                        )}
+                        <span style={styles.locationDot} />
+                        <span>Koordinat berhasil diperoleh</span>
                       </div>
                     )}
 
                     {statusLokasi === "ditemukan" &&
                       lokasi?.latitude !== undefined &&
                       lokasi?.longitude !== undefined && (
-                        <a
-                          href={`https://www.google.com/maps?q=${lokasi.latitude},${lokasi.longitude}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={styles.mapsLink}
-                        >
-                          <Navigation size={14} />
-                          Lihat lokasi di Google Maps
-                        </a>
+                        <div style={styles.locationActions}>
+                          <a
+                            href={`https://www.google.com/maps?q=${lokasi.latitude},${lokasi.longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={styles.mapsLink}
+                          >
+                            <Navigation size={14} />
+                            Lihat lokasi di Google Maps
+                          </a>
+                        </div>
                       )}
                   </div>
 
@@ -1229,6 +1275,36 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
             justify-content: center !important;
             font-size: 11px !important;
             white-space: nowrap;
+          }
+
+          .cameraTopbar {
+            align-items: flex-start;
+          }
+
+          .cameraTitle {
+            max-width: 230px;
+          }
+
+          .cameraReadyBadge {
+            flex-shrink: 0;
+          }
+
+          .faceGuideHint {
+            transform: translate(-50%, calc(-50% + 82px));
+            font-size: 9.5px;
+          }
+
+          .cameraLocationBadge {
+            left: 9px;
+            top: 9px;
+          }
+
+          .cameraHelpRow {
+            font-size: 10.5px;
+          }
+
+          .actionButtons {
+            grid-template-columns: 1fr;
           }
         }
       `}</style>
@@ -1598,6 +1674,93 @@ const styles = {
     width: "100%",
   },
 
+  cameraTopbar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    marginBottom: 10,
+  },
+
+  cameraEyebrow: {
+    margin: 0,
+    fontSize: 10,
+    fontWeight: 800,
+    letterSpacing: "0.08em",
+    color: warna.aksen,
+  },
+
+  cameraTitle: {
+    margin: "3px 0 0",
+    fontSize: 12,
+    color: warna.tintaLembut,
+  },
+
+  cameraReadyBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    minHeight: 28,
+    padding: "5px 9px",
+    borderRadius: 999,
+    background: warna.suksesLembut,
+    color: warna.sukses,
+    fontSize: 10,
+    fontWeight: 700,
+    whiteSpace: "nowrap",
+  },
+
+  cameraReadyDot: {
+    width: 7,
+    height: 7,
+    borderRadius: "50%",
+    background: warna.sukses,
+  },
+
+  faceGuideHint: {
+    position: "absolute",
+    left: "50%",
+    top: "50%",
+    transform: "translate(-50%, calc(-50% + 98px))",
+    padding: "6px 10px",
+    borderRadius: 999,
+    background: "rgba(0,0,0,0.42)",
+    color: "#fff",
+    fontSize: 10.5,
+    fontWeight: 600,
+    whiteSpace: "nowrap",
+    backdropFilter: "blur(6px)",
+  },
+
+  cameraLocationBadge: {
+    position: "absolute",
+    left: 12,
+    top: 12,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    maxWidth: "calc(100% - 24px)",
+    minHeight: 30,
+    padding: "6px 9px",
+    borderRadius: 999,
+    background: "rgba(0,0,0,0.46)",
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: 600,
+    backdropFilter: "blur(7px)",
+  },
+
+  cameraHelpRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    margin: "10px 0 12px",
+    color: warna.tintaLembut,
+    fontSize: 11.5,
+    textAlign: "center",
+  },
+
   cameraFrame: {
     position: "relative",
     width: "100%",
@@ -1664,7 +1827,7 @@ const styles = {
 
   locationCard: {
     marginTop: 12,
-    padding: 13,
+    padding: 14,
     background: warna.panelAlt,
     border: `1px solid ${warna.garis}`,
     borderRadius: 14,
@@ -1675,6 +1838,43 @@ const styles = {
     display: "flex",
     alignItems: "flex-start",
     gap: 10,
+  },
+
+  locationMain: {
+    minWidth: 0,
+    flex: 1,
+  },
+
+  locationTitleRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 7,
+    flexWrap: "wrap",
+  },
+
+  locationAccuracyBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: 22,
+    padding: "3px 7px",
+    borderRadius: 999,
+    fontSize: 9.5,
+    fontWeight: 700,
+  },
+
+  locationAccuracyGood: {
+    color: warna.sukses,
+    background: warna.suksesLembut,
+  },
+
+  locationAccuracyMedium: {
+    color: warna.aksen,
+    background: warna.aksenLembut,
+  },
+
+  locationAccuracyWeak: {
+    color: warna.peringatan,
+    background: warna.peringatanLembut,
   },
 
   locationIcon: {
@@ -1715,6 +1915,19 @@ const styles = {
     color: warna.tintaSamar,
   },
 
+  locationDot: {
+    width: 3,
+    height: 3,
+    borderRadius: "50%",
+    background: warna.tintaSamar,
+  },
+
+  locationActions: {
+    marginTop: 9,
+    paddingTop: 9,
+    borderTop: `1px solid ${warna.garis}`,
+  },
+
   locationWarning: {
     color: warna.peringatan,
     fontFamily: font.display,
@@ -1725,7 +1938,7 @@ const styles = {
     display: "inline-flex",
     alignItems: "center",
     gap: 6,
-    marginTop: 10,
+    marginTop: 0,
     color: warna.aksen,
     fontSize: 11.5,
     fontWeight: 700,
