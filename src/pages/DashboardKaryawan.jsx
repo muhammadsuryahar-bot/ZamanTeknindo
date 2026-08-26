@@ -405,6 +405,11 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       const sisa = await jumlahAntrian();
       setJumlahTertunda(sisa);
 
+      if (!navigator.onLine) {
+        setSedangSinkron(false);
+        return;
+      }
+
       // Tidak perlu memaksa request sinkronisasi saat perangkat masih offline.
       if (sisa === 0 || !navigator.onLine) {
         setSedangSinkron(false);
@@ -444,6 +449,11 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
   async function ambilStatusHariIni() {
     setLoadingStatus(true);
+
+    if (!navigator.onLine) {
+      setLoadingStatus(false);
+      return;
+    }
 
     try {
       const res = await fetch(`${API_URL}/absensi/status-hari-ini`, {
@@ -874,7 +884,10 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
               <div style={styles.avatarBadge}>{inisialNama(pengguna.nama)}</div>
 
               <div style={{ minWidth: 0 }}>
-                <p className="karyawan-header-user-name" style={styles.namaUser}>
+                <p
+                  className="karyawan-header-user-name"
+                  style={styles.namaUser}
+                >
                   {pengguna.nama}
                 </p>
                 <p style={styles.subNamaUser}>
