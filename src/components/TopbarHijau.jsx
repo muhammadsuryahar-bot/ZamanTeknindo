@@ -1,3 +1,4 @@
+import { ArrowLeft } from "lucide-react";
 import { warna, font } from "../styles/theme";
 // Sengaja pakai "logo.png" (bukan "logo-white.png"). Alasannya:
 // filter CSS "brightness(0) invert(1)" di bawah cuma bisa mengubah logo
@@ -14,7 +15,10 @@ import logoWhite from "../assets/logo.png";
 export default function TopbarHijau({ judul, kembali }) {
   return (
     <div style={styles.bar}>
-      <button onClick={kembali} style={styles.tombolKembali}>← Kembali</button>
+      <button onClick={kembali} style={styles.tombolKembali}>
+        <ArrowLeft size={16} strokeWidth={2.2} />
+        <span>Kembali</span>
+      </button>
       <div style={styles.identitas}>
         <img src={logoWhite} alt="" style={styles.logo} />
         <span style={styles.judul}>{judul}</span>
@@ -26,22 +30,35 @@ export default function TopbarHijau({ judul, kembali }) {
 const styles = {
   bar: {
     background: warna.aksenGelap,
-    borderRadius: 8,
-    padding: "12px 16px",
+    borderRadius: 14,
+    padding: "12px 14px 14px",
     marginBottom: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
   },
   tombolKembali: {
-    background: "none",
-    border: "none",
-    color: "rgba(255,255,255,0.85)",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    minHeight: 42,
+    padding: "8px 12px",
+    background: "rgba(255,255,255,0.08)",
+    border: "1px solid rgba(255,255,255,0.14)",
+    borderRadius: 10,
+    color: "rgba(255,255,255,0.92)",
     fontSize: 12,
-    fontWeight: 600,
+    fontWeight: 700,
     cursor: "pointer",
-    padding: 0,
-    marginBottom: 8,
+    marginBottom: 10,
     fontFamily: font.display,
   },
   identitas: { display: "flex", alignItems: "center", gap: 8 },
-  logo: { width: 20, height: 20, borderRadius: 4, display: "block", filter: "brightness(0) invert(1)" },
+  logo: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    display: "block",
+    filter: "brightness(0) invert(1)",
+  },
   judul: { color: "#fff", fontSize: 13.5, fontWeight: 700 },
 };

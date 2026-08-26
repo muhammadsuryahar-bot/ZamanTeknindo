@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import * as turf from "@turf/turf";
 import {
   Camera,
@@ -14,12 +15,14 @@ import {
 } from "lucide-react";
 
 import { API_URL, getToken } from "../utils/api";
-import RiwayatAbsensi from "./RiwayatAbsensi";
-import PengajuanIzin from "./PengajuanIzin";
 import { warna, font } from "../styles/theme";
 import logoHorizontal from "../assets/logo-horizontal.png";
 import logo from "../assets/logo.png";
-import { jumlahAntrian, sinkronkanAntrian, simpanKeAntrian } from "../utils/antrianOffline";
+import {
+  jumlahAntrian,
+  sinkronkanAntrian,
+  simpanKeAntrian,
+} from "../utils/antrianOffline";
 
 let dataProvinsiCache = null;
 
@@ -54,14 +57,24 @@ function DialJamKerja({ tahap }) {
   const [sekarang, setSekarang] = useState(new Date());
 
   useEffect(() => {
-    const interval = setInterval(() => setSekarang(new Date()), 30000);
+    const interval = setInterval(() => {
+      setSekarang(new Date());
+    }, 30000);
+
     return () => clearInterval(interval);
   }, []);
 
   const jamDesimal = sekarang.getHours() + sekarang.getMinutes() / 60;
+
+  // Dial menggambarkan 24 jam penuh.
   const sudutSekarang = (jamDesimal / 24) * 360;
-  const persenMulai = (8 / 24) * 100;
-  const persenSelesai = (17 / 24) * 100;
+
+  // Jam kerja perusahaan.
+  const jamMulai = 8;
+  const jamSelesai = 17;
+
+  const persenMulai = (jamMulai / 24) * 100;
+  const persenSelesai = (jamSelesai / 24) * 100;
 
   const warnaDial =
     tahap === "selesai"
@@ -70,33 +83,105 @@ function DialJamKerja({ tahap }) {
         ? warna.peringatan
         : warna.aksen;
 
+  const labelStatus =
+    tahap === "selesai"
+      ? "Jam kerja selesai"
+      : tahap === "sudah_masuk"
+        ? "Sedang menjalani jam kerja"
+        : "Siap untuk absen masuk";
+
   return (
     <div style={dialStyles.wrapper}>
-      <div
-        style={{
-          ...dialStyles.cincin,
-          background: `conic-gradient(${warna.garis} 0%, ${warna.garis} ${persenMulai}%, ${warnaDial} ${persenMulai}%, ${warnaDial} ${persenSelesai}%, ${warna.garis} ${persenSelesai}%, ${warna.garis} 100%)`,
-        }}
-      >
-        <div style={dialStyles.penandaWrapper}>
-          <div
-            style={{
-              ...dialStyles.penanda,
-              transform: `rotate(${sudutSekarang}deg)`,
-            }}
-          >
-            <div style={dialStyles.titikPenanda} />
-          </div>
+      <div style={dialStyles.header}>
+        <div>
+          <p style={dialStyles.eyebrow}>WAKTU KERJA</p>
+          <p style={dialStyles.description}>Senin–Jumat · 08:00–17:00 WIB</p>
         </div>
 
-        <div style={dialStyles.lubang}>
-          <span style={dialStyles.jamText}>
-            {sekarang.toLocaleTimeString("id-ID", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </span>
-          <span style={dialStyles.jamLabel}>WIB</span>
+        <span
+          style={{
+            ...dialStyles.statusBadge,
+            color: warnaDial,
+            background:
+              tahap === "selesai"
+                ? warna.suksesLembut
+                : tahap === "sudah_masuk"
+                  ? warna.peringatanLembut
+                  : warna.aksenLembut,
+          }}
+        >
+          {labelStatus}
+        </span>
+      </div>
+
+      <div style={dialStyles.cincinWrapper}>
+        <div
+          style={{
+            ...dialStyles.cincin,
+            background: `conic-gradient(
+              ${warna.garis} 0%,
+              ${warna.garis} ${persenMulai}%,
+              ${warnaDial} ${persenMulai}%,
+              ${warnaDial} ${persenSelesai}%,
+              ${warna.garis} ${persenSelesai}%,
+              ${warna.garis} 100%
+            )`,
+          }}
+        >
+          <div style={dialStyles.penandaWrapper}>
+            <div
+              style={{
+                ...dialStyles.penanda,
+                transform: `rotate(${sudutSekarang}deg)`,
+              }}
+            >
+              <div
+                style={{
+                  ...dialStyles.titikPenanda,
+                  background: warnaDial,
+                }}
+              />
+            </div>
+          </div>
+
+          <div style={dialStyles.lubang}>
+            <span style={dialStyles.jamText}>
+              {sekarang.toLocaleTimeString("id-ID", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+
+            <span style={dialStyles.jamLabel}>WIB</span>
+          </div>
+        </div>
+      </div>
+
+      <div style={dialStyles.rentang}>
+        <div>
+          <span style={dialStyles.rentangLabel}>Mulai</span>
+          <strong style={dialStyles.rentangValue}>08:00</strong>
+        </div>
+
+        <div style={dialStyles.garisRentang}>
+          <span
+            style={{
+              ...dialStyles.progressRentang,
+              background: warnaDial,
+              width: `${Math.max(
+                0,
+                Math.min(
+                  100,
+                  ((jamDesimal - jamMulai) / (jamSelesai - jamMulai)) * 100,
+                ),
+              )}%`,
+            }}
+          />
+        </div>
+
+        <div style={{ textAlign: "right" }}>
+          <span style={dialStyles.rentangLabel}>Selesai</span>
+          <strong style={dialStyles.rentangValue}>17:00</strong>
         </div>
       </div>
     </div>
@@ -105,65 +190,151 @@ function DialJamKerja({ tahap }) {
 
 const dialStyles = {
   wrapper: {
+    width: "100%",
+    marginBottom: 22,
+  },
+
+  header: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    flexWrap: "wrap",
+    marginBottom: 12,
+  },
+
+  eyebrow: {
+    margin: 0,
+    fontSize: 10,
+    fontWeight: 800,
+    letterSpacing: "0.1em",
+    color: warna.aksen,
+  },
+
+  description: {
+    margin: "3px 0 0",
+    fontSize: 11.5,
+    color: warna.tintaSamar,
+  },
+
+  statusBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: 28,
+    padding: "5px 9px",
+    borderRadius: 999,
+    fontSize: 10,
+    fontWeight: 700,
+    whiteSpace: "nowrap",
+  },
+
+  cincinWrapper: {
     display: "flex",
     justifyContent: "center",
-    marginBottom: 18,
+    margin: "4px 0 18px",
   },
+
   cincin: {
-    width: 118,
-    height: 118,
+    width: 138,
+    height: 138,
     borderRadius: "50%",
     position: "relative",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
   },
+
   penandaWrapper: {
     position: "absolute",
     inset: 0,
   },
+
   penanda: {
     position: "absolute",
     inset: 0,
     display: "flex",
     justifyContent: "center",
+    transformOrigin: "center",
   },
+
   titikPenanda: {
-    width: 8,
-    height: 8,
+    width: 10,
+    height: 10,
     borderRadius: "50%",
-    background: warna.tinta,
     marginTop: -1,
-    boxShadow: "0 0 0 2px #fff",
+    boxShadow: "0 0 0 3px #fff",
   },
+
   lubang: {
-    width: 90,
-    height: 90,
+    width: 106,
+    height: 106,
     borderRadius: "50%",
     background: warna.panel,
+    border: `1px solid ${warna.garis}`,
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
   },
+
   jamText: {
     fontFamily: font.mono,
-    fontSize: 18,
-    fontWeight: 600,
+    fontSize: 22,
+    fontWeight: 700,
     color: warna.tinta,
     lineHeight: 1.1,
   },
+
   jamLabel: {
+    marginTop: 4,
     fontFamily: font.mono,
     fontSize: 9.5,
     color: warna.tintaSamar,
     letterSpacing: "0.08em",
   },
+
+  rentang: {
+    display: "grid",
+    gridTemplateColumns: "auto 1fr auto",
+    alignItems: "end",
+    gap: 10,
+  },
+
+  rentangLabel: {
+    display: "block",
+    marginBottom: 2,
+    fontSize: 9.5,
+    color: warna.tintaSamar,
+  },
+
+  rentangValue: {
+    display: "block",
+    fontFamily: font.mono,
+    fontSize: 11.5,
+    color: warna.tinta,
+  },
+
+  garisRentang: {
+    height: 6,
+    position: "relative",
+    marginBottom: 2,
+    borderRadius: 999,
+    background: warna.garis,
+    overflow: "hidden",
+  },
+
+  progressRentang: {
+    display: "block",
+    height: "100%",
+    borderRadius: 999,
+    minWidth: 0,
+    maxWidth: "100%",
+  },
 };
 
 export default function DashboardKaryawan({ pengguna, onLogout }) {
+  const navigate = useNavigate();
   const [tahap, setTahap] = useState("memuat");
-  const [halaman, setHalaman] = useState("absen");
   const [kameraAktif, setKameraAktif] = useState(false);
   const [fotoTerambil, setFotoTerambil] = useState(null);
   const [fotoPreview, setFotoPreview] = useState("");
@@ -180,11 +351,18 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   const lokasiTimerRef = useRef(null);
 
   useEffect(() => {
+    document.documentElement.classList.add("karyawan-scroll-hidden");
+    document.body.classList.add("karyawan-scroll-hidden");
+
     ambilStatusHariIni();
     cobaSinkronAntrian();
 
     return () => {
+      document.documentElement.classList.remove("karyawan-scroll-hidden");
+      document.body.classList.remove("karyawan-scroll-hidden");
+
       hentikanKamera();
+
       if (lokasiTimerRef.current) {
         clearTimeout(lokasiTimerRef.current);
       }
@@ -211,7 +389,9 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       setJumlahTertunda(sisaTerbaru);
 
       if (hasil.berhasil > 0) {
-        setPesan(`${hasil.berhasil} absen yang sempat tertunda berhasil terkirim.`);
+        setPesan(
+          `${hasil.berhasil} absen yang sempat tertunda berhasil terkirim.`,
+        );
         await ambilStatusHariIni();
       }
     } catch (err) {
@@ -281,7 +461,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     } catch (err) {
       console.error(err);
       setPesan(
-        "Tidak bisa mengakses kamera. Pastikan izin kamera diberikan pada browser."
+        "Tidak bisa mengakses kamera. Pastikan izin kamera diberikan pada browser.",
       );
     }
   }
@@ -339,7 +519,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         hentikanKamera();
       },
       "image/jpeg",
-      0.86
+      0.86,
     );
   }
 
@@ -352,7 +532,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
   async function ambilKotaKecamatanBigDataCloud(latitude, longitude) {
     const res = await fetch(
-      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=id`
+      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=id`,
     );
 
     const data = await res.json();
@@ -369,18 +549,14 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   }
 
   async function ambilDetailNominatim(latitude, longitude) {
-    const detail = await ambilDetailNominatimPadaZoom(
-      latitude,
-      longitude,
-      18
-    );
+    const detail = await ambilDetailNominatimPadaZoom(latitude, longitude, 18);
 
     if (!detail.jalan) {
       try {
         const detailZoomLebihLuas = await ambilDetailNominatimPadaZoom(
           latitude,
           longitude,
-          17
+          17,
         );
 
         if (detailZoomLebihLuas.jalan) {
@@ -396,7 +572,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
   async function ambilDetailNominatimPadaZoom(latitude, longitude, zoom) {
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=${zoom}&addressdetails=1`
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=${zoom}&addressdetails=1`,
     );
 
     const data = await res.json();
@@ -420,10 +596,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     return {
       jalan: jalanLengkap || null,
       kotaKecamatan:
-        [
-          a.village || a.suburb,
-          a.city || a.town || a.county,
-        ]
+        [a.village || a.suburb, a.city || a.town || a.county]
           .filter(Boolean)
           .join(", ") || null,
     };
@@ -432,9 +605,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   async function ambilAlamatDariKoordinat(latitude, longitude) {
     const [kotaKecamatanBDC, detailNominatim, provinsiResmi] =
       await Promise.all([
-        ambilKotaKecamatanBigDataCloud(latitude, longitude).catch(
-          () => null
-        ),
+        ambilKotaKecamatanBigDataCloud(latitude, longitude).catch(() => null),
         ambilDetailNominatim(latitude, longitude).catch(() => null),
         cariProvinsiResmi(latitude, longitude).catch((err) => {
           console.error("Gagal mencari provinsi resmi:", err);
@@ -500,7 +671,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       try {
         const alamatLengkap = await ambilAlamatDariKoordinat(
           latitude,
-          longitude
+          longitude,
         );
 
         setLokasi({
@@ -550,7 +721,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         enableHighAccuracy: true,
         maximumAge: 0,
         timeout: 15000,
-      }
+      },
     );
 
     lokasiTimerRef.current = setTimeout(selesaikan, 6000);
@@ -582,8 +753,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       formData.append("longitude", lokasi.longitude);
 
       const alamatDasar =
-        lokasi.alamat ||
-        `${lokasi.latitude}, ${lokasi.longitude}`;
+        lokasi.alamat || `${lokasi.latitude}, ${lokasi.longitude}`;
 
       const infoAkurasi = lokasi.akurasi
         ? ` (akurasi ±${lokasi.akurasi}m)`
@@ -592,8 +762,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       formData.append("alamat", alamatDasar + infoAkurasi);
     }
 
-    const endpoint =
-      tahap === "belum_masuk" ? "masuk" : "pulang";
+    const endpoint = tahap === "belum_masuk" ? "masuk" : "pulang";
 
     try {
       const res = await fetch(`${API_URL}/absensi/${endpoint}`, {
@@ -632,7 +801,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
           endpoint,
         });
         setPesan(
-          "Sinyal lagi tidak stabil. Absen kamu sudah tersimpan aman di HP dan akan otomatis terkirim begitu koneksi kembali normal -- tidak perlu ulangi."
+          "Sinyal lagi tidak stabil. Absen kamu sudah tersimpan aman di HP dan akan otomatis terkirim begitu koneksi kembali normal -- tidak perlu ulangi.",
         );
         setFotoTerambil(null);
         setLokasi(null);
@@ -642,19 +811,13 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         // browser mode privat yang membatasi penyimpanan), baru
         // tampilkan pesan gagal biasa.
         console.error(errSimpan);
-        setPesan("Tidak bisa terhubung ke server, dan gagal menyimpan absen secara offline. Coba lagi.");
+        setPesan(
+          "Tidak bisa terhubung ke server, dan gagal menyimpan absen secara offline. Coba lagi.",
+        );
       }
     } finally {
       setLoading(false);
     }
-  }
-
-  if (halaman === "riwayat") {
-    return <RiwayatAbsensi kembali={() => setHalaman("absen")} />;
-  }
-
-  if (halaman === "izin") {
-    return <PengajuanIzin kembali={() => setHalaman("absen")} />;
   }
 
   const judulAksi =
@@ -677,9 +840,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
             />
 
             <div style={styles.userBlock}>
-              <div style={styles.avatarBadge}>
-                {inisialNama(pengguna.nama)}
-              </div>
+              <div style={styles.avatarBadge}>{inisialNama(pengguna.nama)}</div>
 
               <div style={{ minWidth: 0 }}>
                 <p style={styles.namaUser}>{pengguna.nama}</p>
@@ -693,7 +854,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
           <div style={styles.headerActions}>
             <button
-              onClick={() => setHalaman("izin")}
+              onClick={() => navigate("/karyawan/izin")}
               style={styles.headerButton}
               type="button"
             >
@@ -702,7 +863,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
             </button>
 
             <button
-              onClick={() => setHalaman("riwayat")}
+              onClick={() => navigate("/karyawan/riwayat")}
               style={styles.headerButton}
               type="button"
             >
@@ -766,12 +927,10 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
               <div style={styles.successIcon}>
                 <CheckCircle2 size={28} />
               </div>
-              <h2 style={styles.sectionTitle}>
-                Absensi Hari Ini Selesai
-              </h2>
+              <h2 style={styles.sectionTitle}>Absensi Hari Ini Selesai</h2>
               <p style={styles.sectionDescription}>
-                Absen masuk dan pulang kamu sudah tercatat.
-                Terima kasih, sampai jumpa besok.
+                Absen masuk dan pulang kamu sudah tercatat. Terima kasih, sampai
+                jumpa besok.
               </p>
             </div>
           )}
@@ -860,9 +1019,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
                         <MapPin size={17} />
                       </div>
                       <div style={{ minWidth: 0 }}>
-                        <p style={styles.locationTitle}>
-                          Lokasi Absensi
-                        </p>
+                        <p style={styles.locationTitle}>Lokasi Absensi</p>
                         <p style={styles.locationStatus}>
                           {statusLokasi === "mencari" &&
                             "Sedang mencari lokasi terbaik..."}
@@ -877,9 +1034,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
                     {statusLokasi === "ditemukan" && lokasi?.akurasi && (
                       <div style={styles.locationMeta}>
-                        <span>
-                          Akurasi ±{lokasi.akurasi} meter
-                        </span>
+                        <span>Akurasi ±{lokasi.akurasi} meter</span>
 
                         {lokasi.akurasi > 100 && (
                           <span style={styles.locationWarning}>
@@ -954,6 +1109,17 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
           transform: translateY(-1px);
         }
 
+        .karyawan-scroll-hidden {
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+        }
+
+        .karyawan-scroll-hidden::-webkit-scrollbar {
+          display: none;
+          width: 0;
+          height: 0;
+        }
+
         @media (min-width: 761px) {
           .karyawan-page-container {
             padding-top: 32px;
@@ -994,9 +1160,7 @@ function inisialNama(nama) {
     return bagian[0].slice(0, 2).toUpperCase();
   }
 
-  return (
-    bagian[0][0] + bagian[bagian.length - 1][0]
-  ).toUpperCase();
+  return (bagian[0][0] + bagian[bagian.length - 1][0]).toUpperCase();
 }
 
 const styles = {
@@ -1005,7 +1169,8 @@ const styles = {
     background: "#FFFFFF",
     fontFamily: font.display,
     color: warna.tinta,
-    padding: "max(12px, env(safe-area-inset-top)) 12px max(20px, env(safe-area-inset-bottom))",
+    padding:
+      "max(12px, env(safe-area-inset-top)) 12px max(20px, env(safe-area-inset-bottom))",
   },
 
   container: {
