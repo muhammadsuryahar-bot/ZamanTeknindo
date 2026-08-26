@@ -884,7 +884,10 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
               <div style={styles.avatarBadge}>{inisialNama(pengguna.nama)}</div>
 
               <div style={{ minWidth: 0 }}>
-                <p className="karyawan-header-user-name" style={styles.namaUser}>
+                <p
+                  className="karyawan-header-user-name"
+                  style={styles.namaUser}
+                >
                   {pengguna.nama}
                 </p>
                 <p style={styles.subNamaUser}>
@@ -895,11 +898,11 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
             </div>
           </div>
 
-          <div className="karyawan-header-actions" style={styles.headerActions}>
+          <div style={styles.headerActions} className="karyawan-header-actions">
             <button
-              className="karyawan-header-button"
               onClick={() => navigate("/karyawan/izin")}
               style={styles.headerButton}
+              className="karyawan-header-button"
               type="button"
             >
               <FileText size={16} />
@@ -907,9 +910,9 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
             </button>
 
             <button
-              className="karyawan-header-button"
               onClick={() => navigate("/karyawan/riwayat")}
               style={styles.headerButton}
+              className="karyawan-header-button"
               type="button"
             >
               <History size={16} />
@@ -917,9 +920,9 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
             </button>
 
             <button
-              className="karyawan-header-button"
               onClick={onLogout}
               style={styles.headerLogout}
+              className="karyawan-header-button"
               type="button"
               aria-label="Keluar"
             >
@@ -1050,15 +1053,24 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
               {kameraAktif && (
                 <div style={styles.cameraSection}>
-                  <div style={styles.cameraTopbar}>
+                  <div
+                    style={styles.cameraTopbar}
+                    className="cameraTopbar"
+                  >
                     <div>
                       <p style={styles.cameraEyebrow}>KAMERA AKTIF</p>
-                      <p style={styles.cameraTitle}>
+                      <p
+                        style={styles.cameraTitle}
+                        className="cameraTitle"
+                      >
                         Posisikan wajah di tengah panduan
                       </p>
                     </div>
 
-                    <div style={styles.cameraReadyBadge}>
+                    <div
+                      style={styles.cameraReadyBadge}
+                      className="cameraReadyBadge"
+                    >
                       <span style={styles.cameraReadyDot} />
                       Siap
                     </div>
@@ -1076,12 +1088,18 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
                     <div style={styles.cameraOverlay}>
                       <div style={styles.faceGuide} />
 
-                      <div style={styles.faceGuideHint}>
+                      <div
+                          style={styles.faceGuideHint}
+                          className="faceGuideHint"
+                        >
                         Wajah berada di tengah
                       </div>
                     </div>
 
-                    <div style={styles.cameraLocationBadge}>
+                    <div
+                      style={styles.cameraLocationBadge}
+                      className="cameraLocationBadge"
+                    >
                       <MapPin size={12} />
                       <span>
                         {statusLokasi === "mencari" && "Mencari lokasi..."}
@@ -1091,7 +1109,10 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
                     </div>
                   </div>
 
-                  <div style={styles.cameraHelpRow}>
+                  <div
+                    style={styles.cameraHelpRow}
+                    className="cameraHelpRow"
+                  >
                     <ShieldCheck size={14} color={warna.aksen} />
                     <span>Foto diproses untuk pencatatan absensi.</span>
                   </div>
@@ -1184,7 +1205,10 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
                       )}
                   </div>
 
-                  <div style={styles.actionButtons}>
+                  <div
+                    style={styles.actionButtons}
+                    className="karyawan-action-buttons"
+                  >
                     <button
                       onClick={fotoUlang}
                       style={styles.secondaryButton}
@@ -1277,6 +1301,10 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
             white-space: nowrap;
           }
 
+          .karyawan-action-buttons {
+            grid-template-columns: 1fr !important;
+          }
+
           .cameraTopbar {
             align-items: flex-start;
           }
@@ -1301,10 +1329,6 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
           .cameraHelpRow {
             font-size: 10.5px;
-          }
-
-          .actionButtons {
-            grid-template-columns: 1fr;
           }
         }
       `}</style>
