@@ -410,9 +410,9 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         return;
       }
 
-      // Tidak perlu memaksa request sinkronisasi saat perangkat masih offline.
-      if (sisa === 0 || !navigator.onLine) {
+      if (sisa === 0) {
         setSedangSinkron(false);
+        await ambilStatusHariIni();
         return;
       }
 
