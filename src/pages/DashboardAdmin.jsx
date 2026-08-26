@@ -20,6 +20,9 @@ import {
   CheckCircle2,
   MapPin,
   Info,
+  AlertTriangle,
+  FileText,
+  UserX,
 } from "lucide-react";
 
 const DAFTAR_STATUS = [
@@ -654,6 +657,14 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
     year: "numeric",
   });
 
+  // Sapaan berdasarkan jam saat ini -- cuma dipakai di tab "rekap" (halaman
+  // utama admin), supaya kesan pertama masuk lebih terasa personal ("Command
+  // Center"), bukan cuma judul tab yang datar seperti tab-tab lain.
+  const jamSaatIni = new Date().getHours();
+  const sapaan =
+    jamSaatIni < 11 ? "Selamat pagi" : jamSaatIni < 15 ? "Selamat siang" : jamSaatIni < 19 ? "Selamat sore" : "Selamat malam";
+  const namaDepanAdmin = (pengguna?.nama || "Admin").trim().split(" ")[0];
+
   function inisialNama(nama) {
     if (!nama) return "?";
     const bagian = nama.trim().split(" ");
@@ -668,6 +679,16 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
     { id: "izin", label: "Izin" },
     { id: "gaji", label: "Gaji" },
     { id: "kantor", label: "Kantor Pusat" },
+  ];
+
+  // Pengelompokan tab sidebar jadi beberapa seksi (WORKSPACE/PEOPLE/dst) --
+  // murni untuk tampilan nav, tidak mengubah daftar `tabs` di atas sama
+  // sekali (itu masih dipakai apa adanya untuk judul halaman & badge).
+  const grupSidebar = [
+    { label: "WORKSPACE", idTab: ["rekap", "approval"] },
+    { label: "PEOPLE", idTab: ["karyawan", "izin"] },
+    { label: "FINANCE", idTab: ["gaji"] },
+    { label: "SYSTEM", idTab: ["kantor"] },
   ];
 
   const judulTab = tabs.find((t) => t.id === tab)?.label || "";
@@ -713,23 +734,30 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
         </div>
 
         <nav style={styles.navSidebar}>
-          {tabs.map((t) => {
-            const Ikon = IKON_TAB[t.id];
-            return (
-              <button
-                key={t.id}
-                onClick={() => pindahTab(t.id)}
-                style={tab === t.id ? styles.navItemAktif : styles.navItem}
-                className="nav-item-hover"
-              >
-                <Ikon size={17} strokeWidth={2} style={styles.navIkon} />
-                <span style={{ flex: 1, textAlign: "left" }}>{t.label}</span>
-                {t.badge ? (
-                  <span style={styles.navBadge}>{t.badge}</span>
-                ) : null}
-              </button>
-            );
-          })}
+          {grupSidebar.map((grup) => (
+            <div key={grup.label} style={styles.navGrup}>
+              <p style={styles.navGrupLabel}>{grup.label}</p>
+              {grup.idTab.map((id) => {
+                const t = tabs.find((x) => x.id === id);
+                if (!t) return null;
+                const Ikon = IKON_TAB[t.id];
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => pindahTab(t.id)}
+                    style={tab === t.id ? styles.navItemAktif : styles.navItem}
+                    className="nav-item-hover"
+                  >
+                    <Ikon size={17} strokeWidth={2} style={styles.navIkon} />
+                    <span style={{ flex: 1, textAlign: "left" }}>{t.label}</span>
+                    {t.badge ? (
+                      <span style={styles.navBadge}>{t.badge}</span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         <div style={styles.sidebarBawah}>
@@ -845,7 +873,9 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
 
         <div style={styles.headerAtas}>
           <div>
-            <h1 style={styles.judulHalaman}>{judulTab}</h1>
+            <h1 style={styles.judulHalaman}>
+              {tab === "rekap" ? `${sapaan}, ${namaDepanAdmin}` : judulTab}
+            </h1>
             <p style={styles.subJudulHalaman}>{jamSekarang}</p>
           </div>
         </div>
@@ -857,7 +887,16 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
           {tab === "rekap" && (
             <>
               <div style={styles.statGrid}>
-                <div style={styles.statCard}>
+                <div style={{ ...styles.statCard, borderLeft: `3px solid ${warna.aksen}` }}>
+                  <div
+                    style={{
+                      ...styles.statIconWrap,
+                      color: warna.aksen,
+                      background: warna.aksenLembut,
+                    }}
+                  >
+                    <Users size={17} strokeWidth={2} />
+                  </div>
                   <span style={styles.statAngka}>{karyawanAktifCount}</span>
                   <span style={styles.statLabel}>Karyawan Aktif</span>
                 </div>
@@ -867,6 +906,15 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                     borderLeft: `3px solid ${warna.sukses}`,
                   }}
                 >
+                  <div
+                    style={{
+                      ...styles.statIconWrap,
+                      color: warna.sukses,
+                      background: warna.suksesLembut,
+                    }}
+                  >
+                    <CheckCircle2 size={17} strokeWidth={2} />
+                  </div>
                   <span style={{ ...styles.statAngka, color: warna.sukses }}>
                     {jumlahTepatWaktu}
                   </span>
@@ -878,6 +926,15 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                     borderLeft: `3px solid ${warna.peringatan}`,
                   }}
                 >
+                  <div
+                    style={{
+                      ...styles.statIconWrap,
+                      color: warna.peringatan,
+                      background: warna.peringatanLembut,
+                    }}
+                  >
+                    <AlertTriangle size={17} strokeWidth={2} />
+                  </div>
                   <span
                     style={{ ...styles.statAngka, color: warna.peringatan }}
                   >
@@ -891,6 +948,15 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                     borderLeft: `3px solid ${warna.aksen}`,
                   }}
                 >
+                  <div
+                    style={{
+                      ...styles.statIconWrap,
+                      color: warna.aksen,
+                      background: warna.aksenLembut,
+                    }}
+                  >
+                    <FileText size={17} strokeWidth={2} />
+                  </div>
                   <span style={{ ...styles.statAngka, color: warna.aksen }}>
                     {jumlahIzinSakitDll}
                   </span>
@@ -909,6 +975,15 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                   className="stat-card-belum-absen"
                   aria-expanded={belumAbsenTerbuka}
                 >
+                  <div
+                    style={{
+                      ...styles.statIconWrap,
+                      color: warna.tintaLembut,
+                      background: warna.panelAlt,
+                    }}
+                  >
+                    <UserX size={17} strokeWidth={2} />
+                  </div>
                   <span
                     style={{ ...styles.statAngka, color: warna.tintaSamar }}
                   >
@@ -1012,6 +1087,44 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                     >
                       <div style={styles.ringkasanKotak}>
                         <p style={styles.ringkasanJudul}>Tren Kehadiran</p>
+                        <div style={styles.legendaChart}>
+                          <span style={styles.legendaItem}>
+                            <span
+                              style={{
+                                ...styles.legendaDot,
+                                background: warna.sukses,
+                              }}
+                            />
+                            Tepat waktu
+                          </span>
+                          <span style={styles.legendaItem}>
+                            <span
+                              style={{
+                                ...styles.legendaDot,
+                                background: warna.peringatan,
+                              }}
+                            />
+                            Telat
+                          </span>
+                          <span style={styles.legendaItem}>
+                            <span
+                              style={{
+                                ...styles.legendaDot,
+                                background: warna.aksen,
+                              }}
+                            />
+                            Izin/Cuti
+                          </span>
+                          <span style={styles.legendaItem}>
+                            <span
+                              style={{
+                                ...styles.legendaDot,
+                                background: warna.bahaya,
+                              }}
+                            />
+                            Alpha
+                          </span>
+                        </div>
                         <div style={styles.chartBarGroup}>
                           {ringkasan.tren7Hari.map((h) => {
                             const total =
@@ -1095,9 +1208,14 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                             Tidak ada yang perlu disorot.
                           </p>
                         )}
-                        {ringkasan.sorotanKaryawan.map((k) => (
+                        {ringkasan.sorotanKaryawan.map((k, idx) => (
                           <div key={k.id} style={styles.sorotanBaris}>
-                            <span style={styles.sorotanNama}>{k.nama}</span>
+                            <span style={styles.sorotanNamaWrap}>
+                              <span style={styles.sorotanPeringkat}>
+                                {idx + 1}
+                              </span>
+                              <span style={styles.sorotanNama}>{k.nama}</span>
+                            </span>
                             <span style={styles.sorotanAngka}>
                               {k.telat > 0 && (
                                 <span style={{ color: warna.peringatan }}>
@@ -1402,8 +1520,27 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                     style={styles.itemCard}
                     className="kartu-hover"
                   >
-                    <strong style={styles.itemNama}>{item.nama}</strong>
-                    <p style={styles.itemSub}>{item.email}</p>
+                    <div style={styles.itemCardHeader}>
+                      <div style={styles.avatarMini}>
+                        {inisialNama(item.nama)}
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <strong style={styles.itemNama}>{item.nama}</strong>
+                        <p style={styles.itemSub}>{item.email}</p>
+                      </div>
+                      <span style={styles.badgeMenunggu}>Menunggu</span>
+                    </div>
+
+                    {item.dibuatPada && (
+                      <p style={styles.itemMetaDaftar}>
+                        <Clock size={11} strokeWidth={2} />
+                        Mendaftar{" "}
+                        {new Date(item.dibuatPada).toLocaleDateString(
+                          "id-ID",
+                          { day: "numeric", month: "long", year: "numeric" },
+                        )}
+                      </p>
+                    )}
 
                     {formAktivasiTerbuka !== item.id ? (
                       <button
@@ -1547,11 +1684,16 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                           <Fragment key={item.id}>
                             <tr className="baris-hover">
                               <td style={{ ...styles.td, ...styles.tdSticky }}>
-                                <strong
-                                  style={{ color: warna.tinta, fontSize: 13.5 }}
-                                >
-                                  {item.nama}
-                                </strong>
+                                <div style={styles.tdNamaWrap}>
+                                  <div style={styles.avatarTabelMini}>
+                                    {inisialNama(item.nama)}
+                                  </div>
+                                  <strong
+                                    style={{ color: warna.tinta, fontSize: 13.5 }}
+                                  >
+                                    {item.nama}
+                                  </strong>
+                                </div>
                               </td>
                               <td
                                 style={{
@@ -1997,7 +2139,15 @@ const styles = {
     objectPosition: "left center",
     display: "block",
   },
-  navSidebar: { display: "flex", flexDirection: "column", gap: 2, flex: 1 },
+  navSidebar: { display: "flex", flexDirection: "column", gap: 4, flex: 1 },
+  navGrup: { display: "flex", flexDirection: "column", gap: 2 },
+  navGrupLabel: {
+    margin: "12px 10px 4px",
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: "0.08em",
+    color: warna.tintaSamar,
+  },
   navItem: {
     display: "flex",
     alignItems: "center",
@@ -2217,6 +2367,34 @@ const styles = {
     fontSize: 12.5,
   },
   sorotanNama: { color: warna.tinta },
+  sorotanNamaWrap: { display: "flex", alignItems: "center", gap: 8 },
+  sorotanPeringkat: {
+    width: 18,
+    height: 18,
+    borderRadius: "50%",
+    background: warna.panelAlt,
+    color: warna.tintaSamar,
+    fontSize: 10,
+    fontWeight: 700,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  legendaChart: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "6px 12px",
+    margin: "-6px 0 12px",
+  },
+  legendaItem: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 5,
+    fontSize: 10.5,
+    color: warna.tintaLembut,
+  },
+  legendaDot: { width: 6, height: 6, borderRadius: "50%", flexShrink: 0 },
   sorotanAngka: {
     fontSize: 11.5,
     color: warna.tintaLembut,
@@ -2232,6 +2410,15 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     gap: 4,
+  },
+  statIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
   },
   statAngka: {
     fontSize: 26,
@@ -2302,6 +2489,20 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     fontSize: 10.5,
+    fontWeight: 700,
+    flexShrink: 0,
+  },
+  tdNamaWrap: { display: "flex", alignItems: "center", gap: 9 },
+  avatarTabelMini: {
+    width: 26,
+    height: 26,
+    borderRadius: "50%",
+    background: warna.aksenLembut,
+    color: warna.aksen,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 9.5,
     fontWeight: 700,
     flexShrink: 0,
   },
@@ -2434,11 +2635,35 @@ const styles = {
     borderRadius: 10,
     padding: 16,
     border: `1px solid ${warna.garis}`,
+    borderLeft: `3px solid ${warna.peringatan}`,
     transition:
       "border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease",
   },
+  itemCardHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 10,
+    marginBottom: 12,
+  },
+  badgeMenunggu: {
+    flexShrink: 0,
+    fontSize: 10.5,
+    fontWeight: 700,
+    color: warna.peringatan,
+    background: warna.peringatanLembut,
+    padding: "3px 8px",
+    borderRadius: 999,
+  },
+  itemMetaDaftar: {
+    display: "flex",
+    alignItems: "center",
+    gap: 5,
+    fontSize: 11,
+    color: warna.tintaSamar,
+    margin: "-4px 0 12px",
+  },
   itemNama: { fontSize: 14.5, color: warna.tinta },
-  itemSub: { fontSize: 12.5, color: warna.tintaLembut, margin: "3px 0 12px 0" },
+  itemSub: { fontSize: 12.5, color: warna.tintaLembut, margin: "3px 0 0 0" },
 
   kosongBox: {
     textAlign: "center",

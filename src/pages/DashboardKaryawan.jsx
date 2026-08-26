@@ -890,7 +890,8 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
             <h1 style={styles.heroTitle}>{judulAksi}</h1>
             {jumlahTertunda > 0 && (
               <p style={styles.badgeTertunda}>
-                ⏳ {jumlahTertunda} absen menunggu dikirim (tersimpan offline)
+                <Clock3 size={13} />
+                {jumlahTertunda} absen menunggu dikirim (tersimpan offline)
               </p>
             )}
             <p style={styles.heroDate}>
@@ -1322,7 +1323,9 @@ const styles = {
     fontWeight: 600,
     color: warna.peringatan,
     background: warna.peringatanLembut,
-    display: "inline-block",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
     padding: "4px 10px",
     borderRadius: 20,
   },
