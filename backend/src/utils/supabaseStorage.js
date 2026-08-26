@@ -64,8 +64,56 @@ async function buatSignedUrlFoto(filePath, expiresIn = 300) {
   return data.signedUrl;
 }
 
+// ============================================================
+// BUAT SIGNED URL UNTUK BANYAK FOTO SEKALIGUS (1 REQUEST)
+// ============================================================
+//
+// Dipakai kalau butuh signed URL untuk banyak foto dalam satu
+// waktu (misal rekap absensi harian). Jauh lebih cepat daripada
+// panggil buatSignedUrlFoto() satu-satu di dalam loop, karena
+// ini cuma 1 request ke Supabase untuk semua path sekaligus,
+// bukan 1 request per foto.
+//
+// Balikannya berupa Map<filePath, signedUrl> supaya gampang
+// di-lookup di pemanggilnya (kalau gagal untuk path tertentu,
+// path itu tidak akan ada di Map -- bukan melempar error).
+//
+async function buatSignedUrlFotoBatch(filePaths, expiresIn = 300) {
+  const pathUnik = [...new Set(filePaths.filter(Boolean))];
+
+  if (pathUnik.length === 0) return new Map();
+
+  const { data, error } = await supabase.storage
+    .from(BUCKET_NAME)
+    .createSignedUrls(pathUnik, expiresIn);
+
+  if (error) {
+    console.error("Gagal membuat signed URL batch:", error.message);
+    return new Map();
+  }
+
+  const hasil = new Map();
+
+  for (const item of data) {
+    // Tiap item bisa punya error sendiri-sendiri (misal file
+    // tertentu sudah terhapus dari storage) tanpa bikin
+    // seluruh batch gagal.
+    if (!item.error && item.signedUrl) {
+      hasil.set(item.path, item.signedUrl);
+    } else if (item.error) {
+      console.error(
+        `Gagal membuat signed URL untuk ${item.path}:`,
+        item.error
+      );
+    }
+  }
+
+  return hasil;
+}
+
 module.exports = {
   uploadFotoAbsensi,
   deleteFotoAbsensi,
   buatSignedUrlFoto,
+  buatSignedUrlFotoBatch,
 };

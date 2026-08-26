@@ -1,6 +1,6 @@
 const prisma = require("../utils/prismaClient");
 const { tanggalHariIniWIB } = require("../utils/waktuIndonesia");
-const { buatSignedUrlFoto } = require("../utils/supabaseStorage");
+const { buatSignedUrlFotoBatch } = require("../utils/supabaseStorage");
 
 // ============================================================
 // LIHAT DAFTAR AKUN YANG MENUNGGU KONFIRMASI
@@ -213,56 +213,41 @@ async function rekapHariIni(req, res) {
     // ============================================================
     // BUAT SIGNED URL UNTUK FOTO DARI SUPABASE STORAGE
     // ============================================================
-    const dataDenganFoto = await Promise.all(
-      data.map(async (item) => {
-        let fotoMasukUrl = null;
-        let fotoPulangUrl = null;
+        const semuaPathFoto = [];
 
-        // FOTO ABSEN MASUK
-        if (item.fotoMasuk) {
-          try {
-            if (!item.fotoMasuk.startsWith("/uploads/")) {
-              fotoMasukUrl = await buatSignedUrlFoto(
-                item.fotoMasuk
-              );
-            } else {
-              // Data lama yang masih menggunakan /uploads/
-              fotoMasukUrl = item.fotoMasuk;
-            }
-          } catch (error) {
-            console.error(
-              "Gagal membuat signed URL foto masuk:",
-              error.message
-            );
-          }
-        }
+    for (const item of data) {
+      if (item.fotoMasuk && !item.fotoMasuk.startsWith("/uploads/")) {
+        semuaPathFoto.push(item.fotoMasuk);
+      }
+      if (item.fotoPulang && !item.fotoPulang.startsWith("/uploads/")) {
+        semuaPathFoto.push(item.fotoPulang);
+      }
+    }
 
-        // FOTO ABSEN PULANG
-        if (item.fotoPulang) {
-          try {
-            if (!item.fotoPulang.startsWith("/uploads/")) {
-              fotoPulangUrl = await buatSignedUrlFoto(
-                item.fotoPulang
-              );
-            } else {
-              // Data lama yang masih menggunakan /uploads/
-              fotoPulangUrl = item.fotoPulang;
-            }
-          } catch (error) {
-            console.error(
-              "Gagal membuat signed URL foto pulang:",
-              error.message
-            );
-          }
-        }
+    const petaUrlFoto = await buatSignedUrlFotoBatch(semuaPathFoto);
 
-        return {
-          ...item,
-          fotoMasukUrl,
-          fotoPulangUrl,
-        };
-      })
-    );
+    const dataDenganFoto = data.map((item) => {
+      let fotoMasukUrl = null;
+      let fotoPulangUrl = null;
+
+      if (item.fotoMasuk) {
+        fotoMasukUrl = item.fotoMasuk.startsWith("/uploads/")
+          ? item.fotoMasuk
+          : petaUrlFoto.get(item.fotoMasuk) || null;
+      }
+
+      if (item.fotoPulang) {
+        fotoPulangUrl = item.fotoPulang.startsWith("/uploads/")
+          ? item.fotoPulang
+          : petaUrlFoto.get(item.fotoPulang) || null;
+      }
+
+      return {
+        ...item,
+        fotoMasukUrl,
+        fotoPulangUrl,
+      };
+    });
 
     // ============================================================
     // CARI KARYAWAN YANG SUDAH ABSEN
