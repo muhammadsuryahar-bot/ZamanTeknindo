@@ -12,6 +12,8 @@ import {
   CheckCircle2,
   ShieldCheck,
   Navigation,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 
 import { API_URL, getToken } from "../utils/api";
@@ -344,6 +346,10 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   const [loading, setLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [jumlahTertunda, setJumlahTertunda] = useState(0);
+  const [isOnline, setIsOnline] = useState(() =>
+    typeof navigator === "undefined" ? true : navigator.onLine,
+  );
+  const [sedangSinkron, setSedangSinkron] = useState(false);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -362,7 +368,6 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       document.body.classList.remove("karyawan-scroll-hidden");
 
       hentikanKamera();
-
       if (lokasiTimerRef.current) {
         clearTimeout(lokasiTimerRef.current);
       }
@@ -370,11 +375,28 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Begitu koneksi internet HP balik nyala (event bawaan browser),
-  // otomatis coba kirim ulang absen yang sempat tertahan di antrian.
+  // Pantau perubahan koneksi browser. Saat online kembali, antrian offline
+  // langsung dicoba sinkron otomatis. Saat offline, pengguna diberi tahu
+  // bahwa absensi tetap aman disimpan di perangkat.
   useEffect(() => {
-    window.addEventListener("online", cobaSinkronAntrian);
-    return () => window.removeEventListener("online", cobaSinkronAntrian);
+    const ketikaOnline = () => {
+      setIsOnline(true);
+      cobaSinkronAntrian();
+    };
+
+    const ketikaOffline = () => {
+      setIsOnline(false);
+      setSedangSinkron(false);
+    };
+
+    setIsOnline(navigator.onLine);
+    window.addEventListener("online", ketikaOnline);
+    window.addEventListener("offline", ketikaOffline);
+
+    return () => {
+      window.removeEventListener("online", ketikaOnline);
+      window.removeEventListener("offline", ketikaOffline);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -382,8 +404,14 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     try {
       const sisa = await jumlahAntrian();
       setJumlahTertunda(sisa);
-      if (sisa === 0) return;
 
+      // Tidak perlu memaksa request sinkronisasi saat perangkat masih offline.
+      if (sisa === 0 || !navigator.onLine) {
+        setSedangSinkron(false);
+        return;
+      }
+
+      setSedangSinkron(true);
       const hasil = await sinkronkanAntrian({ apiUrl: API_URL, getToken });
       const sisaTerbaru = await jumlahAntrian();
       setJumlahTertunda(sisaTerbaru);
@@ -395,9 +423,11 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         await ambilStatusHariIni();
       }
     } catch (err) {
-      // Diam-diam saja kalau gagal cek antrian -- tidak perlu ganggu
-      // pengalaman utama karyawan, nanti dicoba lagi otomatis.
+      // Gagal sinkron tidak boleh menghapus data lokal. Antrian tetap ada
+      // dan akan dicoba lagi saat koneksi kembali normal.
       console.error(err);
+    } finally {
+      setSedangSinkron(false);
     }
   }
 
@@ -828,12 +858,13 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         : "Absensi Hari Ini";
 
   return (
-    <div style={styles.page}>
+    <div className="karyawan-page" style={styles.page}>
       <div style={styles.container}>
         {/* HEADER */}
         <header style={styles.header}>
           <div style={styles.brandHeader}>
             <img
+              className="karyawan-header-logo"
               src={logoHorizontal}
               alt="PT. Zaman Teknindo"
               style={styles.logoHeader}
@@ -843,7 +874,9 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
               <div style={styles.avatarBadge}>{inisialNama(pengguna.nama)}</div>
 
               <div style={{ minWidth: 0 }}>
-                <p style={styles.namaUser}>{pengguna.nama}</p>
+                <p className="karyawan-header-user-name" style={styles.namaUser}>
+                  {pengguna.nama}
+                </p>
                 <p style={styles.subNamaUser}>
                   {pengguna.jabatan || "Karyawan"}
                   {pengguna.divisi ? ` · ${pengguna.divisi}` : ""}
@@ -852,8 +885,9 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
             </div>
           </div>
 
-          <div style={styles.headerActions}>
+          <div className="karyawan-header-actions" style={styles.headerActions}>
             <button
+              className="karyawan-header-button"
               onClick={() => navigate("/karyawan/izin")}
               style={styles.headerButton}
               type="button"
@@ -863,6 +897,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
             </button>
 
             <button
+              className="karyawan-header-button"
               onClick={() => navigate("/karyawan/riwayat")}
               style={styles.headerButton}
               type="button"
@@ -872,6 +907,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
             </button>
 
             <button
+              className="karyawan-header-button"
               onClick={onLogout}
               style={styles.headerLogout}
               type="button"
@@ -904,9 +940,38 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
             </p>
           </div>
 
-          <div style={styles.securityBadge}>
-            <ShieldCheck size={15} />
-            Data absensi terlindungi
+          <div style={styles.heroBadges}>
+            <div
+              style={{
+                ...styles.networkBadge,
+                color: isOnline ? warna.sukses : warna.peringatan,
+                background: isOnline
+                  ? warna.suksesLembut
+                  : warna.peringatanLembut,
+              }}
+            >
+              {isOnline ? <Wifi size={14} /> : <WifiOff size={14} />}
+              {isOnline ? "Online" : "Offline"}
+            </div>
+
+            <div style={styles.securityBadge}>
+              <ShieldCheck size={15} />
+              Data absensi terlindungi
+            </div>
+
+            {!isOnline && (
+              <div style={styles.offlineNotice}>
+                Koneksi terputus. Absensi akan tetap disimpan di perangkat dan
+                dikirim otomatis saat internet kembali.
+              </div>
+            )}
+
+            {isOnline && sedangSinkron && jumlahTertunda > 0 && (
+              <div style={styles.syncNotice}>
+                <RefreshCcw size={13} />
+                Sedang mengirim {jumlahTertunda} absen yang tertunda...
+              </div>
+            )}
           </div>
         </section>
 
@@ -1106,10 +1171,6 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       <style>{`
         * { box-sizing: border-box; }
 
-        .karyawan-button-hover:hover {
-          transform: translateY(-1px);
-        }
-
         .karyawan-scroll-hidden {
           scrollbar-width: none;
           -ms-overflow-style: none;
@@ -1121,11 +1182,8 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
           height: 0;
         }
 
-        @media (min-width: 761px) {
-          .karyawan-page-container {
-            padding-top: 32px;
-            padding-bottom: 40px;
-          }
+        .karyawan-button-hover:hover {
+          transform: translateY(-1px);
         }
 
         @media (max-width: 760px) {
@@ -1135,16 +1193,29 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         }
 
         @media (max-width: 520px) {
+          .karyawan-header-logo {
+            width: 150px !important;
+            margin-bottom: 10px !important;
+          }
+
+          .karyawan-header-user-name {
+            font-size: 15px !important;
+          }
+
           .karyawan-header-actions {
             width: 100%;
             display: grid !important;
             grid-template-columns: repeat(3, 1fr);
+            gap: 7px !important;
           }
 
           .karyawan-header-button {
             width: 100% !important;
+            min-height: 44px !important;
+            padding: 8px 6px !important;
             justify-content: center !important;
-            min-height: 42px !important;
+            font-size: 11px !important;
+            white-space: nowrap;
           }
         }
       `}</style>
@@ -1185,7 +1256,11 @@ const styles = {
     alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 16,
-    padding: "4px 2px 16px",
+    padding: "14px",
+    marginBottom: 12,
+    background: warna.panel,
+    border: `1px solid ${warna.garis}`,
+    borderRadius: 18,
     flexWrap: "wrap",
   },
 
@@ -1330,6 +1405,29 @@ const styles = {
     borderRadius: 20,
   },
 
+  heroBadges: {
+    display: "flex",
+    alignItems: "flex-end",
+    justifyContent: "flex-end",
+    flexDirection: "column",
+    gap: 7,
+    maxWidth: 310,
+  },
+
+  networkBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    minHeight: 30,
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: `1px solid ${warna.garis}`,
+    fontSize: 10.5,
+    fontWeight: 700,
+    whiteSpace: "nowrap",
+  },
+
   securityBadge: {
     display: "inline-flex",
     alignItems: "center",
@@ -1342,6 +1440,32 @@ const styles = {
     fontSize: 10.5,
     fontWeight: 650,
     whiteSpace: "nowrap",
+  },
+
+  offlineNotice: {
+    maxWidth: 310,
+    padding: "8px 10px",
+    borderRadius: 11,
+    background: warna.peringatanLembut,
+    border: `1px solid ${warna.garis}`,
+    color: warna.tintaLembut,
+    fontSize: 10.5,
+    lineHeight: 1.45,
+    textAlign: "right",
+  },
+
+  syncNotice: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "7px 10px",
+    borderRadius: 10,
+    background: warna.aksenLembut,
+    border: `1px solid ${warna.garis}`,
+    color: warna.aksen,
+    fontSize: 10.5,
+    fontWeight: 650,
+    textAlign: "right",
   },
 
   mainCard: {

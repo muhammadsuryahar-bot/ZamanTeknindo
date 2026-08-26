@@ -1310,17 +1310,24 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                                 <td
                                   style={{ ...styles.td, ...styles.tdSticky }}
                                 >
-                                  <strong
-                                    style={{
-                                      color: warna.tinta,
-                                      fontSize: 13.5,
-                                    }}
-                                  >
-                                    {item.pengguna.nama}
-                                  </strong>
-                                  <div style={styles.tdSub}>
-                                    {item.pengguna.jabatan || "-"} ·{" "}
-                                    {item.pengguna.divisi || "-"}
+                                  <div style={styles.tdNamaWrap}>
+                                    <div style={styles.avatarTabelMini}>
+                                      {inisialNama(item.pengguna.nama)}
+                                    </div>
+                                    <div style={{ minWidth: 0 }}>
+                                      <strong
+                                        style={{
+                                          color: warna.tinta,
+                                          fontSize: 13.5,
+                                        }}
+                                      >
+                                        {item.pengguna.nama}
+                                      </strong>
+                                      <div style={styles.tdSub}>
+                                        {item.pengguna.jabatan || "-"} ·{" "}
+                                        {item.pengguna.divisi || "-"}
+                                      </div>
+                                    </div>
                                   </div>
                                 </td>
                                 <td style={styles.td}>
