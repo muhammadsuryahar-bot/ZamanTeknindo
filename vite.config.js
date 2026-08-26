@@ -45,6 +45,39 @@ export default defineConfig({
         // karyawan lihat data basi karena ke-cache.
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         navigateFallbackDenylist: [/^\/api/, /^\/uploads/],
+
+        // Halaman-halaman yang di-lazy-load (lihat React.lazy() di
+        // App.jsx) SENGAJA dikeluarkan dari precache di sini. Kalau
+        // tidak, Service Worker bakal langsung mengunduh semuanya
+        // begitu app pertama dibuka -- membatalkan tujuan lazy-load
+        // (yang justru ingin menunda unduhan sampai benar-benar
+        // dibutuhkan). Sebagai gantinya, file-file ini di-cache lewat
+        // runtimeCaching di bawah: baru disimpan SETELAH benar-benar
+        // diminta browser (jadi tetap bisa dipakai offline nantinya,
+        // tanpa bikin boros kuota di awal).
+        globIgnores: [
+          "**/DashboardAdmin-*.js",
+          "**/DashboardKaryawan-*.js",
+          "**/PengajuanIzin-*.js",
+          "**/RiwayatAbsensi-*.js",
+          "**/GantiPassword-*.js",
+          "**/Daftar-*.js",
+        ],
+
+        runtimeCaching: [
+          {
+            // Tangkap file JS/CSS apa saja yang di-request browser tapi
+            // belum ada di precache (termasuk semua chunk halaman di
+            // atas). StaleWhileRevalidate: langsung pakai versi cache
+            // kalau ada (cepat), sambil diam-diam cek versi terbaru di
+            // belakang layar untuk kunjungan berikutnya.
+            urlPattern: /\.(?:js|css)$/,
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "aset-halaman-lazy",
+            },
+          },
+        ],
       },
     }),
   ],
