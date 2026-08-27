@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_URL, getToken } from "../utils/api";
 import { warna, font } from "../styles/theme";
@@ -23,6 +23,10 @@ import {
   AlertTriangle,
   FileText,
   UserX,
+  Bell,
+  UserPlus,
+  FileCheck2,
+  X,
 } from "lucide-react";
 
 const DAFTAR_STATUS = [
@@ -143,6 +147,34 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
   // Sidebar mobile (dibuka lewat hamburger di topbar kecil)
   const [sidebarMobileTerbuka, setSidebarMobileTerbuka] = useState(false);
 
+  // Notifikasi Admin -- jumlah dihitung dari akun baru + pengajuan izin
+  // yang masih menunggu diproses. Badge menunjukkan "hal yang masih perlu
+  // diproses", bukan "notif yang belum pernah dilihat", supaya tidak
+  // hilang begitu saja hanya karena admin sempat membuka panelnya.
+  const [notifikasi, setNotifikasi] = useState({
+    akunBaru: 0,
+    izinBaru: 0,
+    total: 0,
+  });
+  const [notifikasiTerbuka, setNotifikasiTerbuka] = useState(false);
+  const notifikasiRef = useRef(null);
+
+  // Tutup panel notifikasi kalau admin klik di luar area panel/tombolnya --
+  // tanpa ini, panel cuma bisa ditutup dengan klik tombol X, yang terasa
+  // aneh dibanding pola dropdown pada umumnya.
+  useEffect(() => {
+    if (!notifikasiTerbuka) return;
+
+    function tanganiKlikLuar(e) {
+      if (notifikasiRef.current && !notifikasiRef.current.contains(e.target)) {
+        setNotifikasiTerbuka(false);
+      }
+    }
+
+    document.addEventListener("mousedown", tanganiKlikLuar);
+    return () => document.removeEventListener("mousedown", tanganiKlikLuar);
+  }, [notifikasiTerbuka]);
+
   // Penanda "tabel sudah digeser sampai ujung kanan" (khusus HP) — kalau
   // sudah di ujung, gradient fade di tepi kanan disembunyikan karena tidak
   // ada lagi yang perlu diisyaratkan ke pengguna
@@ -215,6 +247,49 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
 
     return () => clearTimeout(timer);
   }, [pesan, pesanSukses]);
+
+  // Notifikasi Admin dicek begitu dashboard dibuka, lalu diulang tiap 15
+  // detik -- supaya admin tidak perlu refresh manual buat tahu ada
+  // pengajuan izin/akun baru yang masuk.
+  useEffect(() => {
+    muatNotifikasi();
+
+    const interval = setInterval(() => {
+      muatNotifikasi();
+    }, 15000);
+
+    return () => clearInterval(interval);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function muatNotifikasi() {
+    const token = getToken();
+
+    if (!token) return;
+
+    try {
+      const res = await fetch(`${API_URL}/admin/notifikasi`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) return;
+
+      const data = await res.json();
+
+      if (!data?.data) return;
+
+      setNotifikasi({
+        akunBaru: Number(data.data.akunBaru) || 0,
+        izinBaru: Number(data.data.izinBaru) || 0,
+        total: Number(data.data.total) || 0,
+      });
+    } catch (error) {
+      // Notifikasi bukan bagian yang boleh membuat seluruh dashboard
+      // ikut gagal kalau gagal dimuat -- cukup dicatat di console.
+      console.error("Gagal memuat notifikasi Admin:", error);
+    }
+  }
 
   async function muatData() {
     setLoading(true);
@@ -675,8 +750,12 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
   const tabs = [
     { id: "rekap", label: "Rekap Hari Ini" },
     { id: "approval", label: "Menunggu", badge: menunggu.length || null },
-    { id: "karyawan", label: "Karyawan" },
-    { id: "izin", label: "Izin" },
+    {
+      id: "karyawan",
+      label: "Karyawan",
+      badge: notifikasi.akunBaru || null,
+    },
+    { id: "izin", label: "Izin", badge: notifikasi.izinBaru || null },
     { id: "gaji", label: "Gaji" },
     { id: "kantor", label: "Kantor Pusat" },
   ];
@@ -877,6 +956,128 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
               {tab === "rekap" ? `${sapaan}, ${namaDepanAdmin}` : judulTab}
             </h1>
             <p style={styles.subJudulHalaman}>{jamSekarang}</p>
+          </div>
+
+          <div
+            style={styles.notifikasiWrapper}
+            className="notifikasi-wrapper"
+            ref={notifikasiRef}
+          >
+            <button
+              type="button"
+              onClick={() => setNotifikasiTerbuka((v) => !v)}
+              style={styles.notifikasiButton}
+              aria-label="Buka notifikasi"
+              aria-expanded={notifikasiTerbuka}
+            >
+              <Bell size={18} strokeWidth={2} />
+              {notifikasi.total > 0 && (
+                <span style={styles.notifikasiCount}>
+                  {notifikasi.total > 99 ? "99+" : notifikasi.total}
+                </span>
+              )}
+            </button>
+
+            {notifikasiTerbuka && (
+              <div style={styles.notifikasiPanel} className="notifikasi-panel">
+                <div style={styles.notifikasiPanelHeader}>
+                  <div>
+                    <p style={styles.notifikasiPanelTitle}>Notifikasi</p>
+                    <p style={styles.notifikasiPanelSubTitle}>
+                      Hal yang perlu diperiksa Admin
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setNotifikasiTerbuka(false)}
+                    style={styles.notifikasiCloseButton}
+                    aria-label="Tutup notifikasi"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                {notifikasi.total === 0 ? (
+                  <div style={styles.notifikasiKosong}>
+                    <CheckCircle2 size={25} strokeWidth={1.7} />
+                    <strong>Tidak ada notifikasi baru</strong>
+                    <span>Semua pengajuan dan akun sudah diperiksa.</span>
+                  </div>
+                ) : (
+                  <div style={styles.notifikasiList}>
+                    {notifikasi.akunBaru > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNotifikasiTerbuka(false);
+                          pindahTab("karyawan");
+                        }}
+                        style={styles.notifikasiItem}
+                      >
+                        <div
+                          style={{
+                            ...styles.notifikasiItemIcon,
+                            color: warna.aksen,
+                            background: warna.aksenLembut,
+                          }}
+                        >
+                          <UserPlus size={17} />
+                        </div>
+                        <div style={styles.notifikasiItemContent}>
+                          <strong style={styles.notifikasiItemJudul}>
+                            {notifikasi.akunBaru} akun karyawan baru
+                          </strong>
+                          <span style={styles.notifikasiItemSub}>
+                            Menunggu aktivasi oleh Admin.
+                          </span>
+                        </div>
+                        <ArrowRight
+                          size={15}
+                          style={styles.notifikasiArrow}
+                        />
+                      </button>
+                    )}
+
+                    {notifikasi.izinBaru > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNotifikasiTerbuka(false);
+                          pindahTab("izin");
+                        }}
+                        style={styles.notifikasiItem}
+                      >
+                        <div
+                          style={{
+                            ...styles.notifikasiItemIcon,
+                            color: warna.aksen,
+                            background: warna.aksenLembut,
+                          }}
+                        >
+                          <FileCheck2 size={17} />
+                        </div>
+                        <div style={styles.notifikasiItemContent}>
+                          <strong style={styles.notifikasiItemJudul}>
+                            {notifikasi.izinBaru} pengajuan izin baru
+                          </strong>
+                          <span style={styles.notifikasiItemSub}>
+                            Menunggu persetujuan Admin.
+                          </span>
+                        </div>
+                        <ArrowRight
+                          size={15}
+                          style={styles.notifikasiArrow}
+                        />
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                <div style={styles.notifikasiFooter}>
+                  Pemeriksaan otomatis setiap 15 detik
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -2283,7 +2484,7 @@ const styles = {
   headerAtas: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "flex-end",
+    alignItems: "center",
     marginBottom: 22,
   },
   judulHalaman: {
@@ -2297,6 +2498,134 @@ const styles = {
     fontSize: 13,
     color: warna.tintaLembut,
   },
+
+  notifikasiWrapper: { position: "relative", flexShrink: 0 },
+  notifikasiButton: {
+    position: "relative",
+    width: 40,
+    height: 40,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    border: `1px solid ${warna.garis}`,
+    background: warna.panel,
+    color: warna.tinta,
+    cursor: "pointer",
+  },
+  notifikasiCount: {
+    position: "absolute",
+    top: -5,
+    right: -5,
+    minWidth: 18,
+    height: 18,
+    padding: "0 5px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 999,
+    background: warna.bahaya,
+    color: "#fff",
+    border: "2px solid #fff",
+    fontSize: 9,
+    fontWeight: 800,
+    lineHeight: 1,
+  },
+  notifikasiPanel: {
+    position: "absolute",
+    top: 48,
+    right: 0,
+    width: 340,
+    maxWidth: "calc(100vw - 32px)",
+    background: warna.panel,
+    border: `1px solid ${warna.garis}`,
+    borderRadius: 14,
+    boxShadow: "0 16px 40px rgba(22,35,61,0.14)",
+    overflow: "hidden",
+    zIndex: 30,
+  },
+  notifikasiPanelHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    padding: "14px 14px 12px",
+    borderBottom: `1px solid ${warna.garis}`,
+  },
+  notifikasiPanelTitle: {
+    margin: 0,
+    fontSize: 14,
+    fontWeight: 750,
+    color: warna.tinta,
+  },
+  notifikasiPanelSubTitle: {
+    margin: "3px 0 0",
+    fontSize: 10.5,
+    color: warna.tintaSamar,
+  },
+  notifikasiCloseButton: {
+    width: 28,
+    height: 28,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    border: "none",
+    borderRadius: 8,
+    background: warna.panelAlt,
+    color: warna.tintaLembut,
+    cursor: "pointer",
+    flexShrink: 0,
+  },
+  notifikasiList: { display: "flex", flexDirection: "column" },
+  notifikasiItem: {
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "12px 14px",
+    border: "none",
+    borderBottom: `1px solid ${warna.garis}`,
+    background: "transparent",
+    textAlign: "left",
+    cursor: "pointer",
+  },
+  notifikasiItemIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  notifikasiItemContent: {
+    minWidth: 0,
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    gap: 3,
+  },
+  notifikasiItemJudul: { fontSize: 12, fontWeight: 700, color: warna.tinta },
+  notifikasiItemSub: { fontSize: 11, color: warna.tintaLembut },
+  notifikasiArrow: { color: warna.tintaSamar, flexShrink: 0 },
+  notifikasiKosong: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    padding: "28px 18px",
+    color: warna.tintaSamar,
+    textAlign: "center",
+  },
+  notifikasiFooter: {
+    padding: "9px 14px",
+    background: warna.panelAlt,
+    color: warna.tintaSamar,
+    fontSize: 9.5,
+    textAlign: "center",
+  },
+
   content: { maxWidth: 1040 },
 
   statGrid: {

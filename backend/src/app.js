@@ -16,10 +16,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// Daftar alamat frontend yang boleh akses API ini.
-// Saat digabung 1 domain di Vercel, request frontend->backend jadi
-// same-origin (relatif ke "/api"), jadi CORS di bawah ini praktis
-// hanya relevan untuk development lokal / akses dari luar domain.
+// Daftar alamat frontend yang boleh mengakses API.
+// Untuk production, isi FRONTEND_URL dengan domain resmi, misalnya:
+// https://zaman-teknindo.vercel.app
+// Untuk beberapa domain, pisahkan dengan koma.
 const originYangDiizinkan = (process.env.FRONTEND_URL || "")
   .split(",")
   .map((s) => s.trim())
@@ -27,20 +27,29 @@ const originYangDiizinkan = (process.env.FRONTEND_URL || "")
 
 const polaIpLokal = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}):\d+$/;
 const polaNgrok = /^https:\/\/[a-z0-9-]+\.ngrok-free\.dev$/;
-const polaVercelPreview = /^https:\/\/[a-z0-9-]+\.vercel\.app$/;
 
 app.use(
   cors({
     origin: (origin, callback) => {
+      // Request server-to-server / same-origin tanpa header Origin.
       if (!origin) return callback(null, true);
+
+      // Development lokal.
       if (polaIpLokal.test(origin)) return callback(null, true);
+
+      // Development/testing melalui ngrok.
       if (polaNgrok.test(origin)) return callback(null, true);
-      if (polaVercelPreview.test(origin)) return callback(null, true);
-      if (originYangDiizinkan.includes(origin)) return callback(null, true);
+
+      // Production / domain yang memang kita daftarkan.
+      if (originYangDiizinkan.includes(origin)) {
+        return callback(null, true);
+      }
+
       return callback(new Error("Domain ini tidak diizinkan mengakses API."));
     },
-  })
+  }),
 );
+
 app.use(express.json());
 
 // Rute-rute utama

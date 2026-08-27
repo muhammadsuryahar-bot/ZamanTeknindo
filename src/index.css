@@ -195,6 +195,23 @@ textarea:focus {
   .ringkasan-grid {
     grid-template-columns: 1fr !important;
   }
+
+  /* Panel notifikasi Admin: di layar sempit, dropdown lebar tetap (340px)
+     bisa kepotong/keluar layar. Di sini dipaksa jadi lebar penuh dengan
+     jarak aman kiri-kanan, dan posisinya fixed relatif ke layar (bukan
+     ke tombol Bell) supaya tidak pernah overflow. */
+  .notifikasi-wrapper {
+    position: static !important;
+  }
+
+  .notifikasi-panel {
+    position: fixed !important;
+    top: 64px !important;
+    right: 12px !important;
+    left: 12px !important;
+    width: auto !important;
+    max-width: none !important;
+  }
 }
 
 /* ===== Dashboard Karyawan ===== */

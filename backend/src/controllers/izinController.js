@@ -1,14 +1,24 @@
 const prisma = require("../utils/prismaClient");
+const {
+  deleteFotoAbsensi,
+  buatSignedUrlFotoBatch,
+} = require("../utils/supabaseStorage");
 
 // ============================================================
 // KARYAWAN — Ajukan izin/sakit/cuti/urgent
 // ============================================================
 async function ajukanIzin(req, res) {
+  // req.file berasal dari middleware kompresFoto.
+  // Jika request akhirnya ditolak, file yang baru saja di-upload
+  // harus dihapus agar tidak menjadi file yatim di Storage.
+  const fotoBaru = req.file?.filename || null;
+
   try {
     const { tanggal, jenis, keterangan } = req.body;
     const penggunaId = req.user.id;
 
     if (!tanggal || !jenis || !keterangan) {
+      if (fotoBaru) await deleteFotoAbsensi(fotoBaru);
       return res
         .status(400)
         .json({ pesan: "Tanggal, jenis, dan keterangan wajib diisi." });
@@ -16,16 +26,18 @@ async function ajukanIzin(req, res) {
 
     const jenisValid = ["izin", "sakit", "cuti", "urgent"];
     if (!jenisValid.includes(jenis)) {
+      if (fotoBaru) await deleteFotoAbsensi(fotoBaru);
       return res.status(400).json({ pesan: "Jenis pengajuan tidak valid." });
     }
 
-    // Sakit wajib lampirkan foto surat, sesuai dokumen sistem
+    // Sakit wajib melampirkan foto surat.
     if (jenis === "sakit" && !req.file) {
       return res.status(400).json({
         pesan: "Untuk pengajuan Sakit, foto surat sakit wajib dilampirkan.",
       });
     }
 
+    // Untuk jenis selain sakit, lampiran tetap boleh ada tetapi tidak wajib.
     const fotoSurat = req.file ? req.file.filename : null;
 
     const pengajuanAktif = await prisma.pengajuanIzin.findFirst({
@@ -39,6 +51,8 @@ async function ajukanIzin(req, res) {
     });
 
     if (pengajuanAktif) {
+      if (fotoBaru) await deleteFotoAbsensi(fotoBaru);
+
       return res.status(400).json({
         pesan:
           "Kamu sudah memiliki pengajuan aktif untuk tanggal tersebut. Selesaikan pengajuan yang ada terlebih dahulu.",
@@ -61,6 +75,9 @@ async function ajukanIzin(req, res) {
       data: izin,
     });
   } catch (error) {
+    // Kalau DB gagal setelah file berhasil di-upload, hapus file baru.
+    if (fotoBaru) await deleteFotoAbsensi(fotoBaru);
+
     console.error(error);
     return res.status(500).json({
       pesan: "Terjadi kesalahan pada server. Silakan coba lagi.",
@@ -94,7 +111,12 @@ async function riwayatIzinSaya(req, res) {
 // ============================================================
 async function daftarSemuaIzin(req, res) {
   try {
-    const { status } = req.query; // ?status=menunggu (opsional)
+    const { status } = req.query;
+    const statusValid = ["menunggu", "disetujui", "ditolak"];
+
+    if (status && !statusValid.includes(status)) {
+      return res.status(400).json({ pesan: "Filter status tidak valid." });
+    }
 
     const data = await prisma.pengajuanIzin.findMany({
       where: status ? { status } : {},
@@ -104,7 +126,30 @@ async function daftarSemuaIzin(req, res) {
       orderBy: { dibuatPada: "desc" },
     });
 
-    return res.json({ data });
+    // Buat signed URL sekaligus untuk semua surat yang tersimpan di
+    // Supabase Storage. Path legacy /uploads/ tetap dipertahankan.
+    const semuaPathFoto = data
+      .map((item) => item.fotoSurat)
+      .filter((path) => path && !path.startsWith("/uploads/"));
+
+    const petaUrlFoto = await buatSignedUrlFotoBatch(semuaPathFoto);
+
+    const dataDenganFoto = data.map((item) => {
+      let fotoSuratUrl = null;
+
+      if (item.fotoSurat) {
+        fotoSuratUrl = item.fotoSurat.startsWith("/uploads/")
+          ? item.fotoSurat
+          : petaUrlFoto.get(item.fotoSurat) || null;
+      }
+
+      return {
+        ...item,
+        fotoSuratUrl,
+      };
+    });
+
+    return res.json({ data: dataDenganFoto });
   } catch (error) {
     console.error(error);
     return res.status(500).json({
@@ -142,18 +187,12 @@ async function setujuiIzin(req, res) {
       });
     }
 
-    // ============================================================
     // UPDATE PENGAJUAN + ABSENSI DALAM SATU TRANSACTION
-    // ============================================================
     const hasil = await prisma.$transaction(async (tx) => {
-      // ----------------------------------------------------------
-      // 1. Tandai pengajuan sebagai disetujui
-      // ----------------------------------------------------------
       const izinDiupdate = await tx.pengajuanIzin.update({
         where: {
           id: parseInt(id),
         },
-
         data: {
           status: "disetujui",
           diprosesOleh: adminId,
@@ -162,9 +201,6 @@ async function setujuiIzin(req, res) {
         },
       });
 
-      // ----------------------------------------------------------
-      // 2. Buat / update absensi pada tanggal pengajuan
-      // ----------------------------------------------------------
       const absensi = await tx.absensi.upsert({
         where: {
           penggunaId_tanggal: {
@@ -172,14 +208,12 @@ async function setujuiIzin(req, res) {
             tanggal: izin.tanggal,
           },
         },
-
         update: {
           statusFinal: izin.jenis,
           catatanAdmin: `Disetujui sebagai ${izin.jenis} (pengajuan #${izin.id})`,
           dieditOleh: adminId,
           waktuEdit: new Date(),
         },
-
         create: {
           penggunaId: izin.penggunaId,
           tanggal: izin.tanggal,
@@ -221,9 +255,11 @@ async function tolakIzin(req, res) {
     const izin = await prisma.pengajuanIzin.findUnique({
       where: { id: parseInt(id) },
     });
+
     if (!izin) {
       return res.status(404).json({ pesan: "Pengajuan tidak ditemukan." });
     }
+
     if (izin.status !== "menunggu") {
       return res
         .status(400)
