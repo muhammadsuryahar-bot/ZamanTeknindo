@@ -473,7 +473,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
   async function cobaSinkronAntrian({ refreshStatus = true } = {}) {
     try {
-      const sisa = await jumlahAntrian();
+      const sisa = await jumlahAntrian(pengguna.id);
       if (!mountedRef.current) return;
 
       setJumlahTertunda(sisa);
@@ -498,8 +498,12 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       setSedangSinkron(true);
       setPesanSinkronisasi("");
 
-      const hasil = await sinkronkanAntrian({ apiUrl: API_URL, getToken });
-      const sisaTerbaru = await jumlahAntrian();
+      const hasil = await sinkronkanAntrian({
+        apiUrl: API_URL,
+        getToken,
+        penggunaId: pengguna.id,
+      });
+      const sisaTerbaru = await jumlahAntrian(pengguna.id);
 
       if (!mountedRef.current) return;
 
@@ -551,7 +555,9 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     setFotoPreview("");
   }, [fotoTerambil]);
 
-  async function ambilStatusHariIni({ pertahankanVerifikasiSaatFallback = false } = {}) {
+  async function ambilStatusHariIni({
+    pertahankanVerifikasiSaatFallback = false,
+  } = {}) {
     const requestId = ++statusRequestRef.current;
     const tahapCacheAwal = bacaCacheStatusHariIni(pengguna);
 
@@ -1042,7 +1048,9 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     }
 
     if (!TAHAP_VALID.has(tahap) || tahap === "selesai") {
-      setPesan("Status absensi belum siap untuk dikirim. Muat ulang status absensi.");
+      setPesan(
+        "Status absensi belum siap untuk dikirim. Muat ulang status absensi.",
+      );
       return;
     }
 
@@ -1080,7 +1088,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         endpoint,
       });
 
-      const sisa = await jumlahAntrian();
+      const sisa = await jumlahAntrian(pengguna.id);
 
       if (mountedRef.current) {
         setJumlahTertunda(sisa);
@@ -1138,7 +1146,8 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       // POST berhasil adalah bukti server bahwa aksi absensi diterima.
       // Update state + cache langsung agar status tidak kembali ke cache lama
       // bila GET status-hari-ini sedang lambat atau gagal.
-      const tahapSetelahAbsen = endpoint === "masuk" ? "sudah_masuk" : "selesai";
+      const tahapSetelahAbsen =
+        endpoint === "masuk" ? "sudah_masuk" : "selesai";
       setTahap(tahapSetelahAbsen);
       setStatusTerverifikasi(true);
       setStatusVerifikasiSedang(false);
@@ -1308,9 +1317,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
           {!loadingStatus &&
             tahap !== "memuat" &&
-            tahap !== "belum_terverifikasi" && (
-              <DialJamKerja tahap={tahap} />
-            )}
+            tahap !== "belum_terverifikasi" && <DialJamKerja tahap={tahap} />}
 
           {tahap === "belum_terverifikasi" && (
             <div style={styles.unverifiedBox}>
@@ -1320,8 +1327,8 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
               <h2 style={styles.sectionTitle}>Status absensi belum tersedia</h2>
               <p style={styles.sectionDescription}>
                 Sistem belum berhasil memastikan status absensi hari ini. Untuk
-                keamanan, tombol absensi tidak ditampilkan sampai status berhasil
-                diverifikasi.
+                keamanan, tombol absensi tidak ditampilkan sampai status
+                berhasil diverifikasi.
               </p>
               <button
                 onClick={() => void ambilStatusHariIni()}
@@ -1417,16 +1424,10 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
               {kameraAktif && (
                 <div style={styles.cameraSection}>
-                  <div
-                    style={styles.cameraTopbar}
-                    className="cameraTopbar"
-                  >
+                  <div style={styles.cameraTopbar} className="cameraTopbar">
                     <div>
                       <p style={styles.cameraEyebrow}>KAMERA AKTIF</p>
-                      <p
-                        style={styles.cameraTitle}
-                        className="cameraTitle"
-                      >
+                      <p style={styles.cameraTitle} className="cameraTitle">
                         Posisikan wajah di tengah panduan
                       </p>
                     </div>
@@ -1453,9 +1454,9 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
                       <div style={styles.faceGuide} />
 
                       <div
-                          style={styles.faceGuideHint}
-                          className="faceGuideHint"
-                        >
+                        style={styles.faceGuideHint}
+                        className="faceGuideHint"
+                      >
                         Wajah berada di tengah
                       </div>
                     </div>
@@ -1473,10 +1474,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
                     </div>
                   </div>
 
-                  <div
-                    style={styles.cameraHelpRow}
-                    className="cameraHelpRow"
-                  >
+                  <div style={styles.cameraHelpRow} className="cameraHelpRow">
                     <ShieldCheck size={14} color={warna.aksen} />
                     <span>Foto diproses untuk pencatatan absensi.</span>
                   </div>
