@@ -27,14 +27,15 @@ export default function AdminIzin() {
       const data = await res.json();
 
       if (!res.ok) {
-        setPesan(data.pesan || "Gagal memuat daftar pengajuan.");
         setDaftar([]);
+        setPesan(data.pesan || "Gagal memuat daftar pengajuan.");
         return;
       }
 
       setDaftar(data.data || []);
     } catch (err) {
       console.error(err);
+      setDaftar([]);
       setPesan("Gagal memuat daftar pengajuan.");
     } finally {
       setLoading(false);
@@ -79,7 +80,6 @@ export default function AdminIzin() {
       cuti: "Cuti",
       urgent: "Urgent",
     };
-
     return label[jenis] || jenis;
   }
 
@@ -122,14 +122,13 @@ export default function AdminIzin() {
             key={f.key || "semua"}
             onClick={() => setFilterStatus(f.key)}
             style={filterStatus === f.key ? styles.filterAktif : styles.filter}
-            type="button"
           >
             {f.label}
           </button>
         ))}
       </div>
 
-      {pesan && <p style={styles.pesan}>{pesan}</p>}
+      {pesan && <p style={styles.pesanError}>{pesan}</p>}
 
       {loading && <p style={styles.kosong}>Memuat…</p>}
 
@@ -180,8 +179,7 @@ export default function AdminIzin() {
               </div>
 
               <p style={styles.itemDetail}>
-                {labelJenis(item.jenis)}{" "}
-                <span style={styles.pemisah}>·</span>{" "}
+                {labelJenis(item.jenis)} <span style={styles.pemisah}>·</span>{" "}
                 {tanggalTampil}
               </p>
 
@@ -204,7 +202,6 @@ export default function AdminIzin() {
                     onClick={() => prosesIzin(item.id, "setujui")}
                     style={styles.tombolSetujui}
                     disabled={prosesId === item.id}
-                    type="button"
                   >
                     {prosesId === item.id ? "…" : "Setujui"}
                   </button>
@@ -213,7 +210,6 @@ export default function AdminIzin() {
                     onClick={() => prosesIzin(item.id, "tolak")}
                     style={styles.tombolTolak}
                     disabled={prosesId === item.id}
-                    type="button"
                   >
                     {prosesId === item.id ? "…" : "Tolak"}
                   </button>
@@ -237,7 +233,6 @@ const styles = {
     marginBottom: 16,
     flexWrap: "wrap",
   },
-
   filter: {
     padding: "8px 14px",
     background: warna.panel,
@@ -248,7 +243,6 @@ const styles = {
     fontWeight: 500,
     cursor: "pointer",
   },
-
   filterAktif: {
     padding: "8px 14px",
     background: warna.tinta,
@@ -259,19 +253,16 @@ const styles = {
     fontWeight: 600,
     cursor: "pointer",
   },
-
   kosong: {
     textAlign: "center",
     color: warna.tintaSamar,
     padding: 24,
     fontSize: 13.5,
   },
-
   kosongBox: {
     textAlign: "center",
     padding: "24px 12px",
   },
-
   kosongIkon: {
     display: "block",
     marginBottom: 6,
@@ -279,59 +270,49 @@ const styles = {
     marginRight: "auto",
     color: warna.tintaSamar,
   },
-
-  pesan: {
+  pesanError: {
     color: warna.bahaya,
     textAlign: "center",
     fontSize: 13,
     marginBottom: 12,
   },
-
   itemCard: {
     background: warna.panel,
     borderRadius: 10,
     padding: 16,
     marginBottom: 8,
     border: `1px solid ${warna.garis}`,
-    transition:
-      "border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease",
+    transition: "border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease",
   },
-
   itemHeader: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "flex-start",
     gap: 8,
   },
-
   itemNama: {
     fontSize: 14.5,
     color: warna.tinta,
   },
-
   itemSub: {
     fontSize: 12.5,
     color: warna.tintaLembut,
     margin: "3px 0 0",
   },
-
   itemDetail: {
     fontSize: 12.5,
     color: warna.tinta,
     margin: "10px 0 2px 0",
     fontWeight: 600,
   },
-
   itemKeterangan: {
     fontSize: 12.5,
     color: warna.tintaLembut,
     margin: "2px 0 0",
   },
-
   pemisah: {
     color: warna.garis,
   },
-
   badge: {
     fontSize: 11,
     fontWeight: 600,
@@ -339,7 +320,6 @@ const styles = {
     borderRadius: 10,
     whiteSpace: "nowrap",
   },
-
   linkFoto: {
     display: "inline-block",
     marginTop: 8,
@@ -348,13 +328,11 @@ const styles = {
     textDecoration: "none",
     fontWeight: 600,
   },
-
   tombolGroup: {
     display: "flex",
     gap: 8,
     marginTop: 12,
   },
-
   tombolSetujui: {
     flex: 1,
     padding: "8px",
@@ -366,7 +344,6 @@ const styles = {
     fontWeight: 600,
     cursor: "pointer",
   },
-
   tombolTolak: {
     flex: 1,
     padding: "8px",
@@ -378,7 +355,6 @@ const styles = {
     fontWeight: 600,
     cursor: "pointer",
   },
-
   catatan: {
     fontSize: 11.5,
     color: warna.tinta,

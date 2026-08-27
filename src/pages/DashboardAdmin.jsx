@@ -76,7 +76,20 @@ function SkeletonBaris({ jumlah = 4 }) {
 
 export default function DashboardAdmin({ pengguna, onLogout }) {
   const navigate = useNavigate();
-  const [tab, setTab] = useState("rekap");
+  const [tab, setTab] = useState(() => {
+    const tabTersimpan = sessionStorage.getItem("admin-tab");
+
+    const tabValid = [
+      "rekap",
+      "approval",
+      "karyawan",
+      "izin",
+      "gaji",
+      "kantor",
+    ];
+
+    return tabValid.includes(tabTersimpan) ? tabTersimpan : "rekap";
+  });
   const [rekap, setRekap] = useState([]);
   const [belumAbsen, setBelumAbsen] = useState([]);
   const [belumAbsenTerbuka, setBelumAbsenTerbuka] = useState(false);
@@ -95,13 +108,26 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
 
   // Komponen Izin/Gaji tetap mounted setelah pertama kali dibuka.
   // Jadi pindah tab tidak memicu fetch ulang.
-  const [tabPernahDibuka, setTabPernahDibuka] = useState({
-    rekap: true,
-    approval: false,
-    karyawan: false,
-    izin: false,
-    gaji: false,
-    kantor: false,
+  const [tabPernahDibuka, setTabPernahDibuka] = useState(() => {
+    const tabAwal = [
+      "rekap",
+      "approval",
+      "karyawan",
+      "izin",
+      "gaji",
+      "kantor",
+    ].includes(tab)
+      ? tab
+      : "rekap";
+
+    return {
+      rekap: true,
+      approval: tabAwal === "approval",
+      karyawan: tabAwal === "karyawan",
+      izin: tabAwal === "izin",
+      gaji: tabAwal === "gaji",
+      kantor: tabAwal === "kantor",
+    };
   });
 
   const [pesan, setPesan] = useState("");
@@ -240,12 +266,12 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
   useEffect(() => {
     if (!pesan && !pesanSukses) return;
 
-    const timer = setTimeout(() => {
+    const timer = window.setTimeout(() => {
       setPesan("");
       setPesanSukses("");
     }, 5000);
 
-    return () => clearTimeout(timer);
+    return () => window.clearTimeout(timer);
   }, [pesan, pesanSukses]);
 
   // Notifikasi Admin dicek begitu dashboard dibuka, lalu diulang tiap 15
@@ -401,9 +427,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(
-          data?.pesan || "Gagal memuat daftar karyawan.",
-        );
+        throw new Error(data?.pesan || "Gagal memuat daftar karyawan.");
       }
 
       if (!Array.isArray(data.data)) {
@@ -471,9 +495,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
     setFormAktivasi({
       jabatan: "",
       divisi: "",
-      kantorId: kantorData?.[0]?.id
-        ? String(kantorData[0].id)
-        : "",
+      kantorId: kantorData?.[0]?.id ? String(kantorData[0].id) : "",
     });
   }
 
@@ -737,7 +759,13 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
   // Center"), bukan cuma judul tab yang datar seperti tab-tab lain.
   const jamSaatIni = new Date().getHours();
   const sapaan =
-    jamSaatIni < 11 ? "Selamat pagi" : jamSaatIni < 15 ? "Selamat siang" : jamSaatIni < 19 ? "Selamat sore" : "Selamat malam";
+    jamSaatIni < 11
+      ? "Selamat pagi"
+      : jamSaatIni < 15
+        ? "Selamat siang"
+        : jamSaatIni < 19
+          ? "Selamat sore"
+          : "Selamat malam";
   const namaDepanAdmin = (pengguna?.nama || "Admin").trim().split(" ")[0];
 
   function inisialNama(nama) {
@@ -774,6 +802,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
 
   function pindahTab(idTab) {
     setTab(idTab);
+    sessionStorage.setItem("admin-tab", idTab);
 
     setTabPernahDibuka((sebelumnya) => ({
       ...sebelumnya,
@@ -792,6 +821,10 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
 
     setSidebarMobileTerbuka(false);
   }
+
+  const adaPesan = Boolean(pesan || pesanSukses);
+  const pesanAdalahError = Boolean(pesan);
+  const teksPesan = pesan || pesanSukses;
 
   return (
     <div style={styles.shell}>
@@ -828,7 +861,9 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                     className="nav-item-hover"
                   >
                     <Ikon size={17} strokeWidth={2} style={styles.navIkon} />
-                    <span style={{ flex: 1, textAlign: "left" }}>{t.label}</span>
+                    <span style={{ flex: 1, textAlign: "left" }}>
+                      {t.label}
+                    </span>
                     {t.badge ? (
                       <span style={styles.navBadge}>{t.badge}</span>
                     ) : null}
@@ -1031,10 +1066,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                             Menunggu aktivasi oleh Admin.
                           </span>
                         </div>
-                        <ArrowRight
-                          size={15}
-                          style={styles.notifikasiArrow}
-                        />
+                        <ArrowRight size={15} style={styles.notifikasiArrow} />
                       </button>
                     )}
 
@@ -1064,10 +1096,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                             Menunggu persetujuan Admin.
                           </span>
                         </div>
-                        <ArrowRight
-                          size={15}
-                          style={styles.notifikasiArrow}
-                        />
+                        <ArrowRight size={15} style={styles.notifikasiArrow} />
                       </button>
                     )}
                   </div>
@@ -1082,13 +1111,34 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
         </div>
 
         <div style={styles.content}>
-          {pesan && <p style={styles.pesanError}>{pesan}</p>}
-          {pesanSukses && <p style={styles.pesanSukses}>{pesanSukses}</p>}
+          {adaPesan && (
+            <div
+              role={pesanAdalahError ? "alert" : "status"}
+              aria-live="polite"
+              style={pesanAdalahError ? styles.toastError : styles.toastSukses}
+            >
+              <span
+                style={
+                  pesanAdalahError
+                    ? styles.toastIconError
+                    : styles.toastIconSukses
+                }
+              >
+                {pesanAdalahError ? "!" : "✓"}
+              </span>
+              <span style={styles.toastText}>{teksPesan}</span>
+            </div>
+          )}
 
           {tab === "rekap" && (
             <>
               <div style={styles.statGrid}>
-                <div style={{ ...styles.statCard, borderLeft: `3px solid ${warna.aksen}` }}>
+                <div
+                  style={{
+                    ...styles.statCard,
+                    borderLeft: `3px solid ${warna.aksen}`,
+                  }}
+                >
                   <div
                     style={{
                       ...styles.statIconWrap,
@@ -1541,7 +1591,10 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                                         title="Lihat foto absen masuk"
                                       >
                                         <img
-                                          src={urlFoto(item.fotoMasuk, item.fotoMasukUrl)}
+                                          src={urlFoto(
+                                            item.fotoMasuk,
+                                            item.fotoMasukUrl,
+                                          )}
                                           alt="Foto absen masuk"
                                           style={styles.fotoAbsenThumb}
                                         />
@@ -1555,7 +1608,10 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                                         title="Lihat foto absen pulang"
                                       >
                                         <img
-                                          src={urlFoto(item.fotoPulang, item.fotoPulangUrl)}
+                                          src={urlFoto(
+                                            item.fotoPulang,
+                                            item.fotoPulangUrl,
+                                          )}
                                           alt="Foto absen pulang"
                                           style={styles.fotoAbsenThumb}
                                         />
@@ -1743,10 +1799,11 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                       <p style={styles.itemMetaDaftar}>
                         <Clock size={11} strokeWidth={2} />
                         Mendaftar{" "}
-                        {new Date(item.dibuatPada).toLocaleDateString(
-                          "id-ID",
-                          { day: "numeric", month: "long", year: "numeric" },
-                        )}
+                        {new Date(item.dibuatPada).toLocaleDateString("id-ID", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })}
                       </p>
                     )}
 
@@ -1897,7 +1954,10 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                                     {inisialNama(item.nama)}
                                   </div>
                                   <strong
-                                    style={{ color: warna.tinta, fontSize: 13.5 }}
+                                    style={{
+                                      color: warna.tinta,
+                                      fontSize: 13.5,
+                                    }}
                                   >
                                     {item.nama}
                                   </strong>
@@ -2225,7 +2285,9 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                   </p>
                 </div>
                 <span style={styles.kantorCountBadge}>
-                  {loadingKantor ? "Memuat…" : `${daftarKantorState.length} data`}
+                  {loadingKantor
+                    ? "Memuat…"
+                    : `${daftarKantorState.length} data`}
                 </span>
               </div>
 
@@ -2240,55 +2302,59 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                   </div>
                 ) : (
                   daftarKantorState.map((k) => (
-                  <div
-                    key={k.id}
-                    style={styles.kantorCard}
-                    className="kartu-hover"
-                  >
-                    <div style={styles.kantorCardTop}>
-                      <div style={styles.kantorCardIcon}>
-                        <Building2 size={18} />
+                    <div
+                      key={k.id}
+                      style={styles.kantorCard}
+                      className="kartu-hover"
+                    >
+                      <div style={styles.kantorCardTop}>
+                        <div style={styles.kantorCardIcon}>
+                          <Building2 size={18} />
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <strong style={styles.itemNama}>
+                            {k.namaKantor}
+                          </strong>
+                          <p style={styles.itemSub}>
+                            {k.alamat || "Alamat belum diisi"}
+                          </p>
+                        </div>
+                        <span style={styles.badgeKantorAktif}>
+                          Kantor Pusat
+                        </span>
                       </div>
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <strong style={styles.itemNama}>{k.namaKantor}</strong>
-                        <p style={styles.itemSub}>
-                          {k.alamat || "Alamat belum diisi"}
-                        </p>
-                      </div>
-                      <span style={styles.badgeKantorAktif}>Kantor Pusat</span>
-                    </div>
 
-                    <div style={styles.kantorMetaGrid}>
-                      <div style={styles.kantorMetaItem}>
-                        <span style={styles.kantorMetaLabel}>Karyawan</span>
-                        <strong style={styles.kantorMetaValue}>
-                          {k._count?.pengguna ?? 0}
-                        </strong>
+                      <div style={styles.kantorMetaGrid}>
+                        <div style={styles.kantorMetaItem}>
+                          <span style={styles.kantorMetaLabel}>Karyawan</span>
+                          <strong style={styles.kantorMetaValue}>
+                            {k._count?.pengguna ?? 0}
+                          </strong>
+                        </div>
+                        <div style={styles.kantorMetaItem}>
+                          <span style={styles.kantorMetaLabel}>Koordinat</span>
+                          <strong style={styles.kantorMetaValue}>
+                            {k.latitude != null && k.longitude != null
+                              ? "Tersedia"
+                              : "Belum diisi"}
+                          </strong>
+                        </div>
                       </div>
-                      <div style={styles.kantorMetaItem}>
-                        <span style={styles.kantorMetaLabel}>Koordinat</span>
-                        <strong style={styles.kantorMetaValue}>
-                          {k.latitude != null && k.longitude != null
-                            ? "Tersedia"
-                            : "Belum diisi"}
-                        </strong>
-                      </div>
-                    </div>
 
-                    <div style={styles.kantorCardFooter}>
-                      <span style={styles.kantorHint}>
-                        <Info size={13} />
-                        Lokasi absensi mengikuti lokasi aktual karyawan.
-                      </span>
-                      <button
-                        onClick={() => bukaFormEditKantor(k)}
-                        style={styles.tombolEditKantor}
-                      >
-                        Edit Data
-                      </button>
+                      <div style={styles.kantorCardFooter}>
+                        <span style={styles.kantorHint}>
+                          <Info size={13} />
+                          Lokasi absensi mengikuti lokasi aktual karyawan.
+                        </span>
+                        <button
+                          onClick={() => bukaFormEditKantor(k)}
+                          style={styles.tombolEditKantor}
+                        >
+                          Edit Data
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  ))
                 )}
 
                 {!loadingKantor && daftarKantorState.length === 0 && (
@@ -2627,6 +2693,98 @@ const styles = {
   },
 
   content: { maxWidth: 1040 },
+
+  toastBase: {
+    position: "fixed",
+    top: 20,
+    right: 20,
+    zIndex: 9999,
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    width: "min(380px, calc(100vw - 40px))",
+    boxSizing: "border-box",
+    padding: "12px 15px",
+    borderRadius: 12,
+    background: warna.panel,
+    fontFamily: font.display,
+    fontSize: 13,
+    fontWeight: 600,
+    lineHeight: 1.45,
+    boxShadow: "0 12px 30px rgba(22, 35, 61, 0.14)",
+  },
+  toastSukses: {
+    position: "fixed",
+    top: 20,
+    right: 20,
+    zIndex: 9999,
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    width: "min(380px, calc(100vw - 40px))",
+    boxSizing: "border-box",
+    padding: "12px 15px",
+    borderRadius: 12,
+    border: `1px solid ${warna.aksenLembut}`,
+    background: warna.panel,
+    color: warna.tinta,
+    fontFamily: font.display,
+    fontSize: 13,
+    fontWeight: 600,
+    lineHeight: 1.45,
+    boxShadow: "0 12px 30px rgba(22, 35, 61, 0.14)",
+  },
+  toastError: {
+    position: "fixed",
+    top: 20,
+    right: 20,
+    zIndex: 9999,
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    width: "min(380px, calc(100vw - 40px))",
+    boxSizing: "border-box",
+    padding: "12px 15px",
+    borderRadius: 12,
+    border: `1px solid ${warna.bahayaLembut}`,
+    background: warna.panel,
+    color: warna.bahaya,
+    fontFamily: font.display,
+    fontSize: 13,
+    fontWeight: 600,
+    lineHeight: 1.45,
+    boxShadow: "0 12px 30px rgba(22, 35, 61, 0.14)",
+  },
+  toastIconSukses: {
+    width: 24,
+    height: 24,
+    flexShrink: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: "50%",
+    background: warna.aksenLembut,
+    color: warna.aksen,
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  toastIconError: {
+    width: 24,
+    height: 24,
+    flexShrink: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: "50%",
+    background: warna.bahayaLembut,
+    color: warna.bahaya,
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  toastText: {
+    flex: 1,
+    minWidth: 0,
+  },
 
   statGrid: {
     display: "grid",
@@ -3020,9 +3178,6 @@ const styles = {
     fontSize: 13.5,
     margin: 0,
   },
-
-  pesanError: { color: warna.bahaya, marginBottom: 12, fontSize: 13.5 },
-  pesanSukses: { color: warna.sukses, marginBottom: 12, fontSize: 13.5 },
 
   catatanAdmin: {
     fontSize: 11.5,

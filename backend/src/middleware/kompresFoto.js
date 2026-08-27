@@ -1,7 +1,10 @@
 const sharp = require("sharp");
 const crypto = require("crypto");
 
-const { uploadFotoAbsensi } = require("../utils/supabaseStorage");
+const {
+  uploadFotoAbsensi,
+  deleteFotoAbsensi,
+} = require("../utils/supabaseStorage");
 
 const TARGET_MAKS_BYTES = 200 * 1024;
 const LEBAR_MAKS_PX = 1280;
@@ -40,11 +43,9 @@ async function kompresFoto(req, res, next) {
       `${crypto.randomBytes(4).toString("hex")}.jpg`;
 
     const tanggal = new Date();
-
     const tahun = tanggal.getFullYear();
     const bulan = String(tanggal.getMonth() + 1).padStart(2, "0");
     const hari = String(tanggal.getDate()).padStart(2, "0");
-
     const filePath = `${tahun}/${bulan}/${hari}/${namaFile}`;
 
     console.log("FILE PATH SUPABASE:", filePath);
@@ -61,6 +62,19 @@ async function kompresFoto(req, res, next) {
     req.file.size = bufferHasil.length;
     req.file.buffer = bufferHasil;
     req.file.mimetype = "image/jpeg";
+
+    // Foto sudah masuk Storage sebelum controller berjalan. Jika request
+    // akhirnya gagal, bersihkan file agar tidak menjadi orphan file.
+    res.once("finish", () => {
+      if (res.statusCode >= 400 && storagePath) {
+        deleteFotoAbsensi(storagePath).catch((error) => {
+          console.error(
+            "Gagal membersihkan foto setelah request gagal:",
+            error,
+          );
+        });
+      }
+    });
 
     next();
   } catch (error) {

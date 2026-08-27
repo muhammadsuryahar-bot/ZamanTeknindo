@@ -1,11 +1,29 @@
 import { useEffect, useState } from "react";
 import { API_URL, getToken } from "../utils/api";
 import { warna, font } from "../styles/theme";
-import { Wallet, AlertTriangle, Download, ArrowRight, Info, CheckCircle2, Calendar } from "lucide-react";
+import {
+  Wallet,
+  AlertTriangle,
+  Download,
+  ArrowRight,
+  Info,
+  CheckCircle2,
+  Calendar,
+} from "lucide-react";
 
 const NAMA_BULAN = [
-  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-  "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+  "Januari",
+  "Februari",
+  "Maret",
+  "April",
+  "Mei",
+  "Juni",
+  "Juli",
+  "Agustus",
+  "September",
+  "Oktober",
+  "November",
+  "Desember",
 ];
 
 function hanyaDigit(teks) {
@@ -110,7 +128,9 @@ export default function PengaturanGaji() {
       const dataGaji = await bacaJsonAman(resGaji);
 
       if (!resPotongan.ok) {
-        throw new Error(dataPotongan.pesan || "Gagal memuat pengaturan potongan.");
+        throw new Error(
+          dataPotongan.pesan || "Gagal memuat pengaturan potongan.",
+        );
       }
       if (!resGaji.ok) {
         throw new Error(dataGaji.pesan || "Gagal memuat data gaji karyawan.");
@@ -146,7 +166,7 @@ export default function PengaturanGaji() {
         `${API_URL}/admin/hari-libur?tahun=${tahunLibur}`,
         {
           headers: { Authorization: `Bearer ${getToken()}` },
-        }
+        },
       );
 
       const data = await bacaJsonAman(res);
@@ -239,7 +259,7 @@ export default function PengaturanGaji() {
         `${API_URL}/admin/hari-libur-usulan?tahun=${tahunLibur}`,
         {
           headers: { Authorization: `Bearer ${getToken()}` },
-        }
+        },
       );
       if (!res.ok) {
         const dataError = await res.json().catch(() => ({}));
@@ -247,7 +267,9 @@ export default function PengaturanGaji() {
       }
       const data = await res.json();
       const daftarTanggalSudahAda = new Set(
-        daftarHariLibur.map((h) => new Date(h.tanggal).toISOString().slice(0, 10))
+        daftarHariLibur.map((h) =>
+          new Date(h.tanggal).toISOString().slice(0, 10),
+        ),
       );
 
       const usulan = (data.data || [])
@@ -262,14 +284,14 @@ export default function PengaturanGaji() {
         setPesanImpor(
           data.data && data.data.length > 0
             ? `Semua hari libur ${tahunLibur} sudah terdaftar.`
-            : `Tidak ada data hari libur ${tahunLibur} dari sumber publik.`
+            : `Tidak ada data hari libur ${tahunLibur} dari sumber publik.`,
         );
       }
       setHasilImpor(usulan);
     } catch (err) {
       console.error(err);
       setPesanImpor(
-        `Tidak bisa mengambil kalender ${tahunLibur} dari sumber publik. Silakan tambahkan manual.`
+        `Tidak bisa mengambil kalender ${tahunLibur} dari sumber publik. Silakan tambahkan manual.`,
       );
       setHasilImpor([]);
     } finally {
@@ -279,7 +301,7 @@ export default function PengaturanGaji() {
 
   function toggleUsulanImpor(index) {
     setHasilImpor((prev) =>
-      prev.map((u, i) => (i === index ? { ...u, dipilih: !u.dipilih } : u))
+      prev.map((u, i) => (i === index ? { ...u, dipilih: !u.dipilih } : u)),
     );
   }
 
@@ -297,7 +319,10 @@ export default function PengaturanGaji() {
             Authorization: `Bearer ${getToken()}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ tanggal: u.tanggal, keterangan: u.keterangan }),
+          body: JSON.stringify({
+            tanggal: u.tanggal,
+            keterangan: u.keterangan,
+          }),
         });
         if (res.ok) berhasil += 1;
       } catch (err) {
@@ -345,6 +370,13 @@ export default function PengaturanGaji() {
       return;
     }
 
+    const angkaGaji = Number(String(nilai).replace(/\D/g, ""));
+
+    if (!Number.isFinite(angkaGaji) || angkaGaji < 0) {
+      setPesan("Gaji pokok harus berupa angka yang valid.");
+      return;
+    }
+
     setPesan("");
 
     try {
@@ -354,17 +386,45 @@ export default function PengaturanGaji() {
           Authorization: `Bearer ${getToken()}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ gajiPokok: nilai }),
+        body: JSON.stringify({
+          gajiPokok: angkaGaji,
+        }),
       });
 
       const data = await bacaJsonAman(res);
+
       if (!res.ok) {
         setPesan(data.pesan || "Gagal menyimpan gaji pokok.");
         return;
       }
 
+      // Update hanya karyawan yang baru disimpan.
+      // Tidak perlu memuat ulang seluruh halaman.
+      setDaftarGaji((prev) =>
+        prev.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                gaji: {
+                  ...(item.gaji || {}),
+                  gajiPokok:
+                    data.data?.gajiPokok != null
+                      ? data.data.gajiPokok
+                      : angkaGaji,
+                  diubahPada: data.data?.diubahPada || item.gaji?.diubahPada,
+                },
+              }
+            : item,
+        ),
+      );
+
+      // Samakan input dengan nilai yang berhasil disimpan.
+      setInputGaji((prev) => ({
+        ...prev,
+        [id]: String(angkaGaji),
+      }));
+
       setPesan(data.pesan || "Gaji pokok berhasil disimpan.");
-      await ambilData();
     } catch (err) {
       console.error(err);
       setPesan("Tidak bisa terhubung ke server.");
@@ -383,14 +443,17 @@ export default function PengaturanGaji() {
         `${API_URL}/admin/gaji/laporan?tahun=${tahunPilih}&bulan=${bulanPilih}`,
         {
           headers: { Authorization: `Bearer ${getToken()}` },
-        }
+        },
       );
 
       const data = await bacaJsonAman(res);
 
       if (!res.ok) {
         setStatusLaporan("error");
-        setPesan(data.pesan || `Gagal memuat laporan gaji ${namaBulanTerpilih} ${tahunPilih}.`);
+        setPesan(
+          data.pesan ||
+            `Gagal memuat laporan gaji ${namaBulanTerpilih} ${tahunPilih}.`,
+        );
         return;
       }
 
@@ -424,17 +487,23 @@ export default function PengaturanGaji() {
         {
           method: "POST",
           headers: { Authorization: `Bearer ${getToken()}` },
-        }
+        },
       );
 
       const data = await bacaJsonAman(res);
 
       if (!res.ok) {
-        setPesan(data.pesan || `Gagal menghitung gaji ${namaBulanTerpilih} ${tahunPilih}.`);
+        setPesan(
+          data.pesan ||
+            `Gagal menghitung gaji ${namaBulanTerpilih} ${tahunPilih}.`,
+        );
         return;
       }
 
-      setPesan(data.pesan || `Perhitungan gaji ${namaBulanTerpilih} ${tahunPilih} selesai.`);
+      setPesan(
+        data.pesan ||
+          `Perhitungan gaji ${namaBulanTerpilih} ${tahunPilih} selesai.`,
+      );
       setDaftarGagal(Array.isArray(data.gagal) ? data.gagal : []);
 
       await muatLaporanBulanan();
@@ -455,7 +524,7 @@ export default function PengaturanGaji() {
         `${API_URL}/admin/gaji/export?tahun=${tahunPilih}&bulan=${bulanPilih}`,
         {
           headers: { Authorization: `Bearer ${getToken()}` },
-        }
+        },
       );
 
       if (!res.ok) {
@@ -512,10 +581,17 @@ export default function PengaturanGaji() {
         }
       `}</style>
 
-      {pesan && <p style={styles.pesanInfo}>{pesan}</p>}
+      {pesan && (
+        <div role="status" aria-live="polite" style={styles.toastPesan}>
+          <span style={styles.toastPesanIcon}>✓</span>
+          <span style={styles.toastPesanText}>{pesan}</span>
+        </div>
+      )}
 
       <div style={styles.card}>
-        <p style={styles.judulKartu}>Pengaturan Potongan (berlaku semua karyawan)</p>
+        <p style={styles.judulKartu}>
+          Pengaturan Potongan (berlaku semua karyawan)
+        </p>
 
         <form onSubmit={simpanPotongan}>
           <label style={styles.label}>Potongan Telat (Rp/hari)</label>
@@ -525,7 +601,12 @@ export default function PengaturanGaji() {
               type="text"
               inputMode="numeric"
               value={formatRibuan(potongan.potonganTelat)}
-              onChange={(e) => setPotongan({ ...potongan, potonganTelat: hanyaDigit(e.target.value) })}
+              onChange={(e) =>
+                setPotongan({
+                  ...potongan,
+                  potonganTelat: hanyaDigit(e.target.value),
+                })
+              }
               style={styles.inputTanpaBorder}
               className="gaji-input"
               placeholder="0"
@@ -539,7 +620,12 @@ export default function PengaturanGaji() {
               type="text"
               inputMode="numeric"
               value={formatRibuan(potongan.potonganAlpha)}
-              onChange={(e) => setPotongan({ ...potongan, potonganAlpha: hanyaDigit(e.target.value) })}
+              onChange={(e) =>
+                setPotongan({
+                  ...potongan,
+                  potonganAlpha: hanyaDigit(e.target.value),
+                })
+              }
               style={styles.inputTanpaBorder}
               className="gaji-input"
               placeholder="0"
@@ -551,12 +637,18 @@ export default function PengaturanGaji() {
             type="time"
             step="1"
             value={potongan.jamMasukStandar}
-            onChange={(e) => setPotongan({ ...potongan, jamMasukStandar: e.target.value })}
+            onChange={(e) =>
+              setPotongan({ ...potongan, jamMasukStandar: e.target.value })
+            }
             style={styles.input}
             className="gaji-input"
           />
 
-          <button type="submit" style={styles.tombolUtama} className="gaji-button">
+          <button
+            type="submit"
+            style={styles.tombolUtama}
+            className="gaji-button"
+          >
             Simpan Pengaturan
           </button>
         </form>
@@ -565,15 +657,18 @@ export default function PengaturanGaji() {
       <div style={styles.card}>
         <p style={styles.judulKartu}>Hari Libur</p>
         <p style={styles.subKartu}>
-          Tanggal yang didaftarkan di sini TIDAK akan dihitung "Alpha" walau jatuh di hari kerja
-          (Senin–Jumat) -- misal hari libur nasional atau cuti bersama.
+          Tanggal yang didaftarkan di sini TIDAK akan dihitung "Alpha" walau
+          jatuh di hari kerja (Senin–Jumat) -- misal hari libur nasional atau
+          cuti bersama.
         </p>
 
         <form onSubmit={tambahHariLibur} style={styles.formHariLibur}>
           <input
             type="date"
             value={formLibur.tanggal}
-            onChange={(e) => setFormLibur({ ...formLibur, tanggal: e.target.value })}
+            onChange={(e) =>
+              setFormLibur({ ...formLibur, tanggal: e.target.value })
+            }
             style={styles.inputTanggalLibur}
             min={`${tahunLibur}-01-01`}
             max={`${tahunLibur}-12-31`}
@@ -582,10 +677,16 @@ export default function PengaturanGaji() {
             type="text"
             placeholder="Keterangan (contoh: Hari Kemerdekaan)"
             value={formLibur.keterangan}
-            onChange={(e) => setFormLibur({ ...formLibur, keterangan: e.target.value })}
+            onChange={(e) =>
+              setFormLibur({ ...formLibur, keterangan: e.target.value })
+            }
             style={styles.inputKeteranganLibur}
           />
-          <button type="submit" style={styles.tombolTambahLibur} disabled={sedangSimpanLibur}>
+          <button
+            type="submit"
+            style={styles.tombolTambahLibur}
+            disabled={sedangSimpanLibur}
+          >
             {sedangSimpanLibur ? "Menyimpan…" : "Tambah"}
           </button>
         </form>
@@ -593,7 +694,11 @@ export default function PengaturanGaji() {
 
         <div style={styles.pilihTahunLiburRow}>
           <span style={styles.pilihTahunLiburLabel}>
-            <Calendar size={13} strokeWidth={2} style={{ verticalAlign: "-2px", marginRight: 5 }} />
+            <Calendar
+              size={13}
+              strokeWidth={2}
+              style={{ verticalAlign: "-2px", marginRight: 5 }}
+            />
             Tahun kalender:
           </span>
           <button
@@ -636,45 +741,87 @@ export default function PengaturanGaji() {
           </span>
         </div>
 
-        <button onClick={cariUsulanImpor} style={styles.tombolImporOtomatis} disabled={sedangCariImpor}>
-          {sedangCariImpor ? "Mencari…" : `Impor Otomatis Kalender ${tahunLibur}`}
+        <button
+          onClick={cariUsulanImpor}
+          style={styles.tombolImporOtomatis}
+          disabled={sedangCariImpor}
+        >
+          {sedangCariImpor
+            ? "Mencari…"
+            : `Impor Otomatis Kalender ${tahunLibur}`}
         </button>
         {pesanImpor && <p style={styles.pesanImporKecil}>{pesanImpor}</p>}
 
         {hasilImpor && hasilImpor.length > 0 && (
           <div style={styles.kotakUsulanImpor}>
             <p style={styles.judulUsulanImpor}>
-              Ditemukan {hasilImpor.length} usulan. Centang yang mau disimpan, lalu klik "Impor Terpilih".
-              Ini masih usulan -- belum tersimpan sampai kamu konfirmasi.
+              Ditemukan {hasilImpor.length} usulan. Centang yang mau disimpan,
+              lalu klik "Impor Terpilih". Ini masih usulan -- belum tersimpan
+              sampai kamu konfirmasi.
             </p>
             {hasilImpor.map((u, i) => (
               <label key={u.tanggal} style={styles.barisUsulanImpor}>
-                <input type="checkbox" checked={u.dipilih} onChange={() => toggleUsulanImpor(i)} />
+                <input
+                  type="checkbox"
+                  checked={u.dipilih}
+                  onChange={() => toggleUsulanImpor(i)}
+                />
                 <span style={styles.tanggalHariLibur}>
-                  {new Date(`${u.tanggal}T00:00:00.000Z`).toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" })}
+                  {new Date(`${u.tanggal}T00:00:00.000Z`).toLocaleDateString(
+                    "id-ID",
+                    {
+                      day: "2-digit",
+                      month: "long",
+                      year: "numeric",
+                      timeZone: "UTC",
+                    },
+                  )}
                 </span>
                 <span style={styles.keteranganHariLibur}>{u.keterangan}</span>
               </label>
             ))}
             <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-              <button onClick={simpanUsulanTerpilih} style={styles.tombolTambahLibur} disabled={sedangSimpanImpor}>
-                {sedangSimpanImpor ? "Menyimpan…" : `Impor ${hasilImpor.filter((u) => u.dipilih).length} Terpilih`}
+              <button
+                onClick={simpanUsulanTerpilih}
+                style={styles.tombolTambahLibur}
+                disabled={sedangSimpanImpor}
+              >
+                {sedangSimpanImpor
+                  ? "Menyimpan…"
+                  : `Impor ${hasilImpor.filter((u) => u.dipilih).length} Terpilih`}
               </button>
-              <button onClick={() => setHasilImpor(null)} style={styles.tombolBatalImpor}>Batal</button>
+              <button
+                onClick={() => setHasilImpor(null)}
+                style={styles.tombolBatalImpor}
+              >
+                Batal
+              </button>
             </div>
           </div>
         )}
 
         {daftarHariLibur.length === 0 && (
-          <p style={styles.keteranganKosong}>Belum ada hari libur yang didaftarkan untuk {tahunLibur}.</p>
+          <p style={styles.keteranganKosong}>
+            Belum ada hari libur yang didaftarkan untuk {tahunLibur}.
+          </p>
         )}
         {daftarHariLibur.map((h) => (
           <div key={h.id} style={styles.barisHariLibur}>
             <span style={styles.tanggalHariLibur}>
-              {new Date(h.tanggal).toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" })}
+              {new Date(h.tanggal).toLocaleDateString("id-ID", {
+                day: "2-digit",
+                month: "long",
+                year: "numeric",
+                timeZone: "UTC",
+              })}
             </span>
             <span style={styles.keteranganHariLibur}>{h.keterangan}</span>
-            <button onClick={() => hapusHariLiburKlik(h.id)} style={styles.tombolHapusKecil}>Hapus</button>
+            <button
+              onClick={() => hapusHariLiburKlik(h.id)}
+              style={styles.tombolHapusKecil}
+            >
+              Hapus
+            </button>
           </div>
         ))}
       </div>
@@ -685,14 +832,18 @@ export default function PengaturanGaji() {
         {daftarGaji.length === 0 && (
           <div style={styles.kosongBox}>
             <Wallet size={26} strokeWidth={1.6} style={styles.kosongIkon} />
-            <p style={styles.kosong}>Belum ada karyawan aktif untuk diatur gajinya.</p>
+            <p style={styles.kosong}>
+              Belum ada karyawan aktif untuk diatur gajinya.
+            </p>
           </div>
         )}
 
         {daftarGaji.map((item) => (
           <div key={item.id} style={styles.barisVertikal}>
             <p style={styles.namaBaris}>{item.nama}</p>
-            <p style={styles.subInfo}>{item.jabatan || "-"} · {item.divisi || "-"}</p>
+            <p style={styles.subInfo}>
+              {item.jabatan || "-"} · {item.divisi || "-"}
+            </p>
 
             <div style={styles.inputGroup}>
               <div style={styles.inputRupiahKecil}>
@@ -702,12 +853,21 @@ export default function PengaturanGaji() {
                   inputMode="numeric"
                   placeholder="Belum diatur"
                   value={formatRibuan(inputGaji[item.id] ?? "")}
-                  onChange={(e) => setInputGaji({ ...inputGaji, [item.id]: hanyaDigit(e.target.value) })}
+                  onChange={(e) =>
+                    setInputGaji({
+                      ...inputGaji,
+                      [item.id]: hanyaDigit(e.target.value),
+                    })
+                  }
                   style={styles.inputTanpaBorderKecil}
                   className="gaji-input"
                 />
               </div>
-              <button onClick={() => simpanGajiPokok(item.id)} style={styles.tombolAktifkan} className="gaji-button">
+              <button
+                onClick={() => simpanGajiPokok(item.id)}
+                style={styles.tombolAktifkan}
+                className="gaji-button"
+              >
                 Simpan
               </button>
             </div>
@@ -718,7 +878,8 @@ export default function PengaturanGaji() {
       <div style={styles.card}>
         <p style={styles.judulKartu}>Laporan Gaji Bulanan</p>
         <p style={styles.subKartu}>
-          Pilih bulan, lalu hitung gajinya. Hasilnya bisa langsung diunduh sebagai file Excel (.xlsx).
+          Pilih bulan, lalu hitung gajinya. Hasilnya bisa langsung diunduh
+          sebagai file Excel (.xlsx).
         </p>
 
         <div style={styles.inputGroup} className="gaji-month-row">
@@ -729,7 +890,9 @@ export default function PengaturanGaji() {
             className="gaji-input"
           >
             {NAMA_BULAN.map((nama, i) => (
-              <option key={i} value={i + 1}>{nama}</option>
+              <option key={i} value={i + 1}>
+                {nama}
+              </option>
             ))}
           </select>
 
@@ -765,17 +928,22 @@ export default function PengaturanGaji() {
         </div>
 
         <p style={styles.keteranganTombol}>
-          Gunakan <strong>"Hitung Gaji Bulan Ini"</strong> kalau laporan untuk bulan tersebut belum pernah dibuat.
-          Gunakan <strong>"Muat Data yang Sudah Ada"</strong> kalau hanya ingin melihat atau mengunduh laporan yang sudah pernah dihitung.
+          Gunakan <strong>"Hitung Gaji Bulan Ini"</strong> kalau laporan untuk
+          bulan tersebut belum pernah dibuat. Gunakan{" "}
+          <strong>"Muat Data yang Sudah Ada"</strong> kalau hanya ingin melihat
+          atau mengunduh laporan yang sudah pernah dihitung.
         </p>
 
         {statusLaporan === "kosong" && (
           <div style={styles.statusKosongLaporan}>
             <Info size={18} strokeWidth={2} style={{ flexShrink: 0 }} />
             <div>
-              <strong>Belum ada laporan gaji untuk {namaBulanTerpilih} {tahunPilih}.</strong>
+              <strong>
+                Belum ada laporan gaji untuk {namaBulanTerpilih} {tahunPilih}.
+              </strong>
               <p style={styles.statusSubteks}>
-                Bulan ini belum pernah disimpan hasil perhitungannya. Klik <strong>"Hitung Gaji Bulan Ini"</strong> untuk membuat laporan.
+                Bulan ini belum pernah disimpan hasil perhitungannya. Klik{" "}
+                <strong>"Hitung Gaji Bulan Ini"</strong> untuk membuat laporan.
               </p>
             </div>
           </div>
@@ -785,9 +953,12 @@ export default function PengaturanGaji() {
           <div style={styles.statusTersediaLaporan}>
             <CheckCircle2 size={18} strokeWidth={2} style={{ flexShrink: 0 }} />
             <div>
-              <strong>Laporan gaji {namaBulanTerpilih} {tahunPilih} tersedia.</strong>
+              <strong>
+                Laporan gaji {namaBulanTerpilih} {tahunPilih} tersedia.
+              </strong>
               <p style={styles.statusSubteks}>
-                Ditemukan {laporanBulanan.length} data karyawan yang sudah dihitung.
+                Ditemukan {laporanBulanan.length} data karyawan yang sudah
+                dihitung.
               </p>
             </div>
           </div>
@@ -796,34 +967,56 @@ export default function PengaturanGaji() {
         {statusLaporan === "belum_dimuat" && (
           <div style={styles.statusBelumDicek}>
             <Info size={17} strokeWidth={2} style={{ flexShrink: 0 }} />
-            <span>Belum memuat laporan untuk {namaBulanTerpilih} {tahunPilih}. Pilih salah satu tombol di atas.</span>
+            <span>
+              Belum memuat laporan untuk {namaBulanTerpilih} {tahunPilih}. Pilih
+              salah satu tombol di atas.
+            </span>
           </div>
         )}
 
         {daftarGagal.length > 0 && (
           <div style={styles.peringatanGagal}>
             <strong style={styles.peringatanJudul}>
-              <AlertTriangle size={14} strokeWidth={2} style={{ verticalAlign: "-2px", marginRight: 5 }} />
+              <AlertTriangle
+                size={14}
+                strokeWidth={2}
+                style={{ verticalAlign: "-2px", marginRight: 5 }}
+              />
               {daftarGagal.length} karyawan tidak ikut dihitung:
             </strong>
             <ul style={styles.peringatanList}>
               {daftarGagal.map((g, i) => (
-                <li key={i}>{g.nama} — {g.alasan}</li>
+                <li key={i}>
+                  {g.nama} — {g.alasan}
+                </li>
               ))}
             </ul>
             <span style={styles.peringatanSaran}>
-              Kemungkinan besar gaji pokoknya belum diatur. Isi dulu di bagian "Gaji Pokok per Karyawan" di atas, lalu klik "Hitung Gaji Bulan Ini" lagi.
+              Kemungkinan besar gaji pokoknya belum diatur. Isi dulu di bagian
+              "Gaji Pokok per Karyawan" di atas, lalu klik "Hitung Gaji Bulan
+              Ini" lagi.
             </span>
           </div>
         )}
 
         {statusLaporan === "tersedia" && (
           <>
-            <button onClick={unduhExcel} style={styles.tombolUtama} className="gaji-button" disabled={sedangUnduh}>
+            <button
+              onClick={unduhExcel}
+              style={styles.tombolUtama}
+              className="gaji-button"
+              disabled={sedangUnduh}
+            >
               {sedangUnduh ? (
                 "Menyiapkan file Excel…"
               ) : (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 7,
+                  }}
+                >
                   <Download size={15} strokeWidth={2} />
                   Unduh sebagai Excel (.xlsx)
                 </span>
@@ -831,7 +1024,11 @@ export default function PengaturanGaji() {
             </button>
 
             <p style={styles.hintGeser} className="hint-geser">
-              <ArrowRight size={13} strokeWidth={2} style={{ verticalAlign: "-2px", marginRight: 4 }} />
+              <ArrowRight
+                size={13}
+                strokeWidth={2}
+                style={{ verticalAlign: "-2px", marginRight: 4 }}
+              />
               Geser tabel ke kanan untuk lihat semua kolom
             </p>
 
@@ -840,13 +1037,24 @@ export default function PengaturanGaji() {
                 style={{ marginTop: 16, overflowX: "auto" }}
                 onScroll={(e) => {
                   const el = e.target;
-                  setLaporanDiUjung(el.scrollLeft + el.clientWidth >= el.scrollWidth - 4);
+                  setLaporanDiUjung(
+                    el.scrollLeft + el.clientWidth >= el.scrollWidth - 4,
+                  );
                 }}
               >
                 <table style={styles.tabel}>
                   <thead>
                     <tr>
-                      <th style={{ ...styles.thTabel, position: "sticky", left: 0, zIndex: 1 }}>Nama</th>
+                      <th
+                        style={{
+                          ...styles.thTabel,
+                          position: "sticky",
+                          left: 0,
+                          zIndex: 1,
+                        }}
+                      >
+                        Nama
+                      </th>
                       <th style={styles.thTabel}>Tepat Waktu</th>
                       <th style={styles.thTabel}>Telat</th>
                       <th style={styles.thTabel}>Alpha</th>
@@ -857,14 +1065,40 @@ export default function PengaturanGaji() {
                   <tbody>
                     {laporanBulanan.map((item) => (
                       <tr key={item.id}>
-                        <td style={{ ...styles.tdTabel, position: "sticky", left: 0, background: warna.panel, boxShadow: `1px 0 0 ${warna.garis}` }}>
+                        <td
+                          style={{
+                            ...styles.tdTabel,
+                            position: "sticky",
+                            left: 0,
+                            background: warna.panel,
+                            boxShadow: `1px 0 0 ${warna.garis}`,
+                          }}
+                        >
                           {item.pengguna?.nama || "-"}
                         </td>
-                        <td style={{ ...styles.tdTabel, textAlign: "center" }}>{item.jumlahTepatWaktu ?? 0}</td>
-                        <td style={{ ...styles.tdTabel, textAlign: "center" }}>{item.jumlahTelat ?? 0}</td>
-                        <td style={{ ...styles.tdTabel, textAlign: "center" }}>{item.jumlahAlpha ?? 0}</td>
-                        <td style={{ ...styles.tdTabel, fontFamily: font.mono }}>{formatRupiah(item.totalPotongan ?? 0)}</td>
-                        <td style={{ ...styles.tdTabel, fontWeight: 700, fontFamily: font.mono }}>{formatRupiah(item.gajiDiterima ?? 0)}</td>
+                        <td style={{ ...styles.tdTabel, textAlign: "center" }}>
+                          {item.jumlahTepatWaktu ?? 0}
+                        </td>
+                        <td style={{ ...styles.tdTabel, textAlign: "center" }}>
+                          {item.jumlahTelat ?? 0}
+                        </td>
+                        <td style={{ ...styles.tdTabel, textAlign: "center" }}>
+                          {item.jumlahAlpha ?? 0}
+                        </td>
+                        <td
+                          style={{ ...styles.tdTabel, fontFamily: font.mono }}
+                        >
+                          {formatRupiah(item.totalPotongan ?? 0)}
+                        </td>
+                        <td
+                          style={{
+                            ...styles.tdTabel,
+                            fontWeight: 700,
+                            fontFamily: font.mono,
+                          }}
+                        >
+                          {formatRupiah(item.gajiDiterima ?? 0)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1280,6 +1514,46 @@ const styles = {
     fontFamily: font.display,
     fontSize: 13,
     lineHeight: 1.5,
+  },
+  toastPesan: {
+    position: "fixed",
+    top: 20,
+    right: 20,
+    zIndex: 9999,
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    width: "min(380px, calc(100vw - 40px))",
+    boxSizing: "border-box",
+    padding: "12px 15px",
+    borderRadius: 12,
+    border: `1px solid ${warna.aksenLembut}`,
+    background: warna.panel,
+    color: warna.tinta,
+    boxShadow: "0 12px 30px rgba(22, 35, 61, 0.14)",
+    fontFamily: font.display,
+    fontSize: 13,
+    fontWeight: 600,
+    lineHeight: 1.45,
+  },
+
+  toastPesanIcon: {
+    width: 24,
+    height: 24,
+    flexShrink: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: "50%",
+    background: warna.aksenLembut,
+    color: warna.aksen,
+    fontSize: 13,
+    fontWeight: 800,
+  },
+
+  toastPesanText: {
+    flex: 1,
+    minWidth: 0,
   },
   keteranganTombol: {
     margin: "10px 0 0",

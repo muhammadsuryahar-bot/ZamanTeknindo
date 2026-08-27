@@ -1,24 +1,25 @@
 const prisma = require("../utils/prismaClient");
-const {
-  deleteFotoAbsensi,
-  buatSignedUrlFotoBatch,
-} = require("../utils/supabaseStorage");
+const { deleteFotoAbsensi } = require("../utils/supabaseStorage");
 
 // ============================================================
 // KARYAWAN — Ajukan izin/sakit/cuti/urgent
 // ============================================================
 async function ajukanIzin(req, res) {
-  // req.file berasal dari middleware kompresFoto.
-  // Jika request akhirnya ditolak, file yang baru saja di-upload
-  // harus dihapus agar tidak menjadi file yatim di Storage.
-  const fotoBaru = req.file?.filename || null;
+  let fotoTersimpanDiDatabase = false;
+  const fotoSurat = req.file ? req.file.filename : null;
+
+  async function hapusFotoJikaPerlu() {
+    if (fotoSurat && !fotoTersimpanDiDatabase) {
+      await deleteFotoAbsensi(fotoSurat);
+    }
+  }
 
   try {
     const { tanggal, jenis, keterangan } = req.body;
     const penggunaId = req.user.id;
 
     if (!tanggal || !jenis || !keterangan) {
-      if (fotoBaru) await deleteFotoAbsensi(fotoBaru);
+      await hapusFotoJikaPerlu();
       return res
         .status(400)
         .json({ pesan: "Tanggal, jenis, dan keterangan wajib diisi." });
@@ -26,20 +27,25 @@ async function ajukanIzin(req, res) {
 
     const jenisValid = ["izin", "sakit", "cuti", "urgent"];
     if (!jenisValid.includes(jenis)) {
-      if (fotoBaru) await deleteFotoAbsensi(fotoBaru);
+      await hapusFotoJikaPerlu();
       return res.status(400).json({ pesan: "Jenis pengajuan tidak valid." });
     }
 
-    // Sakit wajib melampirkan foto surat.
+    // Sakit wajib lampirkan foto surat, sesuai dokumen sistem
     if (jenis === "sakit" && !req.file) {
       return res.status(400).json({
         pesan: "Untuk pengajuan Sakit, foto surat sakit wajib dilampirkan.",
       });
     }
 
-    // Untuk jenis selain sakit, lampiran tetap boleh ada tetapi tidak wajib.
-    const fotoSurat = req.file ? req.file.filename : null;
-
+    // ============================================================
+    // CEK PENGAJUAN AKTIF
+    //
+    // Pemeriksaan ini memberi pesan yang ramah untuk kasus normal.
+    // Perlindungan sebenarnya diperkuat lagi oleh partial unique
+    // index di database, sehingga race condition antar-request
+    // tetap aman.
+    // ============================================================
     const pengajuanAktif = await prisma.pengajuanIzin.findFirst({
       where: {
         penggunaId,
@@ -51,8 +57,7 @@ async function ajukanIzin(req, res) {
     });
 
     if (pengajuanAktif) {
-      if (fotoBaru) await deleteFotoAbsensi(fotoBaru);
-
+      await hapusFotoJikaPerlu();
       return res.status(400).json({
         pesan:
           "Kamu sudah memiliki pengajuan aktif untuk tanggal tersebut. Selesaikan pengajuan yang ada terlebih dahulu.",
@@ -70,15 +75,27 @@ async function ajukanIzin(req, res) {
       },
     });
 
+    fotoTersimpanDiDatabase = true;
+
     return res.status(201).json({
       pesan: "Pengajuan berhasil dikirim, menunggu persetujuan Admin.",
       data: izin,
     });
   } catch (error) {
-    // Kalau DB gagal setelah file berhasil di-upload, hapus file baru.
-    if (fotoBaru) await deleteFotoAbsensi(fotoBaru);
+    console.error("Gagal membuat pengajuan izin:", error);
 
-    console.error(error);
+    // P2002 = unique constraint. Ini terutama menangani dua request
+    // bersamaan yang lolos dari findFirst secara bersamaan.
+    if (error?.code === "P2002") {
+      await hapusFotoJikaPerlu();
+      return res.status(400).json({
+        pesan:
+          "Kamu sudah memiliki pengajuan aktif untuk tanggal tersebut. Selesaikan pengajuan yang ada terlebih dahulu.",
+      });
+    }
+
+    await hapusFotoJikaPerlu();
+
     return res.status(500).json({
       pesan: "Terjadi kesalahan pada server. Silakan coba lagi.",
     });
@@ -115,7 +132,7 @@ async function daftarSemuaIzin(req, res) {
     const statusValid = ["menunggu", "disetujui", "ditolak"];
 
     if (status && !statusValid.includes(status)) {
-      return res.status(400).json({ pesan: "Filter status tidak valid." });
+      return res.status(400).json({ pesan: "Status pengajuan tidak valid." });
     }
 
     const data = await prisma.pengajuanIzin.findMany({
@@ -126,30 +143,7 @@ async function daftarSemuaIzin(req, res) {
       orderBy: { dibuatPada: "desc" },
     });
 
-    // Buat signed URL sekaligus untuk semua surat yang tersimpan di
-    // Supabase Storage. Path legacy /uploads/ tetap dipertahankan.
-    const semuaPathFoto = data
-      .map((item) => item.fotoSurat)
-      .filter((path) => path && !path.startsWith("/uploads/"));
-
-    const petaUrlFoto = await buatSignedUrlFotoBatch(semuaPathFoto);
-
-    const dataDenganFoto = data.map((item) => {
-      let fotoSuratUrl = null;
-
-      if (item.fotoSurat) {
-        fotoSuratUrl = item.fotoSurat.startsWith("/uploads/")
-          ? item.fotoSurat
-          : petaUrlFoto.get(item.fotoSurat) || null;
-      }
-
-      return {
-        ...item,
-        fotoSuratUrl,
-      };
-    });
-
-    return res.json({ data: dataDenganFoto });
+    return res.json({ data });
   } catch (error) {
     console.error(error);
     return res.status(500).json({
@@ -168,17 +162,18 @@ async function setujuiIzin(req, res) {
     const { id } = req.params;
     const { catatanAdmin } = req.body;
     const adminId = req.user.id;
+    const idPengajuan = parseInt(id);
+
+    if (!Number.isInteger(idPengajuan)) {
+      return res.status(400).json({ pesan: "ID pengajuan tidak valid." });
+    }
 
     const izin = await prisma.pengajuanIzin.findUnique({
-      where: {
-        id: parseInt(id),
-      },
+      where: { id: idPengajuan },
     });
 
     if (!izin) {
-      return res.status(404).json({
-        pesan: "Pengajuan tidak ditemukan.",
-      });
+      return res.status(404).json({ pesan: "Pengajuan tidak ditemukan." });
     }
 
     if (izin.status !== "menunggu") {
@@ -187,12 +182,12 @@ async function setujuiIzin(req, res) {
       });
     }
 
+    // ============================================================
     // UPDATE PENGAJUAN + ABSENSI DALAM SATU TRANSACTION
+    // ============================================================
     const hasil = await prisma.$transaction(async (tx) => {
       const izinDiupdate = await tx.pengajuanIzin.update({
-        where: {
-          id: parseInt(id),
-        },
+        where: { id: idPengajuan },
         data: {
           status: "disetujui",
           diprosesOleh: adminId,
@@ -224,10 +219,7 @@ async function setujuiIzin(req, res) {
         },
       });
 
-      return {
-        izinDiupdate,
-        absensi,
-      };
+      return { izinDiupdate, absensi };
     });
 
     return res.json({
@@ -236,7 +228,6 @@ async function setujuiIzin(req, res) {
     });
   } catch (error) {
     console.error("Gagal menyetujui pengajuan izin:", error);
-
     return res.status(500).json({
       pesan: "Gagal menyetujui pengajuan izin. Silakan coba lagi.",
     });
@@ -251,9 +242,14 @@ async function tolakIzin(req, res) {
     const { id } = req.params;
     const { catatanAdmin } = req.body;
     const adminId = req.user.id;
+    const idPengajuan = parseInt(id);
+
+    if (!Number.isInteger(idPengajuan)) {
+      return res.status(400).json({ pesan: "ID pengajuan tidak valid." });
+    }
 
     const izin = await prisma.pengajuanIzin.findUnique({
-      where: { id: parseInt(id) },
+      where: { id: idPengajuan },
     });
 
     if (!izin) {
@@ -261,13 +257,13 @@ async function tolakIzin(req, res) {
     }
 
     if (izin.status !== "menunggu") {
-      return res
-        .status(400)
-        .json({ pesan: "Pengajuan ini sudah diproses sebelumnya." });
+      return res.status(400).json({
+        pesan: "Pengajuan ini sudah diproses sebelumnya.",
+      });
     }
 
     const izinDiupdate = await prisma.pengajuanIzin.update({
-      where: { id: parseInt(id) },
+      where: { id: idPengajuan },
       data: {
         status: "ditolak",
         diprosesOleh: adminId,
@@ -276,7 +272,10 @@ async function tolakIzin(req, res) {
       },
     });
 
-    return res.json({ pesan: "Pengajuan izin ditolak.", data: izinDiupdate });
+    return res.json({
+      pesan: "Pengajuan izin ditolak.",
+      data: izinDiupdate,
+    });
   } catch (error) {
     console.error(error);
     return res.status(500).json({

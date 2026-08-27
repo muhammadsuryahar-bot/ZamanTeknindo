@@ -16,10 +16,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Daftar alamat frontend yang boleh mengakses API.
-// Untuk production, isi FRONTEND_URL dengan domain resmi, misalnya:
-// https://zaman-teknindo.vercel.app
-// Untuk beberapa domain, pisahkan dengan koma.
 const originYangDiizinkan = (process.env.FRONTEND_URL || "")
   .split(",")
   .map((s) => s.trim())
@@ -31,20 +27,10 @@ const polaNgrok = /^https:\/\/[a-z0-9-]+\.ngrok-free\.dev$/;
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Request server-to-server / same-origin tanpa header Origin.
       if (!origin) return callback(null, true);
-
-      // Development lokal.
       if (polaIpLokal.test(origin)) return callback(null, true);
-
-      // Development/testing melalui ngrok.
       if (polaNgrok.test(origin)) return callback(null, true);
-
-      // Production / domain yang memang kita daftarkan.
-      if (originYangDiizinkan.includes(origin)) {
-        return callback(null, true);
-      }
-
+      if (originYangDiizinkan.includes(origin)) return callback(null, true);
       return callback(new Error("Domain ini tidak diizinkan mengakses API."));
     },
   }),
@@ -52,15 +38,42 @@ app.use(
 
 app.use(express.json());
 
-// Rute-rute utama
 app.use("/api/auth", authRoutes);
 app.use("/api/absensi", absensiRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/izin", izinRoutes);
 
-// Rute cek server hidup
 app.get("/api", (req, res) => {
   res.json({ pesan: "Server Sistem Absensi berjalan dengan baik 🚀" });
+});
+
+// Jangan kirim stack trace/detail internal ke client.
+app.use((error, req, res, next) => {
+  console.error("Unhandled API error:", error);
+
+  if (res.headersSent) return next(error);
+
+  if (error?.message === "Domain ini tidak diizinkan mengakses API.") {
+    return res.status(403).json({
+      pesan: "Akses dari domain ini tidak diizinkan.",
+    });
+  }
+
+  if (error?.code === "LIMIT_FILE_SIZE") {
+    return res.status(400).json({
+      pesan: "Ukuran foto terlalu besar. Maksimal 8MB.",
+    });
+  }
+
+  if (error?.message === "File yang diunggah harus berupa gambar.") {
+    return res.status(400).json({
+      pesan: "File yang diunggah harus berupa gambar.",
+    });
+  }
+
+  return res.status(500).json({
+    pesan: "Terjadi kesalahan pada server. Silakan coba lagi.",
+  });
 });
 
 module.exports = app;

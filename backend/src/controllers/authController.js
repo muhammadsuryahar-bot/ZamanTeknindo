@@ -1,5 +1,6 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 const prisma = require("../utils/prismaClient");
 
 const DOMAIN_PERUSAHAAN = (
@@ -24,12 +25,6 @@ function emailLoginDiizinkan(email) {
   return emailBersih === EMAIL_ADMIN || emailKaryawanValid(emailBersih);
 }
 
-// ============================================================
-// DAFTAR AKUN (Karyawan)
-// Pendaftaran publik hanya untuk karyawan.
-// Admin tidak dibuat lewat halaman daftar; akun admin@gmail.com
-// sudah dibuat oleh sistem/admin.
-// ============================================================
 async function daftarAkun(req, res) {
   try {
     const { nama, email, kataSandi } = req.body;
@@ -80,11 +75,6 @@ async function daftarAkun(req, res) {
   }
 }
 
-// ============================================================
-// LOGIN (Admin & Karyawan)
-// Admin yang sudah ada: admin@gmail.com
-// Karyawan: harus @zamanteknindo.com
-// ============================================================
 async function login(req, res) {
   try {
     const { email, kataSandi } = req.body;
@@ -108,7 +98,6 @@ async function login(req, res) {
       return res.status(400).json({ pesan: "Email atau kata sandi salah." });
     }
 
-    // Hanya admin@gmail.com yang diperbolehkan sebagai akun Admin utama.
     if (pengguna.peran === "admin" && emailBersih !== EMAIL_ADMIN) {
       return res.status(403).json({
         pesan: "Email Admin tidak diizinkan untuk akun ini.",
@@ -156,9 +145,6 @@ async function login(req, res) {
   }
 }
 
-// ============================================================
-// GANTI PASSWORD SENDIRI
-// ============================================================
 async function gantiPassword(req, res) {
   try {
     const { passwordLama, passwordBaru } = req.body;
@@ -198,15 +184,15 @@ async function gantiPassword(req, res) {
 function buatPasswordSementara() {
   const karakter = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
   let hasil = "";
+
   for (let i = 0; i < 8; i++) {
-    hasil += karakter[Math.floor(Math.random() * karakter.length)];
+    const indeks = crypto.randomInt(0, karakter.length);
+    hasil += karakter[indeks];
   }
+
   return hasil;
 }
 
-// ============================================================
-// RESET PASSWORD OLEH ADMIN
-// ============================================================
 async function resetPasswordOlehAdmin(req, res) {
   try {
     const { id } = req.params;
