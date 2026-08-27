@@ -108,7 +108,7 @@ api/index.js             Pintu masuk serverless function Vercel (re-export Expre
 ## Yang masih perlu diperhatikan sebelum dipakai skala besar
 
 - **Storage foto** ada di paket gratis Supabase (1 GB) — perlu kebijakan retensi/arsip foto kalau jumlah karyawan & lama pemakaian bertambah
-- **Backup database** belum otomatis di paket gratis Supabase — perlu backup manual berkala
+- **Backup database** belum otomatis di paket gratis Supabase — lihat [docs/BACKUP.md](docs/BACKUP.md) untuk prosedur backup & restore manual
 - Belum pernah diuji dengan *load test* untuk skenario banyak karyawan absen bersamaan
 
 ## Troubleshooting singkat
