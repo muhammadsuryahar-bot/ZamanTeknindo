@@ -20,6 +20,7 @@ const {
   tambahHariLibur,
   hapusHariLibur,
   usulanHariLibur,
+  notifikasiAdmin,
 } = require("../controllers/adminController");
 
 const { resetPasswordOlehAdmin } = require("../controllers/authController");
@@ -118,6 +119,7 @@ function validasiEditStatusAbsensi(req, res, next) {
 // AKUN MENUNGGU KONFIRMASI
 // ============================================================
 router.get("/akun-menunggu", daftarMenungguKonfirmasi);
+router.get("/notifikasi", notifikasiAdmin);
 router.put("/akun/:id/aktifkan", aktifkanAkun);
 
 // ============================================================

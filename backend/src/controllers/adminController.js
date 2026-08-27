@@ -213,7 +213,7 @@ async function rekapHariIni(req, res) {
     // ============================================================
     // BUAT SIGNED URL UNTUK FOTO DARI SUPABASE STORAGE
     // ============================================================
-        const semuaPathFoto = [];
+    const semuaPathFoto = [];
 
     for (const item of data) {
       if (item.fotoMasuk && !item.fotoMasuk.startsWith("/uploads/")) {
@@ -253,16 +253,14 @@ async function rekapHariIni(req, res) {
     // CARI KARYAWAN YANG SUDAH ABSEN
     // ============================================================
     const sudahAbsen = new Set(
-      data
-        .map((item) => item.pengguna?.id)
-        .filter((id) => id != null)
+      data.map((item) => item.pengguna?.id).filter((id) => id != null),
     );
 
     // ============================================================
     // CARI KARYAWAN YANG BELUM ABSEN
     // ============================================================
     const belumAbsen = karyawanAktif.filter(
-      (karyawan) => !sudahAbsen.has(karyawan.id)
+      (karyawan) => !sudahAbsen.has(karyawan.id),
     );
 
     // ============================================================
@@ -291,9 +289,7 @@ async function ringkasanDashboard(req, res) {
     const tanggalHariIni = tanggalHariIniWIB();
 
     const tujuhHariLalu = new Date(tanggalHariIni);
-    tujuhHariLalu.setUTCDate(
-      tujuhHariLalu.getUTCDate() - 6
-    );
+    tujuhHariLalu.setUTCDate(tujuhHariLalu.getUTCDate() - 6);
 
     const absensi7Hari = await prisma.absensi.findMany({
       where: {
@@ -319,9 +315,7 @@ async function ringkasanDashboard(req, res) {
     for (let i = 0; i < 7; i++) {
       const t = new Date(tujuhHariLalu);
 
-      t.setUTCDate(
-        t.getUTCDate() + i
-      );
+      t.setUTCDate(t.getUTCDate() + i);
 
       const key = t.toISOString().slice(0, 10);
 
@@ -335,9 +329,7 @@ async function ringkasanDashboard(req, res) {
     }
 
     for (const a of absensi7Hari) {
-      const key = a.tanggal
-        .toISOString()
-        .slice(0, 10);
+      const key = a.tanggal.toISOString().slice(0, 10);
 
       if (!trenPerTanggal[key]) continue;
 
@@ -354,35 +346,30 @@ async function ringkasanDashboard(req, res) {
       }
     }
 
-    const tigaPuluhHariLalu = new Date(
-      tanggalHariIni
-    );
+    const tigaPuluhHariLalu = new Date(tanggalHariIni);
 
-    tigaPuluhHariLalu.setUTCDate(
-      tigaPuluhHariLalu.getUTCDate() - 29
-    );
+    tigaPuluhHariLalu.setUTCDate(tigaPuluhHariLalu.getUTCDate() - 29);
 
-    const absensiBulanan =
-      await prisma.absensi.findMany({
-        where: {
-          tanggal: {
-            gte: tigaPuluhHariLalu,
-            lte: tanggalHariIni,
+    const absensiBulanan = await prisma.absensi.findMany({
+      where: {
+        tanggal: {
+          gte: tigaPuluhHariLalu,
+          lte: tanggalHariIni,
+        },
+      },
+
+      select: {
+        statusOtomatis: true,
+        statusFinal: true,
+
+        pengguna: {
+          select: {
+            id: true,
+            nama: true,
           },
         },
-
-        select: {
-          statusOtomatis: true,
-          statusFinal: true,
-
-          pengguna: {
-            select: {
-              id: true,
-              nama: true,
-            },
-          },
-        },
-      });
+      },
+    });
 
     const rekapPerKaryawan = {};
 
@@ -407,21 +394,13 @@ async function ringkasanDashboard(req, res) {
       rekapPerKaryawan[id][s] += 1;
     }
 
-    const sorotanKaryawan =
-      Object.values(rekapPerKaryawan)
-        .sort(
-          (a, b) =>
-            b.telat +
-            b.alpha -
-            (a.telat + a.alpha)
-        )
-        .slice(0, 5);
+    const sorotanKaryawan = Object.values(rekapPerKaryawan)
+      .sort((a, b) => b.telat + b.alpha - (a.telat + a.alpha))
+      .slice(0, 5);
 
     return res.json({
       data: {
-        tren7Hari: Object.values(
-          trenPerTanggal
-        ),
+        tren7Hari: Object.values(trenPerTanggal),
         sorotanKaryawan,
       },
     });
@@ -476,21 +455,20 @@ async function editStatusAbsensi(req, res) {
 // ============================================================
 async function ambilPengaturanPotongan(req, res) {
   try {
-    const pengaturan =
-      await prisma.pengaturanPotongan.upsert({
-        where: {
-          id: 1,
-        },
+    const pengaturan = await prisma.pengaturanPotongan.upsert({
+      where: {
+        id: 1,
+      },
 
-        update: {},
+      update: {},
 
-        create: {
-          id: 1,
-          potonganTelat: 10000,
-          potonganAlpha: 15000,
-          jamMasukStandar: "08:00:00",
-        },
-      });
+      create: {
+        id: 1,
+        potonganTelat: 10000,
+        potonganAlpha: 15000,
+        jamMasukStandar: "08:00:00",
+      },
+    });
 
     return res.json({
       data: pengaturan,
@@ -507,66 +485,46 @@ async function ambilPengaturanPotongan(req, res) {
 
 async function ubahPengaturanPotongan(req, res) {
   try {
-    const {
-      potonganTelat,
-      potonganAlpha,
-      jamMasukStandar,
-    } = req.body;
+    const { potonganTelat, potonganAlpha, jamMasukStandar } = req.body;
 
-    if (
-      potonganTelat == null ||
-      potonganAlpha == null
-    ) {
+    if (potonganTelat == null || potonganAlpha == null) {
       return res.status(400).json({
-        pesan:
-          "Potongan telat dan potongan alpha wajib diisi.",
+        pesan: "Potongan telat dan potongan alpha wajib diisi.",
       });
     }
 
-    if (
-      Number(potonganTelat) < 0 ||
-      Number(potonganAlpha) < 0
-    ) {
+    if (Number(potonganTelat) < 0 || Number(potonganAlpha) < 0) {
       return res.status(400).json({
-        pesan:
-          "Nominal potongan tidak boleh negatif.",
+        pesan: "Nominal potongan tidak boleh negatif.",
       });
     }
 
-    const pengaturan =
-      await prisma.pengaturanPotongan.upsert({
-        where: {
-          id: 1,
-        },
+    const pengaturan = await prisma.pengaturanPotongan.upsert({
+      where: {
+        id: 1,
+      },
 
-        update: {
-          potonganTelat:
-            Number(potonganTelat),
+      update: {
+        potonganTelat: Number(potonganTelat),
 
-          potonganAlpha:
-            Number(potonganAlpha),
+        potonganAlpha: Number(potonganAlpha),
 
-          jamMasukStandar:
-            jamMasukStandar || "08:00:00",
-        },
+        jamMasukStandar: jamMasukStandar || "08:00:00",
+      },
 
-        create: {
-          id: 1,
+      create: {
+        id: 1,
 
-          potonganTelat:
-            Number(potonganTelat),
+        potonganTelat: Number(potonganTelat),
 
-          potonganAlpha:
-            Number(potonganAlpha),
+        potonganAlpha: Number(potonganAlpha),
 
-          jamMasukStandar:
-            jamMasukStandar || "08:00:00",
-        },
-      });
+        jamMasukStandar: jamMasukStandar || "08:00:00",
+      },
+    });
 
     return res.json({
-      pesan:
-        "Pengaturan potongan berhasil diperbarui.",
+      pesan: "Pengaturan potongan berhasil diperbarui.",
       data: pengaturan,
     });
   } catch (error) {
@@ -626,22 +584,17 @@ async function ubahGajiKaryawan(req, res) {
     const { id } = req.params;
     const { gajiPokok } = req.body;
 
-    if (
-      gajiPokok == null ||
-      Number(gajiPokok) < 0
-    ) {
+    if (gajiPokok == null || Number(gajiPokok) < 0) {
       return res.status(400).json({
-        pesan:
-          "Gaji pokok wajib diisi dan tidak boleh negatif.",
+        pesan: "Gaji pokok wajib diisi dan tidak boleh negatif.",
       });
     }
 
-    const pengguna =
-      await prisma.pengguna.findUnique({
-        where: {
-          id: parseInt(id),
-        },
-      });
+    const pengguna = await prisma.pengguna.findUnique({
+      where: {
+        id: parseInt(id),
+      },
+    });
 
     if (!pengguna) {
       return res.status(404).json({
@@ -651,34 +604,28 @@ async function ubahGajiKaryawan(req, res) {
 
     if (pengguna.peran !== "karyawan") {
       return res.status(400).json({
-        pesan:
-          "Gaji hanya bisa diatur untuk akun karyawan.",
+        pesan: "Gaji hanya bisa diatur untuk akun karyawan.",
       });
     }
 
-    const gaji =
-      await prisma.gajiKaryawan.upsert({
-        where: {
-          penggunaId: parseInt(id),
-        },
+    const gaji = await prisma.gajiKaryawan.upsert({
+      where: {
+        penggunaId: parseInt(id),
+      },
 
-        update: {
-          gajiPokok:
-            Number(gajiPokok),
-        },
+      update: {
+        gajiPokok: Number(gajiPokok),
+      },
 
-        create: {
-          penggunaId:
-            parseInt(id),
+      create: {
+        penggunaId: parseInt(id),
 
-          gajiPokok:
-            Number(gajiPokok),
-        },
-      });
+        gajiPokok: Number(gajiPokok),
+      },
+    });
 
     return res.json({
-      pesan:
-        `Gaji pokok ${pengguna.nama} berhasil diperbarui.`,
+      pesan: `Gaji pokok ${pengguna.nama} berhasil diperbarui.`,
       data: gaji,
     });
   } catch (error) {
@@ -723,12 +670,7 @@ async function daftarKantor(req, res) {
 
 async function tambahKantor(req, res) {
   try {
-    const {
-      namaKantor,
-      alamat,
-      latitude,
-      longitude,
-    } = req.body;
+    const { namaKantor, alamat, latitude, longitude } = req.body;
 
     if (!namaKantor || !namaKantor.trim()) {
       return res.status(400).json({
@@ -736,19 +678,13 @@ async function tambahKantor(req, res) {
       });
     }
 
-    if (
-      latitude &&
-      isNaN(parseFloat(latitude))
-    ) {
+    if (latitude && isNaN(parseFloat(latitude))) {
       return res.status(400).json({
         pesan: "Latitude harus berupa angka.",
       });
     }
 
-    if (
-      longitude &&
-      isNaN(parseFloat(longitude))
-    ) {
+    if (longitude && isNaN(parseFloat(longitude))) {
       return res.status(400).json({
         pesan: "Longitude harus berupa angka.",
       });
@@ -756,27 +692,18 @@ async function tambahKantor(req, res) {
 
     const kantor = await prisma.kantor.create({
       data: {
-        namaKantor:
-          namaKantor.trim(),
+        namaKantor: namaKantor.trim(),
 
-        alamat:
-          alamat || null,
+        alamat: alamat || null,
 
-        latitude:
-          latitude
-            ? parseFloat(latitude)
-            : null,
+        latitude: latitude ? parseFloat(latitude) : null,
 
-        longitude:
-          longitude
-            ? parseFloat(longitude)
-            : null,
+        longitude: longitude ? parseFloat(longitude) : null,
       },
     });
 
     return res.status(201).json({
-      pesan:
-        `Kantor "${kantor.namaKantor}" berhasil ditambahkan.`,
+      pesan: `Kantor "${kantor.namaKantor}" berhasil ditambahkan.`,
       data: kantor,
     });
   } catch (error) {
@@ -793,12 +720,7 @@ async function ubahKantor(req, res) {
   try {
     const { id } = req.params;
 
-    const {
-      namaKantor,
-      alamat,
-      latitude,
-      longitude,
-    } = req.body;
+    const { namaKantor, alamat, latitude, longitude } = req.body;
 
     if (!namaKantor || !namaKantor.trim()) {
       return res.status(400).json({
@@ -806,19 +728,13 @@ async function ubahKantor(req, res) {
       });
     }
 
-    if (
-      latitude &&
-      isNaN(parseFloat(latitude))
-    ) {
+    if (latitude && isNaN(parseFloat(latitude))) {
       return res.status(400).json({
         pesan: "Latitude harus berupa angka.",
       });
     }
 
-    if (
-      longitude &&
-      isNaN(parseFloat(longitude))
-    ) {
+    if (longitude && isNaN(parseFloat(longitude))) {
       return res.status(400).json({
         pesan: "Longitude harus berupa angka.",
       });
@@ -830,27 +746,18 @@ async function ubahKantor(req, res) {
       },
 
       data: {
-        namaKantor:
-          namaKantor.trim(),
+        namaKantor: namaKantor.trim(),
 
-        alamat:
-          alamat || null,
+        alamat: alamat || null,
 
-        latitude:
-          latitude
-            ? parseFloat(latitude)
-            : null,
+        latitude: latitude ? parseFloat(latitude) : null,
 
-        longitude:
-          longitude
-            ? parseFloat(longitude)
-            : null,
+        longitude: longitude ? parseFloat(longitude) : null,
       },
     });
 
     return res.json({
-      pesan:
-        `Kantor "${kantor.namaKantor}" berhasil diperbarui.`,
+      pesan: `Kantor "${kantor.namaKantor}" berhasil diperbarui.`,
       data: kantor,
     });
   } catch (error) {
@@ -873,25 +780,20 @@ async function daftarHariLibur(req, res) {
     const where = tahun
       ? {
           tanggal: {
-            gte: new Date(
-              `${tahun}-01-01T00:00:00.000Z`
-            ),
+            gte: new Date(`${tahun}-01-01T00:00:00.000Z`),
 
-            lte: new Date(
-              `${tahun}-12-31T23:59:59.999Z`
-            ),
+            lte: new Date(`${tahun}-12-31T23:59:59.999Z`),
           },
         }
       : {};
 
-    const data =
-      await prisma.hariLibur.findMany({
-        where,
+    const data = await prisma.hariLibur.findMany({
+      where,
 
-        orderBy: {
-          tanggal: "asc",
-        },
-      });
+      orderBy: {
+        tanggal: "asc",
+      },
+    });
 
     return res.json({ data });
   } catch (error) {
@@ -914,47 +816,34 @@ async function tambahHariLibur(req, res) {
       });
     }
 
-    if (
-      !keterangan ||
-      !keterangan.trim()
-    ) {
+    if (!keterangan || !keterangan.trim()) {
       return res.status(400).json({
-        pesan:
-          "Keterangan wajib diisi (contoh: Hari Kemerdekaan).",
+        pesan: "Keterangan wajib diisi (contoh: Hari Kemerdekaan).",
       });
     }
 
-    const sudahAda =
-      await prisma.hariLibur.findUnique({
-        where: {
-          tanggal: new Date(
-            `${tanggal}T00:00:00.000Z`
-          ),
-        },
-      });
+    const sudahAda = await prisma.hariLibur.findUnique({
+      where: {
+        tanggal: new Date(`${tanggal}T00:00:00.000Z`),
+      },
+    });
 
     if (sudahAda) {
       return res.status(400).json({
-        pesan:
-          "Tanggal ini sudah terdaftar sebagai hari libur.",
+        pesan: "Tanggal ini sudah terdaftar sebagai hari libur.",
       });
     }
 
-    const hariLibur =
-      await prisma.hariLibur.create({
-        data: {
-          tanggal: new Date(
-            `${tanggal}T00:00:00.000Z`
-          ),
+    const hariLibur = await prisma.hariLibur.create({
+      data: {
+        tanggal: new Date(`${tanggal}T00:00:00.000Z`),
 
-          keterangan:
-            keterangan.trim(),
-        },
-      });
+        keterangan: keterangan.trim(),
+      },
+    });
 
     return res.status(201).json({
-      pesan:
-        `Hari libur "${hariLibur.keterangan}" berhasil ditambahkan.`,
+      pesan: `Hari libur "${hariLibur.keterangan}" berhasil ditambahkan.`,
       data: hariLibur,
     });
   } catch (error) {
@@ -995,24 +884,17 @@ async function hapusHariLibur(req, res) {
 // ============================================================
 async function usulanHariLibur(req, res) {
   try {
-    const tahun =
-      parseInt(req.query.tahun) ||
-      new Date().getFullYear();
+    const tahun = parseInt(req.query.tahun) || new Date().getFullYear();
 
-    const kontrolWaktu =
-      new AbortController();
+    const kontrolWaktu = new AbortController();
 
-    const timeoutId = setTimeout(
-      () => kontrolWaktu.abort(),
-      8000
-    );
+    const timeoutId = setTimeout(() => kontrolWaktu.abort(), 8000);
 
     const responLuar = await fetch(
       `https://api-hari-libur.vercel.app/api?year=${tahun}`,
       {
-        signal:
-          kontrolWaktu.signal,
-      }
+        signal: kontrolWaktu.signal,
+      },
     );
 
     clearTimeout(timeoutId);
@@ -1024,19 +906,52 @@ async function usulanHariLibur(req, res) {
       });
     }
 
-    const data =
-      await responLuar.json();
+    const data = await responLuar.json();
 
     return res.json(data);
   } catch (error) {
-    console.error(
-      "Gagal ambil usulan hari libur:",
-      error.message
-    );
+    console.error("Gagal ambil usulan hari libur:", error.message);
 
     return res.status(502).json({
       pesan:
         "Sumber data hari libur sedang tidak bisa diakses. Coba lagi nanti, atau tambahkan manual.",
+    });
+  }
+}
+
+// ============================================================
+// NOTIFIKASI ADMIN
+// Mengambil jumlah hal penting yang masih perlu diproses Admin.
+// ============================================================
+async function notifikasiAdmin(req, res) {
+  try {
+    const [jumlahAkunBaru, jumlahIzinMenunggu] = await Promise.all([
+      prisma.pengguna.count({
+        where: {
+          peran: "karyawan",
+          statusAkun: "menunggu_konfirmasi",
+        },
+      }),
+
+      prisma.pengajuanIzin.count({
+        where: {
+          status: "menunggu",
+        },
+      }),
+    ]);
+
+    return res.json({
+      data: {
+        akunBaru: jumlahAkunBaru,
+        izinBaru: jumlahIzinMenunggu,
+        total: jumlahAkunBaru + jumlahIzinMenunggu,
+      },
+    });
+  } catch (error) {
+    console.error("Gagal mengambil notifikasi Admin:", error);
+
+    return res.status(500).json({
+      pesan: "Gagal memuat notifikasi Admin. Silakan coba lagi.",
     });
   }
 }
@@ -1063,4 +978,5 @@ module.exports = {
   tambahHariLibur,
   hapusHariLibur,
   usulanHariLibur,
+  notifikasiAdmin,
 };
