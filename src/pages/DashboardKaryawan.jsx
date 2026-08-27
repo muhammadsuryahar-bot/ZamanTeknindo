@@ -1080,6 +1080,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
     const simpanOffline = async () => {
       await simpanKeAntrian({
+        penggunaId: pengguna.id,
         foto: fotoTerambil,
         latitude: lokasi?.latitude,
         longitude: lokasi?.longitude,
