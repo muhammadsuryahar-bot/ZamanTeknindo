@@ -31,6 +31,9 @@ const TAHAP_VALID = new Set(["belum_masuk", "sudah_masuk", "selesai"]);
 const STATUS_CACHE_VERSION = 1;
 const STATUS_REQUEST_TIMEOUT_MS = 8000;
 const ABSENSI_REQUEST_TIMEOUT_MS = 15000;
+const MAX_UPLOAD_BYTES = 1.5 * 1024 * 1024;
+const MAX_UPLOAD_WIDTH = 1280;
+const MAX_UPLOAD_HEIGHT = 1280;
 
 function tanggalLokalISO() {
   const sekarang = new Date();
@@ -66,6 +69,95 @@ function bacaCacheStatusHariIni(pengguna) {
     console.warn("Cache status absensi tidak dapat dibaca:", err);
     return null;
   }
+}
+
+async function kompresFotoUntukUpload(canvas, kualitasAwal = 0.82) {
+  const sourceWidth = canvas.width;
+  const sourceHeight = canvas.height;
+
+  if (!sourceWidth || !sourceHeight) {
+    throw new Error("Ukuran foto tidak valid.");
+  }
+
+  const skala = Math.min(
+    1,
+    MAX_UPLOAD_WIDTH / sourceWidth,
+    MAX_UPLOAD_HEIGHT / sourceHeight,
+  );
+
+  const width = Math.max(1, Math.round(sourceWidth * skala));
+  const height = Math.max(1, Math.round(sourceHeight * skala));
+
+  const canvasUpload = document.createElement("canvas");
+  canvasUpload.width = width;
+  canvasUpload.height = height;
+
+  const ctx = canvasUpload.getContext("2d", { alpha: false });
+  if (!ctx) {
+    throw new Error("Tidak dapat menyiapkan foto untuk upload.");
+  }
+
+  ctx.drawImage(canvas, 0, 0, width, height);
+
+  const buatBlob = (quality) =>
+    new Promise((resolve, reject) => {
+      canvasUpload.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error("Foto gagal dikompres."));
+            return;
+          }
+          resolve(blob);
+        },
+        "image/jpeg",
+        quality,
+      );
+    });
+
+  let quality = kualitasAwal;
+  let blob = await buatBlob(quality);
+
+  while (blob.size > MAX_UPLOAD_BYTES && quality > 0.45) {
+    quality = Math.max(0.45, quality - 0.08);
+    blob = await buatBlob(quality);
+  }
+
+  if (blob.size > MAX_UPLOAD_BYTES) {
+    // Fallback terakhir: kecilkan resolusi supaya payload tetap aman.
+    const fallbackCanvas = document.createElement("canvas");
+    const fallbackScale = 0.75;
+    fallbackCanvas.width = Math.max(1, Math.round(width * fallbackScale));
+    fallbackCanvas.height = Math.max(1, Math.round(height * fallbackScale));
+
+    const fallbackCtx = fallbackCanvas.getContext("2d", { alpha: false });
+    if (!fallbackCtx) {
+      throw new Error("Tidak dapat menyiapkan fallback foto.");
+    }
+
+    fallbackCtx.drawImage(
+      canvasUpload,
+      0,
+      0,
+      fallbackCanvas.width,
+      fallbackCanvas.height,
+    );
+
+    blob = await new Promise((resolve, reject) => {
+      fallbackCanvas.toBlob(
+        (hasil) => {
+          if (!hasil) {
+            reject(new Error("Foto gagal dikompres."));
+            return;
+          }
+          resolve(hasil);
+        },
+        "image/jpeg",
+        0.45,
+      );
+    });
+  }
+
+  return blob;
 }
 
 function simpanCacheStatusHariIni(pengguna, tahap) {
@@ -473,7 +565,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
   async function cobaSinkronAntrian({ refreshStatus = true } = {}) {
     try {
-      const sisa = await jumlahAntrian(pengguna.id);
+      const sisa = await jumlahAntrian();
       if (!mountedRef.current) return;
 
       setJumlahTertunda(sisa);
@@ -503,7 +595,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         getToken,
         penggunaId: pengguna.id,
       });
-      const sisaTerbaru = await jumlahAntrian(pengguna.id);
+      const sisaTerbaru = await jumlahAntrian();
 
       if (!mountedRef.current) return;
 
@@ -769,7 +861,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     }
   }
 
-  function ambilFoto() {
+  async function ambilFoto() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
 
@@ -796,23 +888,21 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     ctx.restore();
 
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) {
-          setPesan("Foto gagal diproses. Silakan coba lagi.");
-          return;
-        }
+    try {
+      const blob = await kompresFotoUntukUpload(canvas);
 
-        if (!mountedRef.current) return;
+      if (!mountedRef.current) return;
 
-        setFotoTerambil(blob);
-        // Kamera dihentikan, tetapi lokasi terakhir tetap dipertahankan
-        // untuk dikirim bersama foto.
-        hentikanKamera();
-      },
-      "image/jpeg",
-      0.86,
-    );
+      setFotoTerambil(blob);
+      // Kamera dihentikan, tetapi lokasi terakhir tetap dipertahankan
+      // untuk dikirim bersama foto.
+      hentikanKamera();
+    } catch (err) {
+      console.error("Gagal mengompres foto:", err);
+      if (mountedRef.current) {
+        setPesan("Foto gagal diproses. Silakan coba lagi.");
+      }
+    }
   }
 
   async function fotoUlang() {
@@ -1080,7 +1170,6 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
     const simpanOffline = async () => {
       await simpanKeAntrian({
-        penggunaId: pengguna.id,
         foto: fotoTerambil,
         latitude: lokasi?.latitude,
         longitude: lokasi?.longitude,
@@ -1089,7 +1178,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         endpoint,
       });
 
-      const sisa = await jumlahAntrian(pengguna.id);
+      const sisa = await jumlahAntrian();
 
       if (mountedRef.current) {
         setJumlahTertunda(sisa);
