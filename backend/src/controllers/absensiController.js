@@ -1,5 +1,8 @@
 const prisma = require("../utils/prismaClient");
-const { tanggalHariIniWIB, jamSekarangWIB } = require("../utils/waktuIndonesia");
+const {
+  tanggalHariIniWIB,
+  jamSekarangWIB,
+} = require("../utils/waktuIndonesia");
 
 function jamKeDesimal(jamString) {
   const [jam, menit] = jamString.split(":").map(Number);
@@ -7,7 +10,9 @@ function jamKeDesimal(jamString) {
 }
 
 async function ambilJamBatasMasuk() {
-  const pengaturan = await prisma.pengaturanPotongan.findUnique({ where: { id: 1 } });
+  const pengaturan = await prisma.pengaturanPotongan.findUnique({
+    where: { id: 1 },
+  });
   const jamStandar = pengaturan?.jamMasukStandar || "08:00:00";
   return jamKeDesimal(jamStandar);
 }
@@ -46,7 +51,8 @@ async function absenMasuk(req, res) {
     const penggunaId = req.user.id;
     const { latitude, longitude, alamat, waktuAsli } = req.body;
 
-    if (!req.file) return res.status(400).json({ pesan: "Foto absen wajib diunggah." });
+    if (!req.file)
+      return res.status(400).json({ pesan: "Foto absen wajib diunggah." });
 
     const tanggal = tanggalHariIni();
     const sudahAbsen = await prisma.absensi.findUnique({
@@ -54,13 +60,16 @@ async function absenMasuk(req, res) {
     });
 
     if (sudahAbsen && sudahAbsen.jamMasuk) {
-      return res.status(400).json({ pesan: "Anda sudah melakukan absen masuk hari ini." });
+      return res
+        .status(400)
+        .json({ pesan: "Anda sudah melakukan absen masuk hari ini." });
     }
 
     const jamBatasMasuk = await ambilJamBatasMasuk();
     const sekarang = tentukanJamAbsen(waktuAsli);
     const jamSekarang = jamSekarangWIB(sekarang);
-    const statusOtomatis = jamSekarang <= jamBatasMasuk ? "tepat_waktu" : "telat";
+    const statusOtomatis =
+      jamSekarang <= jamBatasMasuk ? "tepat_waktu" : "telat";
     const fotoPath = req.file.filename;
 
     const data = {
@@ -83,7 +92,9 @@ async function absenMasuk(req, res) {
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ pesan: "Terjadi kesalahan pada server.", detail: error.message });
+    return res.status(500).json({
+      pesan: "Terjadi kesalahan pada server. Silakan coba lagi.",
+    });
   }
 }
 
@@ -91,7 +102,8 @@ async function absenPulang(req, res) {
   try {
     const penggunaId = req.user.id;
     const { latitude, longitude, alamat, waktuAsli } = req.body;
-    if (!req.file) return res.status(400).json({ pesan: "Foto absen wajib diunggah." });
+    if (!req.file)
+      return res.status(400).json({ pesan: "Foto absen wajib diunggah." });
 
     const tanggal = tanggalHariIni();
     const absensiHariIni = await prisma.absensi.findUnique({
@@ -99,10 +111,14 @@ async function absenPulang(req, res) {
     });
 
     if (!absensiHariIni || !absensiHariIni.jamMasuk) {
-      return res.status(400).json({ pesan: "Anda belum melakukan absen masuk hari ini." });
+      return res
+        .status(400)
+        .json({ pesan: "Anda belum melakukan absen masuk hari ini." });
     }
     if (absensiHariIni.jamPulang) {
-      return res.status(400).json({ pesan: "Anda sudah melakukan absen pulang hari ini." });
+      return res
+        .status(400)
+        .json({ pesan: "Anda sudah melakukan absen pulang hari ini." });
     }
 
     const absensi = await prisma.absensi.update({
@@ -116,10 +132,14 @@ async function absenPulang(req, res) {
       },
     });
 
-    return res.status(200).json({ pesan: "Absen pulang berhasil! Terima kasih.", data: absensi });
+    return res
+      .status(200)
+      .json({ pesan: "Absen pulang berhasil! Terima kasih.", data: absensi });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ pesan: "Terjadi kesalahan pada server.", detail: error.message });
+    return res.status(500).json({
+      pesan: "Terjadi kesalahan pada server. Silakan coba lagi.",
+    });
   }
 }
 
@@ -133,14 +153,21 @@ async function riwayatSaya(req, res) {
     return res.json({ data: riwayat });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ pesan: "Terjadi kesalahan pada server.", detail: error.message });
+    return res.status(500).json({
+      pesan: "Terjadi kesalahan pada server. Silakan coba lagi.",
+    });
   }
 }
 
 async function statusHariIni(req, res) {
   try {
     const absensi = await prisma.absensi.findUnique({
-      where: { penggunaId_tanggal: { penggunaId: req.user.id, tanggal: tanggalHariIni() } },
+      where: {
+        penggunaId_tanggal: {
+          penggunaId: req.user.id,
+          tanggal: tanggalHariIni(),
+        },
+      },
     });
 
     let tahap = "belum_masuk";
@@ -150,7 +177,9 @@ async function statusHariIni(req, res) {
     return res.json({ tahap, data: absensi || null });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ pesan: "Terjadi kesalahan pada server.", detail: error.message });
+    return res.status(500).json({
+      pesan: "Terjadi kesalahan pada server. Silakan coba lagi.",
+    });
   }
 }
 

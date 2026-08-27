@@ -9,7 +9,9 @@ async function ajukanIzin(req, res) {
     const penggunaId = req.user.id;
 
     if (!tanggal || !jenis || !keterangan) {
-      return res.status(400).json({ pesan: "Tanggal, jenis, dan keterangan wajib diisi." });
+      return res
+        .status(400)
+        .json({ pesan: "Tanggal, jenis, dan keterangan wajib diisi." });
     }
 
     const jenisValid = ["izin", "sakit", "cuti", "urgent"];
@@ -19,10 +21,29 @@ async function ajukanIzin(req, res) {
 
     // Sakit wajib lampirkan foto surat, sesuai dokumen sistem
     if (jenis === "sakit" && !req.file) {
-      return res.status(400).json({ pesan: "Untuk pengajuan Sakit, foto surat sakit wajib dilampirkan." });
+      return res.status(400).json({
+        pesan: "Untuk pengajuan Sakit, foto surat sakit wajib dilampirkan.",
+      });
     }
 
     const fotoSurat = req.file ? req.file.filename : null;
+
+    const pengajuanAktif = await prisma.pengajuanIzin.findFirst({
+      where: {
+        penggunaId,
+        tanggal: new Date(tanggal),
+        status: {
+          in: ["menunggu", "disetujui"],
+        },
+      },
+    });
+
+    if (pengajuanAktif) {
+      return res.status(400).json({
+        pesan:
+          "Kamu sudah memiliki pengajuan aktif untuk tanggal tersebut. Selesaikan pengajuan yang ada terlebih dahulu.",
+      });
+    }
 
     const izin = await prisma.pengajuanIzin.create({
       data: {
@@ -41,7 +62,9 @@ async function ajukanIzin(req, res) {
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ pesan: "Terjadi kesalahan pada server.", detail: error.message });
+    return res.status(500).json({
+      pesan: "Terjadi kesalahan pada server. Silakan coba lagi.",
+    });
   }
 }
 
@@ -60,7 +83,9 @@ async function riwayatIzinSaya(req, res) {
     return res.json({ data });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ pesan: "Terjadi kesalahan pada server.", detail: error.message });
+    return res.status(500).json({
+      pesan: "Terjadi kesalahan pada server. Silakan coba lagi.",
+    });
   }
 }
 
@@ -82,7 +107,9 @@ async function daftarSemuaIzin(req, res) {
     return res.json({ data });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ pesan: "Terjadi kesalahan pada server.", detail: error.message });
+    return res.status(500).json({
+      pesan: "Terjadi kesalahan pada server. Silakan coba lagi.",
+    });
   }
 }
 
@@ -97,55 +124,88 @@ async function setujuiIzin(req, res) {
     const { catatanAdmin } = req.body;
     const adminId = req.user.id;
 
-    const izin = await prisma.pengajuanIzin.findUnique({ where: { id: parseInt(id) } });
-    if (!izin) {
-      return res.status(404).json({ pesan: "Pengajuan tidak ditemukan." });
-    }
-    if (izin.status !== "menunggu") {
-      return res.status(400).json({ pesan: "Pengajuan ini sudah diproses sebelumnya." });
-    }
-
-    const izinDiupdate = await prisma.pengajuanIzin.update({
-      where: { id: parseInt(id) },
-      data: {
-        status: "disetujui",
-        diprosesOleh: adminId,
-        waktuProses: new Date(),
-        catatanAdmin: catatanAdmin || null,
+    const izin = await prisma.pengajuanIzin.findUnique({
+      where: {
+        id: parseInt(id),
       },
     });
 
-    // Cari/buat baris absensi hari itu, langsung set statusFinal sesuai
-    // jenis izin (izin/sakit/cuti/urgent). Ini jadi SATU-SATUNYA sumber
-    // status kehadiran yang dipakai buat hitung gaji & laporan nanti —
-    // gak perlu cek tabel pengajuan_izin terpisah lagi.
-    await prisma.absensi.upsert({
-      where: {
-        penggunaId_tanggal: {
+    if (!izin) {
+      return res.status(404).json({
+        pesan: "Pengajuan tidak ditemukan.",
+      });
+    }
+
+    if (izin.status !== "menunggu") {
+      return res.status(400).json({
+        pesan: "Pengajuan ini sudah diproses sebelumnya.",
+      });
+    }
+
+    // ============================================================
+    // UPDATE PENGAJUAN + ABSENSI DALAM SATU TRANSACTION
+    // ============================================================
+    const hasil = await prisma.$transaction(async (tx) => {
+      // ----------------------------------------------------------
+      // 1. Tandai pengajuan sebagai disetujui
+      // ----------------------------------------------------------
+      const izinDiupdate = await tx.pengajuanIzin.update({
+        where: {
+          id: parseInt(id),
+        },
+
+        data: {
+          status: "disetujui",
+          diprosesOleh: adminId,
+          waktuProses: new Date(),
+          catatanAdmin: catatanAdmin || null,
+        },
+      });
+
+      // ----------------------------------------------------------
+      // 2. Buat / update absensi pada tanggal pengajuan
+      // ----------------------------------------------------------
+      const absensi = await tx.absensi.upsert({
+        where: {
+          penggunaId_tanggal: {
+            penggunaId: izin.penggunaId,
+            tanggal: izin.tanggal,
+          },
+        },
+
+        update: {
+          statusFinal: izin.jenis,
+          catatanAdmin: `Disetujui sebagai ${izin.jenis} (pengajuan #${izin.id})`,
+          dieditOleh: adminId,
+          waktuEdit: new Date(),
+        },
+
+        create: {
           penggunaId: izin.penggunaId,
           tanggal: izin.tanggal,
+          statusFinal: izin.jenis,
+          catatanAdmin: `Disetujui sebagai ${izin.jenis} (pengajuan #${izin.id})`,
+          dieditOleh: adminId,
+          waktuEdit: new Date(),
         },
-      },
-      update: {
-        statusFinal: izin.jenis, // "izin" | "sakit" | "cuti" | "urgent"
-        catatanAdmin: `Disetujui sebagai ${izin.jenis} (pengajuan #${izin.id})`,
-        dieditOleh: adminId,
-        waktuEdit: new Date(),
-      },
-      create: {
-        penggunaId: izin.penggunaId,
-        tanggal: izin.tanggal,
-        statusFinal: izin.jenis,
-        catatanAdmin: `Disetujui sebagai ${izin.jenis} (pengajuan #${izin.id})`,
-        dieditOleh: adminId,
-        waktuEdit: new Date(),
-      },
+      });
+
+      return {
+        izinDiupdate,
+        absensi,
+      };
     });
 
-    return res.json({ pesan: "Pengajuan izin disetujui.", data: izinDiupdate });
+    return res.json({
+      pesan: "Pengajuan izin disetujui.",
+      data: hasil.izinDiupdate,
+    });
   } catch (error) {
-    console.error(error);
-    return res.status(500).json({ pesan: "Terjadi kesalahan pada server.", detail: error.message });
+    console.error("Gagal menyetujui pengajuan izin:", error);
+
+    return res.status(500).json({
+      pesan: "Gagal menyetujui pengajuan izin. Silakan coba lagi.",
+    });
   }
 }
 
@@ -158,12 +218,16 @@ async function tolakIzin(req, res) {
     const { catatanAdmin } = req.body;
     const adminId = req.user.id;
 
-    const izin = await prisma.pengajuanIzin.findUnique({ where: { id: parseInt(id) } });
+    const izin = await prisma.pengajuanIzin.findUnique({
+      where: { id: parseInt(id) },
+    });
     if (!izin) {
       return res.status(404).json({ pesan: "Pengajuan tidak ditemukan." });
     }
     if (izin.status !== "menunggu") {
-      return res.status(400).json({ pesan: "Pengajuan ini sudah diproses sebelumnya." });
+      return res
+        .status(400)
+        .json({ pesan: "Pengajuan ini sudah diproses sebelumnya." });
     }
 
     const izinDiupdate = await prisma.pengajuanIzin.update({
@@ -179,7 +243,9 @@ async function tolakIzin(req, res) {
     return res.json({ pesan: "Pengajuan izin ditolak.", data: izinDiupdate });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ pesan: "Terjadi kesalahan pada server.", detail: error.message });
+    return res.status(500).json({
+      pesan: "Terjadi kesalahan pada server. Silakan coba lagi.",
+    });
   }
 }
 

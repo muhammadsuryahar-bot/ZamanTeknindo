@@ -53,7 +53,7 @@ async function hitungGajiKaryawan(penggunaId, tahun, bulan) {
   // SEMUA karyawan dan kena potongan, padahal memang tidak ada yang masuk
   // karena libur.
   const hariKerjaSetelahLibur = hariKerja.filter(
-    (d) => !setHariLibur.has(d.toISOString().slice(0, 10))
+    (d) => !setHariLibur.has(d.toISOString().slice(0, 10)),
   );
   const sekarangWIB = tahunBulanSekarangWIB();
 
@@ -68,9 +68,7 @@ async function hitungGajiKaryawan(penggunaId, tahun, bulan) {
 
   const awalBulan = tanggalUTC(tahun, bulan, 1);
 
-  const akhirBulan = new Date(
-    Date.UTC(tahun, bulan, 0, 23, 59, 59)
-  );
+  const akhirBulan = new Date(Date.UTC(tahun, bulan, 0, 23, 59, 59));
 
   const semuaAbsensi = await prisma.absensi.findMany({
     where: {
@@ -122,8 +120,7 @@ async function hitungGajiKaryawan(penggunaId, tahun, bulan) {
   const potonganAlpha = Number(pengaturan.potonganAlpha);
 
   const totalPotongan =
-    hitungan.telat * potonganTelat +
-    hitungan.alpha * potonganAlpha;
+    hitungan.telat * potonganTelat + hitungan.alpha * potonganAlpha;
 
   const gajiDiterima = Math.max(gajiPokok - totalPotongan, 0);
 
@@ -172,8 +169,7 @@ async function hitungDanSimpanSatu(req, res) {
   } catch (error) {
     console.error(error);
     return res.status(500).json({
-      pesan: error.message || "Gagal menghitung gaji.",
-      detail: error.message,
+      pesan: "Gagal menghitung gaji. Silakan coba lagi.",
     });
   }
 }
@@ -232,8 +228,7 @@ async function hitungDanSimpanSemua(req, res) {
   } catch (error) {
     console.error(error);
     return res.status(500).json({
-      pesan: "Gagal menghitung gaji semua karyawan.",
-      detail: error.message,
+      pesan: "Gagal menghitung gaji semua karyawan. Silakan coba lagi.",
     });
   }
 }
@@ -270,8 +265,7 @@ async function lihatLaporanBulanan(req, res) {
   } catch (error) {
     console.error(error);
     return res.status(500).json({
-      pesan: "Gagal mengambil laporan gaji.",
-      detail: error.message,
+      pesan: "Gagal mengambil laporan gaji. Silakan coba lagi.",
     });
   }
 }
