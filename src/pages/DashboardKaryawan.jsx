@@ -19,7 +19,6 @@ import {
 import { API_URL, getToken } from "../utils/api";
 import { warna, font } from "../styles/theme";
 import logoHorizontal from "../assets/logo-horizontal.png";
-import logo from "../assets/logo.png";
 import {
   jumlahAntrian,
   sinkronkanAntrian,
@@ -27,6 +26,64 @@ import {
 } from "../utils/antrianOffline";
 
 let dataProvinsiCache = null;
+
+const TAHAP_VALID = new Set(["belum_masuk", "sudah_masuk", "selesai"]);
+const STATUS_CACHE_VERSION = 1;
+const STATUS_REQUEST_TIMEOUT_MS = 8000;
+const ABSENSI_REQUEST_TIMEOUT_MS = 15000;
+
+function tanggalLokalISO() {
+  const sekarang = new Date();
+  const tahun = sekarang.getFullYear();
+  const bulan = String(sekarang.getMonth() + 1).padStart(2, "0");
+  const hari = String(sekarang.getDate()).padStart(2, "0");
+  return `${tahun}-${bulan}-${hari}`;
+}
+
+function kunciStatusHariIni(pengguna) {
+  const identitas =
+    pengguna?.id ??
+    pengguna?.penggunaId ??
+    pengguna?.email ??
+    pengguna?.nama ??
+    "pengguna";
+
+  return `zaman-teknindo:absensi-status:v${STATUS_CACHE_VERSION}:${String(
+    identitas,
+  )}:${tanggalLokalISO()}`;
+}
+
+function bacaCacheStatusHariIni(pengguna) {
+  try {
+    const raw = localStorage.getItem(kunciStatusHariIni(pengguna));
+    if (!raw) return null;
+
+    const data = JSON.parse(raw);
+    if (!data || !TAHAP_VALID.has(data.tahap)) return null;
+
+    return data.tahap;
+  } catch (err) {
+    console.warn("Cache status absensi tidak dapat dibaca:", err);
+    return null;
+  }
+}
+
+function simpanCacheStatusHariIni(pengguna, tahap) {
+  if (!TAHAP_VALID.has(tahap)) return;
+
+  try {
+    localStorage.setItem(
+      kunciStatusHariIni(pengguna),
+      JSON.stringify({
+        version: STATUS_CACHE_VERSION,
+        tahap,
+        disimpanPada: new Date().toISOString(),
+      }),
+    );
+  } catch (err) {
+    console.warn("Cache status absensi tidak dapat disimpan:", err);
+  }
+}
 
 async function muatDataProvinsi() {
   if (dataProvinsiCache) return dataProvinsiCache;
@@ -350,43 +407,57 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     typeof navigator === "undefined" ? true : navigator.onLine,
   );
   const [sedangSinkron, setSedangSinkron] = useState(false);
+  const [statusTerverifikasi, setStatusTerverifikasi] = useState(false);
+  const [statusVerifikasiSedang, setStatusVerifikasiSedang] = useState(false);
+  const [pesanSinkronisasi, setPesanSinkronisasi] = useState("");
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const lokasiTimerRef = useRef(null);
+  const lokasiWatchRef = useRef(null);
+  const lokasiSesiRef = useRef(0);
+  const statusRequestRef = useRef(0);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
+
     document.documentElement.classList.add("karyawan-scroll-hidden");
     document.body.classList.add("karyawan-scroll-hidden");
 
-    ambilStatusHariIni();
-    cobaSinkronAntrian();
+    void ambilStatusHariIni();
+    void cobaSinkronAntrian({ refreshStatus: false });
 
     return () => {
+      mountedRef.current = false;
       document.documentElement.classList.remove("karyawan-scroll-hidden");
       document.body.classList.remove("karyawan-scroll-hidden");
 
       hentikanKamera();
-      if (lokasiTimerRef.current) {
-        clearTimeout(lokasiTimerRef.current);
-      }
+      hentikanPelacakanLokasi();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Pantau perubahan koneksi browser. Saat online kembali, antrian offline
-  // langsung dicoba sinkron otomatis. Saat offline, pengguna diberi tahu
-  // bahwa absensi tetap aman disimpan di perangkat.
+  // langsung dicoba sinkron otomatis. Saat offline, status lokal yang valid
+  // tetap bisa dipakai agar alur absensi tidak tiba-tiba menghilang.
   useEffect(() => {
     const ketikaOnline = () => {
       setIsOnline(true);
-      cobaSinkronAntrian();
+      void cobaSinkronAntrian();
     };
 
     const ketikaOffline = () => {
       setIsOnline(false);
       setSedangSinkron(false);
+      setStatusVerifikasiSedang(false);
+
+      const tahapTersimpan = bacaCacheStatusHariIni(pengguna);
+      if (tahapTersimpan) {
+        setTahap(tahapTersimpan);
+      }
     };
 
     setIsOnline(navigator.onLine);
@@ -398,41 +469,74 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       window.removeEventListener("offline", ketikaOffline);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [pengguna]);
 
-  async function cobaSinkronAntrian() {
+  async function cobaSinkronAntrian({ refreshStatus = true } = {}) {
     try {
       const sisa = await jumlahAntrian();
+      if (!mountedRef.current) return;
+
       setJumlahTertunda(sisa);
 
       if (!navigator.onLine) {
         setSedangSinkron(false);
+        if (refreshStatus) {
+          await ambilStatusHariIni();
+        }
         return;
       }
 
       if (sisa === 0) {
         setSedangSinkron(false);
-        await ambilStatusHariIni();
+        setPesanSinkronisasi("");
+        if (refreshStatus) {
+          await ambilStatusHariIni();
+        }
         return;
       }
 
       setSedangSinkron(true);
+      setPesanSinkronisasi("");
+
       const hasil = await sinkronkanAntrian({ apiUrl: API_URL, getToken });
       const sisaTerbaru = await jumlahAntrian();
+
+      if (!mountedRef.current) return;
+
       setJumlahTertunda(sisaTerbaru);
 
       if (hasil.berhasil > 0) {
         setPesan(
           `${hasil.berhasil} absen yang sempat tertunda berhasil terkirim.`,
         );
+        setPesanSinkronisasi(
+          sisaTerbaru > 0
+            ? `${sisaTerbaru} absen masih menunggu sinkronisasi berikutnya.`
+            : "Semua absensi tertunda sudah tersinkronkan.",
+        );
         await ambilStatusHariIni();
+      } else {
+        setPesanSinkronisasi(
+          sisaTerbaru > 0
+            ? "Sinkronisasi belum berhasil. Data tetap aman di perangkat dan akan dicoba lagi otomatis."
+            : "",
+        );
+
+        if (refreshStatus) {
+          await ambilStatusHariIni();
+        }
       }
     } catch (err) {
-      // Gagal sinkron tidak boleh menghapus data lokal. Antrian tetap ada
-      // dan akan dicoba lagi saat koneksi kembali normal.
-      console.error(err);
+      console.error("Sinkronisasi offline gagal:", err);
+      if (mountedRef.current) {
+        setPesanSinkronisasi(
+          "Sinkronisasi belum berhasil. Data tetap aman di perangkat dan akan dicoba lagi otomatis.",
+        );
+      }
     } finally {
-      setSedangSinkron(false);
+      if (mountedRef.current) {
+        setSedangSinkron(false);
+      }
     }
   }
 
@@ -447,32 +551,147 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     setFotoPreview("");
   }, [fotoTerambil]);
 
-  async function ambilStatusHariIni() {
-    setLoadingStatus(true);
+  async function ambilStatusHariIni({ pertahankanVerifikasiSaatFallback = false } = {}) {
+    const requestId = ++statusRequestRef.current;
+    const tahapCacheAwal = bacaCacheStatusHariIni(pengguna);
+
+    // Cache hanya untuk mempercepat tampilan. Cache tidak dianggap sebagai
+    // verifikasi server pada sesi baru.
+    if (tahapCacheAwal) {
+      setTahap(tahapCacheAwal);
+      setLoadingStatus(false);
+    } else {
+      setLoadingStatus(true);
+    }
+
+    const terapkanCache = (pesanFallback = "") => {
+      const tahapTersimpan = bacaCacheStatusHariIni(pengguna);
+
+      if (!tahapTersimpan) return false;
+
+      if (requestId !== statusRequestRef.current || !mountedRef.current) {
+        return true;
+      }
+
+      setTahap(tahapTersimpan);
+      if (!pertahankanVerifikasiSaatFallback) {
+        setStatusTerverifikasi(false);
+      }
+      if (pesanFallback) setPesan(pesanFallback);
+      return true;
+    };
 
     if (!navigator.onLine) {
-      setLoadingStatus(false);
+      const berhasilPakaiCache = terapkanCache(
+        statusTerverifikasi
+          ? "Sedang offline. Status terakhir yang sudah diverifikasi tetap digunakan."
+          : "Sedang offline. Status terakhir yang tersimpan di perangkat ditampilkan, tetapi verifikasi server tetap diperlukan sebelum absensi.",
+      );
+
+      if (!berhasilPakaiCache && mountedRef.current) {
+        setTahap("belum_terverifikasi");
+        setStatusTerverifikasi(false);
+        setPesan(
+          "Koneksi internet tidak tersedia dan status absensi hari ini belum pernah tersimpan di perangkat. Hubungkan internet untuk memuat status absensi.",
+        );
+      }
+
+      if (requestId === statusRequestRef.current && mountedRef.current) {
+        setStatusVerifikasiSedang(false);
+        setLoadingStatus(false);
+      }
       return;
     }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      STATUS_REQUEST_TIMEOUT_MS,
+    );
+
+    setStatusVerifikasiSedang(true);
 
     try {
       const res = await fetch(`${API_URL}/absensi/status-hari-ini`, {
         headers: { Authorization: `Bearer ${getToken()}` },
+        signal: controller.signal,
       });
 
-      const data = await res.json();
+      let data = {};
+      try {
+        data = await res.json();
+      } catch (parseError) {
+        console.warn("Respons status absensi bukan JSON:", parseError);
+      }
+
+      if (requestId !== statusRequestRef.current || !mountedRef.current) {
+        return;
+      }
 
       if (!res.ok) {
-        setPesan(data.pesan || "Gagal memuat status absen.");
+        const berhasilPakaiCache = terapkanCache(
+          data.pesan ||
+            "Server tidak dapat memuat status terbaru. Status terakhir di perangkat digunakan.",
+        );
+
+        if (!berhasilPakaiCache) {
+          setPesan(data.pesan || "Gagal memuat status absen.");
+          setTahap("belum_terverifikasi");
+          setStatusTerverifikasi(false);
+        }
+        return;
+      }
+
+      if (!TAHAP_VALID.has(data.tahap)) {
+        const berhasilPakaiCache = terapkanCache(
+          "Status dari server tidak dikenali. Status terakhir di perangkat digunakan.",
+        );
+
+        if (!berhasilPakaiCache) {
+          setTahap("belum_terverifikasi");
+          setStatusTerverifikasi(false);
+          setPesan("Status absensi dari server tidak valid.");
+        }
         return;
       }
 
       setTahap(data.tahap);
+      simpanCacheStatusHariIni(pengguna, data.tahap);
+      setStatusTerverifikasi(true);
+      setPesan("");
     } catch (err) {
-      console.error(err);
-      setPesan("Gagal memuat status absen. Cek koneksi ke server.");
+      console.error("Gagal memuat status absensi:", err);
+
+      const pesanGagal =
+        err?.name === "AbortError"
+          ? "Server terlalu lama merespons. Status terakhir di perangkat digunakan."
+          : "Server tidak dapat dihubungi. Status terakhir di perangkat digunakan.";
+
+      const berhasilPakaiCache = terapkanCache(pesanGagal);
+
+      if (!berhasilPakaiCache) {
+        setTahap("belum_terverifikasi");
+        setStatusTerverifikasi(false);
+        setPesan(
+          err?.name === "AbortError"
+            ? "Server terlalu lama merespons. Coba muat ulang atau periksa koneksi."
+            : "Gagal memuat status absen. Coba lagi atau periksa koneksi.",
+        );
+      }
     } finally {
-      setLoadingStatus(false);
+      clearTimeout(timeoutId);
+
+      if (requestId === statusRequestRef.current && mountedRef.current) {
+        setStatusVerifikasiSedang(false);
+        setLoadingStatus(false);
+      }
+    }
+  }
+
+  function hentikanStreamKamera() {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
     }
   }
 
@@ -484,6 +703,8 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       return;
     }
 
+    hentikanStreamKamera();
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -494,15 +715,24 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         audio: false,
       });
 
+      if (!mountedRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
       streamRef.current = stream;
       setFotoTerambil(null);
+      setLokasi(null);
+      setStatusLokasi("mencari");
       setKameraAktif(true);
       ambilLokasi();
     } catch (err) {
       console.error(err);
-      setPesan(
-        "Tidak bisa mengakses kamera. Pastikan izin kamera diberikan pada browser.",
-      );
+      if (mountedRef.current) {
+        setPesan(
+          "Tidak bisa mengakses kamera. Pastikan izin kamera diberikan pada browser.",
+        );
+      }
     }
   }
 
@@ -512,13 +742,25 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     }
   }, [kameraAktif]);
 
-  function hentikanKamera() {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
+  function hentikanPelacakanLokasi() {
+    lokasiSesiRef.current += 1;
+
+    if (lokasiWatchRef.current !== null) {
+      navigator.geolocation?.clearWatch(lokasiWatchRef.current);
+      lokasiWatchRef.current = null;
     }
 
-    setKameraAktif(false);
+    if (lokasiTimerRef.current) {
+      clearTimeout(lokasiTimerRef.current);
+      lokasiTimerRef.current = null;
+    }
+  }
+
+  function hentikanKamera() {
+    hentikanStreamKamera();
+    if (mountedRef.current) {
+      setKameraAktif(false);
+    }
   }
 
   function ambilFoto() {
@@ -555,7 +797,11 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
           return;
         }
 
+        if (!mountedRef.current) return;
+
         setFotoTerambil(blob);
+        // Kamera dihentikan, tetapi lokasi terakhir tetap dipertahankan
+        // untuk dikirim bersama foto.
         hentikanKamera();
       },
       "image/jpeg",
@@ -563,11 +809,13 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     );
   }
 
-  function fotoUlang() {
+  async function fotoUlang() {
+    hentikanKamera();
+    hentikanPelacakanLokasi();
     setFotoTerambil(null);
     setLokasi(null);
     setStatusLokasi("mencari");
-    bukaKamera();
+    await bukaKamera();
   }
 
   async function ambilKotaKecamatanBigDataCloud(latitude, longitude) {
@@ -667,6 +915,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   }
 
   function ambilLokasi() {
+    hentikanPelacakanLokasi();
     setStatusLokasi("mencari");
 
     if (!navigator.geolocation) {
@@ -674,17 +923,21 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       return;
     }
 
+    const sesi = lokasiSesiRef.current;
     let posisiTerbaik = null;
-    let watchId = null;
     let sudahSelesai = false;
 
+    const sesiMasihAktif = () =>
+      mountedRef.current && sesi === lokasiSesiRef.current;
+
     const selesaikan = async () => {
-      if (sudahSelesai) return;
+      if (sudahSelesai || !sesiMasihAktif()) return;
 
       sudahSelesai = true;
 
-      if (watchId !== null) {
-        navigator.geolocation.clearWatch(watchId);
+      if (lokasiWatchRef.current !== null) {
+        navigator.geolocation.clearWatch(lokasiWatchRef.current);
+        lokasiWatchRef.current = null;
       }
 
       if (lokasiTimerRef.current) {
@@ -705,7 +958,6 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         akurasi,
         alamat: null,
       });
-
       setStatusLokasi("ditemukan");
 
       try {
@@ -713,6 +965,8 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
           latitude,
           longitude,
         );
+
+        if (!sesiMasihAktif()) return;
 
         setLokasi({
           latitude,
@@ -725,8 +979,10 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       }
     };
 
-    watchId = navigator.geolocation.watchPosition(
+    const watchId = navigator.geolocation.watchPosition(
       (posisi) => {
+        if (!sesiMasihAktif()) return;
+
         const akurasi = Math.round(posisi.coords.accuracy);
 
         if (!posisiTerbaik || akurasi < posisiTerbaik.akurasi) {
@@ -747,10 +1003,12 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         }
 
         if (akurasi <= 20) {
-          selesaikan();
+          void selesaikan();
         }
       },
       (error) => {
+        if (!sesiMasihAktif()) return;
+
         console.warn("Geolocation error:", error);
 
         if (!posisiTerbaik) {
@@ -764,7 +1022,10 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       },
     );
 
-    lokasiTimerRef.current = setTimeout(selesaikan, 6000);
+    lokasiWatchRef.current = watchId;
+    lokasiTimerRef.current = setTimeout(() => {
+      void selesaikan();
+    }, 6000);
   }
 
   async function kirimAbsen() {
@@ -773,15 +1034,21 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       return;
     }
 
+    if (!statusTerverifikasi) {
+      setPesan(
+        "Status absensi belum diverifikasi oleh server. Tunggu sampai verifikasi selesai, lalu coba lagi.",
+      );
+      return;
+    }
+
+    if (!TAHAP_VALID.has(tahap) || tahap === "selesai") {
+      setPesan("Status absensi belum siap untuk dikirim. Muat ulang status absensi.");
+      return;
+    }
+
     setLoading(true);
     setPesan("");
 
-    // Dicatat SEKARANG (saat tombol ditekan), bukan nanti pas request
-    // berhasil terkirim. Ini penting buat kasus antrian offline: kalau
-    // sinyal jelek dan baru terkirim 1-2 jam kemudian, server tetap tahu
-    // kapan SEBENARNYA karyawan menekan tombol absen -- bukan ikut jam
-    // terkirimnya. Tanpa ini, karyawan yang absen tepat waktu tapi sinyalnya
-    // jelek bisa salah tercatat "Telat" gara-gara baru terkirim belakangan.
     const waktuAsli = new Date().toISOString();
 
     const formData = new FormData();
@@ -794,7 +1061,6 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
       const alamatDasar =
         lokasi.alamat || `${lokasi.latitude}, ${lokasi.longitude}`;
-
       const infoAkurasi = lokasi.akurasi
         ? ` (akurasi ±${lokasi.akurasi}m)`
         : "";
@@ -804,59 +1070,93 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
     const endpoint = tahap === "belum_masuk" ? "masuk" : "pulang";
 
-    try {
-      const res = await fetch(`${API_URL}/absensi/${endpoint}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${getToken()}`,
-        },
-        body: formData,
+    const simpanOffline = async () => {
+      await simpanKeAntrian({
+        foto: fotoTerambil,
+        latitude: lokasi?.latitude,
+        longitude: lokasi?.longitude,
+        alamat: formData.get("alamat"),
+        waktuAsli,
+        endpoint,
       });
 
-      const data = await res.json();
+      const sisa = await jumlahAntrian();
+
+      if (mountedRef.current) {
+        setJumlahTertunda(sisa);
+        setPesan(
+          "Sinyal lagi tidak stabil. Absen kamu sudah tersimpan aman di HP dan akan otomatis terkirim begitu koneksi kembali normal — tidak perlu ulangi.",
+        );
+        setFotoTerambil(null);
+        setLokasi(null);
+        setStatusLokasi("mencari");
+      }
+    };
+
+    try {
+      if (!navigator.onLine) {
+        await simpanOffline();
+        return;
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        ABSENSI_REQUEST_TIMEOUT_MS,
+      );
+
+      let res;
+      try {
+        res = await fetch(`${API_URL}/absensi/${endpoint}`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${getToken()}`,
+          },
+          body: formData,
+          signal: controller.signal,
+        });
+      } catch (networkError) {
+        console.error(networkError);
+        await simpanOffline();
+        return;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      let data = {};
+      try {
+        data = await res.json();
+      } catch (parseError) {
+        console.warn("Respons absensi bukan JSON:", parseError);
+      }
 
       if (!res.ok) {
         setPesan(data.pesan || "Gagal mengirim absen.");
         return;
       }
 
-      setPesan(data.pesan);
+      // POST berhasil adalah bukti server bahwa aksi absensi diterima.
+      // Update state + cache langsung agar status tidak kembali ke cache lama
+      // bila GET status-hari-ini sedang lambat atau gagal.
+      const tahapSetelahAbsen = endpoint === "masuk" ? "sudah_masuk" : "selesai";
+      setTahap(tahapSetelahAbsen);
+      setStatusTerverifikasi(true);
+      setStatusVerifikasiSedang(false);
+      simpanCacheStatusHariIni(pengguna, tahapSetelahAbsen);
+
+      setPesan(data.pesan || "Absensi berhasil dikirim.");
       setFotoTerambil(null);
       setLokasi(null);
       setStatusLokasi("mencari");
-      await ambilStatusHariIni();
     } catch (err) {
-      // Kalau ini beneran soal koneksi (bukan server yang menolak --
-      // itu sudah ditangani di blok `if (!res.ok)` di atas), simpan dulu
-      // ke antrian lokal supaya foto+data absen TIDAK hilang. Nanti
-      // otomatis dikirim ulang begitu sinyal balik normal.
-      console.error(err);
-      try {
-        await simpanKeAntrian({
-          foto: fotoTerambil,
-          latitude: lokasi?.latitude,
-          longitude: lokasi?.longitude,
-          alamat: formData.get("alamat"),
-          waktuAsli,
-          endpoint,
-        });
-        setPesan(
-          "Sinyal lagi tidak stabil. Absen kamu sudah tersimpan aman di HP dan akan otomatis terkirim begitu koneksi kembali normal -- tidak perlu ulangi.",
-        );
-        setFotoTerambil(null);
-        setLokasi(null);
-        setStatusLokasi("mencari");
-      } catch (errSimpan) {
-        // Kalau IndexedDB-nya sendiri gagal (jarang terjadi, misal
-        // browser mode privat yang membatasi penyimpanan), baru
-        // tampilkan pesan gagal biasa.
-        console.error(errSimpan);
-        setPesan(
-          "Tidak bisa terhubung ke server, dan gagal menyimpan absen secara offline. Coba lagi.",
-        );
-      }
+      console.error("Pengiriman/simpan offline gagal:", err);
+      setPesan(
+        "Tidak bisa terhubung ke server, dan gagal menyimpan absen secara offline. Coba lagi.",
+      );
     } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setLoading(false);
+      }
     }
   }
 
@@ -865,7 +1165,9 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       ? "Absensi Masuk"
       : tahap === "sudah_masuk"
         ? "Absensi Pulang"
-        : "Absensi Hari Ini";
+        : tahap === "selesai"
+          ? "Absensi Hari Ini"
+          : "Status Absensi";
 
   return (
     <div className="karyawan-page" style={styles.page}>
@@ -985,6 +1287,13 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
                 Sedang mengirim {jumlahTertunda} absen yang tertunda...
               </div>
             )}
+
+            {isOnline && pesanSinkronisasi && !sedangSinkron && (
+              <div style={styles.syncNotice}>
+                <RefreshCcw size={13} />
+                {pesanSinkronisasi}
+              </div>
+            )}
           </div>
         </section>
 
@@ -997,8 +1306,33 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
             </div>
           )}
 
-          {!loadingStatus && tahap !== "memuat" && (
-            <DialJamKerja tahap={tahap} />
+          {!loadingStatus &&
+            tahap !== "memuat" &&
+            tahap !== "belum_terverifikasi" && (
+              <DialJamKerja tahap={tahap} />
+            )}
+
+          {tahap === "belum_terverifikasi" && (
+            <div style={styles.unverifiedBox}>
+              <div style={styles.unverifiedIcon}>
+                <WifiOff size={24} />
+              </div>
+              <h2 style={styles.sectionTitle}>Status absensi belum tersedia</h2>
+              <p style={styles.sectionDescription}>
+                Sistem belum berhasil memastikan status absensi hari ini. Untuk
+                keamanan, tombol absensi tidak ditampilkan sampai status berhasil
+                diverifikasi.
+              </p>
+              <button
+                onClick={() => void ambilStatusHariIni()}
+                style={styles.secondaryButton}
+                type="button"
+                disabled={!isOnline || loadingStatus}
+              >
+                <RefreshCcw size={17} />
+                {loadingStatus ? "Memuat..." : "Coba Muat Status"}
+              </button>
+            </div>
           )}
 
           {tahap === "selesai" && (
@@ -1026,6 +1360,13 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
                   <h2 style={styles.sectionTitle}>
                     Ambil foto untuk mencatat kehadiran
                   </h2>
+                  <p style={styles.statusVerificationHint}>
+                    {statusVerifikasiSedang
+                      ? "Memverifikasi status absensi terbaru..."
+                      : statusTerverifikasi
+                        ? "Status absensi sudah diverifikasi."
+                        : "Status absensi belum terverifikasi."}
+                  </p>
                 </div>
               </div>
 
@@ -1040,13 +1381,36 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
                     lokasi pada browser HP kamu.
                   </p>
 
+                  {jumlahTertunda > 0 && (
+                    <p style={styles.pendingActionNote}>
+                      {jumlahTertunda} absensi masih menunggu sinkronisasi.
+                      Selesaikan sinkronisasi terlebih dahulu agar tidak terjadi
+                      absensi ganda.
+                    </p>
+                  )}
+
                   <button
-                    onClick={bukaKamera}
+                    onClick={() => void bukaKamera()}
                     style={styles.primaryButton}
                     type="button"
+                    disabled={
+                      statusVerifikasiSedang ||
+                      !statusTerverifikasi ||
+                      sedangSinkron ||
+                      jumlahTertunda > 0
+                    }
+                    title={
+                      jumlahTertunda > 0
+                        ? "Tunggu absensi yang tersimpan offline selesai disinkronkan."
+                        : undefined
+                    }
                   >
                     <Camera size={18} />
-                    Buka Kamera
+                    {statusVerifikasiSedang
+                      ? "Memverifikasi Status..."
+                      : jumlahTertunda > 0
+                        ? "Menunggu Sinkronisasi"
+                        : "Buka Kamera"}
                   </button>
                 </div>
               )}
@@ -1267,6 +1631,12 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
         .karyawan-button-hover:hover {
           transform: translateY(-1px);
+        }
+
+        .karyawan-page button:disabled {
+          opacity: 0.58;
+          cursor: not-allowed !important;
+          transform: none !important;
         }
 
         @media (max-width: 760px) {
@@ -1604,6 +1974,12 @@ const styles = {
     textAlign: "center",
   },
 
+  statusVerificationHint: {
+    margin: "6px 0 0",
+    fontSize: 11.5,
+    color: warna.tintaSamar,
+  },
+
   actionEyebrow: {
     margin: 0,
     fontSize: 10.5,
@@ -1658,6 +2034,18 @@ const styles = {
     fontSize: 12.5,
     lineHeight: 1.65,
     color: warna.tintaLembut,
+  },
+
+  pendingActionNote: {
+    maxWidth: 430,
+    margin: "-4px auto 14px",
+    padding: "8px 10px",
+    borderRadius: 10,
+    background: warna.peringatanLembut,
+    border: `1px solid ${warna.garis}`,
+    color: warna.tintaLembut,
+    fontSize: 11.5,
+    lineHeight: 1.5,
   },
 
   primaryButton: {
@@ -1974,6 +2362,25 @@ const styles = {
     gridTemplateColumns: "1fr 1fr",
     gap: 8,
     marginTop: 12,
+  },
+
+  unverifiedBox: {
+    textAlign: "center",
+    padding: "6px 4px 12px",
+    maxWidth: 520,
+    margin: "0 auto",
+  },
+
+  unverifiedIcon: {
+    width: 64,
+    height: 64,
+    margin: "0 auto 14px",
+    borderRadius: "50%",
+    background: warna.peringatanLembut,
+    color: warna.peringatan,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   successBox: {

@@ -98,7 +98,7 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
               onFocus={() => setEmailFokus(true)}
               onBlur={() => setEmailFokus(false)}
               placeholder="nama@perusahaan.com"
-              className="auth-input"
+              className="auth-input auth-input-tanpa-tombol"
               autoComplete="username"
               disabled={loading}
               required

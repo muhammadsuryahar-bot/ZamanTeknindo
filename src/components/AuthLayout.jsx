@@ -326,6 +326,7 @@ export default function AuthLayout({
           font-family: ${font.display};
           font-size: 14px;
           outline: none;
+          text-overflow: ellipsis;
           transition:
             border-color 0.15s ease,
             box-shadow 0.15s ease,
@@ -348,6 +349,14 @@ export default function AuthLayout({
 
         .auth-input.no-icon {
           padding-left: 16px;
+        }
+
+        /* Input tanpa tombol di kanan (misalnya Email -- beda dari Password
+           yang punya tombol mata) tidak perlu menyisakan ruang 54px di kanan.
+           Tanpa ini, teks placeholder/isian jadi kepotong lebih cepat di HP
+           layar sempit karena ruang kanannya kebuang percuma. */
+        .auth-input-tanpa-tombol {
+          padding-right: 16px;
         }
 
         /* =====================================================
@@ -757,6 +766,16 @@ export default function AuthLayout({
             padding-right: 56px;
             border-radius: 13px;
             font-size: 14px;
+          }
+
+          /* Sama seperti aturan non-mobile-nya: input tanpa tombol di kanan
+             (mis. Email/Nama) tidak perlu menyisakan ruang 56px. Ditulis lagi
+             di sini (bukan cuma di luar media query) karena aturan
+             ".auth-input" tepat di atas ini punya specificity yang sama --
+             kalau tidak ditulis ulang di sini, aturan di atas akan menang
+             gara-gara urutannya lebih belakang di file. */
+          .auth-input-tanpa-tombol {
+            padding-right: 16px;
           }
 
           .input-icon {

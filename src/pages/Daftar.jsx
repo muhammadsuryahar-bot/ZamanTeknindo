@@ -107,7 +107,7 @@ export default function Daftar({ keLogin }) {
               onFocus={() => setNamaFokus(true)}
               onBlur={() => setNamaFokus(false)}
               placeholder="Nama sesuai identitas"
-              className="auth-input"
+              className="auth-input auth-input-tanpa-tombol"
               autoComplete="name"
               disabled={loading}
               required
@@ -127,7 +127,7 @@ export default function Daftar({ keLogin }) {
               onFocus={() => setEmailFokus(true)}
               onBlur={() => setEmailFokus(false)}
               placeholder={`nama@${DOMAIN_PERUSAHAAN}`}
-              className="auth-input"
+              className="auth-input auth-input-tanpa-tombol"
               autoComplete="username"
               disabled={loading}
               required
