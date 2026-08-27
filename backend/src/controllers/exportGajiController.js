@@ -768,7 +768,6 @@ async function exportLaporanExcel(req, res) {
 
     return res.status(500).json({
       pesan: "Gagal membuat file laporan Excel.",
-      detail: error.message,
     });
   }
 }

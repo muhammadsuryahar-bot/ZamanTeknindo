@@ -26,7 +26,6 @@ async function daftarMenungguKonfirmasi(req, res) {
 
     return res.status(500).json({
       pesan: "Terjadi kesalahan pada server.",
-      detail: error.message,
     });
   }
 }
@@ -73,7 +72,6 @@ async function aktifkanAkun(req, res) {
 
     return res.status(500).json({
       pesan: "Terjadi kesalahan pada server.",
-      detail: error.message,
     });
   }
 }
@@ -117,7 +115,6 @@ async function daftarKaryawan(req, res) {
 
     return res.status(500).json({
       pesan: "Terjadi kesalahan pada server.",
-      detail: error.message,
     });
   }
 }
@@ -149,7 +146,6 @@ async function ubahStatusKaryawan(req, res) {
 
     return res.status(500).json({
       pesan: "Terjadi kesalahan pada server.",
-      detail: error.message,
     });
   }
 }
@@ -276,7 +272,6 @@ async function rekapHariIni(req, res) {
 
     return res.status(500).json({
       pesan: "Terjadi kesalahan pada server.",
-      detail: error.message,
     });
   }
 }
@@ -409,7 +404,6 @@ async function ringkasanDashboard(req, res) {
 
     return res.status(500).json({
       pesan: "Terjadi kesalahan pada server.",
-      detail: error.message,
     });
   }
 }
@@ -445,7 +439,6 @@ async function editStatusAbsensi(req, res) {
 
     return res.status(500).json({
       pesan: "Terjadi kesalahan pada server.",
-      detail: error.message,
     });
   }
 }
@@ -478,7 +471,6 @@ async function ambilPengaturanPotongan(req, res) {
 
     return res.status(500).json({
       pesan: "Terjadi kesalahan pada server.",
-      detail: error.message,
     });
   }
 }
@@ -532,7 +524,6 @@ async function ubahPengaturanPotongan(req, res) {
 
     return res.status(500).json({
       pesan: "Terjadi kesalahan pada server.",
-      detail: error.message,
     });
   }
 }
@@ -574,7 +565,6 @@ async function daftarGajiKaryawan(req, res) {
 
     return res.status(500).json({
       pesan: "Terjadi kesalahan pada server.",
-      detail: error.message,
     });
   }
 }
@@ -633,7 +623,6 @@ async function ubahGajiKaryawan(req, res) {
 
     return res.status(500).json({
       pesan: "Terjadi kesalahan pada server.",
-      detail: error.message,
     });
   }
 }
@@ -663,7 +652,6 @@ async function daftarKantor(req, res) {
 
     return res.status(500).json({
       pesan: "Terjadi kesalahan pada server.",
-      detail: error.message,
     });
   }
 }
@@ -711,7 +699,6 @@ async function tambahKantor(req, res) {
 
     return res.status(500).json({
       pesan: "Terjadi kesalahan pada server.",
-      detail: error.message,
     });
   }
 }
@@ -765,7 +752,6 @@ async function ubahKantor(req, res) {
 
     return res.status(500).json({
       pesan: "Terjadi kesalahan pada server.",
-      detail: error.message,
     });
   }
 }
@@ -801,7 +787,6 @@ async function daftarHariLibur(req, res) {
 
     return res.status(500).json({
       pesan: "Terjadi kesalahan pada server.",
-      detail: error.message,
     });
   }
 }
@@ -851,7 +836,6 @@ async function tambahHariLibur(req, res) {
 
     return res.status(500).json({
       pesan: "Terjadi kesalahan pada server.",
-      detail: error.message,
     });
   }
 }
@@ -874,7 +858,6 @@ async function hapusHariLibur(req, res) {
 
     return res.status(500).json({
       pesan: "Terjadi kesalahan pada server.",
-      detail: error.message,
     });
   }
 }
