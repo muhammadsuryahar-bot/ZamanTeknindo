@@ -69,6 +69,33 @@ async function absenMasuk(req, res) {
 
     const tanggal = tanggalHariIni();
 
+    // ------------------------------------------------------------
+    // CEK IZIN / SAKIT / CUTI / URGENT YANG SUDAH DISETUJUI
+    // Jika ada pengajuan yang sudah disetujui untuk hari ini,
+    // karyawan tidak boleh melakukan absensi masuk.
+    // ------------------------------------------------------------
+    const pengajuanDisetujui = await prisma.pengajuanIzin.findFirst({
+      where: {
+        penggunaId,
+        tanggal,
+        status: "disetujui",
+      },
+      select: {
+        id: true,
+        jenis: true,
+        tanggal: true,
+      },
+    });
+
+    if (pengajuanDisetujui) {
+      await hapusFotoJikaPerlu();
+
+      return res.status(400).json({
+        pesan: `Absensi tidak diperlukan. Pengajuan ${pengajuanDisetujui.jenis} kamu untuk hari ini sudah disetujui Admin.`,
+        jenisPengajuan: pengajuanDisetujui.jenis,
+      });
+    }
+
     const sudahAbsen = await prisma.absensi.findUnique({
       where: {
         penggunaId_tanggal: {
@@ -157,6 +184,33 @@ async function absenPulang(req, res) {
 
     const tanggal = tanggalHariIni();
 
+    // ------------------------------------------------------------
+    // CEK IZIN / SAKIT / CUTI / URGENT YANG SUDAH DISETUJUI
+    // Jika hari ini sudah mendapat persetujuan ketidakhadiran,
+    // karyawan tidak boleh melakukan absensi pulang.
+    // ------------------------------------------------------------
+    const pengajuanDisetujui = await prisma.pengajuanIzin.findFirst({
+      where: {
+        penggunaId,
+        tanggal,
+        status: "disetujui",
+      },
+      select: {
+        id: true,
+        jenis: true,
+        tanggal: true,
+      },
+    });
+
+    if (pengajuanDisetujui) {
+      await hapusFotoJikaPerlu();
+
+      return res.status(400).json({
+        pesan: `Absensi tidak diperlukan. Pengajuan ${pengajuanDisetujui.jenis} kamu untuk hari ini sudah disetujui Admin.`,
+        jenisPengajuan: pengajuanDisetujui.jenis,
+      });
+    }
+
     const absensiHariIni = await prisma.absensi.findUnique({
       where: {
         penggunaId_tanggal: {
@@ -230,22 +284,65 @@ async function riwayatSaya(req, res) {
 
 async function statusHariIni(req, res) {
   try {
-    const absensi = await prisma.absensi.findUnique({
-      where: {
-        penggunaId_tanggal: {
-          penggunaId: req.user.id,
-          tanggal: tanggalHariIni(),
+    const penggunaId = req.user.id;
+    const tanggal = tanggalHariIni();
+
+    const [absensi, pengajuanDisetujui] = await Promise.all([
+      prisma.absensi.findUnique({
+        where: {
+          penggunaId_tanggal: {
+            penggunaId,
+            tanggal,
+          },
         },
-      },
-    });
+      }),
+
+      prisma.pengajuanIzin.findFirst({
+        where: {
+          penggunaId,
+          tanggal,
+          status: "disetujui",
+        },
+        select: {
+          id: true,
+          jenis: true,
+          tanggal: true,
+          keterangan: true,
+          status: true,
+        },
+      }),
+    ]);
+
+    // ----------------------------------------------------------
+    // Jika sudah ada pengajuan ketidakhadiran yang disetujui,
+    // karyawan tidak perlu melakukan absensi hari ini.
+    // ----------------------------------------------------------
+    if (pengajuanDisetujui) {
+      return res.json({
+        tahap: "tidak_perlu_absen",
+        data: absensi || null,
+        pengajuanIzin: pengajuanDisetujui,
+      });
+    }
 
     let tahap = "belum_masuk";
-    if (absensi?.jamMasuk && !absensi?.jamPulang) tahap = "sudah_masuk";
-    if (absensi?.jamMasuk && absensi?.jamPulang) tahap = "selesai";
 
-    return res.json({ tahap, data: absensi || null });
+    if (absensi?.jamMasuk && !absensi?.jamPulang) {
+      tahap = "sudah_masuk";
+    }
+
+    if (absensi?.jamMasuk && absensi?.jamPulang) {
+      tahap = "selesai";
+    }
+
+    return res.json({
+      tahap,
+      data: absensi || null,
+      pengajuanIzin: null,
+    });
   } catch (error) {
-    console.error(error);
+    console.error("Gagal memuat status absensi hari ini:", error);
+
     return res.status(500).json({
       pesan: "Terjadi kesalahan pada server. Silakan coba lagi.",
     });
