@@ -24,6 +24,7 @@ const {
 } = require("../controllers/adminController");
 
 const { resetPasswordOlehAdmin } = require("../controllers/authController");
+const { hapusAkunKaryawan } = require("../controllers/hapusAkunKaryawanController");
 
 const {
   hitungDanSimpanSatu,
@@ -33,22 +34,19 @@ const {
 
 const { exportLaporanExcel } = require("../controllers/exportGajiController");
 
-// ============================================================
-// Semua rute admin wajib login DAN wajib berperan admin
-// ============================================================
 router.use(cekLogin, cekAdmin);
 
-// ============================================================
-// KEAMANAN RESPONSE ADMIN
-// Controller lama masih memiliki beberapa response error dengan
-// property `detail: error.message`. Jangan pernah kirim detail
-// internal server ke browser. Kita redaksi di boundary router.
-// ============================================================
+// Redaksi detail internal dari response admin.
 router.use((req, res, next) => {
   const jsonAsli = res.json.bind(res);
 
   res.json = (body) => {
-    if (body && typeof body === "object" && !Array.isArray(body) && Object.prototype.hasOwnProperty.call(body, "detail")) {
+    if (
+      body &&
+      typeof body === "object" &&
+      !Array.isArray(body) &&
+      Object.prototype.hasOwnProperty.call(body, "detail")
+    ) {
       const { detail, ...aman } = body;
       return jsonAsli(aman);
     }
@@ -59,9 +57,6 @@ router.use((req, res, next) => {
   next();
 });
 
-// ============================================================
-// VALIDASI STATUS AKUN
-// ============================================================
 const STATUS_AKUN_VALID = new Set(["aktif", "nonaktif"]);
 
 function validasiStatusAkun(req, res, next) {
@@ -76,9 +71,6 @@ function validasiStatusAkun(req, res, next) {
   next();
 }
 
-// ============================================================
-// VALIDASI STATUS ABSENSI MANUAL
-// ============================================================
 const STATUS_FINAL_VALID = new Set([
   "tepat_waktu",
   "telat",
@@ -115,23 +107,15 @@ function validasiEditStatusAbsensi(req, res, next) {
   next();
 }
 
-// ============================================================
-// AKUN MENUNGGU KONFIRMASI
-// ============================================================
 router.get("/akun-menunggu", daftarMenungguKonfirmasi);
 router.get("/notifikasi", notifikasiAdmin);
 router.put("/akun/:id/aktifkan", aktifkanAkun);
 
-// ============================================================
-// KARYAWAN
-// ============================================================
 router.get("/karyawan", daftarKaryawan);
 router.put("/karyawan/:id/status", validasiStatusAkun, ubahStatusKaryawan);
+router.delete("/karyawan/:id", hapusAkunKaryawan);
 router.put("/karyawan/:id/reset-password", resetPasswordOlehAdmin);
 
-// ============================================================
-// ABSENSI
-// ============================================================
 router.get("/rekap-hari-ini", rekapHariIni);
 router.get("/ringkasan", ringkasanDashboard);
 router.put(
@@ -140,15 +124,9 @@ router.put(
   editStatusAbsensi,
 );
 
-// ============================================================
-// PENGATURAN POTONGAN
-// ============================================================
 router.get("/pengaturan-potongan", ambilPengaturanPotongan);
 router.put("/pengaturan-potongan", ubahPengaturanPotongan);
 
-// ============================================================
-// GAJI
-// ============================================================
 router.get("/gaji", daftarGajiKaryawan);
 router.put("/gaji/:id/atur", ubahGajiKaryawan);
 router.post("/gaji/hitung/:penggunaId", hitungDanSimpanSatu);
@@ -156,16 +134,10 @@ router.post("/gaji/hitung-semua", hitungDanSimpanSemua);
 router.get("/gaji/laporan", lihatLaporanBulanan);
 router.get("/gaji/export", exportLaporanExcel);
 
-// ============================================================
-// KANTOR
-// ============================================================
 router.get("/kantor", daftarKantor);
 router.post("/kantor", tambahKantor);
 router.put("/kantor/:id", ubahKantor);
 
-// ============================================================
-// HARI LIBUR
-// ============================================================
 router.get("/hari-libur", daftarHariLibur);
 router.post("/hari-libur", tambahHariLibur);
 router.delete("/hari-libur/:id", hapusHariLibur);

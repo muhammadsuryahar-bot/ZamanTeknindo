@@ -158,6 +158,8 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
 
   // Konfirmasi ubah status karyawan yang lagi dibuka (ganti confirm() bawaan browser)
   const [konfirmasiStatusTerbuka, setKonfirmasiStatusTerbuka] = useState(null); // id karyawan atau null
+  const [konfirmasiHapusTerbuka, setKonfirmasiHapusTerbuka] = useState(null); // id karyawan nonaktif
+  const [sedangMenghapusKaryawan, setSedangMenghapusKaryawan] = useState(false);
 
   // Hasil reset password (password sementara) yang baru saja digenerate,
   // ditampilkan sekali ke Admin supaya bisa disalin & disampaikan manual
@@ -521,6 +523,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
 
       // Rekap + jumlah karyawan aktif berubah setelah aktivasi.
       await muatData();
+      await muatNotifikasi();
 
       // Kalau daftar Karyawan sudah pernah dibuka, refresh juga.
       if (karyawanSudahDimuat) {
@@ -642,6 +645,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       setKonfirmasiStatusTerbuka(null);
 
       await muatData();
+      await muatNotifikasi();
 
       if (karyawanSudahDimuat) {
         await muatKaryawan(true);
@@ -649,6 +653,42 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
     } catch (err) {
       console.error(err);
       setPesan("Tidak bisa terhubung ke server.");
+    }
+  }
+
+  async function hapusAkunKaryawan(id) {
+    if (!id || sedangMenghapusKaryawan) return;
+
+    setPesan("");
+    setPesanSukses("");
+    setSedangMenghapusKaryawan(true);
+
+    try {
+      const res = await fetch(`${API_URL}/admin/karyawan/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+        },
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setPesan(data?.pesan || "Akun tidak dapat dihapus.");
+        return;
+      }
+
+      setKonfirmasiHapusTerbuka(null);
+      setPesanSukses(data?.pesan || "Akun karyawan berhasil dihapus.");
+      await muatData();
+      await muatNotifikasi();
+      setKaryawanSudahDimuat(false);
+      await muatKaryawan(true);
+    } catch (err) {
+      console.error("Gagal menghapus akun karyawan:", err);
+      setPesan("Tidak bisa terhubung ke server saat menghapus akun.");
+    } finally {
+      setSedangMenghapusKaryawan(false);
     }
   }
 
@@ -781,7 +821,6 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
     {
       id: "karyawan",
       label: "Karyawan",
-      badge: notifikasi.akunBaru || null,
     },
     { id: "izin", label: "Izin", badge: notifikasi.izinBaru || null },
     { id: "gaji", label: "Gaji" },
@@ -816,6 +855,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
     // Tutup form/panel yang masih terbuka
     setFormAktivasiTerbuka(null);
     setKonfirmasiStatusTerbuka(null);
+    setKonfirmasiHapusTerbuka(null);
     setEditStatusTerbuka(null);
     setResetPasswordHasil(null);
 
@@ -1045,7 +1085,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                         type="button"
                         onClick={() => {
                           setNotifikasiTerbuka(false);
-                          pindahTab("karyawan");
+                          pindahTab("approval");
                         }}
                         style={styles.notifikasiItem}
                       >
@@ -2030,14 +2070,32 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                                         : "Nonaktifkan"}
                                     </button>
                                   ) : (
-                                    <button
-                                      onClick={() =>
-                                        ubahStatusKaryawan(item.id, "aktif")
-                                      }
-                                      style={styles.tombolEditKecil}
-                                    >
-                                      Aktifkan Kembali
-                                    </button>
+                                    <>
+                                      <button
+                                        onClick={() =>
+                                          ubahStatusKaryawan(item.id, "aktif")
+                                        }
+                                        style={styles.tombolEditKecil}
+                                      >
+                                        Aktifkan Kembali
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setKonfirmasiHapusTerbuka(
+                                            konfirmasiHapusTerbuka === item.id
+                                              ? null
+                                              : item.id,
+                                          )
+                                        }
+                                        style={styles.tombolHapusKecil}
+                                        disabled={sedangMenghapusKaryawan}
+                                      >
+                                        {konfirmasiHapusTerbuka === item.id
+                                          ? "Tutup"
+                                          : "Hapus Permanen"}
+                                      </button>
+                                    </>
                                   )}
                                 </div>
                               </td>
@@ -2108,6 +2166,46 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                                         style={styles.tombolNonaktifkan}
                                       >
                                         Ya, Nonaktifkan
+                                      </button>
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                            {konfirmasiHapusTerbuka === item.id && (
+                              <tr>
+                                <td
+                                  colSpan={5}
+                                  style={{
+                                    padding: "0 16px 16px 16px",
+                                    background: warna.bahayaLembut,
+                                  }}
+                                >
+                                  <div style={styles.konfirmasiHapusInline}>
+                                    <div>
+                                      <strong style={styles.konfirmasiHapusJudul}>
+                                        Hapus permanen akun {item.nama}?
+                                      </strong>
+                                      <p style={styles.konfirmasiHapusSub}>
+                                        Semua data milik akun ini, termasuk absensi, gaji, laporan gaji, pengajuan izin, dan foto terkait akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.
+                                      </p>
+                                    </div>
+                                    <div style={styles.formTombolGroup}>
+                                      <button
+                                        type="button"
+                                        onClick={() => setKonfirmasiHapusTerbuka(null)}
+                                        style={styles.tombolBatal}
+                                        disabled={sedangMenghapusKaryawan}
+                                      >
+                                        Batal
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => hapusAkunKaryawan(item.id)}
+                                        style={styles.tombolNonaktifkan}
+                                        disabled={sedangMenghapusKaryawan}
+                                      >
+                                        {sedangMenghapusKaryawan ? "Menghapus…" : "Ya, Hapus Permanen"}
                                       </button>
                                     </div>
                                   </div>
@@ -3294,6 +3392,33 @@ const styles = {
     fontSize: 12.5,
     cursor: "pointer",
     fontWeight: 600,
+  },
+  tombolHapusKecil: {
+    padding: "7px 12px",
+    background: "none",
+    color: warna.bahaya,
+    border: `1px solid ${warna.bahaya}`,
+    borderRadius: 8,
+    fontSize: 11.5,
+    cursor: "pointer",
+    fontWeight: 600,
+    whiteSpace: "nowrap",
+  },
+  konfirmasiHapusInline: {
+    paddingTop: 12,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+  konfirmasiHapusJudul: {
+    fontSize: 12.5,
+    color: warna.bahaya,
+  },
+  konfirmasiHapusSub: {
+    margin: "4px 0 0",
+    fontSize: 11.5,
+    lineHeight: 1.5,
+    color: warna.tintaLembut,
   },
   tombolNonaktifkanKecil: {
     padding: "7px 12px",
