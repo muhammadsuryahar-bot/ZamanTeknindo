@@ -4,7 +4,6 @@ import { warna, font } from "../styles/theme";
 import {
   Wallet,
   AlertTriangle,
-  Download,
   ArrowRight,
   Info,
   CheckCircle2,
@@ -36,6 +35,47 @@ function formatRibuan(teks) {
   return Number(digit).toLocaleString("id-ID");
 }
 
+const KUNCI_CACHE_LAPORAN = "zaman-teknindo:gaji-laporan-cache:v2";
+const KUNCI_STATUS_LAPORAN = "zaman-teknindo:gaji-laporan-dimuat:v1";
+
+function buatKunciPeriode(tahun, bulan) {
+  return `${tahun}-${String(bulan).padStart(2, "0")}`;
+}
+
+function bacaCacheLaporan(tahun, bulan) {
+  try {
+    const raw = sessionStorage.getItem(KUNCI_CACHE_LAPORAN);
+    if (!raw) return null;
+    const cache = JSON.parse(raw);
+    if (!cache || Number(cache.tahun) !== Number(tahun) || Number(cache.bulan) !== Number(bulan)) {
+      return null;
+    }
+    if (!Array.isArray(cache.laporan) || cache.laporan.length === 0) return null;
+    return cache;
+  } catch {
+    return null;
+  }
+}
+
+function simpanCacheLaporan(tahun, bulan, laporan) {
+  if (!Array.isArray(laporan) || laporan.length === 0) return;
+  try {
+    sessionStorage.setItem(
+      KUNCI_CACHE_LAPORAN,
+      JSON.stringify({
+        version: 2,
+        tahun: Number(tahun),
+        bulan: Number(bulan),
+        laporan,
+        disimpanPada: new Date().toISOString(),
+      }),
+    );
+    sessionStorage.setItem(`${KUNCI_STATUS_LAPORAN}:${buatKunciPeriode(tahun, bulan)}`, "1");
+  } catch (err) {
+    console.warn("Cache laporan gaji tidak dapat disimpan:", err);
+  }
+}
+
 export default function PengaturanGaji() {
   const sekarang = new Date();
 
@@ -61,7 +101,6 @@ export default function PengaturanGaji() {
   const [laporanBulanan, setLaporanBulanan] = useState([]);
   const [loadingLaporan, setLoadingLaporan] = useState(false);
   const [sedangHitung, setSedangHitung] = useState(false);
-  const [sedangUnduh, setSedangUnduh] = useState(false);
   const [daftarGagal, setDaftarGagal] = useState([]);
   const [laporanDiUjung, setLaporanDiUjung] = useState(false);
 
@@ -96,10 +135,13 @@ export default function PengaturanGaji() {
     ambilHariLibur();
   }, [tahunLibur]);
 
-  // Saat bulan/tahun laporan gaji berubah, jangan pertahankan tabel bulan sebelumnya.
+  // Saat bulan/tahun laporan berubah, gunakan cache sesi bila periode tersebut
+  // sudah dimuat sebelumnya. Jadi berpindah Gaji → Arsip → kembali ke Gaji
+  // tidak memaksa Admin memuat data dari server lagi.
   useEffect(() => {
-    setLaporanBulanan([]);
-    setStatusLaporan("belum_dimuat");
+    const cache = bacaCacheLaporan(tahunPilih, bulanPilih);
+    setLaporanBulanan(cache?.laporan || []);
+    setStatusLaporan(cache?.laporan?.length ? "tersedia" : "belum_dimuat");
     setLaporanDiUjung(false);
     setDaftarGagal([]);
   }, [bulanPilih, tahunPilih]);
@@ -432,10 +474,18 @@ export default function PengaturanGaji() {
   }
 
   async function muatLaporanBulanan() {
+    const cache = bacaCacheLaporan(tahunPilih, bulanPilih);
+    if (cache?.laporan?.length) {
+      setLaporanBulanan(cache.laporan);
+      setStatusLaporan("tersedia");
+      setLaporanDiUjung(false);
+      setPesan(`Laporan gaji ${namaBulanTerpilih} ${tahunPilih} sudah dimuat sebelumnya.`);
+      return;
+    }
+
     setLoadingLaporan(true);
     setStatusLaporan("memuat");
     setPesan("");
-    setLaporanBulanan([]);
     setLaporanDiUjung(false);
 
     try {
@@ -464,6 +514,8 @@ export default function PengaturanGaji() {
         setStatusLaporan("kosong");
       } else {
         setStatusLaporan("tersedia");
+        simpanCacheLaporan(tahunPilih, bulanPilih, hasil);
+        setPesan(`Laporan gaji ${namaBulanTerpilih} ${tahunPilih} sudah dimuat.`);
       }
     } catch (err) {
       console.error(err);
@@ -512,41 +564,6 @@ export default function PengaturanGaji() {
       setPesan("Tidak bisa terhubung ke server saat menghitung gaji.");
     } finally {
       setSedangHitung(false);
-    }
-  }
-
-  async function unduhExcel() {
-    setSedangUnduh(true);
-    setPesan("");
-
-    try {
-      const res = await fetch(
-        `${API_URL}/admin/gaji/export?tahun=${tahunPilih}&bulan=${bulanPilih}`,
-        {
-          headers: { Authorization: `Bearer ${getToken()}` },
-        },
-      );
-
-      if (!res.ok) {
-        const data = await bacaJsonAman(res);
-        setPesan(data.pesan || "Gagal mengunduh laporan.");
-        return;
-      }
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Laporan_Gaji_${bulanPilih}_${tahunPilih}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error(err);
-      setPesan("Tidak bisa terhubung ke server saat mengunduh laporan.");
-    } finally {
-      setSedangUnduh(false);
     }
   }
 
@@ -928,10 +945,9 @@ export default function PengaturanGaji() {
         </div>
 
         <p style={styles.keteranganTombol}>
-          Gunakan <strong>"Hitung Gaji Bulan Ini"</strong> kalau laporan untuk
-          bulan tersebut belum pernah dibuat. Gunakan{" "}
-          <strong>"Muat Data yang Sudah Ada"</strong> kalau hanya ingin melihat
-          atau mengunduh laporan yang sudah pernah dihitung.
+          Gunakan <strong>"Hitung Gaji Bulan Ini"</strong> untuk membuat atau memperbarui
+          laporan. Gunakan <strong>"Muat Data yang Sudah Ada"</strong> untuk memuat laporan
+          periode yang sudah tersimpan tanpa menghitung ulang.
         </p>
 
         {statusLaporan === "kosong" && (
@@ -1001,28 +1017,6 @@ export default function PengaturanGaji() {
 
         {statusLaporan === "tersedia" && (
           <>
-            <button
-              onClick={unduhExcel}
-              style={styles.tombolUtama}
-              className="gaji-button"
-              disabled={sedangUnduh}
-            >
-              {sedangUnduh ? (
-                "Menyiapkan file Excel…"
-              ) : (
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 7,
-                  }}
-                >
-                  <Download size={15} strokeWidth={2} />
-                  Unduh sebagai Excel (.xlsx)
-                </span>
-              )}
-            </button>
-
             <p style={styles.hintGeser} className="hint-geser">
               <ArrowRight
                 size={13}
