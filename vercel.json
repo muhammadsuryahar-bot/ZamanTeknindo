@@ -26,6 +26,12 @@
       ]
     }
   ],
+  "crons": [
+    {
+      "path": "/api/cron/cleanup-absensi",
+      "schedule": "0 2 * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/(.*)",

@@ -6,6 +6,8 @@ const authRoutes = require("./routes/authRoutes");
 const absensiRoutes = require("./routes/absensiRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const izinRoutes = require("./routes/izinRoutes");
+const arsipRoutes = require("./routes/arsipRoutes");
+const cronRoutes = require("./routes/cronRoutes");
 
 const app = express();
 
@@ -41,7 +43,9 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/absensi", absensiRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/admin/arsip-bulanan", arsipRoutes);
 app.use("/api/izin", izinRoutes);
+app.use("/api/cron", cronRoutes);
 
 app.get("/api", (req, res) => {
   res.json({ pesan: "Server Sistem Absensi berjalan dengan baik 🚀" });

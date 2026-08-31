@@ -8,13 +8,12 @@ if (!supabaseUrl) {
 }
 
 if (!supabaseServiceRoleKey) {
-  throw new Error("SUPABASE_SERVICE_ROLE_KEY tidak ditemukan di environment variable");
+  throw new Error(
+    "SUPABASE_SERVICE_ROLE_KEY tidak ditemukan di environment variable",
+  );
 }
 
-const supabase = createClient(
-  supabaseUrl,
-  supabaseServiceRoleKey
-);
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 const BUCKET_NAME = "absensi";
 
@@ -43,9 +42,51 @@ async function deleteFotoAbsensi(filePath) {
   if (error) {
     console.error(
       "Gagal menghapus foto dari Supabase Storage:",
-      error.message
+      error.message,
     );
   }
+}
+
+// Dipakai khusus proses cleanup bulanan.
+// Supabase membatasi remove maksimal 1000 object per request, jadi fungsi
+// ini otomatis memecah daftar foto menjadi batch agar aman.
+// Berbeda dengan deleteFotoAbsensi(), fungsi ini MELEMPAR ERROR jika salah
+// satu batch gagal. Dengan begitu record database tidak ikut dihapus bila
+// Storage belum berhasil dibersihkan.
+async function deleteFotoAbsensiBatch(filePaths) {
+  const pathUnik = [
+    ...new Set(
+      filePaths
+        .filter(Boolean)
+        .map((path) => String(path).trim())
+        .filter((path) => path && !path.startsWith("/uploads/")),
+    ),
+  ];
+
+  if (pathUnik.length === 0) {
+    return { jumlahDihapus: 0 };
+  }
+
+  const UKURAN_BATCH = 500;
+  let jumlahDihapus = 0;
+
+  for (let i = 0; i < pathUnik.length; i += UKURAN_BATCH) {
+    const batch = pathUnik.slice(i, i + UKURAN_BATCH);
+
+    const { error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .remove(batch);
+
+    if (error) {
+      throw new Error(
+        `Gagal menghapus ${batch.length} foto dari Supabase Storage: ${error.message}`,
+      );
+    }
+
+    jumlahDihapus += batch.length;
+  }
+
+  return { jumlahDihapus };
 }
 
 async function buatSignedUrlFoto(filePath, expiresIn = 300) {
@@ -56,9 +97,7 @@ async function buatSignedUrlFoto(filePath, expiresIn = 300) {
     .createSignedUrl(filePath, expiresIn);
 
   if (error) {
-    throw new Error(
-      `Gagal membuat URL foto: ${error.message}`
-    );
+    throw new Error(`Gagal membuat URL foto: ${error.message}`);
   }
 
   return data.signedUrl;
@@ -67,17 +106,6 @@ async function buatSignedUrlFoto(filePath, expiresIn = 300) {
 // ============================================================
 // BUAT SIGNED URL UNTUK BANYAK FOTO SEKALIGUS (1 REQUEST)
 // ============================================================
-//
-// Dipakai kalau butuh signed URL untuk banyak foto dalam satu
-// waktu (misal rekap absensi harian). Jauh lebih cepat daripada
-// panggil buatSignedUrlFoto() satu-satu di dalam loop, karena
-// ini cuma 1 request ke Supabase untuk semua path sekaligus,
-// bukan 1 request per foto.
-//
-// Balikannya berupa Map<filePath, signedUrl> supaya gampang
-// di-lookup di pemanggilnya (kalau gagal untuk path tertentu,
-// path itu tidak akan ada di Map -- bukan melempar error).
-//
 async function buatSignedUrlFotoBatch(filePaths, expiresIn = 300) {
   const pathUnik = [...new Set(filePaths.filter(Boolean))];
 
@@ -95,15 +123,12 @@ async function buatSignedUrlFotoBatch(filePaths, expiresIn = 300) {
   const hasil = new Map();
 
   for (const item of data) {
-    // Tiap item bisa punya error sendiri-sendiri (misal file
-    // tertentu sudah terhapus dari storage) tanpa bikin
-    // seluruh batch gagal.
     if (!item.error && item.signedUrl) {
       hasil.set(item.path, item.signedUrl);
     } else if (item.error) {
       console.error(
         `Gagal membuat signed URL untuk ${item.path}:`,
-        item.error
+        item.error,
       );
     }
   }
@@ -114,6 +139,7 @@ async function buatSignedUrlFotoBatch(filePaths, expiresIn = 300) {
 module.exports = {
   uploadFotoAbsensi,
   deleteFotoAbsensi,
+  deleteFotoAbsensiBatch,
   buatSignedUrlFoto,
   buatSignedUrlFotoBatch,
 };

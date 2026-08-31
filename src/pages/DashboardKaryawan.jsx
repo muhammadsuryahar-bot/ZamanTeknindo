@@ -40,6 +40,9 @@ const MAX_UPLOAD_BYTES = 1.5 * 1024 * 1024;
 const MAX_UPLOAD_WIDTH = 1280;
 const MAX_UPLOAD_HEIGHT = 1280;
 
+// Cache status hari ini hanya untuk mempercepat tampilan awal.
+// Verifikasi server tetap menjadi sumber kebenaran sebelum absensi dikirim.
+
 function tanggalLokalISO() {
   const sekarang = new Date();
   const tahun = sekarang.getFullYear();
@@ -1146,15 +1149,9 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       return;
     }
 
-    if (
-      !TAHAP_VALID.has(tahap) ||
-      tahap === "selesai" ||
-      tahap === "tidak_perlu_absen"
-    ) {
+    if (!TAHAP_VALID.has(tahap) || tahap === "selesai") {
       setPesan(
-        tahap === "tidak_perlu_absen"
-          ? "Kamu tidak perlu melakukan absensi karena pengajuan ketidakhadiran hari ini sudah disetujui Admin."
-          : "Status absensi belum siap untuk dikirim. Muat ulang status absensi.",
+        "Status absensi belum siap untuk dikirim. Muat ulang status absensi.",
       );
       return;
     }
@@ -1447,37 +1444,6 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
                 <RefreshCcw size={17} />
                 {loadingStatus ? "Memuat..." : "Coba Muat Status"}
               </button>
-            </div>
-          )}
-
-          {tahap === "tidak_perlu_absen" && (
-            <div style={styles.approvedLeaveBox}>
-              <div style={styles.approvedLeaveIcon}>
-                <CheckCircle2 size={28} />
-              </div>
-
-              <p style={styles.approvedLeaveEyebrow}>
-                PENGAJUAN DISETUJUI
-              </p>
-
-              <h2 style={styles.sectionTitle}>
-                Hari ini kamu tidak perlu melakukan absensi
-              </h2>
-
-              <p style={styles.sectionDescription}>
-                Pengajuan{" "}
-                <strong style={styles.approvedLeaveType}>
-                  {pengajuanHariIni?.jenis
-                    ? labelJenisPengajuan(pengajuanHariIni.jenis)
-                    : "ketidakhadiran"}
-                </strong>{" "}
-                untuk hari ini sudah disetujui oleh Admin.
-              </p>
-
-              <div style={styles.approvedLeaveBadge}>
-                <CheckCircle2 size={15} />
-                Disetujui Admin
-              </div>
             </div>
           )}
 
@@ -1853,17 +1819,6 @@ function inisialNama(nama) {
   }
 
   return (bagian[0][0] + bagian[bagian.length - 1][0]).toUpperCase();
-}
-
-function labelJenisPengajuan(jenis) {
-  const labels = {
-    izin: "Izin",
-    sakit: "Sakit",
-    cuti: "Cuti",
-    urgent: "Urgent",
-  };
-
-  return labels[jenis] || jenis || "Ketidakhadiran";
 }
 
 const styles = {
@@ -2529,51 +2484,6 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-  },
-
-  approvedLeaveBox: {
-    textAlign: "center",
-    padding: "12px 8px 16px",
-  },
-
-  approvedLeaveIcon: {
-    width: 68,
-    height: 68,
-    margin: "0 auto 14px",
-    borderRadius: "50%",
-    background: warna.suksesLembut,
-    color: warna.sukses,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  approvedLeaveEyebrow: {
-    margin: "0 0 5px",
-    fontSize: 10.5,
-    fontWeight: 800,
-    letterSpacing: "0.08em",
-    color: warna.sukses,
-  },
-
-  approvedLeaveType: {
-    color: warna.tinta,
-    fontWeight: 750,
-  },
-
-  approvedLeaveBadge: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    minHeight: 32,
-    padding: "6px 11px",
-    marginTop: 4,
-    borderRadius: 999,
-    background: warna.suksesLembut,
-    color: warna.sukses,
-    fontSize: 10.5,
-    fontWeight: 700,
   },
 
   successBox: {

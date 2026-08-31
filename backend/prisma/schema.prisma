@@ -142,6 +142,29 @@ model LaporanGaji {
   @@map("laporan_gaji")
 }
 
+model ArsipBulanan {
+  id                   Int          @id @default(autoincrement())
+  tahun                Int
+  bulan                Int
+  namaFile             String?      @map("nama_file")
+  lokasiArsip          String?      @map("lokasi_arsip")
+  status               StatusArsip  @default(draft)
+  dikonfirmasiPada     DateTime?    @map("dikonfirmasi_pada")
+  siapDihapusPada      DateTime?    @map("siap_dihapus_pada")
+  mulaiDihapusPada     DateTime?    @map("mulai_dihapus_pada")
+  selesaiDihapusPada   DateTime?    @map("selesai_dihapus_pada")
+  jumlahAbsensiAwal    Int          @default(0) @map("jumlah_absensi_awal")
+  jumlahFotoAwal       Int          @default(0) @map("jumlah_foto_awal")
+  jumlahAbsensiDihapus Int          @default(0) @map("jumlah_absensi_dihapus")
+  jumlahFotoDihapus    Int          @default(0) @map("jumlah_foto_dihapus")
+  pesanError           String?      @map("pesan_error")
+  dibuatPada           DateTime     @default(now()) @map("dibuat_pada")
+
+  @@unique([tahun, bulan])
+  @@index([status, siapDihapusPada])
+  @@map("arsip_bulanan")
+}
+
 enum Peran {
   admin
   karyawan
@@ -174,4 +197,13 @@ enum StatusPengajuan {
   menunggu
   disetujui
   ditolak
+}
+
+enum StatusArsip {
+  draft
+  siap_dihapus
+  diproses
+  selesai
+  gagal
+  dibatalkan
 }
