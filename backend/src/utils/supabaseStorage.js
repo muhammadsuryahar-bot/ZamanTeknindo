@@ -16,21 +16,41 @@ if (!supabaseServiceRoleKey) {
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 const BUCKET_NAME = "absensi";
-const SIGNED_URL_TTL_SECONDS = 240;
-const SIGNED_URL_CACHE_MS = 180000;
+const SIGNED_URL_TTL_SECONDS = 300;
+const SIGNED_URL_CACHE_SECONDS = 180;
 
-// Cache hanya berada di memory instance yang sedang hidup.
-// Tujuannya mengurangi pembuatan signed URL berulang saat Dashboard Admin
-// dibuka/di-refresh pada instance server yang sama. Cache tidak menjadi
-// sumber kebenaran dan akan hilang ketika instance server dihentikan.
+// Cache memory hanya untuk warm function instance.
+// Tidak menggantikan database/storage dan akan hilang ketika instance mati.
 const signedUrlCache = new Map();
 
-function bersihkanCacheKadaluarsa() {
+function ambilCacheSignedUrl(filePath) {
+  const cache = signedUrlCache.get(filePath);
+  if (!cache) return null;
+
+  if (cache.expiresAt <= Date.now()) {
+    signedUrlCache.delete(filePath);
+    return null;
+  }
+
+  return cache.url;
+}
+
+function simpanCacheSignedUrl(filePath, url) {
+  if (!filePath || !url) return;
+
+  signedUrlCache.set(filePath, {
+    url,
+    expiresAt: Date.now() + SIGNED_URL_CACHE_SECONDS * 1000,
+  });
+}
+
+function bersihkanCacheSignedUrl() {
+  // Batasi memory jika instance hidup sangat lama.
+  if (signedUrlCache.size < 1000) return;
+
   const sekarang = Date.now();
-  for (const [path, value] of signedUrlCache.entries()) {
-    if (value.expiresAt <= sekarang) {
-      signedUrlCache.delete(path);
-    }
+  for (const [path, item] of signedUrlCache) {
+    if (item.expiresAt <= sekarang) signedUrlCache.delete(path);
   }
 }
 
@@ -64,6 +84,7 @@ async function deleteFotoAbsensi(filePath) {
   }
 }
 
+// Dipakai khusus proses cleanup bulanan.
 async function deleteFotoAbsensiBatch(filePaths) {
   const pathUnik = [
     ...new Set(
@@ -103,12 +124,8 @@ async function deleteFotoAbsensiBatch(filePaths) {
 async function buatSignedUrlFoto(filePath, expiresIn = SIGNED_URL_TTL_SECONDS) {
   if (!filePath) return null;
 
-  bersihkanCacheKadaluarsa();
-
-  const cached = signedUrlCache.get(filePath);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.url;
-  }
+  const cache = ambilCacheSignedUrl(filePath);
+  if (cache) return cache;
 
   const { data, error } = await supabase.storage
     .from(BUCKET_NAME)
@@ -118,73 +135,60 @@ async function buatSignedUrlFoto(filePath, expiresIn = SIGNED_URL_TTL_SECONDS) {
     throw new Error(`Gagal membuat URL foto: ${error.message}`);
   }
 
-  if (data?.signedUrl) {
-    signedUrlCache.set(filePath, {
-      url: data.signedUrl,
-      expiresAt: Date.now() + SIGNED_URL_CACHE_MS,
-    });
-  }
+  simpanCacheSignedUrl(filePath, data.signedUrl);
+  bersihkanCacheSignedUrl();
 
   return data.signedUrl;
 }
 
+// ============================================================
+// SIGNED URL BATCH DENGAN CACHE MEMORY
+// ============================================================
 async function buatSignedUrlFotoBatch(
   filePaths,
   expiresIn = SIGNED_URL_TTL_SECONDS,
 ) {
-  const pathUnik = [
-    ...new Set(
-      filePaths
-        .filter(Boolean)
-        .map((path) => String(path).trim())
-        .filter(Boolean),
-    ),
-  ];
+  const pathUnik = [...new Set(filePaths.filter(Boolean))];
 
   if (pathUnik.length === 0) return new Map();
 
-  bersihkanCacheKadaluarsa();
-
-  const sekarang = Date.now();
   const hasil = new Map();
-  const belumDicache = [];
+  const belumAdaCache = [];
 
   for (const path of pathUnik) {
-    const cached = signedUrlCache.get(path);
-    if (cached && cached.expiresAt > sekarang) {
-      hasil.set(path, cached.url);
+    const cache = ambilCacheSignedUrl(path);
+
+    if (cache) {
+      hasil.set(path, cache);
     } else {
-      belumDicache.push(path);
+      belumAdaCache.push(path);
     }
   }
 
-  if (belumDicache.length === 0) return hasil;
+  if (belumAdaCache.length > 0) {
+    const { data, error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .createSignedUrls(belumAdaCache, expiresIn);
 
-  // Tetap 1 request batch untuk path yang belum ada di cache.
-  const { data, error } = await supabase.storage
-    .from(BUCKET_NAME)
-    .createSignedUrls(belumDicache, expiresIn);
+    if (error) {
+      console.error("Gagal membuat signed URL batch:", error.message);
+      return hasil;
+    }
 
-  if (error) {
-    console.error("Gagal membuat signed URL batch:", error.message);
-    return hasil;
-  }
-
-  for (const item of data || []) {
-    if (!item.error && item.signedUrl) {
-      hasil.set(item.path, item.signedUrl);
-      signedUrlCache.set(item.path, {
-        url: item.signedUrl,
-        expiresAt: Date.now() + SIGNED_URL_CACHE_MS,
-      });
-    } else if (item.error) {
-      console.error(
-        `Gagal membuat signed URL untuk ${item.path}:`,
-        item.error,
-      );
+    for (const item of data || []) {
+      if (!item.error && item.signedUrl) {
+        hasil.set(item.path, item.signedUrl);
+        simpanCacheSignedUrl(item.path, item.signedUrl);
+      } else if (item.error) {
+        console.error(
+          `Gagal membuat signed URL untuk ${item.path}:`,
+          item.error,
+        );
+      }
     }
   }
 
+  bersihkanCacheSignedUrl();
   return hasil;
 }
 
