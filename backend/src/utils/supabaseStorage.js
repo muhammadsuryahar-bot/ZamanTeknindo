@@ -16,6 +16,23 @@ if (!supabaseServiceRoleKey) {
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 const BUCKET_NAME = "absensi";
+const SIGNED_URL_TTL_SECONDS = 240;
+const SIGNED_URL_CACHE_MS = 180000;
+
+// Cache hanya berada di memory instance yang sedang hidup.
+// Tujuannya mengurangi pembuatan signed URL berulang saat Dashboard Admin
+// dibuka/di-refresh pada instance server yang sama. Cache tidak menjadi
+// sumber kebenaran dan akan hilang ketika instance server dihentikan.
+const signedUrlCache = new Map();
+
+function bersihkanCacheKadaluarsa() {
+  const sekarang = Date.now();
+  for (const [path, value] of signedUrlCache.entries()) {
+    if (value.expiresAt <= sekarang) {
+      signedUrlCache.delete(path);
+    }
+  }
+}
 
 async function uploadFotoAbsensi(buffer, filePath, contentType = "image/jpeg") {
   const { data, error } = await supabase.storage
@@ -47,12 +64,6 @@ async function deleteFotoAbsensi(filePath) {
   }
 }
 
-// Dipakai khusus proses cleanup bulanan.
-// Supabase membatasi remove maksimal 1000 object per request, jadi fungsi
-// ini otomatis memecah daftar foto menjadi batch agar aman.
-// Berbeda dengan deleteFotoAbsensi(), fungsi ini MELEMPAR ERROR jika salah
-// satu batch gagal. Dengan begitu record database tidak ikut dihapus bila
-// Storage belum berhasil dibersihkan.
 async function deleteFotoAbsensiBatch(filePaths) {
   const pathUnik = [
     ...new Set(
@@ -89,8 +100,15 @@ async function deleteFotoAbsensiBatch(filePaths) {
   return { jumlahDihapus };
 }
 
-async function buatSignedUrlFoto(filePath, expiresIn = 300) {
+async function buatSignedUrlFoto(filePath, expiresIn = SIGNED_URL_TTL_SECONDS) {
   if (!filePath) return null;
+
+  bersihkanCacheKadaluarsa();
+
+  const cached = signedUrlCache.get(filePath);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.url;
+  }
 
   const { data, error } = await supabase.storage
     .from(BUCKET_NAME)
@@ -100,31 +118,65 @@ async function buatSignedUrlFoto(filePath, expiresIn = 300) {
     throw new Error(`Gagal membuat URL foto: ${error.message}`);
   }
 
+  if (data?.signedUrl) {
+    signedUrlCache.set(filePath, {
+      url: data.signedUrl,
+      expiresAt: Date.now() + SIGNED_URL_CACHE_MS,
+    });
+  }
+
   return data.signedUrl;
 }
 
-// ============================================================
-// BUAT SIGNED URL UNTUK BANYAK FOTO SEKALIGUS (1 REQUEST)
-// ============================================================
-async function buatSignedUrlFotoBatch(filePaths, expiresIn = 300) {
-  const pathUnik = [...new Set(filePaths.filter(Boolean))];
+async function buatSignedUrlFotoBatch(
+  filePaths,
+  expiresIn = SIGNED_URL_TTL_SECONDS,
+) {
+  const pathUnik = [
+    ...new Set(
+      filePaths
+        .filter(Boolean)
+        .map((path) => String(path).trim())
+        .filter(Boolean),
+    ),
+  ];
 
   if (pathUnik.length === 0) return new Map();
 
+  bersihkanCacheKadaluarsa();
+
+  const sekarang = Date.now();
+  const hasil = new Map();
+  const belumDicache = [];
+
+  for (const path of pathUnik) {
+    const cached = signedUrlCache.get(path);
+    if (cached && cached.expiresAt > sekarang) {
+      hasil.set(path, cached.url);
+    } else {
+      belumDicache.push(path);
+    }
+  }
+
+  if (belumDicache.length === 0) return hasil;
+
+  // Tetap 1 request batch untuk path yang belum ada di cache.
   const { data, error } = await supabase.storage
     .from(BUCKET_NAME)
-    .createSignedUrls(pathUnik, expiresIn);
+    .createSignedUrls(belumDicache, expiresIn);
 
   if (error) {
     console.error("Gagal membuat signed URL batch:", error.message);
-    return new Map();
+    return hasil;
   }
 
-  const hasil = new Map();
-
-  for (const item of data) {
+  for (const item of data || []) {
     if (!item.error && item.signedUrl) {
       hasil.set(item.path, item.signedUrl);
+      signedUrlCache.set(item.path, {
+        url: item.signedUrl,
+        expiresAt: Date.now() + SIGNED_URL_CACHE_MS,
+      });
     } else if (item.error) {
       console.error(
         `Gagal membuat signed URL untuk ${item.path}:`,
