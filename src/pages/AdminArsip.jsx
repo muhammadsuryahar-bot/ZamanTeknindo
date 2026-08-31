@@ -55,6 +55,44 @@ function buatNamaFile(tahun, bulan) {
   return `Rekap_Absensi_${NAMA_BULAN[bulan - 1]}_${tahun}.xlsx`;
 }
 
+const KUNCI_CACHE_ARSIP = "zaman-teknindo:arsip-bulanan-cache:v1";
+const CACHE_ARSIP_MS = 30_000;
+const ARSIP_REQUEST_TIMEOUT_MS = 8_000;
+
+function bacaCacheArsip() {
+  try {
+    const raw = sessionStorage.getItem(KUNCI_CACHE_ARSIP);
+    if (!raw) return null;
+    const cache = JSON.parse(raw);
+    if (!cache || !Array.isArray(cache.data)) return null;
+    const umur = Date.now() - Number(cache.disimpanPada || 0);
+    if (!Number.isFinite(umur) || umur < 0 || umur > CACHE_ARSIP_MS) return null;
+    return cache.data;
+  } catch {
+    return null;
+  }
+}
+
+function simpanCacheArsip(data) {
+  if (!Array.isArray(data)) return;
+  try {
+    sessionStorage.setItem(
+      KUNCI_CACHE_ARSIP,
+      JSON.stringify({ version: 1, data, disimpanPada: Date.now() }),
+    );
+  } catch (error) {
+    console.warn("Cache arsip tidak dapat disimpan:", error);
+  }
+}
+
+function hapusCacheArsip() {
+  try {
+    sessionStorage.removeItem(KUNCI_CACHE_ARSIP);
+  } catch {
+    // Abaikan kegagalan cache. Database tetap menjadi sumber kebenaran.
+  }
+}
+
 export default function AdminArsip({ kembaliKeDashboard }) {
   const sekarang = new Date();
   const [tahun, setTahun] = useState(sekarang.getFullYear());
@@ -112,18 +150,44 @@ export default function AdminArsip({ kembaliKeDashboard }) {
     return hasil;
   }, [sekarang.getFullYear()]);
 
-  async function ambilDaftar() {
+  async function ambilDaftar({ paksa = false } = {}) {
+    const cache = !paksa ? bacaCacheArsip() : null;
+
+    if (cache) {
+      setArsip(cache);
+      setLoadingDaftar(false);
+      return;
+    }
+
     setLoadingDaftar(true);
     try {
+      const controller = new AbortController();
+      const timer = window.setTimeout(
+        () => controller.abort(),
+        ARSIP_REQUEST_TIMEOUT_MS,
+      );
+
       const res = await fetch(`${API_URL}/admin/arsip-bulanan`, {
         headers: { Authorization: `Bearer ${getToken()}` },
+        signal: controller.signal,
       });
+      window.clearTimeout(timer);
+
       const data = await res.json();
       if (!res.ok)
         throw new Error(data?.pesan || "Gagal memuat arsip bulanan.");
-      setArsip(Array.isArray(data.data) ? data.data : []);
+
+      const hasil = Array.isArray(data.data) ? data.data : [];
+      setArsip(hasil);
+      simpanCacheArsip(hasil);
     } catch (error) {
-      setPesanError(error.message || "Gagal memuat arsip bulanan.");
+      if (error?.name === "AbortError") {
+        setPesanError(
+          "Server terlalu lama merespons. Coba tekan Muat Ulang Arsip.",
+        );
+      } else {
+        setPesanError(error.message || "Gagal memuat arsip bulanan.");
+      }
     } finally {
       setLoadingDaftar(false);
     }
@@ -136,6 +200,13 @@ export default function AdminArsip({ kembaliKeDashboard }) {
   useEffect(() => {
     void ambilDaftar();
   }, []);
+
+  async function muatUlangArsip() {
+    hapusCacheArsip();
+    setPesan("");
+    setPesanError("");
+    await ambilDaftar({ paksa: true });
+  }
 
   async function lihatPreview() {
     setLoadingPreview(true);
@@ -237,7 +308,8 @@ export default function AdminArsip({ kembaliKeDashboard }) {
         throw new Error(data?.pesan || "Gagal mengonfirmasi periode.");
 
       setPesan(data.pesan || "Periode berhasil dijadwalkan.");
-      await ambilDaftar();
+      hapusCacheArsip();
+      await ambilDaftar({ paksa: true });
       await lihatPreview();
     } catch (error) {
       setPesanError(error.message || "Gagal mengonfirmasi periode.");
@@ -268,7 +340,8 @@ export default function AdminArsip({ kembaliKeDashboard }) {
       if (!res.ok) throw new Error(data?.pesan || "Gagal membatalkan jadwal.");
 
       setPesan(data.pesan || "Jadwal dibatalkan.");
-      await ambilDaftar();
+      hapusCacheArsip();
+      await ambilDaftar({ paksa: true });
     } catch (error) {
       setPesanError(error.message || "Gagal membatalkan jadwal.");
     }
@@ -276,13 +349,9 @@ export default function AdminArsip({ kembaliKeDashboard }) {
 
   return (
     <div
-      className="admin-arsip-page"
       style={{
         fontFamily: font.display,
         color: warna.tinta,
-        width: "100%",
-        minHeight: "100%",
-        boxSizing: "border-box",
       }}
     >
       <style>{`
@@ -294,16 +363,12 @@ export default function AdminArsip({ kembaliKeDashboard }) {
         .admin-arsip-page textarea {
           font-family: ${font.display} !important;
         }
-
-        .admin-arsip-page button,
-        .admin-arsip-page input,
-        .admin-arsip-page select,
-        .admin-arsip-page textarea {
-          box-sizing: border-box;
+        @keyframes arsip-refresh-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
         }
-
-        .admin-arsip-page button {
-          appearance: none;
+        .admin-arsip-page .arsip-refresh-spin {
+          animation: arsip-refresh-spin 0.8s linear infinite;
         }
       `}</style>
       <div style={styles.header}>
@@ -510,9 +575,19 @@ export default function AdminArsip({ kembaliKeDashboard }) {
             </div>
             <div>
               <h3 style={styles.cardTitle}>Status Periode</h3>
-              <p style={styles.cardSub}>
-                Riwayat periode yang sudah dijadwalkan.
-              </p>
+              <div style={styles.cardSubRow}>
+                <p style={styles.cardSub}>Riwayat periode yang sudah dijadwalkan.</p>
+                <button
+                  type="button"
+                  onClick={muatUlangArsip}
+                  style={styles.refreshButton}
+                  disabled={loadingDaftar}
+                  title="Muat ulang status arsip dari server"
+                >
+                  <RefreshCcw size={13} className={loadingDaftar ? "arsip-refresh-spin" : ""} />
+                  {loadingDaftar ? "Memuat..." : "Muat Ulang"}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -593,7 +668,6 @@ export default function AdminArsip({ kembaliKeDashboard }) {
   );
 }
 
-
 const styles = {
   
   header: {
@@ -618,13 +692,7 @@ const styles = {
     letterSpacing: "0.08em",
     color: warna.aksen,
   },
-  title: {
-    margin: "4px 0 3px",
-    fontSize: 20,
-    fontWeight: 700,
-    color: warna.tinta,
-    fontFamily: font.display,
-  },
+  title: { margin: "4px 0 3px", fontSize: 20, color: warna.tinta },
   subtitle: {
     margin: 0,
     maxWidth: 680,
@@ -701,7 +769,28 @@ const styles = {
     flexShrink: 0,
   },
   cardTitle: { margin: 0, fontSize: 14.5, color: warna.tinta },
+  cardSubRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
   cardSub: { margin: "3px 0 0", fontSize: 11, color: warna.tintaSamar },
+  refreshButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 5,
+    minHeight: 26,
+    padding: "4px 8px",
+    marginTop: 4,
+    borderRadius: 7,
+    border: `1px solid ${warna.garis}`,
+    background: warna.panel,
+    color: warna.tintaLembut,
+    fontSize: 10,
+    fontWeight: 650,
+    cursor: "pointer",
+  },
   formGrid: {
     display: "grid",
     gridTemplateColumns: "1fr 1fr",
