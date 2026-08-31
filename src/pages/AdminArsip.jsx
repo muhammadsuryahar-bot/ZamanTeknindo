@@ -14,8 +14,18 @@ import { API_URL, getToken } from "../utils/api";
 import { warna, font } from "../styles/theme";
 
 const NAMA_BULAN = [
-  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-  "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+  "Januari",
+  "Februari",
+  "Maret",
+  "April",
+  "Mei",
+  "Juni",
+  "Juli",
+  "Agustus",
+  "September",
+  "Oktober",
+  "November",
+  "Desember",
 ];
 
 const STATUS_LABEL = {
@@ -67,7 +77,9 @@ export default function AdminArsip({ kembaliKeDashboard }) {
 
   function cekLaporanGajiSudahDimuat(t, b) {
     try {
-      const cacheRaw = sessionStorage.getItem("zaman-teknindo:gaji-laporan-cache:v2");
+      const cacheRaw = sessionStorage.getItem(
+        "zaman-teknindo:gaji-laporan-cache:v2",
+      );
       if (cacheRaw) {
         const cache = JSON.parse(cacheRaw);
         if (
@@ -90,7 +102,11 @@ export default function AdminArsip({ kembaliKeDashboard }) {
 
   const tahunPilihan = useMemo(() => {
     const hasil = [];
-    for (let t = sekarang.getFullYear() - 2; t <= sekarang.getFullYear(); t += 1) {
+    for (
+      let t = sekarang.getFullYear() - 2;
+      t <= sekarang.getFullYear();
+      t += 1
+    ) {
       hasil.push(t);
     }
     return hasil;
@@ -103,7 +119,8 @@ export default function AdminArsip({ kembaliKeDashboard }) {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.pesan || "Gagal memuat arsip bulanan.");
+      if (!res.ok)
+        throw new Error(data?.pesan || "Gagal memuat arsip bulanan.");
       setArsip(Array.isArray(data.data) ? data.data : []);
     } catch (error) {
       setPesanError(error.message || "Gagal memuat arsip bulanan.");
@@ -216,7 +233,8 @@ export default function AdminArsip({ kembaliKeDashboard }) {
       );
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.pesan || "Gagal mengonfirmasi periode.");
+      if (!res.ok)
+        throw new Error(data?.pesan || "Gagal mengonfirmasi periode.");
 
       setPesan(data.pesan || "Periode berhasil dijadwalkan.");
       await ambilDaftar();
@@ -257,14 +275,45 @@ export default function AdminArsip({ kembaliKeDashboard }) {
   }
 
   return (
-    <div>
+    <div
+      className="admin-arsip-page"
+      style={{
+        fontFamily: font.display,
+        color: warna.tinta,
+        width: "100%",
+        minHeight: "100%",
+        boxSizing: "border-box",
+      }}
+    >
+      <style>{`
+        .admin-arsip-page,
+        .admin-arsip-page *,
+        .admin-arsip-page button,
+        .admin-arsip-page input,
+        .admin-arsip-page select,
+        .admin-arsip-page textarea {
+          font-family: ${font.display} !important;
+        }
+
+        .admin-arsip-page button,
+        .admin-arsip-page input,
+        .admin-arsip-page select,
+        .admin-arsip-page textarea {
+          box-sizing: border-box;
+        }
+
+        .admin-arsip-page button {
+          appearance: none;
+        }
+      `}</style>
       <div style={styles.header}>
         <div>
           <p style={styles.eyebrow}>PENGELOLAAN DATA</p>
           <h2 style={styles.title}>Arsip & Cleanup Absensi</h2>
           <p style={styles.subtitle}>
-            Rekap Excel disimpan oleh perusahaan. Setelah dikonfirmasi, data foto
-            dan detail absensi dapat dibersihkan otomatis setelah masa tunggu.
+            Rekap Excel disimpan oleh perusahaan. Setelah dikonfirmasi, data
+            foto dan detail absensi dapat dibersihkan otomatis setelah masa
+            tunggu.
           </p>
         </div>
 
@@ -273,7 +322,11 @@ export default function AdminArsip({ kembaliKeDashboard }) {
             <ShieldCheck size={15} /> Cleanup bertahap & terjadwal
           </div>
           {kembaliKeDashboard && (
-            <button type="button" onClick={kembaliKeDashboard} style={styles.backButton}>
+            <button
+              type="button"
+              onClick={kembaliKeDashboard}
+              style={styles.backButton}
+            >
               Kembali ke Dashboard
             </button>
           )}
@@ -290,24 +343,44 @@ export default function AdminArsip({ kembaliKeDashboard }) {
       <div style={styles.grid}>
         <section style={styles.card}>
           <div style={styles.cardHead}>
-            <div style={styles.icon}><Archive size={18} /></div>
+            <div style={styles.icon}>
+              <Archive size={18} />
+            </div>
             <div>
               <h3 style={styles.cardTitle}>Tutup Periode</h3>
-              <p style={styles.cardSub}>Preview → Export Excel → simpan → konfirmasi.</p>
+              <p style={styles.cardSub}>
+                Preview → Export Excel → simpan → konfirmasi.
+              </p>
             </div>
           </div>
 
           <div style={styles.formGrid}>
             <label style={styles.label}>
               Tahun
-              <select value={tahun} onChange={(e) => setTahun(Number(e.target.value))} style={styles.input}>
-                {tahunPilihan.map((t) => <option key={t} value={t}>{t}</option>)}
+              <select
+                value={tahun}
+                onChange={(e) => setTahun(Number(e.target.value))}
+                style={styles.input}
+              >
+                {tahunPilihan.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
               </select>
             </label>
             <label style={styles.label}>
               Bulan
-              <select value={bulan} onChange={(e) => setBulan(Number(e.target.value))} style={styles.input}>
-                {NAMA_BULAN.map((nama, i) => <option key={nama} value={i + 1}>{nama}</option>)}
+              <select
+                value={bulan}
+                onChange={(e) => setBulan(Number(e.target.value))}
+                style={styles.input}
+              >
+                {NAMA_BULAN.map((nama, i) => (
+                  <option key={nama} value={i + 1}>
+                    {nama}
+                  </option>
+                ))}
               </select>
             </label>
           </div>
@@ -316,63 +389,115 @@ export default function AdminArsip({ kembaliKeDashboard }) {
             {laporanGajiSudahDimuat ? (
               <>
                 <CheckCircle2 size={15} />
-                <span>Laporan gaji periode ini sudah dimuat dari menu Gaji. Export Excel siap digunakan.</span>
+                <span>
+                  Laporan gaji periode ini sudah dimuat dari menu Gaji. Export
+                  Excel siap digunakan.
+                </span>
               </>
             ) : (
               <>
                 <Clock3 size={15} />
-                <span>Muat data laporan gaji periode ini terlebih dahulu melalui menu Gaji. Tombol Export Excel akan aktif setelah data berhasil dimuat.</span>
+                <span>
+                  Muat data laporan gaji periode ini terlebih dahulu melalui
+                  menu Gaji. Tombol Export Excel akan aktif setelah data
+                  berhasil dimuat.
+                </span>
               </>
             )}
           </div>
 
           <div style={styles.buttonRow}>
-            <button type="button" onClick={lihatPreview} style={styles.secondary} disabled={loadingPreview}>
-              <Eye size={16} /> {loadingPreview ? "Memuat..." : "Preview Periode"}
+            <button
+              type="button"
+              onClick={lihatPreview}
+              style={styles.secondary}
+              disabled={loadingPreview}
+            >
+              <Eye size={16} />{" "}
+              {loadingPreview ? "Memuat..." : "Preview Periode"}
             </button>
             <button
               type="button"
               onClick={exportExcel}
               style={styles.primary}
               disabled={loadingExport || !laporanGajiSudahDimuat}
-              title={!laporanGajiSudahDimuat ? "Muat data laporan gaji terlebih dahulu melalui menu Gaji." : "Export Excel"}
+              title={
+                !laporanGajiSudahDimuat
+                  ? "Muat data laporan gaji terlebih dahulu melalui menu Gaji."
+                  : "Export Excel"
+              }
             >
-              <Download size={16} /> {loadingExport ? "Mengunduh..." : "Export Excel"}
+              <Download size={16} />{" "}
+              {loadingExport ? "Mengunduh..." : "Export Excel"}
             </button>
           </div>
 
           {preview && (
             <div style={styles.previewBox}>
-              <p style={styles.previewTitle}>{NAMA_BULAN[preview.bulan - 1]} {preview.tahun}</p>
+              <p style={styles.previewTitle}>
+                {NAMA_BULAN[preview.bulan - 1]} {preview.tahun}
+              </p>
 
               <div style={styles.stats}>
-                <div><span>Data Absensi</span><strong>{formatAngka(preview.jumlahAbsensi)}</strong></div>
-                <div><span>Foto</span><strong>{formatAngka(preview.jumlahFoto)}</strong></div>
-                <div><span>Laporan Gaji</span><strong>{formatAngka(preview.jumlahLaporanGaji)}</strong></div>
+                <div>
+                  <span>Data Absensi</span>
+                  <strong>{formatAngka(preview.jumlahAbsensi)}</strong>
+                </div>
+                <div>
+                  <span>Foto</span>
+                  <strong>{formatAngka(preview.jumlahFoto)}</strong>
+                </div>
+                <div>
+                  <span>Laporan Gaji</span>
+                  <strong>{formatAngka(preview.jumlahLaporanGaji)}</strong>
+                </div>
               </div>
 
               <div style={styles.warning}>
                 <Clock3 size={15} />
-                <span>Setelah dikonfirmasi, cleanup menunggu {preview.masaTungguHari} hari sebelum boleh dijalankan otomatis.</span>
+                <span>
+                  Setelah dikonfirmasi, cleanup menunggu{" "}
+                  {preview.masaTungguHari} hari sebelum boleh dijalankan
+                  otomatis.
+                </span>
               </div>
 
               <label style={styles.label}>
                 Nama file Excel
-                <input value={namaFile} onChange={(e) => setNamaFile(e.target.value)} style={styles.input} />
+                <input
+                  value={namaFile}
+                  onChange={(e) => setNamaFile(e.target.value)}
+                  style={styles.input}
+                />
               </label>
 
               <label style={styles.label}>
                 Lokasi arsip
-                <input value={lokasiArsip} onChange={(e) => setLokasiArsip(e.target.value)} style={styles.input} />
+                <input
+                  value={lokasiArsip}
+                  onChange={(e) => setLokasiArsip(e.target.value)}
+                  style={styles.input}
+                />
               </label>
 
               <div style={styles.archiveTip}>
                 <ShieldCheck size={15} />
-                <span>Pastikan Excel benar-benar sudah tersimpan di laptop/perangkat arsip perusahaan sebelum konfirmasi.</span>
+                <span>
+                  Pastikan Excel benar-benar sudah tersimpan di laptop/perangkat
+                  arsip perusahaan sebelum konfirmasi.
+                </span>
               </div>
 
-              <button type="button" onClick={konfirmasi} style={styles.primary} disabled={loadingKonfirmasi}>
-                <CheckCircle2 size={16} /> {loadingKonfirmasi ? "Menyimpan..." : "Konfirmasi Arsip & Jadwalkan Cleanup"}
+              <button
+                type="button"
+                onClick={konfirmasi}
+                style={styles.primary}
+                disabled={loadingKonfirmasi}
+              >
+                <CheckCircle2 size={16} />{" "}
+                {loadingKonfirmasi
+                  ? "Menyimpan..."
+                  : "Konfirmasi Arsip & Jadwalkan Cleanup"}
               </button>
             </div>
           )}
@@ -380,10 +505,14 @@ export default function AdminArsip({ kembaliKeDashboard }) {
 
         <section style={styles.card}>
           <div style={styles.cardHead}>
-            <div style={styles.icon}><Trash2 size={18} /></div>
+            <div style={styles.icon}>
+              <Trash2 size={18} />
+            </div>
             <div>
               <h3 style={styles.cardTitle}>Status Periode</h3>
-              <p style={styles.cardSub}>Riwayat periode yang sudah dijadwalkan.</p>
+              <p style={styles.cardSub}>
+                Riwayat periode yang sudah dijadwalkan.
+              </p>
             </div>
           </div>
 
@@ -396,34 +525,60 @@ export default function AdminArsip({ kembaliKeDashboard }) {
               {arsip.map((item) => {
                 const awal = Number(item.jumlahAbsensiAwal) || 0;
                 const dihapus = Number(item.jumlahAbsensiDihapus) || 0;
-                const progress = item.status === "selesai" ? 100 : awal > 0 ? (dihapus / awal) * 100 : 0;
+                const progress =
+                  item.status === "selesai"
+                    ? 100
+                    : awal > 0
+                      ? (dihapus / awal) * 100
+                      : 0;
 
                 return (
                   <div key={item.id} style={styles.item}>
                     <div style={styles.itemTop}>
                       <div>
-                        <strong style={styles.itemTitle}>{NAMA_BULAN[item.bulan - 1]} {item.tahun}</strong>
-                        <div style={styles.itemMeta}>{STATUS_LABEL[item.status] || item.status}</div>
+                        <strong style={styles.itemTitle}>
+                          {NAMA_BULAN[item.bulan - 1]} {item.tahun}
+                        </strong>
+                        <div style={styles.itemMeta}>
+                          {STATUS_LABEL[item.status] || item.status}
+                        </div>
                       </div>
                       <span style={styles.status}>{item.status}</span>
                     </div>
 
                     <div style={styles.progress}>
-                      <div style={{ ...styles.progressBar, width: `${Math.min(100, progress)}%` }} />
+                      <div
+                        style={{
+                          ...styles.progressBar,
+                          width: `${Math.min(100, progress)}%`,
+                        }}
+                      />
                     </div>
 
                     <div style={styles.itemStats}>
-                      <span>Absensi: {formatAngka(item.jumlahAbsensiDihapus)} / {formatAngka(item.jumlahAbsensiAwal)}</span>
-                      <span>Foto: {formatAngka(item.jumlahFotoDihapus)} / {formatAngka(item.jumlahFotoAwal)}</span>
+                      <span>
+                        Absensi: {formatAngka(item.jumlahAbsensiDihapus)} /{" "}
+                        {formatAngka(item.jumlahAbsensiAwal)}
+                      </span>
+                      <span>
+                        Foto: {formatAngka(item.jumlahFotoDihapus)} /{" "}
+                        {formatAngka(item.jumlahFotoAwal)}
+                      </span>
                     </div>
 
                     <div style={styles.itemMetaRow}>
                       <span>Arsip: {item.namaFile}</span>
-                      <span>Cleanup: {formatTanggal(item.siapDihapusPada)}</span>
+                      <span>
+                        Cleanup: {formatTanggal(item.siapDihapusPada)}
+                      </span>
                     </div>
 
                     {item.status === "siap_dihapus" && (
-                      <button type="button" onClick={() => batalkan(item)} style={styles.cancel}>
+                      <button
+                        type="button"
+                        onClick={() => batalkan(item)}
+                        style={styles.cancel}
+                      >
                         <RefreshCcw size={14} /> Batalkan Jadwal
                       </button>
                     )}
@@ -438,43 +593,282 @@ export default function AdminArsip({ kembaliKeDashboard }) {
   );
 }
 
+
 const styles = {
-  header: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 18, flexWrap: "wrap" },
-  headerActions: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" },
-  eyebrow: { margin: 0, fontSize: 10.5, fontWeight: 800, letterSpacing: "0.08em", color: warna.aksen },
-  title: { margin: "4px 0 3px", fontSize: 20, color: warna.tinta },
-  subtitle: { margin: 0, maxWidth: 680, fontSize: 12, lineHeight: 1.55, color: warna.tintaLembut },
-  securityBadge: { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 10px", borderRadius: 999, background: warna.aksenLembut, color: warna.aksen, fontSize: 10.5, fontWeight: 700 },
-  backButton: { minHeight: 34, padding: "7px 10px", borderRadius: 9, border: `1px solid ${warna.garis}`, background: warna.panel, color: warna.tinta, fontSize: 11.5, fontWeight: 650, cursor: "pointer" },
-  success: { display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", marginBottom: 12, borderRadius: 10, background: warna.suksesLembut, color: warna.sukses, fontSize: 12.5 },
-  error: { display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", marginBottom: 12, borderRadius: 10, background: warna.bahayaLembut, color: warna.bahaya, fontSize: 12.5 },
+  
+  header: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 16,
+    marginBottom: 18,
+    flexWrap: "wrap",
+  },
+  headerActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+  },
+  eyebrow: {
+    margin: 0,
+    fontSize: 10.5,
+    fontWeight: 800,
+    letterSpacing: "0.08em",
+    color: warna.aksen,
+  },
+  title: {
+    margin: "4px 0 3px",
+    fontSize: 20,
+    fontWeight: 700,
+    color: warna.tinta,
+    fontFamily: font.display,
+  },
+  subtitle: {
+    margin: 0,
+    maxWidth: 680,
+    fontSize: 12,
+    lineHeight: 1.55,
+    color: warna.tintaLembut,
+  },
+  securityBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "8px 10px",
+    borderRadius: 999,
+    background: warna.aksenLembut,
+    color: warna.aksen,
+    fontSize: 10.5,
+    fontWeight: 700,
+  },
+  backButton: {
+    minHeight: 34,
+    padding: "7px 10px",
+    borderRadius: 9,
+    border: `1px solid ${warna.garis}`,
+    background: warna.panel,
+    color: warna.tinta,
+    fontSize: 11.5,
+    fontWeight: 650,
+    cursor: "pointer",
+  },
+  success: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "10px 12px",
+    marginBottom: 12,
+    borderRadius: 10,
+    background: warna.suksesLembut,
+    color: warna.sukses,
+    fontSize: 12.5,
+  },
+  error: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "10px 12px",
+    marginBottom: 12,
+    borderRadius: 10,
+    background: warna.bahayaLembut,
+    color: warna.bahaya,
+    fontSize: 12.5,
+  },
   grid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
-  card: { background: warna.panel, border: `1px solid ${warna.garis}`, borderRadius: 12, padding: 18 },
-  cardHead: { display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 16 },
-  icon: { width: 36, height: 36, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", background: warna.aksenLembut, color: warna.aksen, flexShrink: 0 },
+  card: {
+    background: warna.panel,
+    border: `1px solid ${warna.garis}`,
+    borderRadius: 12,
+    padding: 18,
+  },
+  cardHead: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 10,
+    marginBottom: 16,
+  },
+  icon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: warna.aksenLembut,
+    color: warna.aksen,
+    flexShrink: 0,
+  },
   cardTitle: { margin: 0, fontSize: 14.5, color: warna.tinta },
   cardSub: { margin: "3px 0 0", fontSize: 11, color: warna.tintaSamar },
-  formGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 },
-  label: { display: "flex", flexDirection: "column", gap: 5, fontSize: 11.5, color: warna.tintaLembut, fontWeight: 600, marginTop: 9 },
-  input: { width: "100%", minHeight: 38, boxSizing: "border-box", padding: "9px 10px", border: `1px solid ${warna.garis}`, borderRadius: 8, fontSize: 12.5, color: warna.tinta, fontFamily: font.display, background: "#fff" },
+  formGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 10,
+    marginBottom: 10,
+  },
+  label: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 5,
+    fontSize: 11.5,
+    color: warna.tintaLembut,
+    fontWeight: 600,
+    marginTop: 9,
+  },
+  input: {
+    width: "100%",
+    minHeight: 38,
+    boxSizing: "border-box",
+    padding: "9px 10px",
+    border: `1px solid ${warna.garis}`,
+    borderRadius: 8,
+    fontSize: 12.5,
+    color: warna.tinta,
+    fontFamily: font.display,
+    background: "#fff",
+  },
   buttonRow: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 },
-  primary: { width: "100%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 40, padding: "9px 12px", marginTop: 10, background: warna.aksen, color: "#fff", border: "none", borderRadius: 9, fontSize: 12, fontWeight: 700, cursor: "pointer" },
-  secondary: { width: "100%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 40, padding: "9px 12px", marginTop: 10, background: warna.panelAlt, color: warna.tinta, border: `1px solid ${warna.garis}`, borderRadius: 9, fontSize: 12, fontWeight: 700, cursor: "pointer" },
-  previewBox: { marginTop: 14, padding: 13, background: warna.panelAlt, border: `1px solid ${warna.garis}`, borderRadius: 10 },
-  previewTitle: { margin: "0 0 10px", fontSize: 13, fontWeight: 750, color: warna.tinta },
+  primary: {
+    width: "100%",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    minHeight: 40,
+    padding: "9px 12px",
+    marginTop: 10,
+    background: warna.aksen,
+    color: "#fff",
+    border: "none",
+    borderRadius: 9,
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+  secondary: {
+    width: "100%",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    minHeight: 40,
+    padding: "9px 12px",
+    marginTop: 10,
+    background: warna.panelAlt,
+    color: warna.tinta,
+    border: `1px solid ${warna.garis}`,
+    borderRadius: 9,
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+  previewBox: {
+    marginTop: 14,
+    padding: 13,
+    background: warna.panelAlt,
+    border: `1px solid ${warna.garis}`,
+    borderRadius: 10,
+  },
+  previewTitle: {
+    margin: "0 0 10px",
+    fontSize: 13,
+    fontWeight: 750,
+    color: warna.tinta,
+  },
   stats: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 7 },
-  warning: { display: "flex", alignItems: "flex-start", gap: 7, margin: "11px 0 2px", padding: "9px 10px", borderRadius: 8, background: warna.peringatanLembut, color: warna.tintaLembut, fontSize: 10.5, lineHeight: 1.45 },
-  archiveTip: { display: "flex", alignItems: "flex-start", gap: 7, marginTop: 10, padding: "9px 10px", borderRadius: 8, background: warna.aksenLembut, color: warna.tintaLembut, fontSize: 10.5, lineHeight: 1.45 },
+  warning: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 7,
+    margin: "11px 0 2px",
+    padding: "9px 10px",
+    borderRadius: 8,
+    background: warna.peringatanLembut,
+    color: warna.tintaLembut,
+    fontSize: 10.5,
+    lineHeight: 1.45,
+  },
+  archiveTip: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 7,
+    marginTop: 10,
+    padding: "9px 10px",
+    borderRadius: 8,
+    background: warna.aksenLembut,
+    color: warna.tintaLembut,
+    fontSize: 10.5,
+    lineHeight: 1.45,
+  },
   empty: { textAlign: "center", color: warna.tintaSamar, fontSize: 12.5 },
   list: { display: "flex", flexDirection: "column", gap: 9 },
-  item: { padding: 12, border: `1px solid ${warna.garis}`, borderRadius: 10, background: warna.panelAlt },
-  itemTop: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 },
+  item: {
+    padding: 12,
+    border: `1px solid ${warna.garis}`,
+    borderRadius: 10,
+    background: warna.panelAlt,
+  },
+  itemTop: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
+  },
   itemTitle: { fontSize: 13, color: warna.tinta },
   itemMeta: { marginTop: 2, fontSize: 10.5, color: warna.tintaLembut },
-  status: { fontSize: 9.5, fontWeight: 750, padding: "4px 7px", borderRadius: 999, background: warna.panel, color: warna.tintaSamar, border: `1px solid ${warna.garis}`, whiteSpace: "nowrap" },
-  progress: { height: 5, marginTop: 9, borderRadius: 999, background: warna.garis, overflow: "hidden" },
+  status: {
+    fontSize: 9.5,
+    fontWeight: 750,
+    padding: "4px 7px",
+    borderRadius: 999,
+    background: warna.panel,
+    color: warna.tintaSamar,
+    border: `1px solid ${warna.garis}`,
+    whiteSpace: "nowrap",
+  },
+  progress: {
+    height: 5,
+    marginTop: 9,
+    borderRadius: 999,
+    background: warna.garis,
+    overflow: "hidden",
+  },
   progressBar: { height: "100%", borderRadius: 999, background: warna.aksen },
-  itemStats: { display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginTop: 8, fontFamily: font.mono, fontSize: 10, color: warna.tintaSamar },
-  itemMetaRow: { display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginTop: 7, paddingTop: 7, borderTop: `1px solid ${warna.garis}`, fontSize: 10.5, color: warna.tintaSamar },
-  cancel: { display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, padding: "7px 9px", borderRadius: 8, border: `1px solid ${warna.garis}`, background: warna.panel, color: warna.tintaLembut, fontSize: 10.5, fontWeight: 650, cursor: "pointer" },
+  itemStats: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 8,
+    flexWrap: "wrap",
+    marginTop: 8,
+    fontFamily: font.mono,
+    fontSize: 10,
+    color: warna.tintaSamar,
+  },
+  itemMetaRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 8,
+    flexWrap: "wrap",
+    marginTop: 7,
+    paddingTop: 7,
+    borderTop: `1px solid ${warna.garis}`,
+    fontSize: 10.5,
+    color: warna.tintaSamar,
+  },
+  cancel: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+    padding: "7px 9px",
+    borderRadius: 8,
+    border: `1px solid ${warna.garis}`,
+    background: warna.panel,
+    color: warna.tintaLembut,
+    fontSize: 10.5,
+    fontWeight: 650,
+    cursor: "pointer",
+  },
 };
