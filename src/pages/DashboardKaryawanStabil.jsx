@@ -1,137 +1,206 @@
-import { useEffect, useState } from "react";
-import { BellRing, CheckCircle2, Clock3, LogOut, ShieldCheck } from "lucide-react";
+import { useEffect } from "react";
+import { Camera, CheckCircle2, Clock3, LogOut, MapPin, ShieldCheck } from "lucide-react";
 import DashboardKaryawan from "./DashboardKaryawan";
-import { API_URL, getToken } from "../utils/api";
 import { warna, font } from "../styles/theme";
 
-// Adapter ringan untuk browser/HP yang kadang gagal membuka kamera pada
-// percobaan pertama. Geolocation tetap menggunakan API asli browser.
+// Wrapper ini sengaja tidak lagi melakukan request status kedua.
+// DashboardKaryawan sendiri sudah menjadi sumber status absensi, sehingga
+// halaman tidak melakukan fetch ganda hanya untuk banner informasi.
 export default function DashboardKaryawanStabil(props) {
-  const [tahap, setTahap] = useState("memuat");
-
+  // Kelas tipografi konsisten dipasang pada root dokumen halaman karyawan.
   useEffect(() => {
-    const controller = new AbortController();
-    let aktif = true;
-
-    async function muatTahapAbsensi() {
-      try {
-        const res = await fetch(`${API_URL}/absensi/status-hari-ini`, {
-          headers: { Authorization: `Bearer ${getToken()}` },
-          signal: controller.signal,
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) return;
-        const tahapBaru = String(data?.tahap || "");
-        if (aktif && ["belum_masuk", "sudah_masuk", "selesai", "tidak_perlu_absen"].includes(tahapBaru)) {
-          setTahap(tahapBaru);
-        }
-      } catch {
-        // Dashboard utama tetap berjalan walau banner konteks gagal dimuat.
-      }
-    }
-
-    void muatTahapAbsensi();
-    return () => {
-      aktif = false;
-      controller.abort();
-    };
-  }, []);
-
-  useEffect(() => {
-    const mediaDevices = navigator.mediaDevices;
-    const getUserMediaAsli = mediaDevices?.getUserMedia?.bind(mediaDevices);
-
-    if (!getUserMediaAsli || !mediaDevices) return undefined;
-
-    let aktif = true;
-
-    mediaDevices.getUserMedia = async (constraints) => {
-      try {
-        return await getUserMediaAsli(constraints);
-      } catch (errorPertama) {
-        if (!aktif) throw errorPertama;
-
-        await new Promise((resolve) => window.setTimeout(resolve, 350));
-
-        try {
-          return await getUserMediaAsli({
-            video: { facingMode: "user" },
-            audio: false,
-          });
-        } catch {
-          return await getUserMediaAsli({ video: true, audio: false });
-        }
-      }
-    };
+    document.documentElement.style.setProperty(
+      "--font-karyawan",
+      font.display,
+    );
 
     return () => {
-      aktif = false;
-      mediaDevices.getUserMedia = getUserMediaAsli;
+      document.documentElement.style.removeProperty("--font-karyawan");
     };
   }, []);
-
-  const konteks = {
-    belum_masuk: {
-      label: "ABSEN MASUK",
-      title: "Anda belum melakukan absen masuk",
-      detail: "Silakan ambil foto untuk mencatat kehadiran hari ini.",
-      icon: <Clock3 size={17} />,
-      warna: warna.aksen,
-      latar: warna.aksenLembut,
-    },
-    sudah_masuk: {
-      label: "ABSEN PULANG",
-      title: "Absen masuk sudah tercatat",
-      detail: "Sekarang Anda berada pada tahap absen pulang.",
-      icon: <LogOut size={17} />,
-      warna: warna.peringatan,
-      latar: warna.peringatanLembut,
-    },
-    selesai: {
-      label: "ABSENSI SELESAI",
-      title: "Absensi hari ini sudah lengkap",
-      detail: "Absen masuk dan absen pulang sudah tercatat.",
-      icon: <CheckCircle2 size={17} />,
-      warna: warna.sukses,
-      latar: warna.suksesLembut,
-    },
-    tidak_perlu_absen: {
-      label: "TIDAK PERLU ABSEN",
-      title: "Pengajuan ketidakhadiran sudah disetujui",
-      detail: "Anda tidak perlu melakukan absensi untuk hari ini.",
-      icon: <ShieldCheck size={17} />,
-      warna: warna.aksen,
-      latar: warna.aksenLembut,
-    },
-    memuat: {
-      label: "MENYIAPKAN ABSENSI",
-      title: "Memeriksa status absensi...",
-      detail: "Mohon tunggu sebentar.",
-      icon: <BellRing size={17} />,
-      warna: warna.tintaSamar,
-      latar: warna.panelAlt,
-    },
-  }[tahap] || null;
 
   return (
-    <div className="dashboard-karyawan-stabil-shell">
-      <div
-        className="konteks-absensi-banner"
+    <div
+      className="dashboard-karyawan-stabil-shell"
+      style={{
+        width: "100%",
+        fontFamily: font.display,
+      }}
+    >
+      <section
+        aria-label="Panduan absensi"
+        className="panduan-absensi-karyawan"
         style={{
-          "--konteks-warna": konteks.warna,
-          "--konteks-latar": konteks.latar,
+          width: "100%",
+          maxWidth: 760,
+          margin: "0 auto 12px",
+          padding: "14px 16px",
+          background: warna.aksenLembut,
+          border: `1px solid ${warna.garis}`,
+          borderRadius: 18,
+          color: warna.tinta,
         }}
-        role="status"
-        aria-live="polite"
       >
-        <div className="konteks-absensi-icon">{konteks.icon}</div>
-        <div className="konteks-absensi-copy">
-          <strong>{konteks.label}</strong>
-          <span>{konteks.title}</span>
-          <small>{konteks.detail}</small>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 9,
+            marginBottom: 10,
+          }}
+        >
+          <div
+            style={{
+              width: 34,
+              height: 34,
+              flexShrink: 0,
+              display: "grid",
+              placeItems: "center",
+              borderRadius: 10,
+              background: warna.panel,
+              border: `1px solid ${warna.garis}`,
+              color: warna.aksen,
+            }}
+          >
+            <ShieldCheck size={18} />
+          </div>
+          <div>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 800,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                color: warna.aksen,
+              }}
+            >
+              PANDUAN ABSENSI HARI INI
+            </div>
+            <div
+              style={{
+                marginTop: 2,
+                fontSize: 15,
+                lineHeight: 1.3,
+                fontWeight: 700,
+                color: warna.tinta,
+              }}
+            >
+              Ikuti petunjuk yang muncul pada tombol absensi.
+            </div>
+          </div>
         </div>
-      </div>
+
+        <div
+          className="panduan-absensi-grid"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+            gap: 8,
+          }}
+        >
+          <div className="panduan-absensi-item">
+            <Clock3 size={16} />
+            <div>
+              <strong>Absen Masuk</strong>
+              <span>Tepat waktu sampai <b>08:10 WIB</b>.</span>
+            </div>
+          </div>
+
+          <div className="panduan-absensi-item">
+            <LogOut size={16} />
+            <div>
+              <strong>Absen Pulang</strong>
+              <span>Muncul setelah absen masuk tercatat.</span>
+            </div>
+          </div>
+
+          <div className="panduan-absensi-item">
+            <MapPin size={16} />
+            <div>
+              <strong>Lokasi</strong>
+              <span>Pastikan GPS dan izin lokasi aktif.</span>
+            </div>
+          </div>
+        </div>
+
+        <div
+          className="panduan-absensi-note"
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 7,
+            marginTop: 9,
+            fontSize: 12,
+            lineHeight: 1.45,
+            color: warna.tintaLembut,
+          }}
+        >
+          <CheckCircle2 size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+          <span>
+            Mulai <b>08:11 WIB</b>, sistem mencatat kehadiran sebagai
+            <b> Telat</b>. Absen yang dilakukan di luar homebase tetap dapat
+            dicatat dan jaraknya akan terlihat oleh Admin.
+          </span>
+        </div>
+      </section>
+
       <DashboardKaryawan {...props} />
+
+      <style>{`
+        .panduan-absensi-item {
+          min-width: 0;
+          display: flex;
+          align-items: flex-start;
+          gap: 8px;
+          padding: 10px;
+          border-radius: 12px;
+          background: rgba(255,255,255,0.72);
+          border: 1px solid ${warna.garis};
+          color: ${warna.aksen};
+        }
+
+        .panduan-absensi-item > div {
+          min-width: 0;
+        }
+
+        .panduan-absensi-item strong {
+          display: block;
+          font-size: 12px;
+          line-height: 1.3;
+          color: ${warna.tinta};
+        }
+
+        .panduan-absensi-item span {
+          display: block;
+          margin-top: 2px;
+          font-size: 11px;
+          line-height: 1.4;
+          color: ${warna.tintaLembut};
+        }
+
+        @media (max-width: 620px) {
+          .panduan-absensi-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .panduan-absensi-karyawan {
+            padding: 13px !important;
+          }
+
+          .panduan-absensi-item {
+            min-height: 54px;
+          }
+
+          .panduan-absensi-item strong {
+            font-size: 13px;
+          }
+
+          .panduan-absensi-item span,
+          .panduan-absensi-note {
+            font-size: 12px !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
