@@ -14,23 +14,19 @@ const {
   ubahPengaturanPotongan,
   daftarGajiKaryawan,
   ubahGajiKaryawan,
-  daftarKantor,
-  tambahKantor,
-  ubahKantor,
   daftarHariLibur,
   tambahHariLibur,
   hapusHariLibur,
   usulanHariLibur,
   notifikasiAdmin,
 } = require("../controllers/adminController");
+const { daftarKantorFixed, tambahKantorFixed, ubahKantorFixed } = require("../controllers/kantorControllerFixed");
 const { ubahProfilKaryawan } = require("../controllers/adminProfilKaryawanController");
-
 const {
   templateGajiMassal,
   previewGajiMassal,
   simpanGajiMassal,
 } = require("../controllers/gajiMassalController");
-
 const { resetPasswordOlehAdmin } = require("../controllers/authController");
 const {
   hitungDanSimpanSatu,
@@ -44,7 +40,12 @@ router.use(cekLogin, cekAdmin);
 router.use((req, res, next) => {
   const jsonAsli = res.json.bind(res);
   res.json = (body) => {
-    if (body && typeof body === "object" && !Array.isArray(body) && Object.prototype.hasOwnProperty.call(body, "detail")) {
+    if (
+      body &&
+      typeof body === "object" &&
+      !Array.isArray(body) &&
+      Object.prototype.hasOwnProperty.call(body, "detail")
+    ) {
       const { detail, ...aman } = body;
       return jsonAsli(aman);
     }
@@ -122,9 +123,11 @@ router.post("/gaji/import-preview", (req, res, next) => {
 }, previewGajiMassal);
 router.post("/gaji/import-simpan", simpanGajiMassal);
 
-router.get("/kantor", daftarKantor);
-router.post("/kantor", tambahKantor);
-router.put("/kantor/:id", ubahKantor);
+// Kantor menggunakan controller khusus yang lebih ketat untuk memastikan
+// create/update mengembalikan data hasil simpan secara langsung.
+router.get("/kantor", daftarKantorFixed);
+router.post("/kantor", tambahKantorFixed);
+router.put("/kantor/:id", ubahKantorFixed);
 
 router.get("/hari-libur", daftarHariLibur);
 router.post("/hari-libur", tambahHariLibur);
