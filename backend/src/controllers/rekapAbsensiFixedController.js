@@ -2,157 +2,136 @@ const prisma = require("../utils/prismaClient");
 const { tanggalHariIniWIB } = require("../utils/waktuIndonesia");
 const { buatSignedUrlFotoBatch } = require("../utils/supabaseStorage");
 
-const RADIUS_GPS_STRIKT_METER = 1500;
-const RADIUS_KONFIRMASI_ALAMAT_METER = 20_000;
-const KATA_UMUM_ALAMAT = new Set([
-  "jalan",
-  "jl",
-  "jln",
-  "no",
-  "nomor",
-  "rt",
-  "rw",
-  "kelurahan",
-  "kel",
-  "kecamatan",
-  "kec",
-  "kota",
-  "kabupaten",
-  "kab",
-  "provinsi",
-  "indonesia",
-  "kantor",
-  "pusat",
-  "office",
-  "indonesia",
-  "barat",
-  "timur",
-  "utara",
-  "selatan",
-]);
+// Radius hanya dipakai untuk memberi status informasi kepada Admin.
+// Absensi tetap diterima walaupun berada di luar radius.
+const RADIUS_HOMEBASE_METER = 1500;
 
-function normalisasiTeks(nilai) {
-  return String(nilai || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function tokenWilayah(nilai) {
-  return new Set(
-    normalisasiTeks(nilai)
-      .split(" ")
-      .filter((token) => token.length >= 4 && !KATA_UMUM_ALAMAT.has(token)),
-  );
-}
-
-function jumlahKecocokanWilayah(alamat, kantor) {
-  if (!alamat) return 0;
-
-  const tokenAlamat = tokenWilayah(alamat);
-  const tokenKantor = tokenWilayah(
-    `${kantor?.namaKantor || ""} ${kantor?.alamat || ""}`,
-  );
-
-  let jumlah = 0;
-  for (const token of tokenKantor) {
-    if (tokenAlamat.has(token)) jumlah += 1;
-  }
-  return jumlah;
-}
-
-function hitungJarakMeter(latitude, longitude, kantorLatitude, kantorLongitude) {
+function hitungJarakMeter(latitude, longitude, homebaseLatitude, homebaseLongitude) {
   const lat = Number(latitude);
   const lng = Number(longitude);
-  const kLat = Number(kantorLatitude);
-  const kLng = Number(kantorLongitude);
+  const hLat = Number(homebaseLatitude);
+  const hLng = Number(homebaseLongitude);
 
-  if (![lat, lng, kLat, kLng].every(Number.isFinite)) return null;
+  if (![lat, lng, hLat, hLng].every(Number.isFinite)) return null;
 
   const toRad = (nilai) => (nilai * Math.PI) / 180;
   const R = 6_371_000;
-  const dLat = toRad(kLat - lat);
-  const dLng = toRad(kLng - lng);
+  const dLat = toRad(hLat - lat);
+  const dLng = toRad(hLng - lng);
   const a =
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(lat)) *
-      Math.cos(toRad(kLat)) *
+      Math.cos(toRad(hLat)) *
       Math.sin(dLng / 2) ** 2;
 
   return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function tentukanKantor(latitude, longitude, alamat, semuaKantor) {
-  if (!Array.isArray(semuaKantor) || semuaKantor.length === 0) return null;
-
-  const kandidat = semuaKantor.map((kantor) => ({
-    ...kantor,
-    jarakMeter: hitungJarakMeter(
-      latitude,
-      longitude,
-      kantor.latitude,
-      kantor.longitude,
-    ),
-    kecocokanWilayah: jumlahKecocokanWilayah(alamat, kantor),
-  }));
-
-  const denganKoordinat = kandidat.filter((kantor) => kantor.jarakMeter != null);
-
-  // 1. Identitas wilayah pada alamat GPS lebih kuat daripada sekadar
-  //    memilih kantor terdekat. Ini mencegah Bandung jatuh ke Pekanbaru
-  //    ketika koordinat kantor Bandung belum tepat/terisi.
-  const kandidatWilayah = kandidat
-    .filter((kantor) => kantor.kecocokanWilayah > 0)
-    .filter(
-      (kantor) =>
-        kantor.jarakMeter == null ||
-        kantor.jarakMeter <= RADIUS_KONFIRMASI_ALAMAT_METER,
-    )
-    .sort(
-      (a, b) =>
-        b.kecocokanWilayah - a.kecocokanWilayah ||
-        (a.jarakMeter ?? Number.POSITIVE_INFINITY) -
-          (b.jarakMeter ?? Number.POSITIVE_INFINITY),
-    );
-
-  if (kandidatWilayah.length > 0) {
-    const pilihan = kandidatWilayah[0];
+function buatInfoHomebase(latitude, longitude, kantor) {
+  if (!kantor) {
     return {
-      id: pilihan.id,
-      namaKantor: pilihan.namaKantor,
-      jarakMeter:
-        pilihan.jarakMeter == null ? null : Math.round(pilihan.jarakMeter),
-      sumber: "alamat_gps",
+      id: null,
+      namaKantor: null,
+      alamatKantor: null,
+      jarakMeter: null,
+      dalamRadius: null,
+      status: "Homebase belum ditentukan",
     };
   }
 
-  // 2. Kalau tidak ada petunjuk wilayah, gunakan GPS hanya bila benar-benar
-  //    dekat. Jangan pernah memilih kantor yang jauh hanya karena itu satu-
-  //    satunya kandidat yang mempunyai koordinat.
-  const terdekat = denganKoordinat.sort(
-    (a, b) => a.jarakMeter - b.jarakMeter,
-  )[0];
+  const jarakMeter = hitungJarakMeter(
+    latitude,
+    longitude,
+    kantor.latitude,
+    kantor.longitude,
+  );
 
-  if (terdekat && terdekat.jarakMeter <= RADIUS_GPS_STRIKT_METER) {
+  if (jarakMeter == null) {
     return {
-      id: terdekat.id,
-      namaKantor: terdekat.namaKantor,
-      jarakMeter: Math.round(terdekat.jarakMeter),
-      sumber: "gps",
+      id: kantor.id,
+      namaKantor: kantor.namaKantor,
+      alamatKantor: kantor.alamat,
+      jarakMeter: null,
+      dalamRadius: null,
+      status: "Jarak homebase tidak dapat dihitung",
     };
   }
 
-  // 3. Tidak yakin = jangan mengarang kantor.
-  return null;
+  const jarakBulat = Math.round(jarakMeter);
+  const dalamRadius = jarakMeter <= RADIUS_HOMEBASE_METER;
+
+  return {
+    id: kantor.id,
+    namaKantor: kantor.namaKantor,
+    alamatKantor: kantor.alamat,
+    jarakMeter: jarakBulat,
+    dalamRadius,
+    status: dalamRadius
+      ? "Dalam radius homebase"
+      : "Di luar radius homebase",
+  };
+}
+
+function tambahInfoLokasi(item, petaUrlFoto) {
+  const fotoMasukUrl = item.fotoMasuk
+    ? item.fotoMasuk.startsWith("/uploads/")
+      ? item.fotoMasuk
+      : petaUrlFoto.get(item.fotoMasuk) || null
+    : null;
+
+  const fotoPulangUrl = item.fotoPulang
+    ? item.fotoPulang.startsWith("/uploads/")
+      ? item.fotoPulang
+      : petaUrlFoto.get(item.fotoPulang) || null
+    : null;
+
+  const homebaseMasuk = buatInfoHomebase(
+    item.latitudeMasuk,
+    item.longitudeMasuk,
+    item.pengguna?.kantor || null,
+  );
+  const homebasePulang = buatInfoHomebase(
+    item.latitudePulang,
+    item.longitudePulang,
+    item.pengguna?.kantor || null,
+  );
+
+  const alamatAsliMasuk = item.alamatMasuk || null;
+  const alamatAsliPulang = item.alamatPulang || null;
+
+  return {
+    ...item,
+    fotoMasukUrl,
+    fotoPulangUrl,
+    // Tetap pertahankan field kantorAbsensi untuk kompatibilitas frontend lama,
+    // tetapi sekarang nilainya selalu Homebase karyawan, bukan kantor terdekat.
+    kantorAbsensi: homebaseMasuk,
+    kantorPulangAbsensi: homebasePulang,
+    homebaseMasuk,
+    homebasePulang,
+    jarakHomebaseMasukMeter: homebaseMasuk.jarakMeter,
+    jarakHomebasePulangMeter: homebasePulang.jarakMeter,
+    statusHomebaseMasuk: homebaseMasuk.status,
+    statusHomebasePulang: homebasePulang.status,
+    alamatMasuk: alamatAsliMasuk
+      ? homebaseMasuk.namaKantor
+        ? `${homebaseMasuk.namaKantor} · ${alamatAsliMasuk}`
+        : alamatAsliMasuk
+      : homebaseMasuk.namaKantor || "Lokasi GPS belum tersedia",
+    alamatPulang: alamatAsliPulang
+      ? homebasePulang.namaKantor
+        ? `${homebasePulang.namaKantor} · ${alamatAsliPulang}`
+        : alamatAsliPulang
+      : homebasePulang.namaKantor || "Lokasi GPS belum tersedia",
+  };
 }
 
 async function rekapHariIniFixed(req, res) {
   try {
     const tanggal = tanggalHariIniWIB();
 
+    // Homebase diambil langsung dari kantor yang terpasang pada karyawan.
+    // Tidak ada lagi pencarian kantor terdekat dari koordinat absensi.
     const [data, karyawanAktif] = await Promise.all([
       prisma.absensi.findMany({
         where: { tanggal },
@@ -163,6 +142,15 @@ async function rekapHariIniFixed(req, res) {
               nama: true,
               jabatan: true,
               divisi: true,
+              kantor: {
+                select: {
+                  id: true,
+                  namaKantor: true,
+                  alamat: true,
+                  latitude: true,
+                  longitude: true,
+                },
+              },
             },
           },
         },
@@ -170,87 +158,36 @@ async function rekapHariIniFixed(req, res) {
       }),
       prisma.pengguna.findMany({
         where: { peran: "karyawan", statusAkun: "aktif" },
-        select: { id: true, nama: true, jabatan: true, divisi: true },
+        select: {
+          id: true,
+          nama: true,
+          jabatan: true,
+          divisi: true,
+          kantor: {
+            select: { id: true, namaKantor: true },
+          },
+        },
         orderBy: { nama: "asc" },
       }),
     ]);
 
     const semuaPathFoto = [];
     for (const item of data) {
-      if (
-        item.fotoMasuk &&
-        !item.fotoMasuk.startsWith("/uploads/")
-      ) {
+      if (item.fotoMasuk && !item.fotoMasuk.startsWith("/uploads/")) {
         semuaPathFoto.push(item.fotoMasuk);
       }
-      if (
-        item.fotoPulang &&
-        !item.fotoPulang.startsWith("/uploads/")
-      ) {
+      if (item.fotoPulang && !item.fotoPulang.startsWith("/uploads/")) {
         semuaPathFoto.push(item.fotoPulang);
       }
     }
 
-    // Dua operasi setelah data absensi tersedia tidak saling bergantung,
-    // jadi jalankan bersamaan untuk mengurangi waktu tunggu halaman rekap.
-    const [semuaKantor, petaUrlFoto] = await Promise.all([
-      prisma.kantor.findMany({
-        select: {
-          id: true,
-          namaKantor: true,
-          alamat: true,
-          latitude: true,
-          longitude: true,
-        },
-      }),
-      buatSignedUrlFotoBatch(semuaPathFoto),
-    ]);
+    // Kantor sudah ikut dari relasi karyawan sehingga tidak perlu query
+    // seluruh kantor untuk menentukan lokasi absensi setiap baris.
+    const petaUrlFoto = await buatSignedUrlFotoBatch(semuaPathFoto);
 
-    const dataDenganKantor = data.map((item) => {
-      const fotoMasukUrl = item.fotoMasuk
-        ? item.fotoMasuk.startsWith("/uploads/")
-          ? item.fotoMasuk
-          : petaUrlFoto.get(item.fotoMasuk) || null
-        : null;
-      const fotoPulangUrl = item.fotoPulang
-        ? item.fotoPulang.startsWith("/uploads/")
-          ? item.fotoPulang
-          : petaUrlFoto.get(item.fotoPulang) || null
-        : null;
-
-      const kantorMasuk = tentukanKantor(
-        item.latitudeMasuk,
-        item.longitudeMasuk,
-        item.alamatMasuk,
-        semuaKantor,
-      );
-      const kantorPulang = tentukanKantor(
-        item.latitudePulang,
-        item.longitudePulang,
-        item.alamatPulang,
-        semuaKantor,
-      );
-
-      const alamatAsli = item.alamatMasuk || null;
-      let alamatTampilan = alamatAsli || "Lokasi GPS belum tersedia";
-
-      if (kantorMasuk) {
-        alamatTampilan = `${kantorMasuk.namaKantor}${
-          alamatAsli ? ` · ${alamatAsli}` : ""
-        }`;
-      } else if (alamatAsli) {
-        alamatTampilan = `${alamatAsli} · Kantor belum dapat dicocokkan`;
-      }
-
-      return {
-        ...item,
-        fotoMasukUrl,
-        fotoPulangUrl,
-        alamatMasuk: alamatTampilan,
-        kantorAbsensi: kantorMasuk,
-        kantorPulangAbsensi: kantorPulang,
-      };
-    });
+    const dataDenganKantor = data.map((item) =>
+      tambahInfoLokasi(item, petaUrlFoto),
+    );
 
     const sudahAbsen = new Set(
       data
@@ -267,7 +204,7 @@ async function rekapHariIniFixed(req, res) {
       jumlahKaryawanAktif: karyawanAktif.length,
     });
   } catch (error) {
-    console.error("Gagal mengambil rekap absensi dengan kantor aktual:", error);
+    console.error("Gagal mengambil rekap absensi:", error);
     return res.status(500).json({ pesan: "Terjadi kesalahan pada server." });
   }
 }
