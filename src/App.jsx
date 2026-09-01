@@ -43,17 +43,70 @@ function RuteTerproteksi({ pengguna, peranDiizinkan, children }) {
   return children;
 }
 
-/**
- * AdminShell menjaga DashboardAdmin tetap mounted ketika Admin berpindah
- * dari /admin <-> /admin/arsip.
- *
- * Dampak:
- * - pindah ke Arsip tidak membuat DashboardAdmin dari nol;
- * - data/tab yang sudah dibuka tetap dipertahankan;
- * - refresh pada /admin/arsip tetap mengenali route Arsip;
- * - Arsip ditampilkan sebagai overlay penuh, jadi tidak terpotong oleh
- *   tinggi/wadah DashboardAdmin.
- */
+function AdminContextBar() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [tab, setTab] = useState(() => {
+    try {
+      return sessionStorage.getItem("admin-tab") || "rekap";
+    } catch {
+      return "rekap";
+    }
+  });
+
+  useEffect(() => {
+    let mounted = true;
+
+    function syncTab() {
+      if (!mounted) return;
+      try {
+        const nilai = sessionStorage.getItem("admin-tab") || "rekap";
+        setTab((sebelumnya) => (sebelumnya === nilai ? sebelumnya : nilai));
+      } catch {
+        // Storage tidak tersedia; biarkan nilai terakhir.
+      }
+    }
+
+    syncTab();
+    const interval = window.setInterval(syncTab, 250);
+    window.addEventListener("focus", syncTab);
+    window.addEventListener("pageshow", syncTab);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", syncTab);
+      window.removeEventListener("pageshow", syncTab);
+    };
+  }, []);
+
+  if (location.pathname === "/admin/arsip" || location.pathname === "/admin/edit-karyawan") {
+    return null;
+  }
+
+  let label = "";
+  let aksi = null;
+
+  if (tab === "karyawan") {
+    label = "Edit Karyawan";
+    aksi = () => navigate("/admin/edit-karyawan");
+  } else if (tab === "gaji" || tab === "gaji-massal") {
+    label = "Arsip & Data";
+    aksi = () => navigate("/admin/arsip");
+  }
+
+  if (!label || !aksi) return null;
+
+  return (
+    <div style={styles.adminContextBar}>
+      <button type="button" onClick={aksi} style={styles.contextButton}>
+        {tab === "karyawan" ? "✎" : "▣"}
+        <span>{label}</span>
+      </button>
+    </div>
+  );
+}
+
 function AdminShell({ pengguna, onLogout }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -76,37 +129,8 @@ function AdminShell({ pengguna, onLogout }) {
         </div>
       )}
 
-      {!arsipTerbuka && (
-        <div style={styles.adminShortcutGroup}>
-          <button
-            type="button"
-            onClick={() => navigate("/admin/edit-karyawan")}
-            style={styles.editShortcut}
-            aria-label="Edit data karyawan"
-          >
-            ✎ Edit Karyawan
-          </button>
-          <TombolArsipAdmin />
-        </div>
-      )}
+      {!arsipTerbuka && <AdminContextBar />}
     </div>
-  );
-}
-
-function TombolArsipAdmin() {
-  const navigate = useNavigate();
-
-  return (
-    <button
-      type="button"
-      onClick={() => navigate("/admin/arsip")}
-      aria-label="Buka Arsip & Data"
-      style={styles.arsipShortcut}
-      className="admin-arsip-shortcut"
-    >
-      <span style={styles.arsipShortcutIcon}>▣</span>
-      Arsip & Data
-    </button>
   );
 }
 
@@ -219,9 +243,6 @@ function RuteAplikasi({ pengguna, setPengguna, onLogout }) {
           }
         />
 
-        {/* Satu shell untuk /admin dan /admin/arsip.
-            Ini sengaja supaya DashboardAdmin tidak remount saat navigasi.
-            Route /admin/arsip tetap valid saat halaman di-refresh. */}
         <Route
           path="/admin/*"
           element={
@@ -282,6 +303,29 @@ const styles = {
     position: "relative",
   },
 
+  adminContextBar: {
+    position: "fixed",
+    right: 24,
+    bottom: 24,
+    zIndex: 10001,
+  },
+
+  contextButton: {
+    minHeight: 44,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "10px 14px",
+    border: `1px solid ${warna.garis}`,
+    borderRadius: 12,
+    background: warna.panel,
+    color: warna.tinta,
+    boxShadow: "0 10px 28px rgba(22,35,61,0.12)",
+    fontSize: 12,
+    fontWeight: 750,
+    cursor: "pointer",
+  },
+
   arsipOverlay: {
     position: "fixed",
     inset: 0,
@@ -302,56 +346,6 @@ const styles = {
     margin: "0 auto",
     padding: "24px 28px 40px",
     boxSizing: "border-box",
-  },
-
-  adminShortcutGroup: {
-    position: "fixed",
-    right: 24,
-    bottom: 24,
-    zIndex: 10001,
-    display: "flex",
-    gap: 8,
-    alignItems: "center",
-  },
-
-  editShortcut: {
-    minHeight: 44,
-    padding: "10px 14px",
-    border: `1px solid ${warna.garis}`,
-    borderRadius: 12,
-    background: warna.panel,
-    color: warna.tinta,
-    boxShadow: "0 10px 28px rgba(22,35,61,0.12)",
-    fontSize: 12,
-    fontWeight: 750,
-    cursor: "pointer",
-  },
-
-  arsipShortcut: {
-    position: "static",
-    minHeight: 44,
-    padding: "10px 14px",
-    border: `1px solid ${warna.garis}`,
-    borderRadius: 12,
-    background: warna.panel,
-    color: warna.tinta,
-    boxShadow: "0 10px 28px rgba(22,35,61,0.12)",
-    fontSize: 12,
-    fontWeight: 750,
-    cursor: "pointer",
-  },
-
-  arsipShortcutIcon: {
-    width: 24,
-    height: 24,
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 7,
-    background: warna.aksenLembut,
-    color: warna.aksen,
-    fontSize: 13,
-    marginRight: 4,
   },
 };
 
