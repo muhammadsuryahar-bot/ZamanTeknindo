@@ -23,6 +23,7 @@ const {
   usulanHariLibur,
   notifikasiAdmin,
 } = require("../controllers/adminController");
+const { ubahProfilKaryawan } = require("../controllers/adminProfilKaryawanController");
 
 const {
   templateGajiMassal,
@@ -94,6 +95,7 @@ router.get("/notifikasi", notifikasiAdmin);
 router.put("/akun/:id/aktifkan", aktifkanAkun);
 
 router.get("/karyawan", daftarKaryawan);
+router.put("/karyawan/:id", ubahProfilKaryawan);
 router.put("/karyawan/:id/status", validasiStatusAkun, ubahStatusKaryawan);
 router.put("/karyawan/:id/reset-password", resetPasswordOlehAdmin);
 
@@ -111,15 +113,10 @@ router.post("/gaji/hitung-semua", hitungDanSimpanSemua);
 router.get("/gaji/laporan", lihatLaporanBulanan);
 router.get("/gaji/export", exportLaporanExcel);
 
-// ============================================================
-// GAJI POKOK MASSAL DARI EXCEL
-// ============================================================
 router.get("/gaji/template-massal", templateGajiMassal);
 router.post("/gaji/import-preview", (req, res, next) => {
   uploadExcelGaji.single("file")(req, res, (err) => {
-    if (err) {
-      return res.status(400).json({ pesan: err.message || "File Excel tidak valid." });
-    }
+    if (err) return res.status(400).json({ pesan: err.message || "File Excel tidak valid." });
     next();
   });
 }, previewGajiMassal);
