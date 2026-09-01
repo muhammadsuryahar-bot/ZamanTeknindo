@@ -317,3 +317,53 @@ input[type="file"] {
     min-height: 46px !important;
   }
 }
+
+/* ===== Design-system typography & tables =====
+   Seluruh kontrol interaktif memakai font yang sama. Ukuran tabel/header
+   mengikuti skala di theme.js sehingga halaman yang berbeda tidak terasa
+   seperti dibuat oleh komponen yang berbeda. */
+button,
+a,
+input,
+select,
+textarea,
+table,
+th,
+td {
+  font-family: 'IBM Plex Sans', system-ui, sans-serif !important;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+th {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+td {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* Tabel admin: grid yang sama untuk Gaji, Gaji Massal, Edit Karyawan,
+   Arsip dan tabel Rekap tanpa memaksa lebar tertentu. */
+.main-area-admin table,
+.main-area-admin th,
+.main-area-admin td,
+.admin-arsip-page table,
+.admin-arsip-page th,
+.admin-arsip-page td {
+  font-family: 'IBM Plex Sans', system-ui, sans-serif !important;
+}
+
+/* Tombol kembali/aksi halaman luar dashboard mengikuti pola tombol ringan
+   yang sama. Tidak mengubah tombol submit utama yang sudah punya warna brand. */
+.admin-context-back,
+.admin-page-back {
+  font-family: 'IBM Plex Sans', system-ui, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+}
