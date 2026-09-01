@@ -19,6 +19,7 @@ export default function DashboardKaryawanStabil(props) {
     }
 
     let aktif = true;
+    const fallbackTimers = new Map();
 
     if (getUserMediaAsli) {
       mediaDevices.getUserMedia = async (constraints) => {
@@ -55,11 +56,8 @@ export default function DashboardKaryawanStabil(props) {
 
         currentAsli(
           success,
-          (errorPertama) => {
+          () => {
             if (!aktif) return;
-
-            // Fallback ke posisi network/GPS terakhir saat GPS presisi tinggi
-            // belum siap. Ini terutama membantu perangkat lama di indoor.
             currentAsli(
               success,
               error || (() => {}),
@@ -70,11 +68,6 @@ export default function DashboardKaryawanStabil(props) {
                 timeout: 10000,
               },
             );
-
-            if (error && errorPertama) {
-              // Callback error asli tidak langsung dipanggil agar fallback
-              // punya kesempatan mengembalikan posisi terlebih dahulu.
-            }
           },
           opsiUtama,
         );
@@ -82,17 +75,38 @@ export default function DashboardKaryawanStabil(props) {
     }
 
     if (watchAsli) {
-      navigator.geolocation.watchPosition = (success, error, options = {}) =>
-        watchAsli(success, error, {
+      navigator.geolocation.watchPosition = (success, error, options = {}) => {
+        const watchId = watchAsli(success, error, {
           ...options,
           enableHighAccuracy: true,
           maximumAge: Math.min(Number(options.maximumAge) || 0, 5000),
           timeout: Math.max(Number(options.timeout) || 15000, 15000),
         });
+
+        // GPS presisi tinggi pada HP lama bisa membutuhkan beberapa detik.
+        // Ambil posisi network/cache sebagai fallback tanpa menunggu refresh.
+        const timer = window.setTimeout(() => {
+          if (!aktif || !currentAsli) return;
+          currentAsli(
+            success,
+            () => {},
+            {
+              enableHighAccuracy: false,
+              maximumAge: 30000,
+              timeout: 10000,
+            },
+          );
+        }, 800);
+
+        fallbackTimers.set(watchId, timer);
+        return watchId;
+      };
     }
 
     return () => {
       aktif = false;
+      fallbackTimers.forEach((timer) => window.clearTimeout(timer));
+      fallbackTimers.clear();
 
       if (getUserMediaAsli && mediaDevices) {
         mediaDevices.getUserMedia = getUserMediaAsli;
