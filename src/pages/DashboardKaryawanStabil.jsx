@@ -1,9 +1,9 @@
 import { useEffect } from "react";
 import DashboardKaryawan from "./DashboardKaryawan";
 
-// Lapisan kompatibilitas untuk HP/browser yang kadang gagal membuka kamera
-// atau memperoleh lokasi pada percobaan pertama. Tidak mengubah alur React
-// maupun data absensi; hanya menyediakan retry/fallback pada Web API.
+// Lapisan kompatibilitas ringan untuk browser/HP yang kadang membutuhkan
+// percobaan kedua saat membuka kamera atau mendapatkan lokasi.
+// Tidak mengubah alur React, endpoint, database, maupun payload absensi.
 export default function DashboardKaryawanStabil(props) {
   useEffect(() => {
     const mediaDevices = navigator.mediaDevices;
@@ -14,9 +14,7 @@ export default function DashboardKaryawanStabil(props) {
     const watchAsli = geo?.watchPosition?.bind(geo);
     const clearAsli = geo?.clearWatch?.bind(geo);
 
-    if (!getUserMediaAsli && !currentAsli && !watchAsli) {
-      return undefined;
-    }
+    if (!getUserMediaAsli && !currentAsli && !watchAsli) return undefined;
 
     let aktif = true;
     const fallbackTimers = new Map();
@@ -28,8 +26,6 @@ export default function DashboardKaryawanStabil(props) {
         } catch (errorPertama) {
           if (!aktif) throw errorPertama;
 
-          // Beberapa Android/browser menolak kombinasi ideal resolution /
-          // facingMode tertentu. Percobaan kedua sengaja dibuat sederhana.
           await new Promise((resolve) => window.setTimeout(resolve, 350));
 
           try {
@@ -38,7 +34,6 @@ export default function DashboardKaryawanStabil(props) {
               audio: false,
             });
           } catch {
-            // Percobaan terakhir mengikuti constraint paling sederhana.
             return await getUserMediaAsli({ video: true, audio: false });
           }
         }
@@ -58,6 +53,7 @@ export default function DashboardKaryawanStabil(props) {
           success,
           () => {
             if (!aktif) return;
+
             currentAsli(
               success,
               error || (() => {}),
@@ -76,29 +72,53 @@ export default function DashboardKaryawanStabil(props) {
 
     if (watchAsli) {
       navigator.geolocation.watchPosition = (success, error, options = {}) => {
-        const watchId = watchAsli(success, error, {
+        const opsiUtama = {
           ...options,
           enableHighAccuracy: true,
           maximumAge: Math.min(Number(options.maximumAge) || 0, 5000),
           timeout: Math.max(Number(options.timeout) || 15000, 15000),
-        });
+        };
 
-        // GPS presisi tinggi pada HP lama bisa membutuhkan beberapa detik.
-        // Ambil posisi network/cache sebagai fallback tanpa menunggu refresh.
-        const timer = window.setTimeout(() => {
-          if (!aktif || !currentAsli) return;
-          currentAsli(
-            success,
-            () => {},
-            {
-              enableHighAccuracy: false,
-              maximumAge: 30000,
-              timeout: 10000,
-            },
-          );
-        }, 800);
+        const watchId = watchAsli(success, (errorGPS) => {
+          if (!aktif) return;
 
-        fallbackTimers.set(watchId, timer);
+          // Saat GPS presisi tinggi gagal, coba satu posisi network/cache.
+          if (currentAsli) {
+            currentAsli(
+              success,
+              error || (() => {}),
+              {
+                ...opsiUtama,
+                enableHighAccuracy: false,
+                maximumAge: 30000,
+                timeout: 10000,
+              },
+            );
+          } else if (error) {
+            error(errorGPS);
+          }
+        }, opsiUtama);
+
+        // Jangan menunggu GPS high accuracy terlalu lama untuk mencoba
+        // fallback. Ini mencegah tampilan "Mencari lokasi..." menggantung.
+        if (currentAsli) {
+          const timer = window.setTimeout(() => {
+            if (!aktif) return;
+            currentAsli(
+              success,
+              () => {},
+              {
+                ...opsiUtama,
+                enableHighAccuracy: false,
+                maximumAge: 30000,
+                timeout: 8000,
+              },
+            );
+          }, 2500);
+
+          fallbackTimers.set(watchId, timer);
+        }
+
         return watchId;
       };
     }
@@ -108,18 +128,10 @@ export default function DashboardKaryawanStabil(props) {
       fallbackTimers.forEach((timer) => window.clearTimeout(timer));
       fallbackTimers.clear();
 
-      if (getUserMediaAsli && mediaDevices) {
-        mediaDevices.getUserMedia = getUserMediaAsli;
-      }
-      if (currentAsli && navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition = currentAsli;
-      }
-      if (watchAsli && navigator.geolocation) {
-        navigator.geolocation.watchPosition = watchAsli;
-      }
-      if (clearAsli && navigator.geolocation) {
-        navigator.geolocation.clearWatch = clearAsli;
-      }
+      if (getUserMediaAsli && mediaDevices) mediaDevices.getUserMedia = getUserMediaAsli;
+      if (currentAsli && navigator.geolocation) navigator.geolocation.getCurrentPosition = currentAsli;
+      if (watchAsli && navigator.geolocation) navigator.geolocation.watchPosition = watchAsli;
+      if (clearAsli && navigator.geolocation) navigator.geolocation.clearWatch = clearAsli;
     };
   }, []);
 
