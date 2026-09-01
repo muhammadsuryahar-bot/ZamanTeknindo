@@ -4,7 +4,6 @@ const router = express.Router();
 const { cekLogin, cekAdmin } = require("../middleware/authMiddleware");
 const {
   daftarMenungguKonfirmasi,
-  aktifkanAkun,
   daftarKaryawan,
   ubahStatusKaryawan,
   ringkasanDashboard,
@@ -19,6 +18,7 @@ const {
   usulanHariLibur,
   notifikasiAdmin,
 } = require("../controllers/adminController");
+const { aktifkanAkunFixed } = require("../controllers/aktivasiAkunFixedController");
 const { rekapHariIniFixed } = require("../controllers/rekapAbsensiFixedController");
 const { daftarKantorFixed, tambahKantorFixed, ubahKantorFixed } = require("../controllers/kantorControllerFixed");
 const { ubahProfilKaryawan } = require("../controllers/adminProfilKaryawanController");
@@ -93,7 +93,7 @@ const uploadExcelGaji = multer({
 
 router.get("/akun-menunggu", daftarMenungguKonfirmasi);
 router.get("/notifikasi", notifikasiAdmin);
-router.put("/akun/:id/aktifkan", aktifkanAkun);
+router.put("/akun/:id/aktifkan", aktifkanAkunFixed);
 
 router.get("/karyawan", daftarKaryawan);
 router.put("/karyawan/:id", ubahProfilKaryawan);
