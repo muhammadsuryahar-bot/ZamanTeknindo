@@ -1,7 +1,6 @@
 const prisma = require("../utils/prismaClient");
 const { tanggalHariIniWIB } = require("../utils/waktuIndonesia");
 const { buatSignedUrlFotoBatch } = require("../utils/supabaseStorage");
-const { deteksiKantorDariKoordinat } = require("../utils/deteksiKantor");
 
 async function rekapHariIniFixed(req, res) {
   try {
@@ -29,9 +28,6 @@ async function rekapHariIniFixed(req, res) {
       }),
     ]);
 
-    // Satu kali ambil data kantor untuk seluruh rekap. Kantor absensi dihitung
-    // dari koordinat GPS yang memang sudah tersimpan di tabel absensi, tanpa
-    // menambah kolom DB dan tanpa satu query kantor per baris.
     const kantorBerkoordinat = await prisma.kantor.findMany({
       where: { latitude: { not: null }, longitude: { not: null } },
       select: { id: true, namaKantor: true, alamat: true, latitude: true, longitude: true },
@@ -55,9 +51,11 @@ async function rekapHariIniFixed(req, res) {
       const R = 6_371_000;
 
       for (const kantor of kantorBerkoordinat) {
-        const dLat = toRad(Number(kantor.latitude) - lat);
-        const dLng = toRad(Number(kantor.longitude) - lng);
-        const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat)) * Math.cos(toRad(Number(kantor.latitude))) * Math.sin(dLng / 2) ** 2;
+        const kantorLat = Number(kantor.latitude);
+        const kantorLng = Number(kantor.longitude);
+        const dLat = toRad(kantorLat - lat);
+        const dLng = toRad(kantorLng - lng);
+        const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat)) * Math.cos(toRad(kantorLat)) * Math.sin(dLng / 2) ** 2;
         const jarakMeter = 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         if (!terdekat || jarakMeter < terdekat.jarakMeter) {
           terdekat = { ...kantor, jarakMeter };
