@@ -110,7 +110,10 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
   const [kantorSudahDimuat, setKantorSudahDimuat] = useState(false);
 
   // Komponen Izin/Gaji tetap mounted setelah pertama kali dibuka.
-  // Jadi pindah tab tidak memicu fetch ulang.
+  // Gunakan key yang SAMA dengan id tab agar klik "gaji-massal" benar-benar
+  // menandai komponen sudah pernah dibuka. Bug lama memakai gajiMassal,
+  // sedangkan pindahTab menyimpan key "gaji-massal", sehingga klik pertama
+  // menghasilkan area kosong dan baru muncul setelah refresh.
   const [tabPernahDibuka, setTabPernahDibuka] = useState(() => {
     const tabAwal = [
       "rekap",
@@ -130,7 +133,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       karyawan: tabAwal === "karyawan",
       izin: tabAwal === "izin",
       gaji: tabAwal === "gaji",
-      gajiMassal: tabAwal === "gaji-massal",
+      "gaji-massal": tabAwal === "gaji-massal",
       kantor: tabAwal === "kantor",
     };
   });
@@ -2149,7 +2152,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
             </div>
           )}
 
-          {tabPernahDibuka.gajiMassal && (
+          {tabPernahDibuka["gaji-massal"] && (
             <div style={{ display: tab === "gaji-massal" ? "block" : "none" }}>
               <AdminGajiMassal />
             </div>
