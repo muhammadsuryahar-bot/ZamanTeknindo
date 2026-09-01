@@ -1,14 +1,6 @@
 // File: src/utils/api.js
 
-// ============================================================
-// ALAMAT BACKEND
-// ============================================================
-
 export const API_URL = import.meta.env.VITE_API_URL || "/api";
-
-// ============================================================
-// SESI LOGIN
-// ============================================================
 
 export function getToken() {
   return localStorage.getItem("token");
@@ -21,9 +13,7 @@ export function simpanSesiLogin(token, pengguna) {
 
 export function getPenggunaLogin() {
   const data = localStorage.getItem("pengguna");
-
   if (!data) return null;
-
   try {
     return JSON.parse(data);
   } catch (error) {
@@ -37,67 +27,78 @@ export function hapusSesiLogin() {
   localStorage.removeItem("pengguna");
 }
 
-// ============================================================
-// INTERCEPTOR SESI
-// ============================================================
-//
-// 401:
-//   Token tidak valid / kedaluwarsa / akun tidak ditemukan.
-//
-// 403:
-//   Hanya logout otomatis jika akun memang dinonaktifkan.
-//
-// 403 karena role:
-//   Tidak logout otomatis.
-//
-// ============================================================
+// Hanya endpoint status absensi yang diberi satu retry ringan.
+// Tujuannya mengatasi cold start / gangguan jaringan singkat tanpa membuat
+// seluruh aplikasi terus mengulang request dan membebani backend.
+const RETRY_STATUS_DELAY_MS = 350;
+
+function tunggu(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function urlDariArgumen(argumen) {
+  return typeof argumen[0] === "string" ? argumen[0] : argumen[0]?.url || "";
+}
+
+function argumenRetryTanpaSignal(argumen) {
+  const [input, init] = argumen;
+  // Dashboard status menggunakan string URL + init, jadi kita dapat
+  // menghindari AbortSignal timeout pertama saat percobaan kedua.
+  if (typeof input === "string") {
+    return [input, init ? { ...init, signal: undefined } : undefined];
+  }
+  return [input, init ? { ...init, signal: undefined } : undefined];
+}
 
 export function pasangPenerjemahSesiKedaluwarsa() {
-  // Jangan pasang interceptor lebih dari satu kali
-  if (window.__interceptorSesiSudahDipasang) {
-    return;
-  }
+  if (window.__interceptorSesiSudahDipasang) return;
 
   window.__interceptorSesiSudahDipasang = true;
-
   const fetchAsli = window.fetch;
 
   window.fetch = async function (...argumen) {
-    const respons = await fetchAsli(...argumen);
+    const urlPermintaan = urlDariArgumen(argumen);
+    const iniStatusAbsensi = urlPermintaan.includes("/api/absensi/status-hari-ini");
 
-    const urlPermintaan =
-      typeof argumen[0] === "string" ? argumen[0] : argumen[0]?.url || "";
+    let respons;
+    try {
+      respons = await fetchAsli(...argumen);
+    } catch (errorPertama) {
+      if (!iniStatusAbsensi) throw errorPertama;
+      try {
+        await tunggu(RETRY_STATUS_DELAY_MS);
+        return await fetchAsli(...argumenRetryTanpaSignal(argumen));
+      } catch {
+        throw errorPertama;
+      }
+    }
 
-    // Hanya proses request ke backend kita
+    if (iniStatusAbsensi && respons.status >= 500) {
+      try {
+        await tunggu(RETRY_STATUS_DELAY_MS);
+        const retry = await fetchAsli(...argumenRetryTanpaSignal(argumen));
+        if (retry.status < 500) return retry;
+      } catch (errorRetry) {
+        console.warn("Retry status absensi gagal:", errorRetry);
+      }
+    }
+
     const permintaanKeBackendKita = urlPermintaan.includes("/api/");
+    if (!permintaanKeBackendKita) return respons;
 
-    if (!permintaanKeBackendKita) {
-      return respons;
-    }
-
-    // Jangan campuri login, daftar, ganti password, dll.
     const iniPermintaanAuth = urlPermintaan.includes("/api/auth/");
-
-    if (iniPermintaanAuth) {
-      return respons;
-    }
-
-    // ========================================================
-    // 401
-    // ========================================================
+    if (iniPermintaanAuth) return respons;
 
     if (respons.status === 401) {
       let data = {};
-
       try {
         const salinan = respons.clone();
         data = await salinan.json();
       } catch {
-        // Response bukan JSON
+        // Response bukan JSON.
       }
 
       const pesan = String(data?.pesan || "").toLowerCase();
-
       const memangMasalahSesi =
         pesan.includes("belum login") ||
         pesan.includes("sesi login") ||
@@ -105,52 +106,32 @@ export function pasangPenerjemahSesiKedaluwarsa() {
         pesan.includes("akun tidak ditemukan") ||
         pesan.includes("kedaluwarsa");
 
-      // Jangan logout secara buta hanya karena HTTP 401.
-      // Logout hanya jika response memang mengindikasikan masalah sesi.
       if (memangMasalahSesi && getToken()) {
         hapusSesiLogin();
-
         sessionStorage.setItem(
           "pesanSetelahLogout",
           data?.pesan || "Sesi login sudah berakhir. Silakan login kembali.",
         );
-
-        if (window.location.pathname !== "/login") {
-          window.location.href = "/login";
-        }
+        if (window.location.pathname !== "/login") window.location.href = "/login";
       }
-
       return respons;
     }
-
-    // ========================================================
-    // 403
-    // ========================================================
 
     if (respons.status === 403) {
       try {
         const salinan = respons.clone();
         const data = await salinan.json();
-
         const pesan = String(data?.pesan || "").toLowerCase();
-
         const akunTidakAktif =
-          pesan.includes("dinonaktifkan") ||
-          pesan.includes("menunggu konfirmasi");
+          pesan.includes("dinonaktifkan") || pesan.includes("menunggu konfirmasi");
 
-        // Hanya logout jika memang akun tidak bisa digunakan.
         if (akunTidakAktif && getToken()) {
           hapusSesiLogin();
-
           sessionStorage.setItem(
             "pesanSetelahLogout",
-            data?.pesan ||
-              "Akun Anda tidak dapat digunakan. Silakan hubungi Admin.",
+            data?.pesan || "Akun Anda tidak dapat digunakan. Silakan hubungi Admin.",
           );
-
-          if (window.location.pathname !== "/login") {
-            window.location.href = "/login";
-          }
+          if (window.location.pathname !== "/login") window.location.href = "/login";
         }
       } catch (error) {
         console.warn("Tidak dapat membaca response 403:", error);
