@@ -106,13 +106,14 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
       formTitle="Masuk ke Akun"
       formSubtitle="Gunakan email dan password akun kamu untuk mengakses sistem absensi."
     >
-      <form onSubmit={handleLogin} noValidate>
+      <form onSubmit={handleLogin} noValidate name="login">
         <div className="field">
           <label htmlFor="email" className="field-label">Email</label>
           <div className={`input-wrap ${emailFokus ? "focused" : ""}`}>
             <Mail size={18} className="input-icon" />
             <input
               id="email"
+              name="username"
               type="email"
               value={email}
               onChange={(e) => { setEmail(e.target.value); setPesanError(""); }}
@@ -134,6 +135,7 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
             <LockKeyhole size={18} className="input-icon" />
             <input
               id="kataSandi"
+              name="current-password"
               type={lihatPassword ? "text" : "password"}
               value={kataSandi}
               onChange={(e) => { setKataSandi(e.target.value); setPesanError(""); }}

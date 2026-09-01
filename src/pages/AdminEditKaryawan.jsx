@@ -13,7 +13,7 @@ export default function AdminEditKaryawan() {
   const [editId, setEditId] = useState(null);
   const [pesan, setPesan] = useState("");
   const [sukses, setSukses] = useState("");
-  const [form, setForm] = useState({ email: "", jabatan: "" });
+  const [form, setForm] = useState({ email: "", jabatan: "", divisi: "" });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -44,7 +44,7 @@ export default function AdminEditKaryawan() {
 
   function mulaiEdit(item) {
     setEditId(item.id);
-    setForm({ email: item.email || "", jabatan: item.jabatan || "" });
+    setForm({ email: item.email || "", jabatan: item.jabatan || "", divisi: item.divisi || "" });
     setPesan("");
     setSukses("");
   }
@@ -52,6 +52,7 @@ export default function AdminEditKaryawan() {
   async function simpanEdit(id) {
     const email = form.email.trim().toLowerCase();
     const jabatan = form.jabatan.trim();
+    const divisi = form.divisi.trim();
     if (!email || !email.includes("@")) return setPesan("Format email belum benar.");
     if (!jabatan) return setPesan("Jabatan wajib diisi.");
 
@@ -62,11 +63,12 @@ export default function AdminEditKaryawan() {
       const res = await fetch(`${API_URL}/admin/karyawan/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ email, jabatan }),
+        body: JSON.stringify({ email, jabatan, divisi }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.pesan || "Gagal menyimpan data karyawan.");
-      setKaryawan((lama) => lama.map((item) => item.id === id ? { ...item, email, jabatan } : item));
+      const karyawanTerbaru = data?.data || {};
+      setKaryawan((lama) => lama.map((item) => item.id === id ? { ...item, ...karyawanTerbaru, email, jabatan, divisi: karyawanTerbaru.divisi ?? (divisi || null) } : item));
       setEditId(null);
       setSukses(data.pesan || "Data karyawan berhasil diperbarui.");
     } catch (error) {
@@ -86,7 +88,7 @@ export default function AdminEditKaryawan() {
     <div style={styles.page}>
       <div style={styles.header}>
         <button type="button" onClick={() => navigate("/admin")} style={styles.back}><ArrowLeft size={17} /> Kembali ke Dashboard</button>
-        <div><h1 style={styles.title}>Edit Data Karyawan</h1><p style={styles.subtitle}>Perbarui email dan jabatan tanpa mengubah password karyawan.</p></div>
+        <div><h1 style={styles.title}>Edit Data Karyawan</h1><p style={styles.subtitle}>Perbarui email, jabatan, dan divisi tanpa mengubah password karyawan.</p></div>
       </div>
 
       {pesan && <div style={styles.error}><X size={17} /> {pesan}</div>}
@@ -101,9 +103,9 @@ export default function AdminEditKaryawan() {
               const sedangEdit = editId === item.id;
               return <tr key={item.id}>
                 <td style={styles.td}><strong>{item.nama}</strong></td>
-                <td style={styles.td}>{sedangEdit ? <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} style={styles.input} autoComplete="off" /> : item.email}</td>
+                <td style={styles.td}>{sedangEdit ? <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} style={styles.input} autoComplete="username" /> : item.email}</td>
                 <td style={styles.td}>{sedangEdit ? <input value={form.jabatan} onChange={(e) => setForm({ ...form, jabatan: e.target.value })} style={styles.input} /> : (item.jabatan || "-")}</td>
-                <td style={styles.td}>{item.divisi || "-"}</td>
+                <td style={styles.td}>{sedangEdit ? <input value={form.divisi} onChange={(e) => setForm({ ...form, divisi: e.target.value })} style={styles.input} placeholder="Contoh: Operasional" /> : (item.divisi || "-")}</td>
                 <td style={{ ...styles.td, textAlign: "right" }}>{sedangEdit ? <div style={styles.actions}><button type="button" onClick={() => setEditId(null)} style={styles.cancel}>Batal</button><button type="button" disabled={simpanId === item.id} onClick={() => void simpanEdit(item.id)} style={styles.save}>{simpanId === item.id ? "Menyimpan..." : "Simpan"}</button></div> : <button type="button" onClick={() => mulaiEdit(item)} style={styles.edit}><Edit3 size={14} /> Edit</button>}</td>
               </tr>;
             })}
@@ -125,10 +127,10 @@ const styles = {
   search: { width: "100%", border: 0, outline: 0, background: "transparent", fontSize: 13, color: warna.tinta },
   card: { maxWidth: 1200, margin: "0 auto", background: warna.panel, border: `1px solid ${warna.garis}`, borderRadius: 14, overflow: "hidden" },
   tableWrap: { width: "100%", overflowX: "auto" },
-  table: { width: "100%", minWidth: 760, borderCollapse: "collapse" },
+  table: { width: "100%", minWidth: 880, borderCollapse: "collapse" },
   th: { padding: "12px 14px", textAlign: "left", fontSize: 11, color: warna.tintaSamar, background: warna.panelAlt, borderBottom: `1px solid ${warna.garis}` },
   td: { padding: "13px 14px", fontSize: 12.5, borderBottom: `1px solid ${warna.garis}`, verticalAlign: "middle" },
-  input: { width: "100%", minWidth: 180, boxSizing: "border-box", padding: "8px 9px", border: `1px solid ${warna.garis}`, borderRadius: 8, outline: 0, color: warna.tinta, background: warna.panel },
+  input: { width: "100%", minWidth: 160, boxSizing: "border-box", padding: "8px 9px", border: `1px solid ${warna.garis}`, borderRadius: 8, outline: 0, color: warna.tinta, background: warna.panel },
   actions: { display: "flex", gap: 6, justifyContent: "flex-end" },
   edit: { display: "inline-flex", alignItems: "center", gap: 6, border: `1px solid ${warna.garis}`, background: warna.panel, color: warna.tinta, borderRadius: 8, padding: "7px 10px", cursor: "pointer", fontSize: 12, fontWeight: 650 },
   cancel: { border: `1px solid ${warna.garis}`, background: warna.panel, color: warna.tintaLembut, borderRadius: 8, padding: "7px 10px", cursor: "pointer", fontSize: 12 },
