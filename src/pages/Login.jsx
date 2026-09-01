@@ -14,24 +14,39 @@ import {
 import { API_URL, simpanSesiLogin } from "../utils/api";
 import AuthLayout from "../components/AuthLayout";
 
+const KUNCI_INGAT_SAYA = "zaman-teknindo:ingat-saya";
+const KUNCI_EMAIL_TERSIMPAN = "zaman-teknindo:email-login";
+
 export default function Login({ onLoginBerhasil, kePendaftaran }) {
   const [email, setEmail] = useState("");
   const [kataSandi, setKataSandi] = useState("");
+  const [ingatSaya, setIngatSaya] = useState(() => {
+    try {
+      return localStorage.getItem(KUNCI_INGAT_SAYA) === "1";
+    } catch {
+      return false;
+    }
+  });
 
   const [pesanError, setPesanError] = useState("");
   const [pesanInfo, setPesanInfo] = useState("");
-
   const [loading, setLoading] = useState(false);
   const [lihatPassword, setLihatPassword] = useState(false);
-
   const [emailFokus, setEmailFokus] = useState(false);
   const [passwordFokus, setPasswordFokus] = useState(false);
 
   useEffect(() => {
-    const pesanTitipan = sessionStorage.getItem("pesanSetelahLogout");
-    if (pesanTitipan) {
-      setPesanInfo(pesanTitipan);
-      sessionStorage.removeItem("pesanSetelahLogout");
+    try {
+      const emailTersimpan = localStorage.getItem(KUNCI_EMAIL_TERSIMPAN);
+      if (emailTersimpan) setEmail(emailTersimpan);
+
+      const pesanTitipan = sessionStorage.getItem("pesanSetelahLogout");
+      if (pesanTitipan) {
+        setPesanInfo(pesanTitipan);
+        sessionStorage.removeItem("pesanSetelahLogout");
+      }
+    } catch (error) {
+      console.warn("Storage browser tidak tersedia:", error);
     }
   }, []);
 
@@ -40,7 +55,7 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
     setPesanError("");
     setPesanInfo("");
 
-    const emailBersih = email.trim();
+    const emailBersih = email.trim().toLowerCase();
     if (!emailBersih) return setPesanError("Email wajib diisi.");
     if (!kataSandi) return setPesanError("Password wajib diisi.");
 
@@ -49,35 +64,41 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
       const res = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: emailBersih, kataSandi }),
+        body: JSON.stringify({ email: emailBersih, kataSandi, ingatSaya }),
       });
       const data = await res.json();
 
       if (!res.ok) {
         const pesan = data?.pesan || "Email atau password tidak benar.";
-        const pesanAkun =
-          pesan.toLowerCase().includes("dinonaktifkan") ||
-          pesan.toLowerCase().includes("tidak aktif") ||
-          pesan.toLowerCase().includes("menunggu");
+        const pesanAkun = /dinonaktifkan|tidak aktif|menunggu/i.test(pesan);
         pesanAkun ? setPesanInfo(pesan) : setPesanError(pesan);
         return;
+      }
+
+      try {
+        localStorage.setItem(KUNCI_INGAT_SAYA, ingatSaya ? "1" : "0");
+        if (ingatSaya) {
+          localStorage.setItem(KUNCI_EMAIL_TERSIMPAN, emailBersih);
+        } else {
+          localStorage.removeItem(KUNCI_EMAIL_TERSIMPAN);
+        }
+      } catch (storageError) {
+        console.warn("Preferensi login tidak dapat disimpan:", storageError);
       }
 
       simpanSesiLogin(data.token, data.pengguna);
       onLoginBerhasil(data.pengguna);
     } catch (error) {
       console.error("Login error:", error);
-      setPesanError("Tidak bisa terhubung ke server. Pastikan backend sudah berjalan.");
+      setPesanError("Tidak bisa terhubung ke server. Coba lagi sebentar.");
     } finally {
       setLoading(false);
     }
   }
 
-  const infoAdalahPeringatan =
-    pesanInfo &&
-    (pesanInfo.toLowerCase().includes("dinonaktifkan") ||
-      pesanInfo.toLowerCase().includes("tidak aktif") ||
-      pesanInfo.toLowerCase().includes("menunggu"));
+  const infoAdalahPeringatan = Boolean(
+    pesanInfo && /dinonaktifkan|tidak aktif|menunggu/i.test(pesanInfo),
+  );
 
   return (
     <AuthLayout
@@ -100,6 +121,7 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
               placeholder="nama@perusahaan.com"
               className="auth-input auth-input-tanpa-tombol"
               autoComplete="username"
+              inputMode="email"
               disabled={loading}
               required
             />
@@ -135,6 +157,16 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
             </button>
           </div>
         </div>
+
+        <label className="remember-login">
+          <input
+            type="checkbox"
+            checked={ingatSaya}
+            onChange={(e) => setIngatSaya(e.target.checked)}
+            disabled={loading}
+          />
+          <span>Ingat saya di perangkat ini</span>
+        </label>
 
         {pesanInfo && (
           <div className={`message ${infoAdalahPeringatan ? "message-warning" : "message-info"}`} role="alert">
@@ -176,6 +208,29 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
         <ShieldCheck size={13} />
         Akses dilindungi oleh sistem autentikasi perusahaan
       </div>
+
+      <style>{`
+        .remember-login {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin: -4px 0 14px;
+          color: #596579;
+          font-size: 12px;
+          cursor: pointer;
+          user-select: none;
+        }
+        .remember-login input {
+          width: 16px;
+          height: 16px;
+          margin: 0;
+          accent-color: #1f8f5f;
+          cursor: pointer;
+        }
+        .remember-login input:disabled {
+          cursor: not-allowed;
+        }
+      `}</style>
     </AuthLayout>
   );
 }
