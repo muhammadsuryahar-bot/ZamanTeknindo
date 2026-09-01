@@ -1,6 +1,7 @@
 const prisma = require("../utils/prismaClient");
 const { tanggalHariIniWIB } = require("../utils/waktuIndonesia");
 const { buatSignedUrlFotoBatch } = require("../utils/supabaseStorage");
+const { deteksiKantorDariKoordinat } = require("../utils/deteksiKantor");
 
 async function rekapHariIniFixed(req, res) {
   try {
@@ -18,12 +19,6 @@ async function rekapHariIniFixed(req, res) {
               divisi: true,
             },
           },
-          kantorMasuk: {
-            select: { id: true, namaKantor: true, alamat: true },
-          },
-          kantorPulang: {
-            select: { id: true, namaKantor: true, alamat: true },
-          },
         },
         orderBy: { jamMasuk: "asc" },
       }),
@@ -34,13 +29,45 @@ async function rekapHariIniFixed(req, res) {
       }),
     ]);
 
+    // Satu kali ambil data kantor untuk seluruh rekap. Kantor absensi dihitung
+    // dari koordinat GPS yang memang sudah tersimpan di tabel absensi, tanpa
+    // menambah kolom DB dan tanpa satu query kantor per baris.
+    const kantorBerkoordinat = await prisma.kantor.findMany({
+      where: { latitude: { not: null }, longitude: { not: null } },
+      select: { id: true, namaKantor: true, alamat: true, latitude: true, longitude: true },
+    });
+
     const semuaPathFoto = [];
     for (const item of data) {
       if (item.fotoMasuk && !item.fotoMasuk.startsWith("/uploads/")) semuaPathFoto.push(item.fotoMasuk);
       if (item.fotoPulang && !item.fotoPulang.startsWith("/uploads/")) semuaPathFoto.push(item.fotoPulang);
     }
-
     const petaUrlFoto = await buatSignedUrlFotoBatch(semuaPathFoto);
+
+    function kantorTerdekat(latitude, longitude) {
+      if (latitude == null || longitude == null || kantorBerkoordinat.length === 0) return null;
+      const lat = Number(latitude);
+      const lng = Number(longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+      const toRad = (nilai) => (nilai * Math.PI) / 180;
+      let terdekat = null;
+      const R = 6_371_000;
+
+      for (const kantor of kantorBerkoordinat) {
+        const dLat = toRad(Number(kantor.latitude) - lat);
+        const dLng = toRad(Number(kantor.longitude) - lng);
+        const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat)) * Math.cos(toRad(Number(kantor.latitude))) * Math.sin(dLng / 2) ** 2;
+        const jarakMeter = 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        if (!terdekat || jarakMeter < terdekat.jarakMeter) {
+          terdekat = { ...kantor, jarakMeter };
+        }
+      }
+
+      return terdekat && terdekat.jarakMeter <= 10_000
+        ? { id: terdekat.id, namaKantor: terdekat.namaKantor, jarakMeter: Math.round(terdekat.jarakMeter) }
+        : null;
+    }
 
     const dataDenganKantor = data.map((item) => {
       const fotoMasukUrl = item.fotoMasuk
@@ -54,31 +81,24 @@ async function rekapHariIniFixed(req, res) {
           : petaUrlFoto.get(item.fotoPulang) || null
         : null;
 
-      const kantorNama = item.kantorMasuk?.namaKantor || null;
+      const kantorMasuk = kantorTerdekat(item.latitudeMasuk, item.longitudeMasuk);
+      const kantorPulang = kantorTerdekat(item.latitudePulang, item.longitudePulang);
       const alamatAsli = item.alamatMasuk || null;
-      const alamatTampilan = kantorNama
-        ? `${kantorNama}${alamatAsli ? ` · ${alamatAsli}` : ""}`
+      const alamatTampilan = kantorMasuk
+        ? `${kantorMasuk.namaKantor}${alamatAsli ? ` · ${alamatAsli}` : ""}`
         : alamatAsli || "Lokasi kantor belum teridentifikasi";
 
       return {
         ...item,
         fotoMasukUrl,
         fotoPulangUrl,
-        // Dipakai UI lama tanpa perlu breaking change: kolom Lokasi sekarang
-        // sekaligus menjelaskan kantor hasil GPS.
         alamatMasuk: alamatTampilan,
-        kantorAbsensi: item.kantorMasuk
-          ? { id: item.kantorMasuk.id, namaKantor: item.kantorMasuk.namaKantor }
-          : null,
-        kantorPulangAbsensi: item.kantorPulang
-          ? { id: item.kantorPulang.id, namaKantor: item.kantorPulang.namaKantor }
-          : null,
+        kantorAbsensi: kantorMasuk,
+        kantorPulangAbsensi: kantorPulang,
       };
     });
 
-    const sudahAbsen = new Set(
-      data.map((item) => item.pengguna?.id).filter((id) => id != null),
-    );
+    const sudahAbsen = new Set(data.map((item) => item.pengguna?.id).filter((id) => id != null));
     const belumAbsen = karyawanAktif.filter((karyawan) => !sudahAbsen.has(karyawan.id));
 
     return res.json({
