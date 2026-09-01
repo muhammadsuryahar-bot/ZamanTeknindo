@@ -4,6 +4,7 @@ const {
   jamSekarangWIB,
 } = require("../utils/waktuIndonesia");
 const { deleteFotoAbsensi } = require("../utils/supabaseStorage");
+const { deteksiKantorDariKoordinat } = require("../utils/deteksiKantor");
 
 // Batas default tepat waktu absensi masuk: 08:10 WIB.
 // Nilai aktual dibaca dari PengaturanPotongan.jamMasukStandar agar
@@ -33,6 +34,14 @@ async function ambilBatasTepatWaktu() {
     console.error("Gagal membaca batas tepat waktu dari pengaturan:", error);
     return jamKeMenit(JAM_BATAS_TEPAT_WAKTU_DEFAULT);
   }
+}
+
+function koordinatDariRequest(latitude, longitude) {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { latitude: lat, longitude: lng };
 }
 
 function tentukanJamAbsen(waktuAsliDariKlien) {
@@ -94,13 +103,28 @@ async function absenMasuk(req, res) {
     const jamSekarang = jamSekarangWIB(sekarang);
     const batasTepatWaktu = await ambilBatasTepatWaktu();
     const statusOtomatis = jamSekarang <= batasTepatWaktu ? "tepat_waktu" : "telat";
+    const koordinat = koordinatDariRequest(latitude, longitude);
+
+    let kantorMasukId = null;
+    if (koordinat) {
+      try {
+        const kantor = await deteksiKantorDariKoordinat(
+          koordinat.latitude,
+          koordinat.longitude,
+        );
+        kantorMasukId = kantor?.id ?? null;
+      } catch (error) {
+        console.error("Gagal mendeteksi kantor saat absen masuk:", error);
+      }
+    }
 
     const data = {
       jamMasuk: sekarang,
       fotoMasuk: fotoPath,
-      latitudeMasuk: latitude ? parseFloat(latitude) : null,
-      longitudeMasuk: longitude ? parseFloat(longitude) : null,
+      latitudeMasuk: koordinat?.latitude ?? null,
+      longitudeMasuk: koordinat?.longitude ?? null,
       alamatMasuk: alamat || null,
+      kantorMasukId,
       statusOtomatis,
       statusFinal: statusOtomatis,
     };
@@ -176,14 +200,29 @@ async function absenPulang(req, res) {
       return res.status(409).json({ pesan: "Anda sudah melakukan absen pulang hari ini." });
     }
 
+    const koordinat = koordinatDariRequest(latitude, longitude);
+    let kantorPulangId = null;
+    if (koordinat) {
+      try {
+        const kantor = await deteksiKantorDariKoordinat(
+          koordinat.latitude,
+          koordinat.longitude,
+        );
+        kantorPulangId = kantor?.id ?? null;
+      } catch (error) {
+        console.error("Gagal mendeteksi kantor saat absen pulang:", error);
+      }
+    }
+
     const absensi = await prisma.absensi.update({
       where: { id: absensiHariIni.id },
       data: {
         jamPulang: tentukanJamAbsen(waktuAsli),
         fotoPulang: fotoPath,
-        latitudePulang: latitude ? parseFloat(latitude) : null,
-        longitudePulang: longitude ? parseFloat(longitude) : null,
+        latitudePulang: koordinat?.latitude ?? null,
+        longitudePulang: koordinat?.longitude ?? null,
         alamatPulang: alamat || null,
+        kantorPulangId,
       },
     });
 
@@ -202,6 +241,25 @@ async function riwayatSaya(req, res) {
       where: { penggunaId: req.user.id },
       orderBy: { tanggal: "desc" },
       take: 31,
+      select: {
+        id: true,
+        tanggal: true,
+        jamMasuk: true,
+        jamPulang: true,
+        fotoMasuk: true,
+        fotoPulang: true,
+        latitudeMasuk: true,
+        longitudeMasuk: true,
+        alamatMasuk: true,
+        kantorMasuk: { select: { id: true, namaKantor: true } },
+        latitudePulang: true,
+        longitudePulang: true,
+        alamatPulang: true,
+        kantorPulang: { select: { id: true, namaKantor: true } },
+        statusOtomatis: true,
+        statusFinal: true,
+        catatanAdmin: true,
+      },
     });
     return res.json({ data: riwayat });
   } catch (error) {
@@ -216,7 +274,19 @@ async function statusHariIni(req, res) {
     const tanggal = tanggalHariIni();
 
     const [absensi, pengajuanDisetujui] = await Promise.all([
-      prisma.absensi.findUnique({ where: { penggunaId_tanggal: { penggunaId, tanggal } } }),
+      prisma.absensi.findUnique({
+        where: { penggunaId_tanggal: { penggunaId, tanggal } },
+        select: {
+          id: true,
+          tanggal: true,
+          jamMasuk: true,
+          jamPulang: true,
+          statusOtomatis: true,
+          statusFinal: true,
+          kantorMasuk: { select: { id: true, namaKantor: true } },
+          kantorPulang: { select: { id: true, namaKantor: true } },
+        },
+      }),
       prisma.pengajuanIzin.findFirst({
         where: { penggunaId, tanggal, status: "disetujui" },
         select: { id: true, jenis: true, tanggal: true, keterangan: true, status: true },
