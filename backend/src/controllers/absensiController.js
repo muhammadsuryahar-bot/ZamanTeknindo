@@ -5,12 +5,34 @@ const {
 } = require("../utils/waktuIndonesia");
 const { deleteFotoAbsensi } = require("../utils/supabaseStorage");
 
-// Batas tepat waktu absensi masuk: 08:10 WIB. Tidak mengambil konfigurasi
-// database pada setiap absensi agar request lebih ringan dan aturan konsisten.
-const JAM_BATAS_TEPAT_WAKTU = 8 + 10 / 60;
+// Batas default tepat waktu absensi masuk: 08:10 WIB.
+// Nilai aktual dibaca dari PengaturanPotongan.jamMasukStandar agar
+// pengaturan Admin di halaman Gaji benar-benar dipakai oleh absensi.
+const JAM_BATAS_TEPAT_WAKTU_DEFAULT = "08:10:00";
 
 function tanggalHariIni() {
   return tanggalHariIniWIB();
+}
+
+function jamKeMenit(jam) {
+  const bagian = String(jam || "").split(":").map(Number);
+  if (bagian.length < 2 || bagian.some((n) => Number.isNaN(n))) return null;
+  const [jamAngka, menit, detik = 0] = bagian;
+  if (jamAngka < 0 || jamAngka > 23 || menit < 0 || menit > 59 || detik < 0 || detik > 59) return null;
+  return jamAngka * 60 + menit + detik / 60;
+}
+
+async function ambilBatasTepatWaktu() {
+  try {
+    const pengaturan = await prisma.pengaturanPotongan.findUnique({
+      where: { id: 1 },
+      select: { jamMasukStandar: true },
+    });
+    return jamKeMenit(pengaturan?.jamMasukStandar) ?? jamKeMenit(JAM_BATAS_TEPAT_WAKTU_DEFAULT);
+  } catch (error) {
+    console.error("Gagal membaca batas tepat waktu dari pengaturan:", error);
+    return jamKeMenit(JAM_BATAS_TEPAT_WAKTU_DEFAULT);
+  }
 }
 
 function tentukanJamAbsen(waktuAsliDariKlien) {
@@ -70,7 +92,8 @@ async function absenMasuk(req, res) {
 
     const sekarang = tentukanJamAbsen(waktuAsli);
     const jamSekarang = jamSekarangWIB(sekarang);
-    const statusOtomatis = jamSekarang <= JAM_BATAS_TEPAT_WAKTU ? "tepat_waktu" : "telat";
+    const batasTepatWaktu = await ambilBatasTepatWaktu();
+    const statusOtomatis = jamSekarang <= batasTepatWaktu ? "tepat_waktu" : "telat";
 
     const data = {
       jamMasuk: sekarang,
@@ -89,7 +112,6 @@ async function absenMasuk(req, res) {
       try {
         absensi = await prisma.absensi.create({ data: { penggunaId, tanggal, ...data } });
       } catch (error) {
-        // Unique [penggunaId, tanggal] mencegah dua tap bersamaan membuat dua record.
         if (error?.code === "P2002") {
           await hapusFotoJikaPerlu();
           return res.status(409).json({ pesan: "Absensi masuk sudah tercatat. Silakan periksa status hari ini." });
