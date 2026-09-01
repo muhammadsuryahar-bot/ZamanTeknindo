@@ -7,7 +7,6 @@ const {
   aktifkanAkun,
   daftarKaryawan,
   ubahStatusKaryawan,
-  rekapHariIni,
   ringkasanDashboard,
   editStatusAbsensi,
   ambilPengaturanPotongan,
@@ -20,6 +19,7 @@ const {
   usulanHariLibur,
   notifikasiAdmin,
 } = require("../controllers/adminController");
+const { rekapHariIniFixed } = require("../controllers/rekapAbsensiFixedController");
 const { daftarKantorFixed, tambahKantorFixed, ubahKantorFixed } = require("../controllers/kantorControllerFixed");
 const { ubahProfilKaryawan } = require("../controllers/adminProfilKaryawanController");
 const {
@@ -100,7 +100,7 @@ router.put("/karyawan/:id", ubahProfilKaryawan);
 router.put("/karyawan/:id/status", validasiStatusAkun, ubahStatusKaryawan);
 router.put("/karyawan/:id/reset-password", resetPasswordOlehAdmin);
 
-router.get("/rekap-hari-ini", rekapHariIni);
+router.get("/rekap-hari-ini", rekapHariIniFixed);
 router.get("/ringkasan", ringkasanDashboard);
 router.put("/absensi/:id/edit-status", validasiEditStatusAbsensi, editStatusAbsensi);
 
@@ -123,8 +123,6 @@ router.post("/gaji/import-preview", (req, res, next) => {
 }, previewGajiMassal);
 router.post("/gaji/import-simpan", simpanGajiMassal);
 
-// Kantor menggunakan controller khusus yang lebih ketat untuk memastikan
-// create/update mengembalikan data hasil simpan secara langsung.
 router.get("/kantor", daftarKantorFixed);
 router.post("/kantor", tambahKantorFixed);
 router.put("/kantor/:id", ubahKantorFixed);
