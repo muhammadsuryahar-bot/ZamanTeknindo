@@ -12,11 +12,12 @@ import { getPenggunaLogin, hapusSesiLogin } from "./utils/api";
 import { warna } from "./styles/theme";
 
 const Daftar = lazy(() => import("./pages/Daftar"));
-const DashboardKaryawan = lazy(() => import("./pages/DashboardKaryawan"));
+const DashboardKaryawan = lazy(() => import("./pages/DashboardKaryawanStabil"));
 const RiwayatAbsensi = lazy(() => import("./pages/RiwayatAbsensi"));
 const PengajuanIzin = lazy(() => import("./pages/PengajuanIzin"));
 const DashboardAdmin = lazy(() => import("./pages/DashboardAdmin"));
 const AdminArsip = lazy(() => import("./pages/AdminArsip"));
+const AdminEditKaryawan = lazy(() => import("./pages/AdminEditKaryawan"));
 const GantiPassword = lazy(() => import("./pages/GantiPassword"));
 
 function MemuatHalaman() {
@@ -75,7 +76,19 @@ function AdminShell({ pengguna, onLogout }) {
         </div>
       )}
 
-      {!arsipTerbuka && <TombolArsipAdmin />}
+      {!arsipTerbuka && (
+        <div style={styles.adminShortcutGroup}>
+          <button
+            type="button"
+            onClick={() => navigate("/admin/edit-karyawan")}
+            style={styles.editShortcut}
+            aria-label="Edit data karyawan"
+          >
+            ✎ Edit Karyawan
+          </button>
+          <TombolArsipAdmin />
+        </div>
+      )}
     </div>
   );
 }
@@ -194,6 +207,18 @@ function RuteAplikasi({ pengguna, setPengguna, onLogout }) {
           }
         />
 
+        <Route
+          path="/admin/edit-karyawan"
+          element={
+            <RuteTerproteksi
+              pengguna={pengguna}
+              peranDiizinkan={["admin"]}
+            >
+              <AdminEditKaryawan />
+            </RuteTerproteksi>
+          }
+        />
+
         {/* Satu shell untuk /admin dan /admin/arsip.
             Ini sengaja supaya DashboardAdmin tidak remount saat navigasi.
             Route /admin/arsip tetap valid saat halaman di-refresh. */}
@@ -257,11 +282,6 @@ const styles = {
     position: "relative",
   },
 
-  /*
-   * Overlay benar-benar menutup viewport.
-   * Tidak memakai height: 100% atau position absolute supaya tidak ikut
-   * terpotong oleh tinggi parent DashboardAdmin.
-   */
   arsipOverlay: {
     position: "fixed",
     inset: 0,
@@ -284,14 +304,31 @@ const styles = {
     boxSizing: "border-box",
   },
 
-  arsipShortcut: {
+  adminShortcutGroup: {
     position: "fixed",
     right: 24,
     bottom: 24,
     zIndex: 10001,
-    display: "inline-flex",
-    alignItems: "center",
+    display: "flex",
     gap: 8,
+    alignItems: "center",
+  },
+
+  editShortcut: {
+    minHeight: 44,
+    padding: "10px 14px",
+    border: `1px solid ${warna.garis}`,
+    borderRadius: 12,
+    background: warna.panel,
+    color: warna.tinta,
+    boxShadow: "0 10px 28px rgba(22,35,61,0.12)",
+    fontSize: 12,
+    fontWeight: 750,
+    cursor: "pointer",
+  },
+
+  arsipShortcut: {
+    position: "static",
     minHeight: 44,
     padding: "10px 14px",
     border: `1px solid ${warna.garis}`,
@@ -314,6 +351,7 @@ const styles = {
     background: warna.aksenLembut,
     color: warna.aksen,
     fontSize: 13,
+    marginRight: 4,
   },
 };
 
