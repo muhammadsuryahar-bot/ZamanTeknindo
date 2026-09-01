@@ -10,13 +10,15 @@ datasource db {
 }
 
 model Kantor {
-  id         Int        @id @default(autoincrement())
-  namaKantor String     @map("nama_kantor")
-  alamat     String?
-  latitude   Float?
-  longitude  Float?
-  dibuatPada DateTime   @default(now()) @map("dibuat_pada")
-  pengguna   Pengguna[]
+  id             Int        @id @default(autoincrement())
+  namaKantor     String     @map("nama_kantor")
+  alamat         String?
+  latitude       Float?
+  longitude      Float?
+  dibuatPada     DateTime   @default(now()) @map("dibuat_pada")
+  pengguna       Pengguna[]
+  absensiMasuk   Absensi[]  @relation("AbsensiKantorMasuk")
+  absensiPulang  Absensi[]  @relation("AbsensiKantorPulang")
 
   @@map("kantor")
 }
@@ -55,9 +57,11 @@ model Absensi {
   latitudeMasuk   Float?           @map("latitude_masuk")
   longitudeMasuk  Float?           @map("longitude_masuk")
   alamatMasuk     String?          @map("alamat_masuk")
+  kantorMasukId   Int?             @map("kantor_masuk_id")
   latitudePulang  Float?           @map("latitude_pulang")
   longitudePulang Float?           @map("longitude_pulang")
   alamatPulang    String?          @map("alamat_pulang")
+  kantorPulangId  Int?             @map("kantor_pulang_id")
   statusOtomatis  StatusKehadiran? @map("status_otomatis")
   statusFinal     StatusKehadiran? @map("status_final")
   catatanAdmin    String?          @map("catatan_admin")
@@ -66,9 +70,13 @@ model Absensi {
   dibuatPada      DateTime         @default(now()) @map("dibuat_pada")
   editor          Pengguna?        @relation("AbsensiDiedit", fields: [dieditOleh], references: [id])
   pengguna        Pengguna         @relation("AbsensiPengguna", fields: [penggunaId], references: [id])
+  kantorMasuk     Kantor?          @relation("AbsensiKantorMasuk", fields: [kantorMasukId], references: [id])
+  kantorPulang    Kantor?          @relation("AbsensiKantorPulang", fields: [kantorPulangId], references: [id])
 
   @@unique([penggunaId, tanggal])
   @@index([dieditOleh])
+  @@index([kantorMasukId])
+  @@index([kantorPulangId])
   @@map("absensi")
 }
 
