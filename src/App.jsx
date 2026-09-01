@@ -118,6 +118,7 @@ function AdminShell({ pengguna, onLogout }) {
 
       {arsipTerbuka && (
         <div
+          className="admin-page-archive"
           style={styles.arsipOverlay}
           role="dialog"
           aria-modal="true"
@@ -238,7 +239,9 @@ function RuteAplikasi({ pengguna, setPengguna, onLogout }) {
               pengguna={pengguna}
               peranDiizinkan={["admin"]}
             >
-              <AdminEditKaryawan />
+              <div className="admin-page-edit-karyawan">
+                <AdminEditKaryawan />
+              </div>
             </RuteTerproteksi>
           }
         />

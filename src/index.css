@@ -318,10 +318,23 @@ input[type="file"] {
   }
 }
 
-/* ===== Design-system typography & tables =====
-   Seluruh kontrol interaktif memakai font yang sama. Ukuran tabel/header
-   mengikuti skala di theme.js sehingga halaman yang berbeda tidak terasa
-   seperti dibuat oleh komponen yang berbeda. */
+/* ===== UI/UX Hardening: satu tipografi, grid tabel, dan kontrol ===== */
+
+:root {
+  --ui-font: 'IBM Plex Sans', system-ui, sans-serif;
+  --ui-text: #16233D;
+  --ui-muted: #5B6472;
+  --ui-soft: #8A93A3;
+  --ui-border: #DADFE6;
+  --ui-panel: #FFFFFF;
+  --ui-panel-alt: #EDEFF3;
+  --ui-green: #0B6E45;
+  --ui-green-soft: #E1F0E8;
+  --ui-shadow: 0 1px 2px rgba(22,35,61,0.04), 0 8px 24px rgba(22,35,61,0.06);
+}
+
+body,
+#root,
 button,
 a,
 input,
@@ -330,40 +343,336 @@ textarea,
 table,
 th,
 td {
-  font-family: 'IBM Plex Sans', system-ui, sans-serif !important;
+  font-family: var(--ui-font) !important;
 }
 
-table {
-  border-collapse: collapse;
+/* ===== Edit Karyawan ===== */
+.admin-page-edit-karyawan {
+  min-height: 100svh;
+  background: var(--ui-panel-alt);
 }
 
-th {
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.35;
+.admin-page-edit-karyawan > div {
+  max-width: 1240px !important;
+  margin: 0 auto !important;
+  padding: 24px 28px 40px !important;
 }
 
-td {
-  font-size: 13px;
+.admin-page-edit-karyawan h1 {
+  font-size: 26px !important;
+  line-height: 1.2 !important;
+  font-weight: 750 !important;
+  letter-spacing: -0.02em !important;
+  color: var(--ui-text) !important;
+}
+
+.admin-page-edit-karyawan h1 + p {
+  margin-top: 6px !important;
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+  color: var(--ui-muted) !important;
+}
+
+/* Tombol Kembali mengikuti pola hijau yang sederhana dan mudah dikenali. */
+.admin-page-edit-karyawan button:first-of-type {
+  min-height: 40px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+  padding: 8px 12px !important;
+  border: 1px solid rgba(11,110,69,0.28) !important;
+  border-radius: 10px !important;
+  background: var(--ui-green) !important;
+  color: #fff !important;
+  font-size: 13px !important;
+  font-weight: 650 !important;
+  box-shadow: 0 3px 10px rgba(11,110,69,0.16) !important;
+}
+
+.admin-page-edit-karyawan table {
+  width: 100% !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  table-layout: fixed !important;
+  background: var(--ui-panel) !important;
+}
+
+.admin-page-edit-karyawan th {
+  height: 42px !important;
+  padding: 10px 14px !important;
+  font-size: 11px !important;
+  line-height: 1.35 !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.02em !important;
+  color: var(--ui-muted) !important;
+  background: var(--ui-panel-alt) !important;
+  border-bottom: 1px solid var(--ui-border) !important;
+}
+
+.admin-page-edit-karyawan td {
+  min-height: 54px !important;
+  padding: 12px 14px !important;
+  font-size: 13px !important;
+  line-height: 1.45 !important;
+  color: var(--ui-text) !important;
+  border-bottom: 1px solid var(--ui-border) !important;
+  background: var(--ui-panel) !important;
+  vertical-align: middle !important;
+}
+
+.admin-page-edit-karyawan tbody tr:last-child td {
+  border-bottom: 0 !important;
+}
+
+.admin-page-edit-karyawan td:last-child {
+  width: 106px !important;
+  white-space: nowrap !important;
+}
+
+.admin-page-edit-karyawan input {
+  min-height: 40px !important;
+  padding: 9px 10px !important;
+  border: 1px solid var(--ui-border) !important;
+  border-radius: 9px !important;
+  font-size: 13px !important;
+  color: var(--ui-text) !important;
+  background: var(--ui-panel) !important;
+}
+
+.admin-page-edit-karyawan input[placeholder*="Cari"] {
+  min-height: 42px !important;
+  font-size: 13px !important;
+}
+
+.admin-page-edit-karyawan td:last-child button {
+  min-height: 38px !important;
+  padding: 8px 11px !important;
+  border-radius: 9px !important;
+  font-size: 12px !important;
+}
+
+/* ===== Arsip & Data ===== */
+.admin-page-archive {
+  background: var(--ui-panel-alt) !important;
+}
+
+.admin-page-archive h2 {
+  font-size: 24px !important;
+  line-height: 1.2 !important;
+  font-weight: 750 !important;
+  letter-spacing: -0.02em !important;
+  color: var(--ui-text) !important;
+}
+
+.admin-page-archive h3 {
+  font-size: 16px !important;
+  line-height: 1.3 !important;
+  font-weight: 700 !important;
+  color: var(--ui-text) !important;
+}
+
+.admin-page-archive p,
+.admin-page-archive label,
+.admin-page-archive td,
+.admin-page-archive th,
+.admin-page-archive button,
+.admin-page-archive input,
+.admin-page-archive select {
+  font-family: var(--ui-font) !important;
+}
+
+.admin-page-archive table {
+  width: 100% !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+}
+
+.admin-page-archive th {
+  padding: 10px 13px !important;
+  font-size: 11px !important;
+  line-height: 1.35 !important;
+  font-weight: 750 !important;
+  color: var(--ui-muted) !important;
+  background: var(--ui-panel-alt) !important;
+  border-bottom: 1px solid var(--ui-border) !important;
+}
+
+.admin-page-archive td {
+  padding: 12px 13px !important;
+  font-size: 13px !important;
+  line-height: 1.45 !important;
+  color: var(--ui-text) !important;
+  border-bottom: 1px solid var(--ui-border) !important;
+  vertical-align: middle !important;
+}
+
+.admin-page-archive input,
+.admin-page-archive select {
+  min-height: 40px !important;
+  border-radius: 9px !important;
+  border: 1px solid var(--ui-border) !important;
+  font-size: 13px !important;
+  color: var(--ui-text) !important;
+  background: var(--ui-panel) !important;
+}
+
+/* ===== Gaji & Gaji Massal ===== */
+.main-area-admin h2 {
+  font-size: 24px !important;
+  line-height: 1.2 !important;
+  letter-spacing: -0.02em !important;
+  font-weight: 750 !important;
+  color: var(--ui-text) !important;
+}
+
+.main-area-admin h3 {
+  font-size: 16px !important;
+  line-height: 1.3 !important;
+  font-weight: 700 !important;
+  color: var(--ui-text) !important;
+}
+
+.main-area-admin p,
+.main-area-admin span {
   line-height: 1.45;
 }
 
-/* Tabel admin: grid yang sama untuk Gaji, Gaji Massal, Edit Karyawan,
-   Arsip dan tabel Rekap tanpa memaksa lebar tertentu. */
-.main-area-admin table,
-.main-area-admin th,
-.main-area-admin td,
-.admin-arsip-page table,
-.admin-arsip-page th,
-.admin-arsip-page td {
-  font-family: 'IBM Plex Sans', system-ui, sans-serif !important;
+.main-area-admin table th {
+  padding: 10px 13px !important;
+  font-size: 11px !important;
+  font-weight: 750 !important;
+  line-height: 1.35 !important;
+  color: var(--ui-muted) !important;
+  background: var(--ui-panel-alt) !important;
 }
 
-/* Tombol kembali/aksi halaman luar dashboard mengikuti pola tombol ringan
-   yang sama. Tidak mengubah tombol submit utama yang sudah punya warna brand. */
-.admin-context-back,
-.admin-page-back {
-  font-family: 'IBM Plex Sans', system-ui, sans-serif !important;
+.main-area-admin table td {
+  padding: 11px 13px !important;
   font-size: 13px !important;
-  font-weight: 600 !important;
+  line-height: 1.45 !important;
+  color: var(--ui-text) !important;
+}
+
+.main-area-admin button {
+  font-family: var(--ui-font) !important;
+  line-height: 1.2 !important;
+  font-weight: 650 !important;
+}
+
+/* Form langkah Gaji Massal: tiga langkah selalu terbaca sebagai kartu,
+   bukan teks browser default. */
+.main-area-admin [style*="grid-template-columns: repeat(3"] > div {
+  font-family: var(--ui-font) !important;
+  color: var(--ui-text) !important;
+}
+
+.main-area-admin [style*="grid-template-columns: repeat(3"] > div b {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 13px !important;
+  line-height: 1.35 !important;
+}
+
+.main-area-admin [style*="grid-template-columns: repeat(3"] > div span {
+  display: block;
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+  color: var(--ui-muted) !important;
+}
+
+@media (max-width: 899px) {
+  .main-area-admin h2 { font-size: 21px !important; }
+  .main-area-admin h3 { font-size: 15px !important; }
+  .main-area-admin p,
+  .main-area-admin span,
+  .main-area-admin table td { font-size: 12.5px !important; }
+
+  .main-area-admin [style*="grid-template-columns: repeat(3"] {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ===== Konteks Absensi Karyawan ===== */
+.dashboard-karyawan-stabil-shell {
+  position: relative;
+  font-family: var(--ui-font) !important;
+}
+
+.konteks-absensi-banner {
+  width: min(760px, calc(100% - 32px));
+  margin: 12px auto 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 14px;
+  border: 1px solid var(--ui-border);
+  border-left: 4px solid var(--konteks-warna);
+  border-radius: 12px;
+  background: var(--konteks-latar);
+  box-shadow: 0 4px 14px rgba(22,35,61,0.05);
+  color: var(--ui-text);
+}
+
+.konteks-absensi-icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--konteks-warna);
+  box-shadow: inset 0 0 0 1px rgba(22,35,61,0.06);
+}
+
+.konteks-absensi-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.konteks-absensi-copy strong {
+  font-size: 11px;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  color: var(--konteks-warna);
+}
+
+.konteks-absensi-copy span {
+  font-size: 13px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: var(--ui-text);
+}
+
+.konteks-absensi-copy small {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ui-muted);
+}
+
+@media (max-width: 680px) {
+  .konteks-absensi-banner {
+    width: calc(100% - 20px);
+    margin-top: 10px;
+    padding: 10px 11px;
+  }
+
+  .konteks-absensi-copy span { font-size: 12.5px; }
+  .konteks-absensi-copy small { font-size: 10.5px; }
+
+  .admin-page-edit-karyawan > div {
+    padding: 18px 16px 32px !important;
+  }
+
+  .admin-page-edit-karyawan h1 {
+    font-size: 22px !important;
+  }
+
+  .admin-page-edit-karyawan .tableWrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
 }
