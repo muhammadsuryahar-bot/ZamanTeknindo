@@ -1,54 +1,111 @@
 import { useEffect } from "react";
 import DashboardKaryawan from "./DashboardKaryawan";
 
-// Stabilisasi yang sengaja hanya aktif selama Dashboard Karyawan terpasang.
-// Tidak mengganti fetch global dan tidak mengubah alur absensi.
+// Lapisan kompatibilitas untuk HP/browser yang kadang gagal membuka kamera
+// atau memperoleh lokasi pada percobaan pertama. Tidak mengubah alur React
+// maupun data absensi; hanya menyediakan retry/fallback pada Web API.
 export default function DashboardKaryawanStabil(props) {
   useEffect(() => {
+    const mediaDevices = navigator.mediaDevices;
     const geo = navigator.geolocation;
-    if (!geo?.watchPosition || !geo?.getCurrentPosition) return undefined;
 
-    const watchAsli = geo.watchPosition.bind(geo);
-    const currentAsli = geo.getCurrentPosition.bind(geo);
-    const clearAsli = geo.clearWatch.bind(geo);
-    const fallbackTimers = new Map();
+    const getUserMediaAsli = mediaDevices?.getUserMedia?.bind(mediaDevices);
+    const currentAsli = geo?.getCurrentPosition?.bind(geo);
+    const watchAsli = geo?.watchPosition?.bind(geo);
+    const clearAsli = geo?.clearWatch?.bind(geo);
+
+    if (!getUserMediaAsli && !currentAsli && !watchAsli) {
+      return undefined;
+    }
+
     let aktif = true;
 
-    geo.watchPosition = (success, error, options = {}) => {
-      const watchId = watchAsli(success, error, {
-        ...options,
-        enableHighAccuracy: true,
-        maximumAge: Math.min(Number(options.maximumAge) || 0, 5000),
-        timeout: Math.max(Number(options.timeout) || 15000, 15000),
-      });
+    if (getUserMediaAsli) {
+      mediaDevices.getUserMedia = async (constraints) => {
+        try {
+          return await getUserMediaAsli(constraints);
+        } catch (errorPertama) {
+          if (!aktif) throw errorPertama;
 
-      const timer = window.setTimeout(() => {
-        if (!aktif) return;
-        currentAsli(success, () => {}, {
+          // Beberapa Android/browser menolak kombinasi ideal resolution /
+          // facingMode tertentu. Percobaan kedua sengaja dibuat sederhana.
+          await new Promise((resolve) => window.setTimeout(resolve, 350));
+
+          try {
+            return await getUserMediaAsli({
+              video: { facingMode: "user" },
+              audio: false,
+            });
+          } catch {
+            // Percobaan terakhir mengikuti constraint paling sederhana.
+            return await getUserMediaAsli({ video: true, audio: false });
+          }
+        }
+      };
+    }
+
+    if (currentAsli) {
+      navigator.geolocation.getCurrentPosition = (success, error, options = {}) => {
+        const opsiUtama = {
+          ...options,
           enableHighAccuracy: true,
-          maximumAge: 5000,
-          timeout: 12000,
+          maximumAge: Math.min(Number(options.maximumAge) || 0, 5000),
+          timeout: Math.max(Number(options.timeout) || 15000, 15000),
+        };
+
+        currentAsli(
+          success,
+          (errorPertama) => {
+            if (!aktif) return;
+
+            // Fallback ke posisi network/GPS terakhir saat GPS presisi tinggi
+            // belum siap. Ini terutama membantu perangkat lama di indoor.
+            currentAsli(
+              success,
+              error || (() => {}),
+              {
+                ...opsiUtama,
+                enableHighAccuracy: false,
+                maximumAge: 30000,
+                timeout: 10000,
+              },
+            );
+
+            if (error && errorPertama) {
+              // Callback error asli tidak langsung dipanggil agar fallback
+              // punya kesempatan mengembalikan posisi terlebih dahulu.
+            }
+          },
+          opsiUtama,
+        );
+      };
+    }
+
+    if (watchAsli) {
+      navigator.geolocation.watchPosition = (success, error, options = {}) =>
+        watchAsli(success, error, {
+          ...options,
+          enableHighAccuracy: true,
+          maximumAge: Math.min(Number(options.maximumAge) || 0, 5000),
+          timeout: Math.max(Number(options.timeout) || 15000, 15000),
         });
-      }, 700);
-
-      fallbackTimers.set(watchId, timer);
-      return watchId;
-    };
-
-    geo.clearWatch = (watchId) => {
-      const timer = fallbackTimers.get(watchId);
-      if (timer) window.clearTimeout(timer);
-      fallbackTimers.delete(watchId);
-      clearAsli(watchId);
-    };
+    }
 
     return () => {
       aktif = false;
-      fallbackTimers.forEach((timer) => window.clearTimeout(timer));
-      fallbackTimers.clear();
-      geo.watchPosition = watchAsli;
-      geo.getCurrentPosition = currentAsli;
-      geo.clearWatch = clearAsli;
+
+      if (getUserMediaAsli && mediaDevices) {
+        mediaDevices.getUserMedia = getUserMediaAsli;
+      }
+      if (currentAsli && navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition = currentAsli;
+      }
+      if (watchAsli && navigator.geolocation) {
+        navigator.geolocation.watchPosition = watchAsli;
+      }
+      if (clearAsli && navigator.geolocation) {
+        navigator.geolocation.clearWatch = clearAsli;
+      }
     };
   }, []);
 
