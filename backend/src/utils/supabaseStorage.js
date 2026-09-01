@@ -1,23 +1,34 @@
 const { createClient } = require("@supabase/supabase-js");
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl) {
-  throw new Error("SUPABASE_URL tidak ditemukan di environment variable");
-}
-
-if (!supabaseServiceRoleKey) {
-  throw new Error(
-    "SUPABASE_SERVICE_ROLE_KEY tidak ditemukan di environment variable",
-  );
-}
-
-const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-
 const BUCKET_NAME = "absensi";
 const SIGNED_URL_TTL_SECONDS = 300;
 const SIGNED_URL_CACHE_SECONDS = 180;
+
+let supabaseClient = null;
+
+function ambilSupabase() {
+  if (supabaseClient) return supabaseClient;
+
+  const supabaseUrl = String(process.env.SUPABASE_URL || "").trim();
+  const supabaseServiceRoleKey = String(
+    process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+  ).trim();
+
+  if (!supabaseUrl) {
+    throw new Error(
+      "SUPABASE_URL belum dikonfigurasi di environment variable server.",
+    );
+  }
+
+  if (!supabaseServiceRoleKey) {
+    throw new Error(
+      "SUPABASE_SERVICE_ROLE_KEY belum dikonfigurasi di environment variable server.",
+    );
+  }
+
+  supabaseClient = createClient(supabaseUrl, supabaseServiceRoleKey);
+  return supabaseClient;
+}
 
 // Cache memory hanya untuk warm function instance.
 // Tidak menggantikan database/storage dan akan hilang ketika instance mati.
@@ -45,7 +56,6 @@ function simpanCacheSignedUrl(filePath, url) {
 }
 
 function bersihkanCacheSignedUrl() {
-  // Batasi memory jika instance hidup sangat lama.
   if (signedUrlCache.size < 1000) return;
 
   const sekarang = Date.now();
@@ -55,6 +65,7 @@ function bersihkanCacheSignedUrl() {
 }
 
 async function uploadFotoAbsensi(buffer, filePath, contentType = "image/jpeg") {
+  const supabase = ambilSupabase();
   const { data, error } = await supabase.storage
     .from(BUCKET_NAME)
     .upload(filePath, buffer, {
@@ -72,6 +83,7 @@ async function uploadFotoAbsensi(buffer, filePath, contentType = "image/jpeg") {
 async function deleteFotoAbsensi(filePath) {
   if (!filePath) return;
 
+  const supabase = ambilSupabase();
   const { error } = await supabase.storage
     .from(BUCKET_NAME)
     .remove([filePath]);
@@ -84,7 +96,6 @@ async function deleteFotoAbsensi(filePath) {
   }
 }
 
-// Dipakai khusus proses cleanup bulanan.
 async function deleteFotoAbsensiBatch(filePaths) {
   const pathUnik = [
     ...new Set(
@@ -99,15 +110,14 @@ async function deleteFotoAbsensiBatch(filePaths) {
     return { jumlahDihapus: 0 };
   }
 
+  const supabase = ambilSupabase();
   const UKURAN_BATCH = 500;
   let jumlahDihapus = 0;
 
   for (let i = 0; i < pathUnik.length; i += UKURAN_BATCH) {
     const batch = pathUnik.slice(i, i + UKURAN_BATCH);
 
-    const { error } = await supabase.storage
-      .from(BUCKET_NAME)
-      .remove(batch);
+    const { error } = await supabase.storage.from(BUCKET_NAME).remove(batch);
 
     if (error) {
       throw new Error(
@@ -121,12 +131,16 @@ async function deleteFotoAbsensiBatch(filePaths) {
   return { jumlahDihapus };
 }
 
-async function buatSignedUrlFoto(filePath, expiresIn = SIGNED_URL_TTL_SECONDS) {
+async function buatSignedUrlFoto(
+  filePath,
+  expiresIn = SIGNED_URL_TTL_SECONDS,
+) {
   if (!filePath) return null;
 
   const cache = ambilCacheSignedUrl(filePath);
   if (cache) return cache;
 
+  const supabase = ambilSupabase();
   const { data, error } = await supabase.storage
     .from(BUCKET_NAME)
     .createSignedUrl(filePath, expiresIn);
@@ -141,9 +155,6 @@ async function buatSignedUrlFoto(filePath, expiresIn = SIGNED_URL_TTL_SECONDS) {
   return data.signedUrl;
 }
 
-// ============================================================
-// SIGNED URL BATCH DENGAN CACHE MEMORY
-// ============================================================
 async function buatSignedUrlFotoBatch(
   filePaths,
   expiresIn = SIGNED_URL_TTL_SECONDS,
@@ -166,6 +177,7 @@ async function buatSignedUrlFotoBatch(
   }
 
   if (belumAdaCache.length > 0) {
+    const supabase = ambilSupabase();
     const { data, error } = await supabase.storage
       .from(BUCKET_NAME)
       .createSignedUrls(belumAdaCache, expiresIn);
