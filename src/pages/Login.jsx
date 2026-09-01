@@ -106,7 +106,7 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
       formTitle="Masuk ke Akun"
       formSubtitle="Gunakan email dan password akun kamu untuk mengakses sistem absensi."
     >
-      <form onSubmit={handleLogin} noValidate name="login">
+      <form onSubmit={handleLogin} noValidate name="login" className="login-form">
         <div className="field">
           <label htmlFor="email" className="field-label">Email</label>
           <div className={`input-wrap ${emailFokus ? "focused" : ""}`}>
@@ -212,6 +212,11 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
       </div>
 
       <style>{`
+        .login-form,
+        .login-form * {
+          font-family: 'IBM Plex Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
         .remember-login {
           display: flex;
           align-items: center;
@@ -219,6 +224,8 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
           margin: -4px 0 14px;
           color: #596579;
           font-size: 12px;
+          line-height: 1.35;
+          font-weight: 500;
           cursor: pointer;
           user-select: none;
         }
@@ -228,9 +235,13 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
           margin: 0;
           accent-color: #1f8f5f;
           cursor: pointer;
+          flex: 0 0 auto;
         }
         .remember-login input:disabled {
           cursor: not-allowed;
+        }
+        .remember-login span {
+          font: inherit;
         }
       `}</style>
     </AuthLayout>
