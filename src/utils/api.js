@@ -27,10 +27,11 @@ export function hapusSesiLogin() {
   localStorage.removeItem("pengguna");
 }
 
-// Hanya endpoint status absensi yang diberi satu retry ringan.
-// Tujuannya mengatasi cold start / gangguan jaringan singkat tanpa membuat
-// seluruh aplikasi terus mengulang request dan membebani backend.
-const RETRY_STATUS_DELAY_MS = 350;
+// Status absensi adalah request yang paling sensitif terhadap cold start
+// backend dan jaringan seluler. Retry dilakukan otomatis dan hanya untuk
+// endpoint ini, sehingga request lain tidak dibanjiri pengulangan.
+const RETRY_STATUS_DELAYS_MS = [400, 1000];
+const RETRY_STATUS_TIMEOUT_MS = 9000;
 
 function tunggu(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -40,21 +41,29 @@ function urlDariArgumen(argumen) {
   return typeof argumen[0] === "string" ? argumen[0] : argumen[0]?.url || "";
 }
 
-function argumenRetryTanpaSignal(argumen) {
+function initTanpaSignal(argumen) {
   const [input, init] = argumen;
-  // Dashboard status menggunakan string URL + init, jadi kita dapat
-  // menghindari AbortSignal timeout pertama saat percobaan kedua.
-  if (typeof input === "string") {
-    return [input, init ? { ...init, signal: undefined } : undefined];
+  if (!init) return [input, undefined];
+  return [input, { ...init, signal: undefined }];
+}
+
+async function fetchRetryDenganTimeout(fetchAsli, argumen) {
+  const [input, init] = initTanpaSignal(argumen);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), RETRY_STATUS_TIMEOUT_MS);
+
+  try {
+    return await fetchAsli(input, { ...(init || {}), signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return [input, init ? { ...init, signal: undefined } : undefined];
 }
 
 export function pasangPenerjemahSesiKedaluwarsa() {
   if (window.__interceptorSesiSudahDipasang) return;
 
   window.__interceptorSesiSudahDipasang = true;
-  const fetchAsli = window.fetch;
+  const fetchAsli = window.fetch.bind(window);
 
   window.fetch = async function (...argumen) {
     const urlPermintaan = urlDariArgumen(argumen);
@@ -65,22 +74,37 @@ export function pasangPenerjemahSesiKedaluwarsa() {
       respons = await fetchAsli(...argumen);
     } catch (errorPertama) {
       if (!iniStatusAbsensi) throw errorPertama;
-      try {
-        await tunggu(RETRY_STATUS_DELAY_MS);
-        return await fetchAsli(...argumenRetryTanpaSignal(argumen));
-      } catch {
-        throw errorPertama;
+
+      let errorTerakhir = errorPertama;
+      for (const delay of RETRY_STATUS_DELAYS_MS) {
+        try {
+          await tunggu(delay);
+          respons = await fetchRetryDenganTimeout(fetchAsli, argumen);
+          break;
+        } catch (errorRetry) {
+          errorTerakhir = errorRetry;
+        }
       }
+
+      if (!respons) throw errorTerakhir;
     }
 
+    // Cold start / gateway error tetap dicoba ulang otomatis.
     if (iniStatusAbsensi && respons.status >= 500) {
-      try {
-        await tunggu(RETRY_STATUS_DELAY_MS);
-        const retry = await fetchAsli(...argumenRetryTanpaSignal(argumen));
-        if (retry.status < 500) return retry;
-      } catch (errorRetry) {
-        console.warn("Retry status absensi gagal:", errorRetry);
+      let responsTerakhir = respons;
+
+      for (const delay of RETRY_STATUS_DELAYS_MS) {
+        try {
+          await tunggu(delay);
+          const retry = await fetchRetryDenganTimeout(fetchAsli, argumen);
+          responsTerakhir = retry;
+          if (retry.status < 500) break;
+        } catch (errorRetry) {
+          console.warn("Retry status absensi gagal:", errorRetry);
+        }
       }
+
+      respons = responsTerakhir;
     }
 
     const permintaanKeBackendKita = urlPermintaan.includes("/api/");
