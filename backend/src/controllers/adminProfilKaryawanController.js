@@ -15,6 +15,7 @@ async function ubahProfilKaryawan(req, res) {
     const id = Number.parseInt(req.params.id, 10);
     const email = String(req.body?.email || "").trim().toLowerCase();
     const jabatan = String(req.body?.jabatan || "").trim();
+    const divisi = String(req.body?.divisi || "").trim();
 
     if (!Number.isInteger(id)) return res.status(400).json({ pesan: "ID karyawan tidak valid." });
     if (!emailValid(email)) return res.status(400).json({ pesan: `Email karyawan harus menggunakan email @${DOMAIN_PERUSAHAAN}.` });
@@ -41,7 +42,11 @@ async function ubahProfilKaryawan(req, res) {
 
     const data = await prisma.pengguna.update({
       where: { id },
-      data: { email, jabatan },
+      data: {
+        email,
+        jabatan,
+        divisi: divisi || null,
+      },
       select: { id: true, nama: true, email: true, jabatan: true, divisi: true, statusAkun: true },
     });
 
