@@ -4,7 +4,6 @@ const router = express.Router();
 const { cekLogin, cekAdmin } = require("../middleware/authMiddleware");
 const {
   daftarMenungguKonfirmasi,
-  daftarKaryawan,
   ubahStatusKaryawan,
   ringkasanDashboard,
   editStatusAbsensi,
@@ -19,6 +18,7 @@ const {
   notifikasiAdmin,
 } = require("../controllers/adminController");
 const { aktifkanAkunFixed } = require("../controllers/aktivasiAkunFixedController");
+const { daftarKaryawanFixed } = require("../controllers/adminKaryawanFixedController");
 const { rekapHariIniFixed } = require("../controllers/rekapAbsensiFixedController");
 const { daftarKantorFixed, tambahKantorFixed, ubahKantorFixed } = require("../controllers/kantorControllerFixed");
 const { ubahProfilKaryawan } = require("../controllers/adminProfilKaryawanController");
@@ -95,7 +95,7 @@ router.get("/akun-menunggu", daftarMenungguKonfirmasi);
 router.get("/notifikasi", notifikasiAdmin);
 router.put("/akun/:id/aktifkan", aktifkanAkunFixed);
 
-router.get("/karyawan", daftarKaryawan);
+router.get("/karyawan", daftarKaryawanFixed);
 router.put("/karyawan/:id", ubahProfilKaryawan);
 router.put("/karyawan/:id/status", validasiStatusAkun, ubahStatusKaryawan);
 router.put("/karyawan/:id/reset-password", resetPasswordOlehAdmin);
