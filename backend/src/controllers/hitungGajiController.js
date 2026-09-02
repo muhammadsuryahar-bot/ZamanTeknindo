@@ -1,35 +1,11 @@
 const prisma = require("../utils/prismaClient");
 
-const { tahunBulanSekarangWIB, jamSekarangWIB } = require("../utils/waktuIndonesia");
+const {
+  tahunBulanSekarangWIB,
+  statusEfektif,
+  JAM_MASUK_STANDAR_DEFAULT,
+} = require("../utils/waktuIndonesia");
 const { ambilSetHariLibur } = require("../utils/hariLibur");
-
-const JAM_MASUK_STANDAR_DEFAULT = "08:10:00";
-
-function jamKeMenit(jam) {
-  const bagian = String(jam || "").split(":").map(Number);
-  if (bagian.length < 2 || bagian.some((n) => Number.isNaN(n))) return null;
-
-  const [hour, minute] = bagian;
-  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
-
-  return hour * 60 + minute;
-}
-
-function statusEfektif(absensi, jamMasukStandar = JAM_MASUK_STANDAR_DEFAULT) {
-  if (!absensi) return "alpha";
-
-  if (absensi.dieditOleh != null) {
-    return absensi.statusFinal || absensi.statusOtomatis || "alpha";
-  }
-
-  if (absensi.jamMasuk) {
-    const batasMenit = jamKeMenit(jamMasukStandar) ?? jamKeMenit(JAM_MASUK_STANDAR_DEFAULT);
-    const menitMasuk = Math.floor(jamSekarangWIB(absensi.jamMasuk) * 60);
-    return menitMasuk <= batasMenit ? "tepat_waktu" : "telat";
-  }
-
-  return absensi.statusOtomatis || absensi.statusFinal || "alpha";
-}
 
 function tanggalUTC(tahun, bulan, tanggal) {
   const b = String(bulan).padStart(2, "0");
