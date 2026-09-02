@@ -39,16 +39,26 @@ const ABSENSI_REQUEST_TIMEOUT_MS = 15000;
 const MAX_UPLOAD_BYTES = 1.5 * 1024 * 1024;
 const MAX_UPLOAD_WIDTH = 1280;
 const MAX_UPLOAD_HEIGHT = 1280;
+const TIMEZONE_WIB = "Asia/Jakarta";
 
 // Cache status hari ini hanya untuk mempercepat tampilan awal.
 // Verifikasi server tetap menjadi sumber kebenaran sebelum absensi dikirim.
 
 function tanggalLokalISO() {
   const sekarang = new Date();
-  const tahun = sekarang.getFullYear();
-  const bulan = String(sekarang.getMonth() + 1).padStart(2, "0");
-  const hari = String(sekarang.getDate()).padStart(2, "0");
-  return `${tahun}-${bulan}-${hari}`;
+  const bagian = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TIMEZONE_WIB,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(sekarang);
+
+  const hasil = {};
+  for (const part of bagian) {
+    if (part.type !== "literal") hasil[part.type] = part.value;
+  }
+
+  return `${hasil.year}-${hasil.month}-${hasil.day}`;
 }
 
 function kunciStatusHariIni(pengguna) {
@@ -223,7 +233,14 @@ function DialJamKerja({ tahap }) {
     return () => clearInterval(interval);
   }, []);
 
-  const jamDesimal = sekarang.getHours() + sekarang.getMinutes() / 60;
+  const waktuWIB = new Intl.DateTimeFormat("en-GB", {
+    timeZone: TIMEZONE_WIB,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(sekarang);
+  const [jamWIB, menitWIB] = waktuWIB.split(":").map(Number);
+  const jamDesimal = jamWIB + menitWIB / 60;
 
   // Dial menggambarkan 24 jam penuh.
   const sudutSekarang = (jamDesimal / 24) * 360;
@@ -254,7 +271,9 @@ function DialJamKerja({ tahap }) {
       <div style={dialStyles.header}>
         <div>
           <p style={dialStyles.eyebrow}>WAKTU KERJA</p>
-          <p style={dialStyles.description}>Senin–Jumat · 08:00–17:00 WIB</p>
+          <p style={dialStyles.description}>
+            Senin–Jumat · 08:00–17:00 WIB · Tepat waktu sampai 08:10
+          </p>
         </div>
 
         <span
@@ -304,13 +323,7 @@ function DialJamKerja({ tahap }) {
           </div>
 
           <div style={dialStyles.lubang}>
-            <span style={dialStyles.jamText}>
-              {sekarang.toLocaleTimeString("id-ID", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </span>
-
+            <span style={dialStyles.jamText}>{waktuWIB}</span>
             <span style={dialStyles.jamLabel}>WIB</span>
           </div>
         </div>
@@ -496,6 +509,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   const [tahap, setTahap] = useState("memuat");
   const [pengajuanHariIni, setPengajuanHariIni] = useState(null);
   const [kameraAktif, setKameraAktif] = useState(false);
+  const [kameraMembuka, setKameraMembuka] = useState(false);
   const [fotoTerambil, setFotoTerambil] = useState(null);
   const [fotoPreview, setFotoPreview] = useState("");
   const [lokasi, setLokasi] = useState(null);
@@ -541,9 +555,6 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Pantau perubahan koneksi browser. Saat online kembali, antrian offline
-  // langsung dicoba sinkron otomatis. Saat offline, status lokal yang valid
-  // tetap bisa dipakai agar alur absensi tidak tiba-tiba menghilang.
   useEffect(() => {
     const ketikaOnline = () => {
       setIsOnline(true);
@@ -574,7 +585,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
   async function cobaSinkronAntrian({ refreshStatus = true } = {}) {
     try {
-      const sisa = await jumlahAntrian();
+      const sisa = await jumlahAntrian(pengguna.id);
       if (!mountedRef.current) return;
 
       setJumlahTertunda(sisa);
@@ -604,7 +615,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         getToken,
         penggunaId: pengguna.id,
       });
-      const sisaTerbaru = await jumlahAntrian();
+      const sisaTerbaru = await jumlahAntrian(pengguna.id);
 
       if (!mountedRef.current) return;
 
@@ -662,8 +673,6 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     const requestId = ++statusRequestRef.current;
     const tahapCacheAwal = bacaCacheStatusHariIni(pengguna);
 
-    // Cache hanya untuk mempercepat tampilan. Cache tidak dianggap sebagai
-    // verifikasi server pada sesi baru.
     if (tahapCacheAwal) {
       setTahap(tahapCacheAwal);
       setLoadingStatus(false);
@@ -813,17 +822,34 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       return;
     }
 
+    if (kameraMembuka) return;
+
+    setKameraMembuka(true);
     hentikanStreamKamera();
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "user" },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-        audio: false,
-      });
+      let stream;
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: "user" },
+          },
+          audio: false,
+        });
+      } catch (firstError) {
+        if (
+          firstError?.name === "NotAllowedError" ||
+          firstError?.name === "SecurityError"
+        ) {
+          throw firstError;
+        }
+
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        });
+      }
 
       if (!mountedRef.current) {
         stream.getTracks().forEach((track) => track.stop());
@@ -835,21 +861,60 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       setLokasi(null);
       setStatusLokasi("mencari");
       setKameraAktif(true);
-      ambilLokasi();
+
+      window.requestAnimationFrame(() => {
+        if (mountedRef.current) {
+          ambilLokasi();
+        }
+      });
     } catch (err) {
-      console.error(err);
-      if (mountedRef.current) {
+      console.error("Gagal membuka kamera:", err);
+      if (!mountedRef.current) return;
+
+      if (err?.name === "NotAllowedError" || err?.name === "SecurityError") {
         setPesan(
-          "Tidak bisa mengakses kamera. Pastikan izin kamera diberikan pada browser.",
+          "Akses kamera ditolak. Izinkan kamera untuk situs ini melalui pengaturan browser, lalu coba lagi.",
         );
+      } else if (err?.name === "NotFoundError") {
+        setPesan("Kamera tidak ditemukan pada perangkat ini.");
+      } else if (
+        err?.name === "NotReadableError" ||
+        err?.name === "TrackStartError"
+      ) {
+        setPesan(
+          "Kamera sedang digunakan aplikasi lain atau gagal dinyalakan. Tutup aplikasi lain yang memakai kamera, lalu coba lagi.",
+        );
+      } else {
+        setPesan("Kamera belum bisa dibuka. Coba lagi beberapa saat lagi.");
+      }
+    } finally {
+      if (mountedRef.current) {
+        setKameraMembuka(false);
       }
     }
   }
 
   useEffect(() => {
-    if (kameraAktif && streamRef.current && videoRef.current) {
-      videoRef.current.srcObject = streamRef.current;
+    if (!kameraAktif || !streamRef.current || !videoRef.current) return;
+
+    const video = videoRef.current;
+    video.srcObject = streamRef.current;
+
+    const mulaiVideo = () => {
+      video.play().catch((err) => {
+        console.warn("Preview kamera belum dapat diputar otomatis:", err);
+      });
+    };
+
+    if (video.readyState >= 1) {
+      mulaiVideo();
+    } else {
+      video.addEventListener("loadedmetadata", mulaiVideo, { once: true });
     }
+
+    return () => {
+      video.removeEventListener("loadedmetadata", mulaiVideo);
+    };
   }, [kameraAktif]);
 
   function hentikanPelacakanLokasi() {
@@ -870,6 +935,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     hentikanStreamKamera();
     if (mountedRef.current) {
       setKameraAktif(false);
+      setKameraMembuka(false);
     }
   }
 
@@ -1183,6 +1249,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     const simpanOffline = async () => {
       await simpanKeAntrian({
         foto: fotoTerambil,
+        penggunaId: pengguna.id,
         latitude: lokasi?.latitude,
         longitude: lokasi?.longitude,
         alamat: formData.get("alamat"),
@@ -1190,7 +1257,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         endpoint,
       });
 
-      const sisa = await jumlahAntrian();
+      const sisa = await jumlahAntrian(pengguna.id);
 
       if (mountedRef.current) {
         setJumlahTertunda(sisa);
@@ -1245,9 +1312,6 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         return;
       }
 
-      // POST berhasil adalah bukti server bahwa aksi absensi diterima.
-      // Update state + cache langsung agar status tidak kembali ke cache lama
-      // bila GET status-hari-ini sedang lambat atau gagal.
       const tahapSetelahAbsen =
         endpoint === "masuk" ? "sudah_masuk" : "selesai";
       setTahap(tahapSetelahAbsen);
@@ -1360,6 +1424,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
             )}
             <p style={styles.heroDate}>
               {new Date().toLocaleDateString("id-ID", {
+                timeZone: TIMEZONE_WIB,
                 weekday: "long",
                 day: "numeric",
                 month: "long",
@@ -1506,8 +1571,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
                     style={styles.primaryButton}
                     type="button"
                     disabled={
-                      statusVerifikasiSedang ||
-                      !statusTerverifikasi ||
+                      kameraMembuka ||
                       sedangSinkron ||
                       jumlahTertunda > 0
                     }
@@ -1518,8 +1582,8 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
                     }
                   >
                     <Camera size={18} />
-                    {statusVerifikasiSedang
-                      ? "Memverifikasi Status..."
+                    {kameraMembuka
+                      ? "Menyiapkan Kamera..."
                       : jumlahTertunda > 0
                         ? "Menunggu Sinkronisasi"
                         : "Buka Kamera"}
