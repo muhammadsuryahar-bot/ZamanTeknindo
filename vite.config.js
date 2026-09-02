@@ -14,16 +14,16 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: "autoUpdate", // otomatis pakai versi baru begitu ada update, tanpa harus uninstall-install ulang
+      registerType: "autoUpdate",
       includeAssets: ["favicon.png", "favicon.svg"],
       manifest: {
         name: "Absensi PT. Zaman Teknindo",
         short_name: "Absensi Zaman",
         description:
           "Aplikasi absensi & penggajian karyawan PT. Zaman Teknindo",
-        theme_color: "#0B6E45", // warna status bar HP pas app dibuka, hijau brand
-        background_color: "#F4F5F7", // warna layar splash pas app baru dibuka
-        display: "standalone", // ini yang bikin ke-buka tanpa address bar, kayak app asli
+        theme_color: "#0B6E45",
+        background_color: "#F4F5F7",
+        display: "standalone",
         orientation: "portrait",
         start_url: "/",
         icons: [
@@ -38,23 +38,14 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // Cache aset statis (JS/CSS/gambar) supaya app-nya kebuka cepat &
-        // tetap bisa dibuka (meski data-nya belum tentu update) walau sinyal
-        // lagi jelek. TIDAK meng-cache request ke /api atau /uploads --
-        // data absen/gaji harus selalu fresh dari server, jangan sampai
-        // karyawan lihat data basi karena ke-cache.
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         navigateFallbackDenylist: [/^\/api/, /^\/uploads/],
 
-        // Halaman-halaman yang di-lazy-load (lihat React.lazy() di
-        // App.jsx) SENGAJA dikeluarkan dari precache di sini. Kalau
-        // tidak, Service Worker bakal langsung mengunduh semuanya
-        // begitu app pertama dibuka -- membatalkan tujuan lazy-load
-        // (yang justru ingin menunda unduhan sampai benar-benar
-        // dibutuhkan). Sebagai gantinya, file-file ini di-cache lewat
-        // runtimeCaching di bawah: baru disimpan SETELAH benar-benar
-        // diminta browser (jadi tetap bisa dipakai offline nantinya,
-        // tanpa bikin boros kuota di awal).
+        // Bersihkan cache Workbox lama yang tidak lagi direferensikan
+        // oleh service worker baru agar chunk yang sudah dihapus tidak
+        // terus dipanggil oleh browser/PWA lama.
+        cleanupOutdatedCaches: true,
+
         globIgnores: [
           "**/DashboardAdmin-*.js",
           "**/DashboardKaryawan-*.js",
@@ -66,15 +57,12 @@ export default defineConfig({
 
         runtimeCaching: [
           {
-            // Tangkap file JS/CSS apa saja yang di-request browser tapi
-            // belum ada di precache (termasuk semua chunk halaman di
-            // atas). StaleWhileRevalidate: langsung pakai versi cache
-            // kalau ada (cepat), sambil diam-diam cek versi terbaru di
-            // belakang layar untuk kunjungan berikutnya.
+            // Chunk halaman lazy-load disimpan setelah benar-benar diminta.
+            // Cache name dibuat berversi agar cache lama tidak terus dipakai.
             urlPattern: /\.(?:js|css)$/,
             handler: "StaleWhileRevalidate",
             options: {
-              cacheName: "aset-halaman-lazy",
+              cacheName: "aset-halaman-lazy-v2",
             },
           },
         ],
