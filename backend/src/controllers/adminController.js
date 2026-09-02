@@ -1,5 +1,9 @@
 const prisma = require("../utils/prismaClient");
-const { tanggalHariIniWIB } = require("../utils/waktuIndonesia");
+const {
+  tanggalHariIniWIB,
+  JAM_MASUK_STANDAR_DEFAULT,
+  statusEfektif,
+} = require("../utils/waktuIndonesia");
 const { buatSignedUrlFotoBatch } = require("../utils/supabaseStorage");
 
 // ============================================================
@@ -155,14 +159,9 @@ async function ubahStatusKaryawan(req, res) {
 // ============================================================
 async function rekapHariIni(req, res) {
   try {
-    // Gunakan tanggal WIB supaya rekap Admin konsisten
-    // dengan proses absensi.
     const tanggal = tanggalHariIniWIB();
 
-    const [data, karyawanAktif] = await Promise.all([
-      // ============================================================
-      // AMBIL DATA ABSENSI HARI INI
-      // ============================================================
+    const [data, karyawanAktif, pengaturan] = await Promise.all([
       prisma.absensi.findMany({
         where: {
           tanggal,
@@ -184,9 +183,6 @@ async function rekapHariIni(req, res) {
         },
       }),
 
-      // ============================================================
-      // AMBIL SEMUA KARYAWAN AKTIF
-      // ============================================================
       prisma.pengguna.findMany({
         where: {
           peran: "karyawan",
@@ -204,11 +200,22 @@ async function rekapHariIni(req, res) {
           nama: "asc",
         },
       }),
+
+      prisma.pengaturanPotongan.upsert({
+        where: { id: 1 },
+        update: {},
+        create: {
+          id: 1,
+          potonganTelat: 10000,
+          potonganAlpha: 15000,
+          jamMasukStandar: JAM_MASUK_STANDAR_DEFAULT,
+        },
+      }),
     ]);
 
-    // ============================================================
-    // BUAT SIGNED URL UNTUK FOTO DARI SUPABASE STORAGE
-    // ============================================================
+    const jamMasukStandar =
+      pengaturan?.jamMasukStandar || JAM_MASUK_STANDAR_DEFAULT;
+
     const semuaPathFoto = [];
 
     for (const item of data) {
@@ -238,11 +245,6 @@ async function rekapHariIni(req, res) {
           : petaUrlFoto.get(item.fotoPulang) || null;
       }
 
-      // GPS dan alamat adalah dua hal yang berbeda. Pada sebagian absensi,
-      // koordinat GPS sebenarnya sudah tersimpan tetapi proses reverse
-      // geocoding tidak berhasil sehingga alamat tersimpan sebagai teks
-      // "Lokasi GPS belum tersedia". Jangan tampilkan status menyesatkan
-      // itu di Rekap Hari Ini kalau koordinatnya tersedia.
       const alamatMentah = String(item.alamatMasuk || "").trim();
       const alamatAdalahPlaceholder =
         alamatMentah === "Lokasi GPS belum tersedia" ||
@@ -264,26 +266,18 @@ async function rekapHariIni(req, res) {
         alamatMasuk: alamatMasukTampilan,
         fotoMasukUrl,
         fotoPulangUrl,
+        statusEfektif: statusEfektif(item, jamMasukStandar),
       };
     });
 
-    // ============================================================
-    // CARI KARYAWAN YANG SUDAH ABSEN
-    // ============================================================
     const sudahAbsen = new Set(
       data.map((item) => item.pengguna?.id).filter((id) => id != null),
     );
 
-    // ============================================================
-    // CARI KARYAWAN YANG BELUM ABSEN
-    // ============================================================
     const belumAbsen = karyawanAktif.filter(
       (karyawan) => !sudahAbsen.has(karyawan.id),
     );
 
-    // ============================================================
-    // KIRIM RESPONSE
-    // ============================================================
     return res.json({
       data: dataDenganFoto,
       belumAbsen,
@@ -308,30 +302,42 @@ async function ringkasanDashboard(req, res) {
     const tujuhHariLalu = new Date(tanggalHariIni);
     tujuhHariLalu.setUTCDate(tujuhHariLalu.getUTCDate() - 6);
 
-    const absensi7Hari = await prisma.absensi.findMany({
-      where: {
-        tanggal: {
-          gte: tujuhHariLalu,
-          lte: tanggalHariIni,
+    const [absensi7Hari, pengaturan] = await Promise.all([
+      prisma.absensi.findMany({
+        where: {
+          tanggal: {
+            gte: tujuhHariLalu,
+            lte: tanggalHariIni,
+          },
         },
-      },
 
-      select: {
-        tanggal: true,
-        statusOtomatis: true,
-        statusFinal: true,
-      },
-    });
+        select: {
+          tanggal: true,
+          jamMasuk: true,
+          statusOtomatis: true,
+          statusFinal: true,
+          dieditOleh: true,
+        },
+      }),
+      prisma.pengaturanPotongan.upsert({
+        where: { id: 1 },
+        update: {},
+        create: {
+          id: 1,
+          potonganTelat: 10000,
+          potonganAlpha: 15000,
+          jamMasukStandar: JAM_MASUK_STANDAR_DEFAULT,
+        },
+      }),
+    ]);
 
-    function statusEfektif(a) {
-      return a.statusFinal || a.statusOtomatis || "alpha";
-    }
+    const jamMasukStandar =
+      pengaturan?.jamMasukStandar || JAM_MASUK_STANDAR_DEFAULT;
 
     const trenPerTanggal = {};
 
     for (let i = 0; i < 7; i++) {
       const t = new Date(tujuhHariLalu);
-
       t.setUTCDate(t.getUTCDate() + i);
 
       const key = t.toISOString().slice(0, 10);
@@ -350,7 +356,7 @@ async function ringkasanDashboard(req, res) {
 
       if (!trenPerTanggal[key]) continue;
 
-      const s = statusEfektif(a);
+      const s = statusEfektif(a, jamMasukStandar);
 
       if (s === "tepat_waktu") {
         trenPerTanggal[key].tepatWaktu += 1;
@@ -364,7 +370,6 @@ async function ringkasanDashboard(req, res) {
     }
 
     const tigaPuluhHariLalu = new Date(tanggalHariIni);
-
     tigaPuluhHariLalu.setUTCDate(tigaPuluhHariLalu.getUTCDate() - 29);
 
     const absensiBulanan = await prisma.absensi.findMany({
@@ -376,9 +381,10 @@ async function ringkasanDashboard(req, res) {
       },
 
       select: {
+        jamMasuk: true,
         statusOtomatis: true,
         statusFinal: true,
-
+        dieditOleh: true,
         pengguna: {
           select: {
             id: true,
@@ -391,7 +397,7 @@ async function ringkasanDashboard(req, res) {
     const rekapPerKaryawan = {};
 
     for (const a of absensiBulanan) {
-      const s = statusEfektif(a);
+      const s = statusEfektif(a, jamMasukStandar);
 
       if (s !== "telat" && s !== "alpha") {
         continue;
@@ -481,7 +487,7 @@ async function ambilPengaturanPotongan(req, res) {
         id: 1,
         potonganTelat: 10000,
         potonganAlpha: 15000,
-        jamMasukStandar: "08:00:00",
+        jamMasukStandar: JAM_MASUK_STANDAR_DEFAULT,
       },
     });
 
@@ -513,6 +519,14 @@ async function ubahPengaturanPotongan(req, res) {
       });
     }
 
+    const jamMasuk = jamMasukStandar || JAM_MASUK_STANDAR_DEFAULT;
+
+    if (!/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(String(jamMasuk))) {
+      return res.status(400).json({
+        pesan: "Jam masuk standar tidak valid. Gunakan format HH:MM atau HH:MM:SS.",
+      });
+    }
+
     const pengaturan = await prisma.pengaturanPotongan.upsert({
       where: {
         id: 1,
@@ -520,20 +534,15 @@ async function ubahPengaturanPotongan(req, res) {
 
       update: {
         potonganTelat: Number(potonganTelat),
-
         potonganAlpha: Number(potonganAlpha),
-
-        jamMasukStandar: jamMasukStandar || "08:00:00",
+        jamMasukStandar: jamMasuk,
       },
 
       create: {
         id: 1,
-
         potonganTelat: Number(potonganTelat),
-
         potonganAlpha: Number(potonganAlpha),
-
-        jamMasukStandar: jamMasukStandar || "08:00:00",
+        jamMasukStandar: jamMasuk,
       },
     });
 
@@ -631,7 +640,6 @@ async function ubahGajiKaryawan(req, res) {
 
       create: {
         penggunaId: parseInt(id),
-
         gajiPokok: Number(gajiPokok),
       },
     });
@@ -703,11 +711,8 @@ async function tambahKantor(req, res) {
     const kantor = await prisma.kantor.create({
       data: {
         namaKantor: namaKantor.trim(),
-
         alamat: alamat || null,
-
         latitude: latitude ? parseFloat(latitude) : null,
-
         longitude: longitude ? parseFloat(longitude) : null,
       },
     });
@@ -728,7 +733,6 @@ async function tambahKantor(req, res) {
 async function ubahKantor(req, res) {
   try {
     const { id } = req.params;
-
     const { namaKantor, alamat, latitude, longitude } = req.body;
 
     if (!namaKantor || !namaKantor.trim()) {
@@ -756,11 +760,8 @@ async function ubahKantor(req, res) {
 
       data: {
         namaKantor: namaKantor.trim(),
-
         alamat: alamat || null,
-
         latitude: latitude ? parseFloat(latitude) : null,
-
         longitude: longitude ? parseFloat(longitude) : null,
       },
     });
@@ -789,7 +790,6 @@ async function daftarHariLibur(req, res) {
       ? {
           tanggal: {
             gte: new Date(`${tahun}-01-01T00:00:00.000Z`),
-
             lte: new Date(`${tahun}-12-31T23:59:59.999Z`),
           },
         }
@@ -797,7 +797,6 @@ async function daftarHariLibur(req, res) {
 
     const data = await prisma.hariLibur.findMany({
       where,
-
       orderBy: {
         tanggal: "asc",
       },
@@ -844,7 +843,6 @@ async function tambahHariLibur(req, res) {
     const hariLibur = await prisma.hariLibur.create({
       data: {
         tanggal: new Date(`${tanggal}T00:00:00.000Z`),
-
         keterangan: keterangan.trim(),
       },
     });
@@ -890,9 +888,7 @@ async function hapusHariLibur(req, res) {
 async function usulanHariLibur(req, res) {
   try {
     const tahun = parseInt(req.query.tahun) || new Date().getFullYear();
-
     const kontrolWaktu = new AbortController();
-
     const timeoutId = setTimeout(() => kontrolWaktu.abort(), 8000);
 
     const responLuar = await fetch(
@@ -912,7 +908,6 @@ async function usulanHariLibur(req, res) {
     }
 
     const data = await responLuar.json();
-
     return res.json(data);
   } catch (error) {
     console.error("Gagal ambil usulan hari libur:", error.message);
