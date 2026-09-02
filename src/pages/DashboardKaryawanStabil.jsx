@@ -1,31 +1,15 @@
-import { useEffect } from "react";
-import { Camera, CheckCircle2, Clock3, LogOut, MapPin, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Clock3, LogOut, MapPin, ShieldCheck } from "lucide-react";
 import DashboardKaryawan from "./DashboardKaryawan";
 import { warna, font } from "../styles/theme";
 
-// Wrapper ini sengaja tidak lagi melakukan request status kedua.
-// DashboardKaryawan sendiri sudah menjadi sumber status absensi, sehingga
-// halaman tidak melakukan fetch ganda hanya untuk banner informasi.
+// Wrapper ini sengaja tidak melakukan request API tambahan dan tidak mengubah
+// API kamera/GPS browser. DashboardKaryawan menjadi satu-satunya sumber status,
+// sehingga tidak ada fetch ganda atau monkey-patch yang dapat memicu layar putih.
 export default function DashboardKaryawanStabil(props) {
-  // Kelas tipografi konsisten dipasang pada root dokumen halaman karyawan.
-  useEffect(() => {
-    document.documentElement.style.setProperty(
-      "--font-karyawan",
-      font.display,
-    );
-
-    return () => {
-      document.documentElement.style.removeProperty("--font-karyawan");
-    };
-  }, []);
-
   return (
     <div
       className="dashboard-karyawan-stabil-shell"
-      style={{
-        width: "100%",
-        fontFamily: font.display,
-      }}
+      style={{ width: "100%", fontFamily: font.display }}
     >
       <section
         aria-label="Panduan absensi"
@@ -34,35 +18,27 @@ export default function DashboardKaryawanStabil(props) {
           width: "100%",
           maxWidth: 760,
           margin: "0 auto 12px",
-          padding: "14px 16px",
-          background: warna.aksenLembut,
+          padding: "16px",
+          background: `linear-gradient(145deg, ${warna.aksenLembut}, ${warna.panel})`,
           border: `1px solid ${warna.garis}`,
           borderRadius: 18,
           color: warna.tinta,
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 9,
-            marginBottom: 10,
-          }}
-        >
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
           <div
             style={{
-              width: 34,
-              height: 34,
+              width: 42,
+              height: 42,
               flexShrink: 0,
               display: "grid",
               placeItems: "center",
-              borderRadius: 10,
-              background: warna.panel,
-              border: `1px solid ${warna.garis}`,
-              color: warna.aksen,
+              borderRadius: 12,
+              background: warna.aksen,
+              color: "#fff",
             }}
           >
-            <ShieldCheck size={18} />
+            <ShieldCheck size={21} />
           </div>
           <div>
             <div
@@ -70,55 +46,43 @@ export default function DashboardKaryawanStabil(props) {
                 fontSize: 11,
                 fontWeight: 800,
                 letterSpacing: "0.08em",
-                textTransform: "uppercase",
                 color: warna.aksen,
               }}
             >
               PANDUAN ABSENSI HARI INI
             </div>
-            <div
-              style={{
-                marginTop: 2,
-                fontSize: 15,
-                lineHeight: 1.3,
-                fontWeight: 700,
-                color: warna.tinta,
-              }}
-            >
-              Ikuti petunjuk yang muncul pada tombol absensi.
+            <div style={{ marginTop: 2, fontSize: 17, lineHeight: 1.25, fontWeight: 750 }}>
+              Lihat petunjuk sebelum menekan tombol absensi.
             </div>
           </div>
         </div>
 
         <div
           className="panduan-absensi-grid"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-            gap: 8,
-          }}
+          style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 9 }}
         >
           <div className="panduan-absensi-item">
-            <Clock3 size={16} />
+            <Clock3 size={19} />
             <div>
-              <strong>Absen Masuk</strong>
+              <strong>ABSEN MASUK</strong>
               <span>Tepat waktu sampai <b>08:10 WIB</b>.</span>
+              <small>Mulai 08:11 WIB = Telat.</small>
             </div>
           </div>
-
           <div className="panduan-absensi-item">
-            <LogOut size={16} />
+            <LogOut size={19} />
             <div>
-              <strong>Absen Pulang</strong>
+              <strong>ABSEN PULANG</strong>
               <span>Muncul setelah absen masuk tercatat.</span>
+              <small>Pastikan foto dan lokasi terbaca.</small>
             </div>
           </div>
-
           <div className="panduan-absensi-item">
-            <MapPin size={16} />
+            <MapPin size={19} />
             <div>
-              <strong>Lokasi</strong>
-              <span>Pastikan GPS dan izin lokasi aktif.</span>
+              <strong>LOKASI</strong>
+              <span>Aktifkan GPS dan izin lokasi.</span>
+              <small>Jarak dari Homebase dicatat Admin.</small>
             </div>
           </div>
         </div>
@@ -129,17 +93,17 @@ export default function DashboardKaryawanStabil(props) {
             display: "flex",
             alignItems: "flex-start",
             gap: 7,
-            marginTop: 9,
+            marginTop: 10,
+            paddingTop: 10,
+            borderTop: `1px solid ${warna.garis}`,
             fontSize: 12,
-            lineHeight: 1.45,
+            lineHeight: 1.5,
             color: warna.tintaLembut,
           }}
         >
-          <CheckCircle2 size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+          <CheckCircle2 size={16} style={{ flexShrink: 0, marginTop: 1 }} />
           <span>
-            Mulai <b>08:11 WIB</b>, sistem mencatat kehadiran sebagai
-            <b> Telat</b>. Absen yang dilakukan di luar homebase tetap dapat
-            dicatat dan jaraknya akan terlihat oleh Admin.
+            Absen di luar Homebase <b>tetap dapat dicatat</b>. Admin akan melihat lokasi dan jaraknya dari Homebase untuk pemeriksaan lebih lanjut.
           </span>
         </div>
       </section>
@@ -151,54 +115,42 @@ export default function DashboardKaryawanStabil(props) {
           min-width: 0;
           display: flex;
           align-items: flex-start;
-          gap: 8px;
-          padding: 10px;
+          gap: 9px;
+          padding: 11px;
           border-radius: 12px;
-          background: rgba(255,255,255,0.72);
+          background: rgba(255,255,255,0.78);
           border: 1px solid ${warna.garis};
           color: ${warna.aksen};
         }
-
-        .panduan-absensi-item > div {
-          min-width: 0;
-        }
-
+        .panduan-absensi-item > div { min-width: 0; }
+        .panduan-absensi-item strong,
+        .panduan-absensi-item span,
+        .panduan-absensi-item small { display: block; }
         .panduan-absensi-item strong {
-          display: block;
-          font-size: 12px;
+          font-size: 12.5px;
           line-height: 1.3;
           color: ${warna.tinta};
         }
-
         .panduan-absensi-item span {
-          display: block;
           margin-top: 2px;
-          font-size: 11px;
-          line-height: 1.4;
+          font-size: 11.5px;
+          line-height: 1.45;
           color: ${warna.tintaLembut};
         }
-
+        .panduan-absensi-item small {
+          margin-top: 2px;
+          font-size: 10.5px;
+          line-height: 1.4;
+          color: ${warna.tintaSamar};
+        }
         @media (max-width: 620px) {
-          .panduan-absensi-grid {
-            grid-template-columns: 1fr !important;
-          }
-
-          .panduan-absensi-karyawan {
-            padding: 13px !important;
-          }
-
-          .panduan-absensi-item {
-            min-height: 54px;
-          }
-
-          .panduan-absensi-item strong {
-            font-size: 13px;
-          }
-
-          .panduan-absensi-item span,
-          .panduan-absensi-note {
-            font-size: 12px !important;
-          }
+          .panduan-absensi-karyawan { padding: 13px !important; }
+          .panduan-absensi-grid { grid-template-columns: 1fr !important; }
+          .panduan-absensi-item { min-height: 62px; padding: 12px; }
+          .panduan-absensi-item strong { font-size: 13px; }
+          .panduan-absensi-item span { font-size: 12px; }
+          .panduan-absensi-item small,
+          .panduan-absensi-note { font-size: 11px !important; }
         }
       `}</style>
     </div>
