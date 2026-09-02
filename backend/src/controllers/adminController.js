@@ -238,8 +238,30 @@ async function rekapHariIni(req, res) {
           : petaUrlFoto.get(item.fotoPulang) || null;
       }
 
+      // GPS dan alamat adalah dua hal yang berbeda. Pada sebagian absensi,
+      // koordinat GPS sebenarnya sudah tersimpan tetapi proses reverse
+      // geocoding tidak berhasil sehingga alamat tersimpan sebagai teks
+      // "Lokasi GPS belum tersedia". Jangan tampilkan status menyesatkan
+      // itu di Rekap Hari Ini kalau koordinatnya tersedia.
+      const alamatMentah = String(item.alamatMasuk || "").trim();
+      const alamatAdalahPlaceholder =
+        alamatMentah === "Lokasi GPS belum tersedia" ||
+        alamatMentah.toLowerCase().includes("lokasi gps belum tersedia") ||
+        alamatMentah.toLowerCase().includes("gps belum tersedia");
+
+      const punyaKoordinatGPS =
+        Number.isFinite(Number(item.latitudeMasuk)) &&
+        Number.isFinite(Number(item.longitudeMasuk));
+
+      let alamatMasukTampilan = item.alamatMasuk;
+
+      if (punyaKoordinatGPS && (!alamatMentah || alamatAdalahPlaceholder)) {
+        alamatMasukTampilan = `GPS tersedia: ${Number(item.latitudeMasuk).toFixed(6)}, ${Number(item.longitudeMasuk).toFixed(6)}`;
+      }
+
       return {
         ...item,
+        alamatMasuk: alamatMasukTampilan,
         fotoMasukUrl,
         fotoPulangUrl,
       };
