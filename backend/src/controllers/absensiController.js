@@ -220,31 +220,32 @@ async function statusHariIni(req, res) {
     const penggunaId = req.user.id;
     const tanggal = tanggalHariIni();
 
-    // Connection pool production saat ini sangat kecil. Jangan menjalankan dua
-    // query Prisma paralel pada endpoint awal ini karena salah satunya dapat
-    // menunggu koneksi 10 detik dan membuat dashboard terasa macet.
-    const absensi = await prisma.absensi.findUnique({
-      where: { penggunaId_tanggal: { penggunaId, tanggal } },
-      select: {
-        id: true,
-        tanggal: true,
-        jamMasuk: true,
-        jamPulang: true,
-        statusOtomatis: true,
-        statusFinal: true,
-      },
-    });
-
-    const pengajuanDisetujui = await prisma.pengajuanIzin.findFirst({
-      where: { penggunaId, tanggal, status: "disetujui" },
-      select: {
-        id: true,
-        jenis: true,
-        tanggal: true,
-        keterangan: true,
-        status: true,
-      },
-    });
+    // Gunakan SATU koneksi database untuk dua pemeriksaan awal.
+    // Production memakai pool kecil, sehingga mengambil koneksi baru untuk
+    // query kedua bisa menambah waktu tunggu yang sebenarnya tidak perlu.
+    const [absensi, pengajuanDisetujui] = await prisma.$transaction([
+      prisma.absensi.findUnique({
+        where: { penggunaId_tanggal: { penggunaId, tanggal } },
+        select: {
+          id: true,
+          tanggal: true,
+          jamMasuk: true,
+          jamPulang: true,
+          statusOtomatis: true,
+          statusFinal: true,
+        },
+      }),
+      prisma.pengajuanIzin.findFirst({
+        where: { penggunaId, tanggal, status: "disetujui" },
+        select: {
+          id: true,
+          jenis: true,
+          tanggal: true,
+          keterangan: true,
+          status: true,
+        },
+      }),
+    ]);
 
     if (pengajuanDisetujui) {
       return res.json({
