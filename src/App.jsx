@@ -1,4 +1,4 @@
-import { useEffect, useState, lazy, Suspense } from "react";
+import { useEffect, useState, lazy, Suspense, Component } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -20,12 +20,178 @@ const AdminArsip = lazy(() => import("./pages/AdminArsip"));
 const AdminEditKaryawan = lazy(() => import("./pages/AdminEditKaryawan"));
 const GantiPassword = lazy(() => import("./pages/GantiPassword"));
 
-function MemuatHalaman() {
+function MemuatHalaman({ penuh = false }) {
   return (
-    <div style={styles.loadingPage}>
-      Memuat halaman...
+    <div
+      style={{
+        width: "100%",
+        minHeight: penuh ? "100svh" : "48svh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+        boxSizing: "border-box",
+        color: warna.tintaSamar,
+        fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
+        fontSize: 14,
+        background: warna.latar,
+      }}
+    >
+      <div
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "11px 15px",
+          borderRadius: 12,
+          border: `1px solid ${warna.garis}`,
+          background: warna.panel,
+          boxShadow: "0 8px 24px rgba(22,35,61,0.06)",
+          fontWeight: 650,
+        }}
+      >
+        <span
+          aria-hidden="true"
+          style={{
+            width: 10,
+            height: 10,
+            borderRadius: "50%",
+            background: warna.aksen,
+            boxShadow: `0 0 0 5px ${warna.aksenLembut}`,
+            flexShrink: 0,
+          }}
+        />
+        Memuat halaman...
+      </div>
     </div>
   );
+}
+
+class BatasKesalahanAplikasi extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error("Kesalahan render aplikasi:", error, info);
+  }
+
+  cobaLagi = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
+  kembaliKeLogin = () => {
+    hapusSesiLogin();
+    window.location.href = "/login";
+  };
+
+  render() {
+    if (!this.state.hasError) return this.props.children;
+
+    return (
+      <div
+        style={{
+          width: "100%",
+          minHeight: "100svh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 24,
+          boxSizing: "border-box",
+          background: warna.latar,
+          fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
+        }}
+      >
+        <div
+          style={{
+            width: "100%",
+            maxWidth: 520,
+            padding: 24,
+            borderRadius: 18,
+            border: `1px solid ${warna.garis}`,
+            background: warna.panel,
+            boxShadow: "0 18px 48px rgba(22,35,61,0.10)",
+          }}
+        >
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              display: "grid",
+              placeItems: "center",
+              borderRadius: 13,
+              background: warna.aksenLembut,
+              color: warna.aksen,
+              fontSize: 21,
+              fontWeight: 900,
+              marginBottom: 14,
+            }}
+          >
+            !
+          </div>
+          <h1
+            style={{
+              margin: 0,
+              color: warna.tinta,
+              fontSize: 21,
+              lineHeight: 1.25,
+            }}
+          >
+            Halaman mengalami kendala
+          </h1>
+          <p
+            style={{
+              margin: "9px 0 18px",
+              color: warna.tintaLembut,
+              fontSize: 14,
+              lineHeight: 1.6,
+            }}
+          >
+            Sistem tidak dibiarkan menjadi layar putih. Coba muat ulang halaman terlebih dahulu. Jika masih gagal, kembali ke login untuk membuat sesi baru.
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+            <button
+              type="button"
+              onClick={this.cobaLagi}
+              style={{
+                minHeight: 42,
+                padding: "10px 15px",
+                border: 0,
+                borderRadius: 11,
+                background: warna.aksen,
+                color: "#fff",
+                fontWeight: 750,
+                cursor: "pointer",
+              }}
+            >
+              Coba lagi
+            </button>
+            <button
+              type="button"
+              onClick={this.kembaliKeLogin}
+              style={{
+                minHeight: 42,
+                padding: "10px 15px",
+                border: `1px solid ${warna.garis}`,
+                borderRadius: 11,
+                background: warna.panel,
+                color: warna.tinta,
+                fontWeight: 750,
+                cursor: "pointer",
+              }}
+            >
+              Kembali ke login
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 }
 
 function RuteTerproteksi({ pengguna, peranDiizinkan, children }) {
@@ -139,7 +305,7 @@ function RuteAplikasi({ pengguna, setPengguna, onLogout }) {
   const navigate = useNavigate();
 
   return (
-    <Suspense fallback={<MemuatHalaman />}>
+    <Suspense fallback={<MemuatHalaman penuh />}>
       <Routes>
         <Route
           path="/login"
@@ -289,18 +455,6 @@ function RuteAplikasi({ pengguna, setPengguna, onLogout }) {
 }
 
 const styles = {
-  loadingPage: {
-    width: "100%",
-    minHeight: "100svh",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: warna.tintaSamar,
-    fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
-    fontSize: 14,
-    background: warna.latar,
-  },
-
   adminShell: {
     minHeight: "100svh",
     position: "relative",
@@ -364,15 +518,17 @@ export default function App() {
     setPengguna(null);
   }
 
-  if (pengguna === undefined) return null;
+  if (pengguna === undefined) return <MemuatHalaman penuh />;
 
   return (
-    <BrowserRouter>
-      <RuteAplikasi
-        pengguna={pengguna}
-        setPengguna={setPengguna}
-        onLogout={handleLogout}
-      />
-    </BrowserRouter>
+    <BatasKesalahanAplikasi>
+      <BrowserRouter>
+        <RuteAplikasi
+          pengguna={pengguna}
+          setPengguna={setPengguna}
+          onLogout={handleLogout}
+        />
+      </BrowserRouter>
+    </BatasKesalahanAplikasi>
   );
 }
