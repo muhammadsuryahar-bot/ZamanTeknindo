@@ -50,14 +50,11 @@ function koordinatDariRequest(latitude, longitude) {
   return { latitude: lat, longitude: lng };
 }
 
-function tentukanJamAbsen(waktuAsliDariKlien) {
-  const sekarang = new Date();
-  if (!waktuAsliDariKlien) return sekarang;
-  const waktuKlien = new Date(waktuAsliDariKlien);
-  if (isNaN(waktuKlien.getTime())) return sekarang;
-  const batasMundur = new Date(sekarang.getTime() - 12 * 60 * 60 * 1000);
-  if (waktuKlien > sekarang || waktuKlien < batasMundur) return sekarang;
-  return waktuKlien;
+// Waktu absensi ditetapkan oleh SERVER, bukan jam perangkat klien.
+// Ini mencegah kasus perangkat menunjukkan 08:09 padahal waktu server sudah
+// 08:11 WIB, yang sebelumnya bisa membuat status salah menjadi "tepat_waktu".
+function waktuAbsensiServer() {
+  return new Date();
 }
 
 async function absenMasuk(req, res) {
@@ -69,7 +66,7 @@ async function absenMasuk(req, res) {
 
   try {
     const penggunaId = req.user.id;
-    const { latitude, longitude, alamat, waktuAsli } = req.body;
+    const { latitude, longitude, alamat } = req.body;
     if (!req.file) return res.status(400).json({ pesan: "Foto absen wajib diunggah." });
 
     const tanggal = tanggalHariIni();
@@ -93,14 +90,17 @@ async function absenMasuk(req, res) {
       return res.status(409).json({ pesan: "Anda sudah melakukan absen masuk hari ini." });
     }
 
-    const sekarang = tentukanJamAbsen(waktuAsli);
-    const jamSekarang = jamSekarangWIB(sekarang);
+    const waktuServer = waktuAbsensiServer();
+    const jamServerWIB = jamSekarangWIB(waktuServer);
     const batasTepatWaktu = await ambilBatasTepatWaktu();
-    const statusOtomatis = jamSekarang <= batasTepatWaktu ? "tepat_waktu" : "telat";
+
+    // Batas bersifat INKLUSIF: tepat pada 08:10:00 masih tepat waktu,
+    // mulai 08:10:01 sudah masuk kategori telat.
+    const statusOtomatis = jamServerWIB <= batasTepatWaktu ? "tepat_waktu" : "telat";
     const koordinat = koordinatDariRequest(latitude, longitude);
 
     const data = {
-      jamMasuk: sekarang,
+      jamMasuk: waktuServer,
       fotoMasuk: fotoPath,
       latitudeMasuk: koordinat?.latitude ?? null,
       longitudeMasuk: koordinat?.longitude ?? null,
@@ -145,7 +145,7 @@ async function absenPulang(req, res) {
 
   try {
     const penggunaId = req.user.id;
-    const { latitude, longitude, alamat, waktuAsli } = req.body;
+    const { latitude, longitude, alamat } = req.body;
     if (!req.file) return res.status(400).json({ pesan: "Foto absen wajib diunggah." });
 
     const tanggal = tanggalHariIni();
@@ -177,7 +177,7 @@ async function absenPulang(req, res) {
     const absensi = await prisma.absensi.update({
       where: { id: absensiHariIni.id },
       data: {
-        jamPulang: tentukanJamAbsen(waktuAsli),
+        jamPulang: waktuAbsensiServer(),
         fotoPulang: fotoPath,
         latitudePulang: koordinat?.latitude ?? null,
         longitudePulang: koordinat?.longitude ?? null,
