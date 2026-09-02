@@ -261,12 +261,18 @@ async function rekapHariIni(req, res) {
         alamatMasukTampilan = `GPS tersedia: ${Number(item.latitudeMasuk).toFixed(6)}, ${Number(item.longitudeMasuk).toFixed(6)}`;
       }
 
+      const statusTampilan = statusEfektif(item, jamMasukStandar);
+
       return {
         ...item,
         alamatMasuk: alamatMasukTampilan,
         fotoMasukUrl,
         fotoPulangUrl,
-        statusEfektif: statusEfektif(item, jamMasukStandar),
+        // API rekap mengekspos status yang benar-benar harus ditampilkan.
+        // statusFinal tetap dipakai frontend, jadi sinkronkan ke status efektif
+        // tanpa mengubah nilai statusFinal yang tersimpan di database.
+        statusFinal: statusTampilan,
+        statusEfektif: statusTampilan,
       };
     });
 
