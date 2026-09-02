@@ -17,13 +17,15 @@ function tanggalHariIni() {
 function jamKeMenit(jam) {
   const bagian = String(jam || "").split(":").map(Number);
   if (bagian.length < 2 || bagian.some((n) => Number.isNaN(n))) return null;
-  const [jamAngka, menit, detik = 0] = bagian;
-  if (
-    jamAngka < 0 || jamAngka > 23 ||
-    menit < 0 || menit > 59 ||
-    detik < 0 || detik > 59
-  ) return null;
-  return jamAngka * 60 + menit + detik / 60;
+  const [jamAngka, menit] = bagian;
+  if (jamAngka < 0 || jamAngka > 23 || menit < 0 || menit > 59) return null;
+  // Aturan keterlambatan berbasis MENIT, bukan detik.
+  return jamAngka * 60 + menit;
+}
+
+function menitSekarangWIB(date = new Date()) {
+  const jam = jamSekarangWIB(date);
+  return Math.floor(jam * 60);
 }
 
 async function ambilBatasTepatWaktu() {
@@ -51,8 +53,6 @@ function koordinatDariRequest(latitude, longitude) {
 }
 
 // Waktu absensi ditetapkan oleh SERVER, bukan jam perangkat klien.
-// Ini mencegah kasus perangkat menunjukkan 08:09 padahal waktu server sudah
-// 08:11 WIB, yang sebelumnya bisa membuat status salah menjadi "tepat_waktu".
 function waktuAbsensiServer() {
   return new Date();
 }
@@ -91,12 +91,12 @@ async function absenMasuk(req, res) {
     }
 
     const waktuServer = waktuAbsensiServer();
-    const jamServerWIB = jamSekarangWIB(waktuServer);
+    const menitServerWIB = menitSekarangWIB(waktuServer);
     const batasTepatWaktu = await ambilBatasTepatWaktu();
 
-    // Batas bersifat INKLUSIF: tepat pada 08:10:00 masih tepat waktu,
-    // mulai 08:10:01 sudah masuk kategori telat.
-    const statusOtomatis = jamServerWIB <= batasTepatWaktu ? "tepat_waktu" : "telat";
+    // Aturan berbasis MENIT: seluruh rentang 08:10:00-08:10:59
+    // masih dianggap tepat waktu. Mulai 08:11:00 baru telat.
+    const statusOtomatis = menitServerWIB <= batasTepatWaktu ? "tepat_waktu" : "telat";
     const koordinat = koordinatDariRequest(latitude, longitude);
 
     const data = {
@@ -220,9 +220,6 @@ async function statusHariIni(req, res) {
     const penggunaId = req.user.id;
     const tanggal = tanggalHariIni();
 
-    // Ambil status absensi + pengajuan izin yang disetujui dalam SATU
-    // round-trip ke database. Ini mengurangi waktu tunggu pada production
-    // yang memakai connection pool kecil dibanding dua query terpisah.
     const hasil = await prisma.$queryRaw`
       SELECT
         (
