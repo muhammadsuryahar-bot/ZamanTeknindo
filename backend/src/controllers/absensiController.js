@@ -220,37 +220,49 @@ async function statusHariIni(req, res) {
     const penggunaId = req.user.id;
     const tanggal = tanggalHariIni();
 
-    // Gunakan SATU koneksi database untuk dua pemeriksaan awal.
-    // Production memakai pool kecil, sehingga mengambil koneksi baru untuk
-    // query kedua bisa menambah waktu tunggu yang sebenarnya tidak perlu.
-    const [absensi, pengajuanDisetujui] = await prisma.$transaction([
-      prisma.absensi.findUnique({
-        where: { penggunaId_tanggal: { penggunaId, tanggal } },
-        select: {
-          id: true,
-          tanggal: true,
-          jamMasuk: true,
-          jamPulang: true,
-          statusOtomatis: true,
-          statusFinal: true,
-        },
-      }),
-      prisma.pengajuanIzin.findFirst({
-        where: { penggunaId, tanggal, status: "disetujui" },
-        select: {
-          id: true,
-          jenis: true,
-          tanggal: true,
-          keterangan: true,
-          status: true,
-        },
-      }),
-    ]);
+    // Ambil status absensi + pengajuan izin yang disetujui dalam SATU
+    // round-trip ke database. Ini mengurangi waktu tunggu pada production
+    // yang memakai connection pool kecil dibanding dua query terpisah.
+    const hasil = await prisma.$queryRaw`
+      SELECT
+        (
+          SELECT jsonb_build_object(
+            'id', a.id,
+            'tanggal', a.tanggal,
+            'jamMasuk', a.jam_masuk,
+            'jamPulang', a.jam_pulang,
+            'statusOtomatis', a.status_otomatis,
+            'statusFinal', a.status_final
+          )
+          FROM absensi a
+          WHERE a.pengguna_id = ${penggunaId}
+            AND a.tanggal = ${tanggal}
+          LIMIT 1
+        ) AS "absensi",
+        (
+          SELECT jsonb_build_object(
+            'id', p.id,
+            'jenis', p.jenis,
+            'tanggal', p.tanggal,
+            'keterangan', p.keterangan,
+            'status', p.status
+          )
+          FROM pengajuan_izin p
+          WHERE p.pengguna_id = ${penggunaId}
+            AND p.tanggal = ${tanggal}
+            AND p.status = 'disetujui'
+          ORDER BY p.id DESC
+          LIMIT 1
+        ) AS "pengajuan"
+    `;
+
+    const absensi = hasil?.[0]?.absensi || null;
+    const pengajuanDisetujui = hasil?.[0]?.pengajuan || null;
 
     if (pengajuanDisetujui) {
       return res.json({
         tahap: "tidak_perlu_absen",
-        data: absensi || null,
+        data: absensi,
         pengajuanIzin: pengajuanDisetujui,
       });
     }
@@ -259,7 +271,7 @@ async function statusHariIni(req, res) {
     if (absensi?.jamMasuk && !absensi?.jamPulang) tahap = "sudah_masuk";
     if (absensi?.jamMasuk && absensi?.jamPulang) tahap = "selesai";
 
-    return res.json({ tahap, data: absensi || null, pengajuanIzin: null });
+    return res.json({ tahap, data: absensi, pengajuanIzin: null });
   } catch (error) {
     console.error("Gagal memuat status absensi hari ini:", error);
     return res.status(500).json({ pesan: "Terjadi kesalahan pada server. Silakan coba lagi." });
