@@ -1,5 +1,9 @@
 const prisma = require("../utils/prismaClient");
-const { tanggalHariIniWIB } = require("../utils/waktuIndonesia");
+const {
+  tanggalHariIniWIB,
+  JAM_MASUK_STANDAR_DEFAULT,
+  statusEfektif,
+} = require("../utils/waktuIndonesia");
 const { buatSignedUrlFotoBatch } = require("../utils/supabaseStorage");
 
 // Radius hanya dipakai untuk memberi status informasi kepada Admin.
@@ -78,7 +82,7 @@ function buatInfoHomebase(latitude, longitude, kantor) {
   };
 }
 
-function tambahInfoLokasi(item, petaUrlFoto) {
+function tambahInfoLokasi(item, petaUrlFoto, jamMasukStandar) {
   const fotoMasukUrl = item.fotoMasuk
     ? item.fotoMasuk.startsWith("/uploads/")
       ? item.fotoMasuk
@@ -102,10 +106,17 @@ function tambahInfoLokasi(item, petaUrlFoto) {
     item.pengguna?.kantor || null,
   );
 
+  const statusTampilan = statusEfektif(item, jamMasukStandar);
+
   return {
     ...item,
     fotoMasukUrl,
     fotoPulangUrl,
+    // Field kompatibilitas frontend memakai statusFinal, jadi nilai respons
+    // harus selalu menunjukkan status yang benar-benar berlaku saat ini.
+    // Nilai statusFinal asli di database tidak diubah oleh controller ini.
+    statusFinal: statusTampilan,
+    statusEfektif: statusTampilan,
     // Kompatibilitas frontend: field kantorAbsensi tetap ada, tetapi nilainya
     // sekarang adalah Homebase karyawan, bukan kantor terdekat dari GPS.
     kantorAbsensi: homebaseMasuk,
@@ -129,7 +140,7 @@ async function rekapHariIniFixed(req, res) {
 
     // Homebase diambil dari kantor yang terpasang pada masing-masing karyawan.
     // Tidak ada lagi pencarian kantor terdekat dari koordinat absensi.
-    const [data, karyawanAktif] = await Promise.all([
+    const [data, karyawanAktif, pengaturan] = await Promise.all([
       prisma.absensi.findMany({
         where: { tanggal },
         include: {
@@ -164,7 +175,20 @@ async function rekapHariIniFixed(req, res) {
         },
         orderBy: { nama: "asc" },
       }),
+      prisma.pengaturanPotongan.upsert({
+        where: { id: 1 },
+        update: {},
+        create: {
+          id: 1,
+          potonganTelat: 10000,
+          potonganAlpha: 15000,
+          jamMasukStandar: JAM_MASUK_STANDAR_DEFAULT,
+        },
+      }),
     ]);
+
+    const jamMasukStandar =
+      pengaturan?.jamMasukStandar || JAM_MASUK_STANDAR_DEFAULT;
 
     const semuaPathFoto = [];
     for (const item of data) {
@@ -179,7 +203,7 @@ async function rekapHariIniFixed(req, res) {
     const petaUrlFoto = await buatSignedUrlFotoBatch(semuaPathFoto);
 
     const dataDenganKantor = data.map((item) =>
-      tambahInfoLokasi(item, petaUrlFoto),
+      tambahInfoLokasi(item, petaUrlFoto, jamMasukStandar),
     );
 
     const sudahAbsen = new Set(
