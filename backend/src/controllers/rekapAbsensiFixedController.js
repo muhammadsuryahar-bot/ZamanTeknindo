@@ -33,6 +33,8 @@ function buatInfoHomebase(latitude, longitude, kantor) {
       id: null,
       namaKantor: null,
       alamatKantor: null,
+      latitudeKantor: null,
+      longitudeKantor: null,
       jarakMeter: null,
       dalamRadius: null,
       status: "Homebase belum ditentukan",
@@ -51,9 +53,11 @@ function buatInfoHomebase(latitude, longitude, kantor) {
       id: kantor.id,
       namaKantor: kantor.namaKantor,
       alamatKantor: kantor.alamat,
+      latitudeKantor: kantor.latitude,
+      longitudeKantor: kantor.longitude,
       jarakMeter: null,
       dalamRadius: null,
-      status: "Jarak homebase tidak dapat dihitung",
+      status: "Koordinat homebase belum lengkap",
     };
   }
 
@@ -64,6 +68,8 @@ function buatInfoHomebase(latitude, longitude, kantor) {
     id: kantor.id,
     namaKantor: kantor.namaKantor,
     alamatKantor: kantor.alamat,
+    latitudeKantor: kantor.latitude,
+    longitudeKantor: kantor.longitude,
     jarakMeter: jarakBulat,
     dalamRadius,
     status: dalamRadius
@@ -96,15 +102,12 @@ function tambahInfoLokasi(item, petaUrlFoto) {
     item.pengguna?.kantor || null,
   );
 
-  const alamatAsliMasuk = item.alamatMasuk || null;
-  const alamatAsliPulang = item.alamatPulang || null;
-
   return {
     ...item,
     fotoMasukUrl,
     fotoPulangUrl,
-    // Tetap pertahankan field kantorAbsensi untuk kompatibilitas frontend lama,
-    // tetapi sekarang nilainya selalu Homebase karyawan, bukan kantor terdekat.
+    // Kompatibilitas frontend: field kantorAbsensi tetap ada, tetapi nilainya
+    // sekarang adalah Homebase karyawan, bukan kantor terdekat dari GPS.
     kantorAbsensi: homebaseMasuk,
     kantorPulangAbsensi: homebasePulang,
     homebaseMasuk,
@@ -113,16 +116,10 @@ function tambahInfoLokasi(item, petaUrlFoto) {
     jarakHomebasePulangMeter: homebasePulang.jarakMeter,
     statusHomebaseMasuk: homebaseMasuk.status,
     statusHomebasePulang: homebasePulang.status,
-    alamatMasuk: alamatAsliMasuk
-      ? homebaseMasuk.namaKantor
-        ? `${homebaseMasuk.namaKantor} · ${alamatAsliMasuk}`
-        : alamatAsliMasuk
-      : homebaseMasuk.namaKantor || "Lokasi GPS belum tersedia",
-    alamatPulang: alamatAsliPulang
-      ? homebasePulang.namaKantor
-        ? `${homebasePulang.namaKantor} · ${alamatAsliPulang}`
-        : alamatAsliPulang
-      : homebasePulang.namaKantor || "Lokasi GPS belum tersedia",
+    // alamatMasuk/alamatPulang harus tetap menjadi lokasi GPS aktual. Nama
+    // homebase ditampilkan pada field terpisah agar Admin tidak bingung.
+    alamatMasuk: item.alamatMasuk || "Lokasi GPS belum tersedia",
+    alamatPulang: item.alamatPulang || "Lokasi GPS belum tersedia",
   };
 }
 
@@ -130,7 +127,7 @@ async function rekapHariIniFixed(req, res) {
   try {
     const tanggal = tanggalHariIniWIB();
 
-    // Homebase diambil langsung dari kantor yang terpasang pada karyawan.
+    // Homebase diambil dari kantor yang terpasang pada masing-masing karyawan.
     // Tidak ada lagi pencarian kantor terdekat dari koordinat absensi.
     const [data, karyawanAktif] = await Promise.all([
       prisma.absensi.findMany({
@@ -163,9 +160,7 @@ async function rekapHariIniFixed(req, res) {
           nama: true,
           jabatan: true,
           divisi: true,
-          kantor: {
-            select: { id: true, namaKantor: true },
-          },
+          kantor: { select: { id: true, namaKantor: true } },
         },
         orderBy: { nama: "asc" },
       }),
@@ -181,8 +176,6 @@ async function rekapHariIniFixed(req, res) {
       }
     }
 
-    // Kantor sudah ikut dari relasi karyawan sehingga tidak perlu query
-    // seluruh kantor untuk menentukan lokasi absensi setiap baris.
     const petaUrlFoto = await buatSignedUrlFotoBatch(semuaPathFoto);
 
     const dataDenganKantor = data.map((item) =>
@@ -190,9 +183,7 @@ async function rekapHariIniFixed(req, res) {
     );
 
     const sudahAbsen = new Set(
-      data
-        .map((item) => item.pengguna?.id)
-        .filter((id) => id != null),
+      data.map((item) => item.pengguna?.id).filter((id) => id != null),
     );
     const belumAbsen = karyawanAktif.filter(
       (karyawan) => !sudahAbsen.has(karyawan.id),
