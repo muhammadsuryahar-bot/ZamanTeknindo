@@ -1,47 +1,51 @@
 generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
-}
-
-model Kantor {
-  id         Int        @id @default(autoincrement())
-  namaKantor String     @map("nama_kantor")
-  alamat     String?
-  latitude   Float?
-  longitude  Float?
-  dibuatPada DateTime   @default(now()) @map("dibuat_pada")
-  pengguna   Pengguna[]
-
-  @@map("kantor")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Pengguna {
-  id            Int             @id @default(autoincrement())
-  nama          String
-  email         String          @unique
-  kataSandi     String          @map("kata_sandi")
-  peran         Peran           @default(karyawan)
-  jabatan       String?
-  divisi        String?
-  kantorId      Int?            @map("kantor_id")
-  statusAkun    StatusAkun      @default(menunggu_konfirmasi) @map("status_akun")
-  dibuatPada    DateTime        @default(now()) @map("dibuat_pada")
-  absensiDiedit Absensi[]       @relation("AbsensiDiedit")
-  absensi       Absensi[]       @relation("AbsensiPengguna")
-  gaji          GajiKaryawan?
-  laporanGaji   LaporanGaji[]
-  izinDiproses  PengajuanIzin[] @relation("IzinDiproses")
-  pengajuanIzin PengajuanIzin[] @relation("IzinPengaju")
-  kantor        Kantor?         @relation(fields: [kantorId], references: [id])
+  id             Int      @id @default(autoincrement())
+  nama           String
+  email          String   @unique
+  kataSandi      String   @map("kata_sandi")
+  peran          Peran    @default(karyawan)
+  statusAkun     StatusAkun @default(menunggu_konfirmasi) @map("status_akun")
+  jabatan        String?
+  divisi         String?
+  kantorId       Int?     @map("kantor_id")
+  dibuatPada     DateTime @default(now()) @map("dibuat_pada")
+  diubahPada     DateTime @updatedAt @map("diubah_pada")
+
+  kantor         Kantor?  @relation(fields: [kantorId], references: [id])
+  absensi        Absensi[] @relation("AbsensiPengguna")
+  absensiDiedit  Absensi[] @relation("AbsensiDiedit")
+  izinDibuat     PengajuanIzin[] @relation("IzinPengaju")
+  izinDiproses   PengajuanIzin[] @relation("IzinDiproses")
+  gaji           GajiKaryawan?
+  laporanGaji    LaporanGaji[]
 
   @@index([kantorId])
+  @@index([statusAkun])
   @@map("pengguna")
+}
+
+model Kantor {
+  id           Int      @id @default(autoincrement())
+  namaKantor   String   @map("nama_kantor")
+  alamat       String
+  latitude     Float?
+  longitude    Float?
+  radiusMeter  Int?     @map("radius_meter")
+  dibuatPada   DateTime @default(now()) @map("dibuat_pada")
+  diubahPada   DateTime @updatedAt @map("diubah_pada")
+
+  pengguna     Pengguna[]
+
+  @@map("kantor")
 }
 
 model Absensi {
@@ -86,7 +90,7 @@ model PengaturanPotongan {
   id              Int      @id @default(1)
   potonganTelat   Decimal  @default(10000.00) @map("potongan_telat") @db.Decimal(12, 2)
   potonganAlpha   Decimal  @default(15000.00) @map("potongan_alpha") @db.Decimal(12, 2)
-  jamMasukStandar String   @default("08:00:00") @map("jam_masuk_standar")
+  jamMasukStandar String   @default("08:10:00") @map("jam_masuk_standar")
   diubahPada      DateTime @updatedAt @map("diubah_pada")
 
   @@map("pengaturan_potongan")
