@@ -115,26 +115,125 @@ export default function AdminEditKaryawan() {
       {pesan && <div style={styles.error}><X size={17} /> {pesan}</div>}
       {sukses && <div style={styles.success}><CheckCircle2 size={17} /> {sukses}</div>}
 
-      <div style={styles.toolbar}><Search size={17} color={warna.tintaSamar} /><input value={cari} onChange={(e) => setCari(e.target.value)} placeholder="Cari nama, email, jabatan, divisi, atau kantor..." style={styles.search} /></div>
+      <div style={styles.toolbar}>
+        <Search size={17} color={warna.tintaSamar} />
+        <input value={cari} onChange={(e) => setCari(e.target.value)} placeholder="Cari nama, email, jabatan, divisi, atau kantor..." style={styles.search} />
+      </div>
 
       <div style={styles.card}>
-        {loading ? <div style={styles.loading}><LoaderCircle className="spin" size={20} /> Memuat karyawan...</div> : hasil.length === 0 ? <div style={styles.empty}>Tidak ada karyawan yang ditemukan.</div> : (
-          <div style={styles.tableWrap}><table style={styles.table}><thead><tr><th style={styles.th}>Nama</th><th style={styles.th}>Email</th><th style={styles.th}>Jabatan</th><th style={styles.th}>Divisi</th><th style={styles.th}>Kantor</th><th style={styles.th}></th></tr></thead><tbody>
-            {hasil.map((item) => {
-              const sedangEdit = editId === item.id;
-              return <tr key={item.id}>
-                <td style={styles.td}><strong>{item.nama}</strong></td>
-                <td style={styles.td}>{sedangEdit ? <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} style={styles.input} autoComplete="username" /> : item.email}</td>
-                <td style={styles.td}>{sedangEdit ? <input value={form.jabatan} onChange={(e) => setForm({ ...form, jabatan: e.target.value })} style={styles.input} /> : (item.jabatan || "-")}</td>
-                <td style={styles.td}>{sedangEdit ? <input value={form.divisi} onChange={(e) => setForm({ ...form, divisi: e.target.value })} style={styles.input} placeholder="Operasional" /> : (item.divisi || "-")}</td>
-                <td style={styles.td}>{sedangEdit ? <select value={form.kantorId} onChange={(e) => setForm({ ...form, kantorId: e.target.value })} style={styles.input}><option value="">Pilih kantor...</option>{kantor.map((k) => <option key={k.id} value={k.id}>{k.namaKantor}</option>)}</select> : (item.kantor?.namaKantor || "Belum ditentukan")}</td>
-                <td style={{ ...styles.td, textAlign: "right" }}>{sedangEdit ? <div style={styles.actions}><button type="button" onClick={() => setEditId(null)} style={styles.cancel}>Batal</button><button type="button" disabled={simpanId === item.id} onClick={() => void simpanEdit(item.id)} style={styles.save}>{simpanId === item.id ? "Menyimpan..." : "Simpan"}</button></div> : <button type="button" onClick={() => mulaiEdit(item)} style={styles.edit}><Edit3 size={14} /> Edit</button>}</td>
-              </tr>;
-            })}
-          </tbody></table></div>
+        {loading ? (
+          <div style={styles.loading}><LoaderCircle className="spin" size={20} /> Memuat karyawan...</div>
+        ) : hasil.length === 0 ? (
+          <div style={styles.empty}>Tidak ada karyawan yang ditemukan.</div>
+        ) : (
+          <div style={styles.tableWrap}>
+            <table style={styles.table}>
+              <colgroup>
+                <col style={styles.colNama} />
+                <col style={styles.colEmail} />
+                <col style={styles.colJabatan} />
+                <col style={styles.colDivisi} />
+                <col style={styles.colKantor} />
+                <col style={styles.colAksi} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th style={styles.th}>Nama</th>
+                  <th style={styles.th}>Email</th>
+                  <th style={styles.th}>Jabatan</th>
+                  <th style={styles.th}>Divisi</th>
+                  <th style={styles.th}>Kantor</th>
+                  <th style={styles.thAksi}>Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {hasil.map((item) => {
+                  const sedangEdit = editId === item.id;
+                  return (
+                    <tr key={item.id}>
+                      <td style={{ ...styles.td, ...styles.textCell }}>
+                        <strong style={styles.namaCell}>{item.nama}</strong>
+                      </td>
+                      <td style={{ ...styles.td, ...styles.textCell }}>
+                        {sedangEdit ? (
+                          <input
+                            value={form.email}
+                            onChange={(e) => setForm({ ...form, email: e.target.value })}
+                            style={styles.input}
+                            autoComplete="username"
+                          />
+                        ) : (
+                          <span style={styles.wrapText}>{item.email}</span>
+                        )}
+                      </td>
+                      <td style={{ ...styles.td, ...styles.textCell }}>
+                        {sedangEdit ? (
+                          <input
+                            value={form.jabatan}
+                            onChange={(e) => setForm({ ...form, jabatan: e.target.value })}
+                            style={styles.input}
+                          />
+                        ) : (
+                          <span style={styles.wrapText}>{item.jabatan || "-"}</span>
+                        )}
+                      </td>
+                      <td style={{ ...styles.td, ...styles.textCell }}>
+                        {sedangEdit ? (
+                          <input
+                            value={form.divisi}
+                            onChange={(e) => setForm({ ...form, divisi: e.target.value })}
+                            style={styles.input}
+                            placeholder="Operasional"
+                          />
+                        ) : (
+                          <span style={styles.wrapText}>{item.divisi || "-"}</span>
+                        )}
+                      </td>
+                      <td style={{ ...styles.td, ...styles.textCell }}>
+                        {sedangEdit ? (
+                          <select
+                            value={form.kantorId}
+                            onChange={(e) => setForm({ ...form, kantorId: e.target.value })}
+                            style={styles.input}
+                          >
+                            <option value="">Pilih kantor...</option>
+                            {kantor.map((k) => <option key={k.id} value={k.id}>{k.namaKantor}</option>)}
+                          </select>
+                        ) : (
+                          <span style={styles.wrapText}>{item.kantor?.namaKantor || "Belum ditentukan"}</span>
+                        )}
+                      </td>
+                      <td style={{ ...styles.td, ...styles.actionCell }}>
+                        {sedangEdit ? (
+                          <div style={styles.actions}>
+                            <button type="button" onClick={() => setEditId(null)} style={styles.cancel}>Batal</button>
+                            <button type="button" disabled={simpanId === item.id} onClick={() => void simpanEdit(item.id)} style={styles.save}>
+                              {simpanId === item.id ? "Menyimpan..." : "Simpan"}
+                            </button>
+                          </div>
+                        ) : (
+                          <button type="button" onClick={() => mulaiEdit(item)} style={styles.edit}>
+                            <Edit3 size={14} /> Edit
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
-      <style>{`.spin{animation:adminEditSpin 1s linear infinite}@keyframes adminEditSpin{to{transform:rotate(360deg)}}`}</style>
+
+      <style>{`
+        .spin{animation:adminEditSpin 1s linear infinite}
+        @keyframes adminEditSpin{to{transform:rotate(360deg)}}
+
+        @media (max-width: 900px) {
+          .admin-edit-table-wrap { overflow-x: auto; }
+        }
+      `}</style>
     </div>
   );
 }
@@ -149,14 +248,25 @@ const styles = {
   search: { width: "100%", border: 0, outline: 0, background: "transparent", fontSize: teks.badan, color: warna.tinta, fontFamily: font.display },
   card: { maxWidth: 1240, margin: "0 auto", background: warna.panel, border: `1px solid ${warna.garis}`, borderRadius: radius.besar, overflow: "hidden", boxShadow: bayangan },
   tableWrap: { width: "100%", overflowX: "auto" },
-  table: { width: "100%", minWidth: 1040, borderCollapse: "collapse", fontFamily: font.display },
+  table: { width: "100%", minWidth: 1240, tableLayout: "fixed", borderCollapse: "collapse", fontFamily: font.display },
+  colNama: { width: 200 },
+  colEmail: { width: 315 },
+  colJabatan: { width: 210 },
+  colDivisi: { width: 190 },
+  colKantor: { width: 210 },
+  colAksi: { width: 115 },
   th: { padding: "12px 14px", textAlign: "left", fontSize: teks.kecil, fontWeight: 700, lineHeight: 1.35, color: warna.tintaSamar, background: warna.panelAlt, borderBottom: `1px solid ${warna.garis}` },
+  thAksi: { padding: "12px 14px", textAlign: "center", fontSize: teks.kecil, fontWeight: 700, lineHeight: 1.35, color: warna.tintaSamar, background: warna.panelAlt, borderBottom: `1px solid ${warna.garis}` },
   td: { padding: "13px 14px", fontSize: teks.badan, lineHeight: 1.45, color: warna.tinta, borderBottom: `1px solid ${warna.garis}`, verticalAlign: "middle" },
-  input: { width: "100%", minWidth: 150, boxSizing: "border-box", minHeight: 40, padding: "8px 9px", border: `1px solid ${warna.garis}`, borderRadius: radius.kecil, outline: 0, color: warna.tinta, background: warna.panel, fontSize: teks.badan, fontFamily: font.display },
-  actions: { display: "flex", gap: 6, justifyContent: "flex-end" },
-  edit: { display: "inline-flex", alignItems: "center", gap: 6, border: `1px solid ${warna.garis}`, background: warna.panel, color: warna.tinta, borderRadius: radius.sedang, padding: "8px 11px", cursor: "pointer", fontSize: teks.badan, fontWeight: 600, fontFamily: font.display },
-  cancel: { minHeight: 40, border: `1px solid ${warna.garis}`, background: warna.panel, color: warna.tintaLembut, borderRadius: radius.sedang, padding: "8px 11px", cursor: "pointer", fontSize: teks.badan, fontFamily: font.display },
-  save: { minHeight: 40, border: 0, background: warna.aksen, color: "white", borderRadius: radius.sedang, padding: "8px 12px", cursor: "pointer", fontSize: teks.badan, fontWeight: 700, fontFamily: font.display },
+  textCell: { overflow: "hidden" },
+  wrapText: { display: "block", minWidth: 0, overflowWrap: "anywhere", wordBreak: "break-word", whiteSpace: "normal" },
+  namaCell: { display: "block", overflowWrap: "anywhere", wordBreak: "break-word", whiteSpace: "normal" },
+  input: { width: "100%", minWidth: 0, boxSizing: "border-box", minHeight: 40, padding: "8px 9px", border: `1px solid ${warna.garis}`, borderRadius: radius.kecil, outline: 0, color: warna.tinta, background: warna.panel, fontSize: teks.badan, fontFamily: font.display },
+  actionCell: { textAlign: "center", whiteSpace: "normal" },
+  actions: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, width: "100%" },
+  edit: { width: "100%", minHeight: 40, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, border: `1px solid ${warna.garis}`, background: warna.panel, color: warna.tinta, borderRadius: radius.sedang, padding: "8px 10px", cursor: "pointer", fontSize: teks.badan, fontWeight: 600, fontFamily: font.display },
+  cancel: { minHeight: 40, border: `1px solid ${warna.garis}`, background: warna.panel, color: warna.tintaLembut, borderRadius: radius.sedang, padding: "8px 8px", cursor: "pointer", fontSize: teks.badan, fontFamily: font.display },
+  save: { minHeight: 40, border: 0, background: warna.aksen, color: "white", borderRadius: radius.sedang, padding: "8px 8px", cursor: "pointer", fontSize: teks.badan, fontWeight: 700, fontFamily: font.display },
   loading: { minHeight: 240, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: warna.tintaSamar, fontSize: teks.badan },
   empty: { padding: 56, textAlign: "center", color: warna.tintaSamar, fontSize: teks.badan },
   error: { maxWidth: 1240, margin: "0 auto 12px", display: "flex", gap: 7, alignItems: "center", padding: "10px 12px", borderRadius: radius.sedang, background: warna.bahayaLembut, color: warna.bahaya, fontSize: teks.badan },
