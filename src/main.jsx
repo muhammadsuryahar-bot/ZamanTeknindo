@@ -19,7 +19,7 @@ createRoot(document.getElementById('root')).render(
 // dan Edit Karyawan terasa jauh lebih cepat setelah halaman pertama terbuka.
 function prefetchHalamanPenting() {
   void import('./pages/DashboardAdmin.jsx')
-  void import('./pages/DashboardKaryawanStabil.jsx')
+  void import('./pages/DashboardKaryawan.jsx')
   void import('./pages/PengaturanGaji.jsx')
   void import('./pages/AdminGajiMassal.jsx')
   void import('./pages/AdminArsip.jsx')

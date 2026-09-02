@@ -12,7 +12,7 @@ import { getPenggunaLogin, hapusSesiLogin } from "./utils/api";
 import { warna } from "./styles/theme";
 
 const Daftar = lazy(() => import("./pages/Daftar"));
-const DashboardKaryawan = lazy(() => import("./pages/DashboardKaryawanStabil"));
+const DashboardKaryawan = lazy(() => import("./pages/DashboardKaryawan"));
 const RiwayatAbsensi = lazy(() => import("./pages/RiwayatAbsensi"));
 const PengajuanIzin = lazy(() => import("./pages/PengajuanIzin"));
 const DashboardAdmin = lazy(() => import("./pages/DashboardAdmin"));
