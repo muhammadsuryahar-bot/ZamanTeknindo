@@ -10,12 +10,14 @@ const DOMAIN_PERUSAHAAN = (
   .toLowerCase()
   .replace(/^@/, "");
 
-const EMAIL_ADMIN = "admin@gmail.com";
+const EMAIL_ADMIN = (
+  process.env.ADMIN_EMAIL || "admin@gmail.com"
+).trim().toLowerCase();
 
 function emailKaryawanValid(email) {
   const emailBersih = String(email || "").trim().toLowerCase();
   const pola = new RegExp(
-    `^[^\\s@]+@${DOMAIN_PERUSAHAAN.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}$`
+    `^[^\\s@]+@${DOMAIN_PERUSAHAAN.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}$`,
   );
   return pola.test(emailBersih);
 }
@@ -91,12 +93,20 @@ function buatPasswordSementara() {
 async function resetPasswordOlehAdmin(req, res) {
   try {
     const { id } = req.params;
-    const pengguna = await prisma.pengguna.findUnique({ where: { id: parseInt(id) } });
+    const penggunaId = Number(id);
+    if (!Number.isInteger(penggunaId) || penggunaId <= 0) return res.status(400).json({ pesan: "ID karyawan tidak valid." });
+
+    const pengguna = await prisma.pengguna.findUnique({ where: { id: penggunaId } });
     if (!pengguna) return res.status(404).json({ pesan: "Akun tidak ditemukan." });
-    const passwordBaru = buatPasswordSementara();
-    const passwordBaruHash = await bcrypt.hash(passwordBaru, 10);
-    await prisma.pengguna.update({ where: { id: parseInt(id) }, data: { kataSandi: passwordBaruHash } });
-    return res.json({ pesan: `Password ${pengguna.nama} berhasil direset. Sampaikan password sementara ini secara manual (WA/telepon), lalu minta karyawan segera menggantinya lewat menu "Ganti Password".`, passwordSementara: passwordBaru });
+
+    const passwordSementara = buatPasswordSementara();
+    const passwordBaruHash = await bcrypt.hash(passwordSementara, 10);
+    await prisma.pengguna.update({ where: { id: penggunaId }, data: { kataSandi: passwordBaruHash } });
+
+    return res.json({
+      pesan: `Password ${pengguna.nama} berhasil direset. Password sementara hanya ditampilkan sekali; sampaikan melalui WA/telepon dan minta karyawan segera menggantinya lewat menu "Ganti Password".`,
+      passwordSementara,
+    });
   } catch (error) { console.error(error); return res.status(500).json({ pesan: "Terjadi kesalahan pada server." }); }
 }
 
