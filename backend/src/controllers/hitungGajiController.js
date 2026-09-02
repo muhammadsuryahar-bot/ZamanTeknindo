@@ -2,6 +2,7 @@ const prisma = require("../utils/prismaClient");
 
 const { tahunBulanSekarangWIB } = require("../utils/waktuIndonesia");
 const { ambilSetHariLibur } = require("../utils/hariLibur");
+const { JAM_MASUK_STANDAR_DEFAULT, statusEfektif } = require("../utils/statusKehadiran");
 
 function tanggalUTC(tahun, bulan, tanggal) {
   const b = String(bulan).padStart(2, "0");
@@ -31,14 +32,8 @@ function validasiTahunBulan(req) {
   const tahunMentah = req.query.tahun;
   const bulanMentah = req.query.bulan;
 
-  const tahun =
-    tahunMentah == null || tahunMentah === ""
-      ? sekarangWIB.tahun
-      : Number(tahunMentah);
-  const bulan =
-    bulanMentah == null || bulanMentah === ""
-      ? sekarangWIB.bulan
-      : Number(bulanMentah);
+  const tahun = tahunMentah == null || tahunMentah === "" ? sekarangWIB.tahun : Number(tahunMentah);
+  const bulan = bulanMentah == null || bulanMentah === "" ? sekarangWIB.bulan : Number(bulanMentah);
 
   if (!Number.isInteger(tahun) || tahun < 2000 || tahun > 2100) {
     const error = new Error("Tahun tidak valid. Gunakan tahun antara 2000-2100.");
@@ -78,28 +73,11 @@ function buatPetaAbsensi(semuaAbsensi) {
   return petaAbsensi;
 }
 
-function hitungDariData({
-  penggunaId,
-  tahun,
-  bulan,
-  gajiData,
-  pengaturan,
-  hariKerjaDihitung,
-  petaAbsensi,
-}) {
-  if (!gajiData) {
-    throw new Error("Gaji pokok karyawan ini belum diatur oleh Admin.");
-  }
+function hitungDariData({ penggunaId, tahun, bulan, gajiData, pengaturan, hariKerjaDihitung, petaAbsensi }) {
+  if (!gajiData) throw new Error("Gaji pokok karyawan ini belum diatur oleh Admin.");
 
-  const hitungan = {
-    tepat_waktu: 0,
-    telat: 0,
-    alpha: 0,
-    izin: 0,
-    sakit: 0,
-    cuti: 0,
-    urgent: 0,
-  };
+  const hitungan = { tepat_waktu: 0, telat: 0, alpha: 0, izin: 0, sakit: 0, cuti: 0, urgent: 0 };
+  const jamMasukStandar = pengaturan?.jamMasukStandar || JAM_MASUK_STANDAR_DEFAULT;
 
   for (const tanggal of hariKerjaDihitung) {
     const kunci = tanggal.toISOString().slice(0, 10);
@@ -110,7 +88,7 @@ function hitungDariData({
       continue;
     }
 
-    const status = absen.statusFinal || absen.statusOtomatis;
+    const status = statusEfektif(absen, jamMasukStandar);
 
     if (status && Object.prototype.hasOwnProperty.call(hitungan, status)) {
       hitungan[status] += 1;
@@ -122,10 +100,7 @@ function hitungDariData({
   const gajiPokok = Number(gajiData.gajiPokok);
   const potonganTelat = Number(pengaturan.potonganTelat);
   const potonganAlpha = Number(pengaturan.potonganAlpha);
-
-  const totalPotongan =
-    hitungan.telat * potonganTelat + hitungan.alpha * potonganAlpha;
-
+  const totalPotongan = hitungan.telat * potonganTelat + hitungan.alpha * potonganAlpha;
   const gajiDiterima = Math.max(gajiPokok - totalPotongan, 0);
 
   return {
@@ -152,68 +127,35 @@ async function siapkanKonteksGaji(tahun, bulan) {
       id: 1,
       potonganTelat: 10000,
       potonganAlpha: 15000,
-      jamMasukStandar: "08:00:00",
+      jamMasukStandar: JAM_MASUK_STANDAR_DEFAULT,
     },
   });
 
   const hariKerja = daftarHariKerja(tahun, bulan);
   const setHariLibur = await ambilSetHariLibur(tahun);
-  const hariKerjaSetelahLibur = hariKerja.filter(
-    (d) => !setHariLibur.has(d.toISOString().slice(0, 10)),
-  );
+  const hariKerjaSetelahLibur = hariKerja.filter((d) => !setHariLibur.has(d.toISOString().slice(0, 10)));
   const sekarangWIB = tahunBulanSekarangWIB();
-  const bulanIniBerjalan =
-    tahun === sekarangWIB.tahun && bulan === sekarangWIB.bulan;
+  const bulanIniBerjalan = tahun === sekarangWIB.tahun && bulan === sekarangWIB.bulan;
   const sekarang = new Date();
-
-  const hariKerjaDihitung = bulanIniBerjalan
-    ? hariKerjaSetelahLibur.filter((d) => d <= sekarang)
-    : hariKerjaSetelahLibur;
-
+  const hariKerjaDihitung = bulanIniBerjalan ? hariKerjaSetelahLibur.filter((d) => d <= sekarang) : hariKerjaSetelahLibur;
   const awalBulan = tanggalUTC(tahun, bulan, 1);
   const akhirBulan = new Date(Date.UTC(tahun, bulan, 0, 23, 59, 59));
 
-  return {
-    pengaturan,
-    hariKerjaDihitung,
-    awalBulan,
-    akhirBulan,
-  };
+  return { pengaturan, hariKerjaDihitung, awalBulan, akhirBulan };
 }
 
 async function hitungGajiKaryawan(penggunaId, tahun, bulan) {
-  const { pengaturan, hariKerjaDihitung, awalBulan, akhirBulan } =
-    await siapkanKonteksGaji(tahun, bulan);
-
+  const { pengaturan, hariKerjaDihitung, awalBulan, akhirBulan } = await siapkanKonteksGaji(tahun, bulan);
   const [gajiData, semuaAbsensi] = await Promise.all([
     prisma.gajiKaryawan.findUnique({ where: { penggunaId } }),
-    prisma.absensi.findMany({
-      where: {
-        penggunaId,
-        tanggal: {
-          gte: awalBulan,
-          lte: akhirBulan,
-        },
-      },
-    }),
+    prisma.absensi.findMany({ where: { penggunaId, tanggal: { gte: awalBulan, lte: akhirBulan } } }),
   ]);
 
-  return hitungDariData({
-    penggunaId,
-    tahun,
-    bulan,
-    gajiData,
-    pengaturan,
-    hariKerjaDihitung,
-    petaAbsensi: buatPetaAbsensi(semuaAbsensi),
-  });
+  return hitungDariData({ penggunaId, tahun, bulan, gajiData, pengaturan, hariKerjaDihitung, petaAbsensi: buatPetaAbsensi(semuaAbsensi) });
 }
 
 function pesanAmanGagalGaji(error) {
-  if (error?.message === "Gaji pokok karyawan ini belum diatur oleh Admin.") {
-    return error.message;
-  }
-
+  if (error?.message === "Gaji pokok karyawan ini belum diatur oleh Admin.") return error.message;
   return "Perhitungan gaji karyawan ini gagal. Silakan periksa data gaji dan absensinya.";
 }
 
@@ -221,196 +163,83 @@ async function hitungDanSimpanSatu(req, res) {
   try {
     const penggunaId = validasiPenggunaId(req);
     const { tahun, bulan } = validasiTahunBulan(req);
-
     const hasil = await hitungGajiKaryawan(penggunaId, tahun, bulan);
-
-    const laporan = await prisma.laporanGaji.upsert({
-      where: {
-        penggunaId_tahun_bulan: {
-          penggunaId,
-          tahun,
-          bulan,
-        },
-      },
-      update: hasil,
-      create: hasil,
-    });
-
-    return res.json({
-      pesan: "Perhitungan gaji berhasil disimpan.",
-      data: laporan,
-    });
+    const laporan = await prisma.laporanGaji.upsert({ where: { penggunaId_tahun_bulan: { penggunaId, tahun, bulan } }, update: hasil, create: hasil });
+    return res.json({ pesan: "Perhitungan gaji berhasil disimpan.", data: laporan });
   } catch (error) {
     console.error(error);
-
-    if (error?.code === "INPUT_INVALID") {
-      return res.status(400).json({ pesan: error.message });
-    }
-
-    return res.status(500).json({
-      pesan: "Gagal menghitung gaji. Silakan coba lagi.",
-    });
+    if (error?.code === "INPUT_INVALID") return res.status(400).json({ pesan: error.message });
+    return res.status(500).json({ pesan: "Gagal menghitung gaji. Silakan coba lagi." });
   }
 }
 
 async function hitungDanSimpanSemua(req, res) {
   try {
     const { tahun, bulan } = validasiTahunBulan(req);
-    const { pengaturan, hariKerjaDihitung, awalBulan, akhirBulan } =
-      await siapkanKonteksGaji(tahun, bulan);
+    const { pengaturan, hariKerjaDihitung, awalBulan, akhirBulan } = await siapkanKonteksGaji(tahun, bulan);
 
-    // Ambil data yang tadinya di-query berulang kali per karyawan
-    // menjadi beberapa query besar saja.
     const [karyawanAktif, semuaGaji, semuaAbsensi] = await Promise.all([
-      prisma.pengguna.findMany({
-        where: {
-          peran: "karyawan",
-          statusAkun: "aktif",
-        },
-        select: {
-          id: true,
-          nama: true,
-        },
-      }),
+      prisma.pengguna.findMany({ where: { peran: "karyawan", statusAkun: "aktif" }, select: { id: true, nama: true } }),
       prisma.gajiKaryawan.findMany(),
-      prisma.absensi.findMany({
-        where: {
-          tanggal: {
-            gte: awalBulan,
-            lte: akhirBulan,
-          },
-          pengguna: {
-            peran: "karyawan",
-            statusAkun: "aktif",
-          },
-        },
-      }),
+      prisma.absensi.findMany({ where: { tanggal: { gte: awalBulan, lte: akhirBulan }, pengguna: { peran: "karyawan", statusAkun: "aktif" } } }),
     ]);
 
-    const petaGaji = new Map(
-      semuaGaji.map((item) => [item.penggunaId, item]),
-    );
-
+    const petaGaji = new Map(semuaGaji.map((item) => [item.penggunaId, item]));
     const petaAbsensiPerKaryawan = new Map();
-
     for (const absensi of semuaAbsensi) {
-      if (!petaAbsensiPerKaryawan.has(absensi.penggunaId)) {
-        petaAbsensiPerKaryawan.set(absensi.penggunaId, []);
-      }
-
+      if (!petaAbsensiPerKaryawan.has(absensi.penggunaId)) petaAbsensiPerKaryawan.set(absensi.penggunaId, []);
       petaAbsensiPerKaryawan.get(absensi.penggunaId).push(absensi);
     }
 
     const hasilSemua = [];
     const gagal = [];
-
     for (const k of karyawanAktif) {
       try {
-        const hasil = hitungDariData({
+        hasilSemua.push(hitungDariData({
           penggunaId: k.id,
           tahun,
           bulan,
           gajiData: petaGaji.get(k.id) || null,
           pengaturan,
           hariKerjaDihitung,
-          petaAbsensi: buatPetaAbsensi(
-            petaAbsensiPerKaryawan.get(k.id) || [],
-          ),
-        });
-
-        hasilSemua.push(hasil);
+          petaAbsensi: buatPetaAbsensi(petaAbsensiPerKaryawan.get(k.id) || []),
+        }));
       } catch (err) {
-        gagal.push({
-          nama: k.nama,
-          alasan: pesanAmanGagalGaji(err),
-        });
+        gagal.push({ nama: k.nama, alasan: pesanAmanGagalGaji(err) });
       }
     }
 
     if (hasilSemua.length > 0) {
-      const laporan = await prisma.$transaction(
-        hasilSemua.map((hasil) =>
-          prisma.laporanGaji.upsert({
-            where: {
-              penggunaId_tahun_bulan: {
-                penggunaId: hasil.penggunaId,
-                tahun,
-                bulan,
-              },
-            },
-            update: hasil,
-            create: hasil,
-          }),
-        ),
-      );
-
-      return res.json({
-        pesan: `Perhitungan gaji selesai untuk ${laporan.length} dari ${karyawanAktif.length} karyawan.`,
-        data: laporan,
-        gagal,
-      });
+      const laporan = await prisma.$transaction(hasilSemua.map((hasil) => prisma.laporanGaji.upsert({
+        where: { penggunaId_tahun_bulan: { penggunaId: hasil.penggunaId, tahun, bulan } },
+        update: hasil,
+        create: hasil,
+      })));
+      return res.json({ pesan: `Perhitungan gaji selesai untuk ${laporan.length} dari ${karyawanAktif.length} karyawan.`, data: laporan, gagal });
     }
 
-    return res.json({
-      pesan: `Perhitungan gaji selesai untuk 0 dari ${karyawanAktif.length} karyawan.`,
-      data: [],
-      gagal,
-    });
+    return res.json({ pesan: `Perhitungan gaji selesai untuk 0 dari ${karyawanAktif.length} karyawan.`, data: [], gagal });
   } catch (error) {
     console.error(error);
-
-    if (error?.code === "INPUT_INVALID") {
-      return res.status(400).json({ pesan: error.message });
-    }
-
-    return res.status(500).json({
-      pesan: "Gagal menghitung gaji semua karyawan. Silakan coba lagi.",
-    });
+    if (error?.code === "INPUT_INVALID") return res.status(400).json({ pesan: error.message });
+    return res.status(500).json({ pesan: "Gagal menghitung gaji semua karyawan. Silakan coba lagi." });
   }
 }
 
 async function lihatLaporanBulanan(req, res) {
   try {
     const { tahun, bulan } = validasiTahunBulan(req);
-
     const data = await prisma.laporanGaji.findMany({
-      where: {
-        tahun,
-        bulan,
-      },
-      include: {
-        pengguna: {
-          select: {
-            nama: true,
-            jabatan: true,
-            divisi: true,
-          },
-        },
-      },
-      orderBy: {
-        pengguna: {
-          nama: "asc",
-        },
-      },
+      where: { tahun, bulan },
+      include: { pengguna: { select: { nama: true, jabatan: true, divisi: true } } },
+      orderBy: { pengguna: { nama: "asc" } },
     });
-
     return res.json({ data });
   } catch (error) {
     console.error(error);
-
-    if (error?.code === "INPUT_INVALID") {
-      return res.status(400).json({ pesan: error.message });
-    }
-
-    return res.status(500).json({
-      pesan: "Gagal mengambil laporan gaji. Silakan coba lagi.",
-    });
+    if (error?.code === "INPUT_INVALID") return res.status(400).json({ pesan: error.message });
+    return res.status(500).json({ pesan: "Gagal mengambil laporan gaji. Silakan coba lagi." });
   }
 }
 
-module.exports = {
-  hitungGajiKaryawan,
-  hitungDanSimpanSatu,
-  hitungDanSimpanSemua,
-  lihatLaporanBulanan,
-};
+module.exports = { hitungGajiKaryawan, hitungDanSimpanSatu, hitungDanSimpanSemua, lihatLaporanBulanan };
