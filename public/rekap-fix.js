@@ -39,19 +39,18 @@
       if (part.type !== "literal") result[part.type] = part.value;
     }
 
-    return Number(result.hour) * 60 + Number(result.minute) + Number(result.second) / 60;
+    // Rekap mengikuti aturan per MENIT, jadi detik sengaja dibuang.
+    return Number(result.hour) * 60 + Number(result.minute);
   }
 
   function jamKeMenit(jam) {
     const bagian = String(jam || "").split(":").map(Number);
     if (bagian.length < 2 || bagian.some((n) => Number.isNaN(n))) return null;
 
-    const [hour, minute, second = 0] = bagian;
-    if (hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59) {
-      return null;
-    }
+    const [hour, minute] = bagian;
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
 
-    return hour * 60 + minute + second / 60;
+    return hour * 60 + minute;
   }
 
   async function ambilBatasTepatWaktu(urlRekap, headers) {
@@ -70,10 +69,7 @@
       if (!response.ok) return 8 * 60 + 10;
 
       const data = await response.json();
-      return (
-        jamKeMenit(data?.data?.jamMasukStandar) ??
-        8 * 60 + 10
-      );
+      return jamKeMenit(data?.data?.jamMasukStandar) ?? 8 * 60 + 10;
     } catch (error) {
       console.warn("Gagal membaca batas jam masuk untuk Rekap Hari Ini:", error);
       return 8 * 60 + 10;
