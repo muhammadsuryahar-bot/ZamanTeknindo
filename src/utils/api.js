@@ -27,9 +27,6 @@ export function hapusSesiLogin() {
   localStorage.removeItem("pengguna");
 }
 
-// Status absensi adalah request yang paling sensitif terhadap cold start
-// backend dan jaringan seluler. Retry dilakukan otomatis dan hanya untuk
-// endpoint ini, sehingga request lain tidak dibanjiri pengulangan.
 const RETRY_STATUS_DELAYS_MS = [400, 1000];
 const RETRY_STATUS_TIMEOUT_MS = 9000;
 
@@ -47,16 +44,39 @@ function initTanpaSignal(argumen) {
   return [input, { ...init, signal: undefined }];
 }
 
+function tanggalRekapAktif() {
+  if (typeof window !== "undefined") {
+    const globalTanggal = window.__adminTanggalRekap;
+    if (typeof globalTanggal === "string" && /^\d{4}-\d{2}-\d{2}$/.test(globalTanggal)) {
+      return globalTanggal;
+    }
+
+    try {
+      const inputTanggal = document.querySelector('input[aria-label="Pilih tanggal rekap"]');
+      const tanggalDOM = inputTanggal?.value;
+      if (tanggalDOM && /^\d{4}-\d{2}-\d{2}$/.test(tanggalDOM)) return tanggalDOM;
+    } catch {
+      // Abaikan jika DOM belum siap.
+    }
+
+    try {
+      const tanggalStorage = sessionStorage.getItem("admin-tanggal-rekap");
+      if (tanggalStorage && /^\d{4}-\d{2}-\d{2}$/.test(tanggalStorage)) return tanggalStorage;
+    } catch {
+      // Abaikan storage yang tidak tersedia.
+    }
+  }
+  return null;
+}
+
 function tambahkanTanggalRekap(urlPermintaan) {
   if (!urlPermintaan.includes("/api/admin/rekap-hari-ini")) return urlPermintaan;
+  const tanggal = tanggalRekapAktif();
+  if (!tanggal) return urlPermintaan;
 
   try {
-    const tanggal = sessionStorage.getItem("admin-tanggal-rekap");
-    if (!tanggal || !/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) return urlPermintaan;
-
     const url = new URL(urlPermintaan, window.location.origin);
     url.searchParams.set("tanggal", tanggal);
-
     return url.href;
   } catch (error) {
     console.warn("Tanggal rekap Admin tidak dapat diterapkan:", error);
@@ -68,7 +88,6 @@ async function fetchRetryDenganTimeout(fetchAsli, argumen) {
   const [input, init] = initTanpaSignal(argumen);
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), RETRY_STATUS_TIMEOUT_MS);
-
   try {
     return await fetchAsli(input, { ...(init || {}), signal: controller.signal });
   } finally {
@@ -85,10 +104,7 @@ export function pasangPenerjemahSesiKedaluwarsa() {
   window.fetch = async function (...argumen) {
     const urlPermintaanAwal = urlDariArgumen(argumen);
     const urlPermintaan = tambahkanTanggalRekap(urlPermintaanAwal);
-    const argumenDenganTanggal = [
-      urlPermintaan,
-      argumen[1],
-    ];
+    const argumenDenganTanggal = [urlPermintaan, argumen[1]];
     const iniStatusAbsensi = urlPermintaan.includes("/api/absensi/status-hari-ini");
 
     let respons;
@@ -96,7 +112,6 @@ export function pasangPenerjemahSesiKedaluwarsa() {
       respons = await fetchAsli(...argumenDenganTanggal);
     } catch (errorPertama) {
       if (!iniStatusAbsensi) throw errorPertama;
-
       let errorTerakhir = errorPertama;
       for (const delay of RETRY_STATUS_DELAYS_MS) {
         try {
@@ -107,14 +122,11 @@ export function pasangPenerjemahSesiKedaluwarsa() {
           errorTerakhir = errorRetry;
         }
       }
-
       if (!respons) throw errorTerakhir;
     }
 
-    // Cold start / gateway error tetap dicoba ulang otomatis.
     if (iniStatusAbsensi && respons.status >= 500) {
       let responsTerakhir = respons;
-
       for (const delay of RETRY_STATUS_DELAYS_MS) {
         try {
           await tunggu(delay);
@@ -125,7 +137,6 @@ export function pasangPenerjemahSesiKedaluwarsa() {
           console.warn("Retry status absensi gagal:", errorRetry);
         }
       }
-
       respons = responsTerakhir;
     }
 
@@ -143,21 +154,11 @@ export function pasangPenerjemahSesiKedaluwarsa() {
       } catch {
         // Response bukan JSON.
       }
-
       const pesan = String(data?.pesan || "").toLowerCase();
-      const memangMasalahSesi =
-        pesan.includes("belum login") ||
-        pesan.includes("sesi login") ||
-        pesan.includes("token") ||
-        pesan.includes("akun tidak ditemukan") ||
-        pesan.includes("kedaluwarsa");
-
+      const memangMasalahSesi = pesan.includes("belum login") || pesan.includes("sesi login") || pesan.includes("token") || pesan.includes("akun tidak ditemukan") || pesan.includes("kedaluwarsa");
       if (memangMasalahSesi && getToken()) {
         hapusSesiLogin();
-        sessionStorage.setItem(
-          "pesanSetelahLogout",
-          data?.pesan || "Sesi login sudah berakhir. Silakan login kembali.",
-        );
+        sessionStorage.setItem("pesanSetelahLogout", data?.pesan || "Sesi login sudah berakhir. Silakan login kembali.");
         if (window.location.pathname !== "/login") window.location.href = "/login";
       }
       return respons;
@@ -168,15 +169,10 @@ export function pasangPenerjemahSesiKedaluwarsa() {
         const salinan = respons.clone();
         const data = await salinan.json();
         const pesan = String(data?.pesan || "").toLowerCase();
-        const akunTidakAktif =
-          pesan.includes("dinonaktifkan") || pesan.includes("menunggu konfirmasi");
-
+        const akunTidakAktif = pesan.includes("dinonaktifkan") || pesan.includes("menunggu konfirmasi");
         if (akunTidakAktif && getToken()) {
           hapusSesiLogin();
-          sessionStorage.setItem(
-            "pesanSetelahLogout",
-            data?.pesan || "Akun Anda tidak dapat digunakan. Silakan hubungi Admin.",
-          );
+          sessionStorage.setItem("pesanSetelahLogout", data?.pesan || "Akun Anda tidak dapat digunakan. Silakan hubungi Admin.");
           if (window.location.pathname !== "/login") window.location.href = "/login";
         }
       } catch (error) {
