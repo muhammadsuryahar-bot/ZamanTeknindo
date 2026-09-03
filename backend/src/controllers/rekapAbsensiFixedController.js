@@ -10,6 +10,16 @@ const { buatSignedUrlFotoBatch } = require("../utils/supabaseStorage");
 // Absensi tetap diterima walaupun berada di luar radius.
 const RADIUS_HOMEBASE_METER = 1500;
 
+const STATUS_MANUAL_VALID = new Set([
+  "tepat_waktu",
+  "telat",
+  "alpha",
+  "izin",
+  "sakit",
+  "cuti",
+  "urgent",
+]);
+
 function hitungJarakMeter(latitude, longitude, homebaseLatitude, homebaseLongitude) {
   const lat = Number(latitude);
   const lng = Number(longitude);
@@ -112,13 +122,8 @@ function tambahInfoLokasi(item, petaUrlFoto, jamMasukStandar) {
     ...item,
     fotoMasukUrl,
     fotoPulangUrl,
-    // Field kompatibilitas frontend memakai statusFinal, jadi nilai respons
-    // harus selalu menunjukkan status yang benar-benar berlaku saat ini.
-    // Nilai statusFinal asli di database tidak diubah oleh controller ini.
     statusFinal: statusTampilan,
     statusEfektif: statusTampilan,
-    // Kompatibilitas frontend: field kantorAbsensi tetap ada, tetapi nilainya
-    // sekarang adalah Homebase karyawan, bukan kantor terdekat dari GPS.
     kantorAbsensi: homebaseMasuk,
     kantorPulangAbsensi: homebasePulang,
     homebaseMasuk,
@@ -127,19 +132,40 @@ function tambahInfoLokasi(item, petaUrlFoto, jamMasukStandar) {
     jarakHomebasePulangMeter: homebasePulang.jarakMeter,
     statusHomebaseMasuk: homebaseMasuk.status,
     statusHomebasePulang: homebasePulang.status,
-    // alamatMasuk/alamatPulang harus tetap menjadi lokasi GPS aktual. Nama
-    // homebase ditampilkan pada field terpisah agar Admin tidak bingung.
     alamatMasuk: item.alamatMasuk || "Lokasi GPS belum tersedia",
     alamatPulang: item.alamatPulang || "Lokasi GPS belum tersedia",
   };
 }
 
-async function rekapHariIniFixed(req, res) {
-  try {
-    const tanggal = tanggalHariIniWIB();
+function normalisasiTanggal(tanggal) {
+  const nilai = String(tanggal || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(nilai)) return null;
 
-    // Homebase diambil dari kantor yang terpasang pada masing-masing karyawan.
-    // Tidak ada lagi pencarian kantor terdekat dari koordinat absensi.
+  const [tahun, bulan, hari] = nilai.split("-").map(Number);
+  const kandidat = new Date(Date.UTC(tahun, bulan - 1, hari));
+
+  if (
+    kandidat.getUTCFullYear() !== tahun ||
+    kandidat.getUTCMonth() !== bulan - 1 ||
+    kandidat.getUTCDate() !== hari
+  ) {
+    return null;
+  }
+
+  return nilai;
+}
+
+async function ambilRekapTanggal(req, res) {
+  try {
+    const tanggal = normalisasiTanggal(req.query?.tanggal) || tanggalHariIniWIB();
+    const hariIni = tanggalHariIniWIB();
+
+    if (tanggal > hariIni) {
+      return res.status(400).json({
+        pesan: "Tanggal rekap tidak boleh melebihi hari ini.",
+      });
+    }
+
     const [data, karyawanAktif, pengaturan] = await Promise.all([
       prisma.absensi.findMany({
         where: { tanggal },
@@ -201,7 +227,6 @@ async function rekapHariIniFixed(req, res) {
     }
 
     const petaUrlFoto = await buatSignedUrlFotoBatch(semuaPathFoto);
-
     const dataDenganKantor = data.map((item) =>
       tambahInfoLokasi(item, petaUrlFoto, jamMasukStandar),
     );
@@ -214,14 +239,103 @@ async function rekapHariIniFixed(req, res) {
     );
 
     return res.json({
+      tanggal,
+      hariIni,
       data: dataDenganKantor,
       belumAbsen,
       jumlahKaryawanAktif: karyawanAktif.length,
     });
   } catch (error) {
-    console.error("Gagal mengambil rekap absensi:", error);
+    console.error("Gagal mengambil rekap absensi tanggal:", error);
     return res.status(500).json({ pesan: "Terjadi kesalahan pada server." });
   }
 }
 
-module.exports = { rekapHariIniFixed };
+async function ubahStatusTanpaAbsensi(req, res) {
+  try {
+    const penggunaId = Number(req.params.penggunaId);
+    const tanggal = normalisasiTanggal(req.params.tanggal);
+    const statusFinal = String(req.body?.statusFinal || "").trim();
+    const catatanAdmin = String(req.body?.catatanAdmin || "").trim();
+    const adminId = Number(req.user.id);
+
+    if (!Number.isInteger(penggunaId) || penggunaId <= 0 || !tanggal) {
+      return res.status(400).json({ pesan: "Karyawan atau tanggal tidak valid." });
+    }
+
+    if (!STATUS_MANUAL_VALID.has(statusFinal)) {
+      return res.status(400).json({ pesan: "Status absensi tidak valid." });
+    }
+
+    if (!catatanAdmin) {
+      return res.status(400).json({
+        pesan: "Catatan wajib diisi untuk perubahan status manual.",
+      });
+    }
+
+    if (catatanAdmin.length > 500) {
+      return res.status(400).json({
+        pesan: "Catatan Admin maksimal 500 karakter.",
+      });
+    }
+
+    const [pengguna, existing] = await Promise.all([
+      prisma.pengguna.findFirst({
+        where: {
+          id: penggunaId,
+          peran: "karyawan",
+          statusAkun: "aktif",
+        },
+        select: { id: true, nama: true },
+      }),
+      prisma.absensi.findUnique({
+        where: { penggunaId_tanggal: { penggunaId, tanggal } },
+        select: { id: true },
+      }),
+    ]);
+
+    if (!pengguna) {
+      return res.status(404).json({ pesan: "Karyawan aktif tidak ditemukan." });
+    }
+
+    if (existing) {
+      return res.status(409).json({
+        pesan: "Karyawan sudah memiliki record absensi. Gunakan edit status absensi biasa.",
+        absensiId: existing.id,
+      });
+    }
+
+    const statusOtomatis =
+      statusFinal === "alpha" ? "alpha" : null;
+
+    const absensi = await prisma.absensi.create({
+      data: {
+        penggunaId,
+        tanggal,
+        statusOtomatis,
+        statusFinal,
+        catatanAdmin,
+        dieditOleh: adminId,
+        waktuEdit: new Date(),
+      },
+    });
+
+    return res.status(201).json({
+      pesan: `Status ${pengguna.nama} pada ${tanggal} berhasil dicatat sebagai ${statusFinal}.`,
+      data: absensi,
+    });
+  } catch (error) {
+    console.error("Gagal memberi status pada karyawan tanpa absensi:", error);
+    return res.status(500).json({ pesan: "Terjadi kesalahan pada server." });
+  }
+}
+
+async function rekapHariIniFixed(req, res) {
+  return ambilRekapTanggal(req, res);
+}
+
+module.exports = {
+  rekapHariIniFixed,
+  ambilRekapTanggal,
+  ubahStatusTanpaAbsensi,
+};
