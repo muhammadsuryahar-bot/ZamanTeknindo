@@ -159,7 +159,9 @@ async function hitungGajiKaryawan(penggunaId, tahun, bulan) {
   const { pengaturan, hariKerjaDihitung, awalBulan, akhirBulan } = await siapkanKonteksGaji(tahun, bulan);
   const [gajiData, semuaAbsensi] = await Promise.all([
     prisma.gajiKaryawan.findUnique({ where: { penggunaId } }),
-    prisma.absensi.findMany({ where: { penggunaId, tanggal: { gte: awalBulan, lte: akhirBulan } }),
+    prisma.absensi.findMany({
+      where: { penggunaId, tanggal: { gte: awalBulan, lte: akhirBulan } },
+    }),
   ]);
 
   return hitungDariData({ penggunaId, tahun, bulan, gajiData, pengaturan, hariKerjaDihitung, petaAbsensi: buatPetaAbsensi(semuaAbsensi) });
