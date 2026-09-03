@@ -93,17 +93,24 @@ async function absenMasuk(req, res) {
     const waktuServer = waktuAbsensiServer();
     const menitServerWIB = menitSekarangWIB(waktuServer);
     const batasTepatWaktu = await ambilBatasTepatWaktu();
+    const koordinat = koordinatDariRequest(latitude, longitude);
+
+    if (!koordinat) {
+      await hapusFotoJikaPerlu();
+      return res.status(400).json({
+        pesan: "Lokasi GPS wajib tersedia sebelum absen masuk. Aktifkan lokasi HP dan izinkan lokasi untuk situs ini, lalu ambil foto lagi.",
+      });
+    }
 
     // Aturan berbasis MENIT: seluruh rentang 08:10:00-08:10:59
     // masih dianggap tepat waktu. Mulai 08:11:00 baru telat.
     const statusOtomatis = menitServerWIB <= batasTepatWaktu ? "tepat_waktu" : "telat";
-    const koordinat = koordinatDariRequest(latitude, longitude);
 
     const data = {
       jamMasuk: waktuServer,
       fotoMasuk: fotoPath,
-      latitudeMasuk: koordinat?.latitude ?? null,
-      longitudeMasuk: koordinat?.longitude ?? null,
+      latitudeMasuk: koordinat.latitude,
+      longitudeMasuk: koordinat.longitude,
       alamatMasuk: alamat || null,
       statusOtomatis,
       statusFinal: statusOtomatis,
@@ -174,13 +181,20 @@ async function absenPulang(req, res) {
     }
 
     const koordinat = koordinatDariRequest(latitude, longitude);
+    if (!koordinat) {
+      await hapusFotoJikaPerlu();
+      return res.status(400).json({
+        pesan: "Lokasi GPS wajib tersedia sebelum absen pulang. Aktifkan lokasi HP dan izinkan lokasi untuk situs ini, lalu ambil foto lagi.",
+      });
+    }
+
     const absensi = await prisma.absensi.update({
       where: { id: absensiHariIni.id },
       data: {
         jamPulang: waktuAbsensiServer(),
         fotoPulang: fotoPath,
-        latitudePulang: koordinat?.latitude ?? null,
-        longitudePulang: koordinat?.longitude ?? null,
+        latitudePulang: koordinat.latitude,
+        longitudePulang: koordinat.longitude,
         alamatPulang: alamat || null,
       },
     });
