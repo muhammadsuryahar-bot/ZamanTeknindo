@@ -65,10 +65,7 @@ function MemuatHalaman({ penuh = false }) {
 }
 
 class BatasKesalahanAplikasi extends Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
+  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
   static getDerivedStateFromError(error) { return { hasError: true, error }; }
   componentDidCatch(error, info) { console.error("Kesalahan render aplikasi:", error, info); }
   cobaLagi = () => this.setState({ hasError: false, error: null });
@@ -93,23 +90,15 @@ class BatasKesalahanAplikasi extends Component {
 
 function RuteTerproteksi({ pengguna, peranDiizinkan, children }) {
   if (!pengguna) return <Navigate to="/login" replace />;
-  if (peranDiizinkan && !peranDiizinkan.includes(pengguna.peran)) {
-    return <Navigate to={pengguna.peran === "admin" ? "/admin" : "/karyawan"} replace />;
-  }
+  if (peranDiizinkan && !peranDiizinkan.includes(pengguna.peran)) return <Navigate to={pengguna.peran === "admin" ? "/admin" : "/karyawan"} replace />;
   return children;
 }
 
-function AdminContextBar() {
+function AdminContextBar({ tanggal, onTanggalChange }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [tab, setTab] = useState(() => {
     try { return sessionStorage.getItem("admin-tab") || "rekap"; } catch { return "rekap"; }
-  });
-  const [tanggal, setTanggal] = useState(() => {
-    try {
-      const value = sessionStorage.getItem("admin-tanggal-rekap");
-      return /^\d{4}-\d{2}-\d{2}$/.test(value || "") ? value : tanggalHariIniWIB();
-    } catch { return tanggalHariIniWIB(); }
   });
   const [panelTerbuka, setPanelTerbuka] = useState(false);
   const [belumAbsen, setBelumAbsen] = useState([]);
@@ -124,9 +113,7 @@ function AdminContextBar() {
     let mounted = true;
     function syncTab() {
       if (!mounted) return;
-      try {
-        setTab(sessionStorage.getItem("admin-tab") || "rekap");
-      } catch {}
+      try { setTab(sessionStorage.getItem("admin-tab") || "rekap"); } catch {}
     }
     syncTab();
     const interval = window.setInterval(syncTab, 250);
@@ -142,7 +129,9 @@ function AdminContextBar() {
 
   useEffect(() => {
     if (tab !== "rekap") return;
-    try { sessionStorage.setItem("admin-tanggal-rekap", tanggal); } catch {}
+    setPanelTerbuka(false);
+    setEditId(null);
+    setPesan("");
   }, [tab, tanggal]);
 
   useEffect(() => {
@@ -156,7 +145,7 @@ function AdminContextBar() {
         if (!res.ok) throw new Error(data?.pesan || "Gagal memuat rekap tanggal.");
         if (mounted) setBelumAbsen(Array.isArray(data?.belumAbsen) ? data.belumAbsen : []);
       } catch (error) {
-        console.error("Gagal memuat belum absen:", error);
+        console.error("Gagal memuat daftar belum absen:", error);
         if (mounted) setBelumAbsen([]);
       } finally {
         if (mounted) setLoadingBelumAbsen(false);
@@ -184,89 +173,111 @@ function AdminContextBar() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.pesan || "Gagal menyimpan status.");
+      setBelumAbsen((sebelumnya) => sebelumnya.filter((item) => item.id !== id));
+      setEditId(null);
+      setCatatan("");
       setPesan("Status berhasil dicatat.");
-      setEditId(null); setCatatan("");
-      const next = belumAbsen.filter((item) => item.id !== id);
-      setBelumAbsen(next);
+      onTanggalChange(tanggal, true);
     } catch (error) {
       setPesan(error?.message || "Gagal menyimpan status.");
     } finally { setSimpanId(null); }
   }
 
-  return (
-    <>
-      {tab === "rekap" ? (
+  if (tab === "rekap") {
+    return (
+      <>
         <div className="admin-rekap-toolbar" style={styles.adminRekapToolbar}>
-          <div style={styles.adminRekapDateCopy}>
+          <div className="admin-rekap-date-copy" style={styles.adminRekapDateCopy}>
             <span style={styles.adminRekapEyebrow}>TANGGAL REKAP</span>
             <strong style={styles.adminRekapDate}>{formatTanggalIndonesia(tanggal)}</strong>
           </div>
           <div style={styles.adminRekapControls}>
-            <input type="date" value={tanggal} max={tanggalHariIniWIB()} onChange={(e) => { const v = e.target.value; setTanggal(v > tanggalHariIniWIB() ? tanggalHariIniWIB() : v); setPanelTerbuka(false); }} style={styles.adminRekapInput} aria-label="Pilih tanggal rekap" />
+            <input type="date" value={tanggal} max={tanggalHariIniWIB()} onChange={(e) => onTanggalChange(e.target.value, false)} style={styles.adminRekapInput} aria-label="Pilih tanggal rekap" />
             <button type="button" onClick={() => setPanelTerbuka((v) => !v)} style={styles.adminRekapButton}>
               {loadingBelumAbsen ? "Memuat…" : `Belum absen (${belumAbsen.length})`}
             </button>
-            <button type="button" onClick={() => { setPanelTerbuka(false); setTanggal(tanggalHariIniWIB()); }} style={styles.adminRekapToday}>Hari ini</button>
+            <button type="button" onClick={() => onTanggalChange(tanggalHariIniWIB(), false)} style={styles.adminRekapToday}>Hari ini</button>
           </div>
         </div>
-      ) : label && aksi ? (
-        <div style={styles.adminContextBar}><button type="button" onClick={aksi} style={styles.contextButton}>{tab === "karyawan" ? "✎" : "▣"}<span>{label}</span></button></div>
-      ) : null}
 
-      {tab === "rekap" && panelTerbuka && (
-        <div style={styles.adminBelumPanel}>
-          <div style={styles.adminBelumHeader}>
-            <div><strong style={styles.adminBelumTitle}>Karyawan belum absen</strong><span style={styles.adminBelumSub}>{formatTanggalIndonesia(tanggal)}</span></div>
-            <button type="button" onClick={() => setPanelTerbuka(false)} style={styles.adminBelumClose}>Tutup</button>
-          </div>
-          {belumAbsen.length === 0 ? (
-            <div style={styles.adminBelumEmpty}>Semua karyawan aktif sudah memiliki record absensi pada tanggal ini.</div>
-          ) : (
-            <div style={styles.adminBelumList}>
-              {belumAbsen.map((item) => (
-                <div key={item.id} style={styles.adminBelumItem}>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <strong style={styles.adminBelumName}>{item.nama}</strong>
-                    <span style={styles.adminBelumMeta}>{item.jabatan || "-"} · {item.divisi || "-"}</span>
-                  </div>
-                  {editId !== item.id ? (
-                    <button type="button" onClick={() => { setEditId(item.id); setStatus("alpha"); setCatatan(""); setPesan(""); }} style={styles.adminBelumEdit}>Atur Status</button>
-                  ) : (
-                    <div style={styles.adminBelumForm}>
-                      <select value={status} onChange={(e) => setStatus(e.target.value)} style={styles.adminBelumSelect}>
-                        {STATUS_ADMIN_TANPA_ABSENSI.map((itemStatus) => <option key={itemStatus.value} value={itemStatus.value}>{itemStatus.label}</option>)}
-                      </select>
-                      <textarea value={catatan} onChange={(e) => setCatatan(e.target.value)} maxLength={500} placeholder="Alasan perubahan status..." style={styles.adminBelumTextarea} />
-                      <div style={styles.adminBelumActions}>
-                        <button type="button" onClick={() => setEditId(null)} style={styles.adminBelumCancel}>Batal</button>
-                        <button type="button" onClick={() => void aturStatusTanpaAbsensi(item.id)} disabled={simpanId === item.id} style={styles.adminBelumSave}>{simpanId === item.id ? "Menyimpan…" : "Simpan"}</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
+        {panelTerbuka && (
+          <div className="admin-belum-panel" style={styles.adminBelumPanel}>
+            <div style={styles.adminBelumHeader}>
+              <div><strong style={styles.adminBelumTitle}>Karyawan belum absen</strong><span style={styles.adminBelumSub}>{formatTanggalIndonesia(tanggal)}</span></div>
+              <button type="button" onClick={() => setPanelTerbuka(false)} style={styles.adminBelumClose}>Tutup</button>
             </div>
-          )}
-          {pesan && <div style={styles.adminBelumMessage}>{pesan}</div>}
-        </div>
-      )}
-    </>
-  );
+            {belumAbsen.length === 0 ? (
+              <div style={styles.adminBelumEmpty}>Semua karyawan aktif sudah memiliki record absensi pada tanggal ini.</div>
+            ) : (
+              <div style={styles.adminBelumList}>
+                {belumAbsen.map((item) => (
+                  <div key={item.id} style={styles.adminBelumItem}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <strong style={styles.adminBelumName}>{item.nama}</strong>
+                      <span style={styles.adminBelumMeta}>{item.jabatan || "-"} · {item.divisi || "-"}</span>
+                    </div>
+                    {editId !== item.id ? (
+                      <button type="button" onClick={() => { setEditId(item.id); setStatus("alpha"); setCatatan(""); setPesan(""); }} style={styles.adminBelumEdit}>Atur Status</button>
+                    ) : (
+                      <div style={styles.adminBelumForm}>
+                        <select value={status} onChange={(e) => setStatus(e.target.value)} style={styles.adminBelumSelect}>
+                          {STATUS_ADMIN_TANPA_ABSENSI.map((itemStatus) => <option key={itemStatus.value} value={itemStatus.value}>{itemStatus.label}</option>)}
+                        </select>
+                        <textarea value={catatan} onChange={(e) => setCatatan(e.target.value)} maxLength={500} placeholder="Alasan perubahan status..." style={styles.adminBelumTextarea} />
+                        <div style={styles.adminBelumActions}>
+                          <button type="button" onClick={() => setEditId(null)} style={styles.adminBelumCancel}>Batal</button>
+                          <button type="button" onClick={() => void aturStatusTanpaAbsensi(item.id)} disabled={simpanId === item.id} style={styles.adminBelumSave}>{simpanId === item.id ? "Menyimpan…" : "Simpan"}</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {pesan && <div style={styles.adminBelumMessage}>{pesan}</div>}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  return label && aksi ? (
+    <div style={styles.adminContextBar}><button type="button" onClick={aksi} style={styles.contextButton}>{tab === "karyawan" ? "✎" : "▣"}<span>{label}</span></button></div>
+  ) : null;
 }
 
 function AdminShell({ pengguna, onLogout }) {
   const navigate = useNavigate();
   const location = useLocation();
   const arsipTerbuka = location.pathname === "/admin/arsip";
+  const hariIni = tanggalHariIniWIB();
+  const [tanggalRekap, setTanggalRekap] = useState(() => {
+    try {
+      const tersimpan = sessionStorage.getItem("admin-tanggal-rekap");
+      return /^\d{4}-\d{2}-\d{2}$/.test(tersimpan || "") ? tersimpan : hariIni;
+    } catch { return hariIni; }
+  });
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    try { sessionStorage.setItem("admin-tanggal-rekap", tanggalRekap); } catch {}
+  }, [tanggalRekap]);
+
+  function onTanggalChange(tanggalBaru, forceRefresh = false) {
+    const aman = tanggalBaru && tanggalBaru <= hariIni ? tanggalBaru : hariIni;
+    setTanggalRekap(aman);
+    setRefreshKey((nilai) => nilai + 1 + (forceRefresh ? 1 : 0));
+  }
+
   return (
     <div style={styles.adminShell}>
-      <DashboardAdmin pengguna={pengguna} onLogout={onLogout} />
+      <DashboardAdmin key={`${tanggalRekap}-${refreshKey}`} pengguna={pengguna} onLogout={onLogout} />
+      {!arsipTerbuka && <AdminContextBar tanggal={tanggalRekap} onTanggalChange={onTanggalChange} />}
       {arsipTerbuka && (
         <div className="admin-page-archive" style={styles.arsipOverlay} role="dialog" aria-modal="true" aria-label="Arsip dan Cleanup Absensi">
           <div style={styles.arsipOverlayInner}><AdminArsip kembaliKeDashboard={() => navigate("/admin")} /></div>
         </div>
       )}
-      {!arsipTerbuka && <AdminContextBar />}
     </div>
   );
 }
@@ -332,10 +343,10 @@ if (typeof document !== "undefined") {
     style.textContent = `
       @media (max-width: 760px) {
         .admin-rekap-toolbar { top: 72px !important; left: 16px !important; right: 16px !important; padding: 7px 8px !important; }
-        .admin-rekap-toolbar .adminRekapDateCopy { min-width: 0; }
+        .admin-rekap-date-copy { display: none !important; }
+        .admin-rekap-toolbar { justify-content: flex-end !important; }
         .admin-rekap-toolbar input[type="date"] { min-height: 34px !important; max-width: 132px; font-size: 11px !important; }
         .admin-rekap-toolbar button { min-height: 34px !important; font-size: 10px !important; padding: 7px 8px !important; }
-        .admin-rekap-toolbar .adminRekapDateCopy { display: none; }
         .admin-belum-panel { top: 120px !important; right: 16px !important; width: calc(100vw - 32px) !important; }
       }
     `;
