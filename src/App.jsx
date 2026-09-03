@@ -1,14 +1,7 @@
 import { useEffect, useState, lazy, Suspense, Component } from "react";
-import {
-  BrowserRouter,
-  Routes,
-  Route,
-  Navigate,
-  useNavigate,
-  useLocation,
-} from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import Login from "./pages/Login";
-import { API_URL, getPenggunaLogin, getToken, hapusSesiLogin } from "./utils/api";
+import { getPenggunaLogin, getToken, hapusSesiLogin } from "./utils/api";
 import { warna } from "./styles/theme";
 
 const Daftar = lazy(() => import("./pages/Daftar"));
@@ -65,11 +58,21 @@ function MemuatHalaman({ penuh = false }) {
 }
 
 class BatasKesalahanAplikasi extends Component {
-  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
-  static getDerivedStateFromError(error) { return { hasError: true, error }; }
-  componentDidCatch(error, info) { console.error("Kesalahan render aplikasi:", error, info); }
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    console.error("Kesalahan render aplikasi:", error, info);
+  }
   cobaLagi = () => this.setState({ hasError: false, error: null });
-  kembaliKeLogin = () => { hapusSesiLogin(); window.location.href = "/login"; };
+  kembaliKeLogin = () => {
+    hapusSesiLogin();
+    window.location.href = "/login";
+  };
   render() {
     if (!this.state.hasError) return this.props.children;
     return (
@@ -90,7 +93,9 @@ class BatasKesalahanAplikasi extends Component {
 
 function RuteTerproteksi({ pengguna, peranDiizinkan, children }) {
   if (!pengguna) return <Navigate to="/login" replace />;
-  if (peranDiizinkan && !peranDiizinkan.includes(pengguna.peran)) return <Navigate to={pengguna.peran === "admin" ? "/admin" : "/karyawan"} replace />;
+  if (peranDiizinkan && !peranDiizinkan.includes(pengguna.peran)) {
+    return <Navigate to={pengguna.peran === "admin" ? "/admin" : "/karyawan"} replace />;
+  }
   return children;
 }
 
@@ -98,7 +103,11 @@ function AdminContextBar({ tanggal, onTanggalChange }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [tab, setTab] = useState(() => {
-    try { return sessionStorage.getItem("admin-tab") || "rekap"; } catch { return "rekap"; }
+    try {
+      return sessionStorage.getItem("admin-tab") || "rekap";
+    } catch {
+      return "rekap";
+    }
   });
   const [panelTerbuka, setPanelTerbuka] = useState(false);
   const [belumAbsen, setBelumAbsen] = useState([]);
@@ -113,7 +122,11 @@ function AdminContextBar({ tanggal, onTanggalChange }) {
     let mounted = true;
     function syncTab() {
       if (!mounted) return;
-      try { setTab(sessionStorage.getItem("admin-tab") || "rekap"); } catch {}
+      try {
+        setTab(sessionStorage.getItem("admin-tab") || "rekap");
+      } catch {
+        // Abaikan storage yang tidak tersedia.
+      }
     }
     syncTab();
     const interval = window.setInterval(syncTab, 250);
@@ -140,7 +153,9 @@ function AdminContextBar({ tanggal, onTanggalChange }) {
     async function muat() {
       setLoadingBelumAbsen(true);
       try {
-        const res = await fetch(`${API_URL}/admin/rekap-tanggal?tanggal=${encodeURIComponent(tanggal)}`, { headers: { Authorization: `Bearer ${getToken()}` } });
+        const res = await fetch(`${API_URL}/admin/rekap-tanggal?tanggal=${encodeURIComponent(tanggal)}`, {
+          headers: { Authorization: `Bearer ${getToken()}` },
+        });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.pesan || "Gagal memuat rekap tanggal.");
         if (mounted) setBelumAbsen(Array.isArray(data?.belumAbsen) ? data.belumAbsen : []);
@@ -152,23 +167,37 @@ function AdminContextBar({ tanggal, onTanggalChange }) {
       }
     }
     void muat();
-    return () => { mounted = false; };
-  }, [tab, tanggal, panelTerbuka]);
+    return () => {
+      mounted = false;
+    };
+  }, [tab, tanggal]);
 
   if (location.pathname === "/admin/arsip" || location.pathname === "/admin/edit-karyawan") return null;
 
   let label = "";
   let aksi = null;
-  if (tab === "karyawan") { label = "Edit Karyawan"; aksi = () => navigate("/admin/edit-karyawan"); }
-  else if (tab === "gaji" || tab === "gaji-massal") { label = "Arsip & Data"; aksi = () => navigate("/admin/arsip"); }
+  if (tab === "karyawan") {
+    label = "Edit Karyawan";
+    aksi = () => navigate("/admin/edit-karyawan");
+  } else if (tab === "gaji" || tab === "gaji-massal") {
+    label = "Arsip & Data";
+    aksi = () => navigate("/admin/arsip");
+  }
 
   async function aturStatusTanpaAbsensi(id) {
-    if (!catatan.trim()) { setPesan("Catatan wajib diisi."); return; }
-    setSimpanId(id); setPesan("");
+    if (!catatan.trim()) {
+      setPesan("Catatan wajib diisi.");
+      return;
+    }
+    setSimpanId(id);
+    setPesan("");
     try {
       const res = await fetch(`${API_URL}/admin/absensi/tanggal/${encodeURIComponent(tanggal)}/pengguna/${id}/status`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
         body: JSON.stringify({ statusFinal: status, catatanAdmin: catatan.trim() }),
       });
       const data = await res.json();
@@ -180,20 +209,22 @@ function AdminContextBar({ tanggal, onTanggalChange }) {
       onTanggalChange(tanggal, true);
     } catch (error) {
       setPesan(error?.message || "Gagal menyimpan status.");
-    } finally { setSimpanId(null); }
+    } finally {
+      setSimpanId(null);
+    }
   }
 
   if (tab === "rekap") {
     return (
       <>
         <div className="admin-rekap-toolbar" style={styles.adminRekapToolbar}>
-          <div className="admin-rekap-date-copy" style={styles.adminRekapDateCopy}>
+          <div style={styles.adminRekapDateCopy}>
             <span style={styles.adminRekapEyebrow}>TANGGAL REKAP</span>
             <strong style={styles.adminRekapDate}>{formatTanggalIndonesia(tanggal)}</strong>
           </div>
           <div style={styles.adminRekapControls}>
             <input type="date" value={tanggal} max={tanggalHariIniWIB()} onChange={(e) => onTanggalChange(e.target.value, false)} style={styles.adminRekapInput} aria-label="Pilih tanggal rekap" />
-            <button type="button" onClick={() => setPanelTerbuka((v) => !v)} style={styles.adminRekapButton}>
+            <button type="button" onClick={() => setPanelTerbuka((v) => !v)} style={styles.adminRekapButton} aria-expanded={panelTerbuka}>
               {loadingBelumAbsen ? "Memuat…" : `Belum absen (${belumAbsen.length})`}
             </button>
             <button type="button" onClick={() => onTanggalChange(tanggalHariIniWIB(), false)} style={styles.adminRekapToday}>Hari ini</button>
@@ -203,7 +234,10 @@ function AdminContextBar({ tanggal, onTanggalChange }) {
         {panelTerbuka && (
           <div className="admin-belum-panel" style={styles.adminBelumPanel}>
             <div style={styles.adminBelumHeader}>
-              <div><strong style={styles.adminBelumTitle}>Karyawan belum absen</strong><span style={styles.adminBelumSub}>{formatTanggalIndonesia(tanggal)}</span></div>
+              <div>
+                <strong style={styles.adminBelumTitle}>Karyawan belum absen</strong>
+                <span style={styles.adminBelumSub}>{formatTanggalIndonesia(tanggal)}</span>
+              </div>
               <button type="button" onClick={() => setPanelTerbuka(false)} style={styles.adminBelumClose}>Tutup</button>
             </div>
             {belumAbsen.length === 0 ? (
@@ -242,7 +276,9 @@ function AdminContextBar({ tanggal, onTanggalChange }) {
   }
 
   return label && aksi ? (
-    <div style={styles.adminContextBar}><button type="button" onClick={aksi} style={styles.contextButton}>{tab === "karyawan" ? "✎" : "▣"}<span>{label}</span></button></div>
+    <div style={styles.adminContextBar}>
+      <button type="button" onClick={aksi} style={styles.contextButton}>{tab === "karyawan" ? "✎" : "▣"}<span>{label}</span></button>
+    </div>
   ) : null;
 }
 
@@ -254,25 +290,42 @@ function AdminShell({ pengguna, onLogout }) {
   const [tanggalRekap, setTanggalRekap] = useState(() => {
     try {
       const tersimpan = sessionStorage.getItem("admin-tanggal-rekap");
-      return /^\d{4}-\d{2}-\d{2}$/.test(tersimpan || "") ? tersimpan : hariIni;
-    } catch { return hariIni; }
+      return tersimpan && /^\d{4}-\d{2}-\d{2}$/.test(tersimpan) ? tersimpan : hariIni;
+    } catch {
+      return hariIni;
+    }
   });
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    try { sessionStorage.setItem("admin-tanggal-rekap", tanggalRekap); } catch {}
+    if (typeof window !== "undefined") window.__adminTanggalRekap = tanggalRekap;
+    try {
+      sessionStorage.setItem("admin-tanggal-rekap", tanggalRekap);
+    } catch {
+      // Abaikan storage yang tidak tersedia.
+    }
   }, [tanggalRekap]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") window.__adminTanggalRekap = tanggalRekap;
+  }, []);
 
   function onTanggalChange(tanggalBaru, forceRefresh = false) {
     const aman = tanggalBaru && tanggalBaru <= hariIni ? tanggalBaru : hariIni;
+    if (typeof window !== "undefined") window.__adminTanggalRekap = aman;
+    try {
+      sessionStorage.setItem("admin-tanggal-rekap", aman);
+    } catch {
+      // Abaikan storage yang tidak tersedia.
+    }
     setTanggalRekap(aman);
     setRefreshKey((nilai) => nilai + 1 + (forceRefresh ? 1 : 0));
   }
 
   return (
     <div style={styles.adminShell}>
-      <DashboardAdmin key={`${tanggalRekap}-${refreshKey}`} pengguna={pengguna} onLogout={onLogout} />
       {!arsipTerbuka && <AdminContextBar tanggal={tanggalRekap} onTanggalChange={onTanggalChange} />}
+      <DashboardAdmin key={`${tanggalRekap}-${refreshKey}`} pengguna={pengguna} onLogout={onLogout} />
       {arsipTerbuka && (
         <div className="admin-page-archive" style={styles.arsipOverlay} role="dialog" aria-modal="true" aria-label="Arsip dan Cleanup Absensi">
           <div style={styles.arsipOverlayInner}><AdminArsip kembaliKeDashboard={() => navigate("/admin")} /></div>
@@ -295,7 +348,7 @@ function RuteAplikasi({ pengguna, setPengguna, onLogout }) {
         <Route path="/ganti-password" element={<RuteTerproteksi pengguna={pengguna}><GantiPassword kembali={() => navigate(pengguna?.peran === "admin" ? "/admin" : "/karyawan")} /></RuteTerproteksi>} />
         <Route path="/admin/edit-karyawan" element={<RuteTerproteksi pengguna={pengguna} peranDiizinkan={["admin"]}><div className="admin-page-edit-karyawan"><AdminEditKaryawan /></div></RuteTerproteksi>} />
         <Route path="/admin/*" element={<RuteTerproteksi pengguna={pengguna} peranDiizinkan={["admin"]}><Routes><Route path="*" element={<AdminShell pengguna={pengguna} onLogout={onLogout} />} /></Routes></RuteTerproteksi>} />
-        <Route path="*" element={<Navigate to={pengguna ? pengguna.peran === "admin" ? "/admin" : "/karyawan" : "/login"} replace />} />
+        <Route path="*" element={<Navigate to={pengguna ? (pengguna.peran === "admin" ? "/admin" : "/karyawan") : "/login"} replace />} />
       </Routes>
     </Suspense>
   );
@@ -303,17 +356,17 @@ function RuteAplikasi({ pengguna, setPengguna, onLogout }) {
 
 const styles = {
   adminShell: { minHeight: "100svh", position: "relative" },
-  adminContextBar: { position: "fixed", right: 24, bottom: 24, zIndex: 10001 },
+  adminContextBar: { position: "fixed", right: 28, bottom: 24, zIndex: 10001 },
   contextButton: { minHeight: 44, display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 14px", border: `1px solid ${warna.garis}`, borderRadius: 12, background: warna.panel, color: warna.tinta, boxShadow: "0 10px 28px rgba(22,35,61,0.12)", fontSize: 12, fontWeight: 750, cursor: "pointer" },
-  adminRekapToolbar: { position: "fixed", top: 112, left: "calc(232px + 28px)", right: 28, zIndex: 10002, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "8px 10px", border: `1px solid ${warna.garis}`, borderRadius: 12, background: "rgba(255,255,255,0.97)", boxShadow: "0 10px 28px rgba(22,35,61,0.08)", backdropFilter: "blur(12px)", boxSizing: "border-box" },
+  adminRekapToolbar: { position: "fixed", top: 88, left: "calc(232px + 28px)", right: 28, zIndex: 10002, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "7px 9px", border: `1px solid ${warna.garis}`, borderRadius: 12, background: "rgba(255,255,255,0.98)", boxShadow: "0 10px 28px rgba(22,35,61,0.10)", backdropFilter: "blur(12px)", boxSizing: "border-box" },
   adminRekapDateCopy: { minWidth: 0, display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" },
   adminRekapEyebrow: { color: warna.aksen, fontSize: 9.5, fontWeight: 800, letterSpacing: "0.08em" },
   adminRekapDate: { color: warna.tinta, fontSize: 12 },
   adminRekapControls: { display: "flex", alignItems: "center", gap: 6, flexShrink: 0 },
-  adminRekapInput: { minHeight: 36, padding: "7px 9px", border: `1px solid ${warna.garis}`, borderRadius: 9, background: warna.panel, color: warna.tinta, fontSize: 12, fontWeight: 650 },
-  adminRekapButton: { minHeight: 36, padding: "7px 10px", border: `1px solid ${warna.garis}`, borderRadius: 9, background: warna.panelAlt, color: warna.tinta, fontSize: 11.5, fontWeight: 700, cursor: "pointer" },
-  adminRekapToday: { minHeight: 36, padding: "7px 10px", border: `1px solid ${warna.garis}`, borderRadius: 9, background: warna.panel, color: warna.aksen, fontSize: 11, fontWeight: 750, cursor: "pointer" },
-  adminBelumPanel: { position: "fixed", top: 154, right: 28, width: "min(540px, calc(100vw - 56px))", maxHeight: "min(70dvh, 650px)", overflowY: "auto", zIndex: 10003, padding: 14, border: `1px solid ${warna.garis}`, borderRadius: 14, background: warna.panel, boxShadow: "0 18px 48px rgba(22,35,61,0.16)", boxSizing: "border-box" },
+  adminRekapInput: { minHeight: 34, padding: "6px 8px", border: `1px solid ${warna.garis}`, borderRadius: 8, background: warna.panel, color: warna.tinta, fontSize: 11.5, fontWeight: 650 },
+  adminRekapButton: { minHeight: 34, padding: "6px 10px", border: `1px solid ${warna.garis}`, borderRadius: 8, background: warna.panelAlt, color: warna.tinta, fontSize: 10.8, fontWeight: 700, cursor: "pointer" },
+  adminRekapToday: { minHeight: 34, padding: "6px 10px", border: `1px solid ${warna.garis}`, borderRadius: 8, background: warna.panel, color: warna.aksen, fontSize: 10.8, fontWeight: 750, cursor: "pointer" },
+  adminBelumPanel: { position: "fixed", top: 132, right: 28, width: "min(540px, calc(100vw - 56px))", maxHeight: "min(68dvh, 620px)", overflowY: "auto", zIndex: 10003, padding: 14, border: `1px solid ${warna.garis}`, borderRadius: 14, background: warna.panel, boxShadow: "0 18px 48px rgba(22,35,61,0.16)", boxSizing: "border-box" },
   adminBelumHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 },
   adminBelumTitle: { display: "block", color: warna.tinta, fontSize: 13 },
   adminBelumSub: { display: "block", marginTop: 3, color: warna.tintaSamar, fontSize: 10.5 },
@@ -336,18 +389,26 @@ const styles = {
 };
 
 if (typeof document !== "undefined") {
-  const styleId = "admin-rekap-toolbar-responsive";
+  const styleId = "admin-rekap-layout-fix";
   if (!document.getElementById(styleId)) {
     const style = document.createElement("style");
     style.id = styleId;
     style.textContent = `
+      /* Sisakan ruang di antara header dan statistik untuk toolbar tanggal. */
+      .main-area-admin > div:nth-child(3) { padding-top: 52px !important; }
       @media (max-width: 760px) {
-        .admin-rekap-toolbar { top: 72px !important; left: 16px !important; right: 16px !important; padding: 7px 8px !important; }
+        .main-area-admin > div:nth-child(3) { padding-top: 48px !important; }
+        .admin-rekap-toolbar {
+          top: 72px !important;
+          left: 16px !important;
+          right: 16px !important;
+          padding: 6px 7px !important;
+        }
         .admin-rekap-date-copy { display: none !important; }
         .admin-rekap-toolbar { justify-content: flex-end !important; }
         .admin-rekap-toolbar input[type="date"] { min-height: 34px !important; max-width: 132px; font-size: 11px !important; }
         .admin-rekap-toolbar button { min-height: 34px !important; font-size: 10px !important; padding: 7px 8px !important; }
-        .admin-belum-panel { top: 120px !important; right: 16px !important; width: calc(100vw - 32px) !important; }
+        .admin-belum-panel { top: 116px !important; right: 16px !important; width: calc(100vw - 32px) !important; }
       }
     `;
     document.head.appendChild(style);
@@ -356,8 +417,13 @@ if (typeof document !== "undefined") {
 
 export default function App() {
   const [pengguna, setPengguna] = useState(undefined);
-  useEffect(() => { setPengguna(getPenggunaLogin() || null); }, []);
-  function handleLogout() { hapusSesiLogin(); setPengguna(null); }
+  useEffect(() => {
+    setPengguna(getPenggunaLogin() || null);
+  }, []);
+  function handleLogout() {
+    hapusSesiLogin();
+    setPengguna(null);
+  }
   if (pengguna === undefined) return <MemuatHalaman penuh />;
   return (
     <BatasKesalahanAplikasi>
