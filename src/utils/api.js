@@ -47,6 +47,23 @@ function initTanpaSignal(argumen) {
   return [input, { ...init, signal: undefined }];
 }
 
+function tambahkanTanggalRekap(urlPermintaan) {
+  if (!urlPermintaan.includes("/api/admin/rekap-hari-ini")) return urlPermintaan;
+
+  try {
+    const tanggal = sessionStorage.getItem("admin-tanggal-rekap");
+    if (!tanggal || !/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) return urlPermintaan;
+
+    const url = new URL(urlPermintaan, window.location.origin);
+    url.searchParams.set("tanggal", tanggal);
+
+    return url.href;
+  } catch (error) {
+    console.warn("Tanggal rekap Admin tidak dapat diterapkan:", error);
+    return urlPermintaan;
+  }
+}
+
 async function fetchRetryDenganTimeout(fetchAsli, argumen) {
   const [input, init] = initTanpaSignal(argumen);
   const controller = new AbortController();
@@ -66,12 +83,17 @@ export function pasangPenerjemahSesiKedaluwarsa() {
   const fetchAsli = window.fetch.bind(window);
 
   window.fetch = async function (...argumen) {
-    const urlPermintaan = urlDariArgumen(argumen);
+    const urlPermintaanAwal = urlDariArgumen(argumen);
+    const urlPermintaan = tambahkanTanggalRekap(urlPermintaanAwal);
+    const argumenDenganTanggal = [
+      urlPermintaan,
+      argumen[1],
+    ];
     const iniStatusAbsensi = urlPermintaan.includes("/api/absensi/status-hari-ini");
 
     let respons;
     try {
-      respons = await fetchAsli(...argumen);
+      respons = await fetchAsli(...argumenDenganTanggal);
     } catch (errorPertama) {
       if (!iniStatusAbsensi) throw errorPertama;
 
@@ -79,7 +101,7 @@ export function pasangPenerjemahSesiKedaluwarsa() {
       for (const delay of RETRY_STATUS_DELAYS_MS) {
         try {
           await tunggu(delay);
-          respons = await fetchRetryDenganTimeout(fetchAsli, argumen);
+          respons = await fetchRetryDenganTimeout(fetchAsli, argumenDenganTanggal);
           break;
         } catch (errorRetry) {
           errorTerakhir = errorRetry;
@@ -96,7 +118,7 @@ export function pasangPenerjemahSesiKedaluwarsa() {
       for (const delay of RETRY_STATUS_DELAYS_MS) {
         try {
           await tunggu(delay);
-          const retry = await fetchRetryDenganTimeout(fetchAsli, argumen);
+          const retry = await fetchRetryDenganTimeout(fetchAsli, argumenDenganTanggal);
           responsTerakhir = retry;
           if (retry.status < 500) break;
         } catch (errorRetry) {
