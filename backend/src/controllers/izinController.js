@@ -1,5 +1,35 @@
 const prisma = require("../utils/prismaClient");
-const { deleteFotoAbsensi } = require("../utils/supabaseStorage");
+const { deleteFotoAbsensi, buatSignedUrlFotoBatch } = require("../utils/supabaseStorage");
+
+function normalisasiTanggal(tanggal) {
+  const nilai = String(tanggal || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(nilai)) return null;
+
+  const [tahun, bulan, hari] = nilai.split("-").map(Number);
+  const kandidat = new Date(Date.UTC(tahun, bulan - 1, hari));
+  if (
+    kandidat.getUTCFullYear() !== tahun ||
+    kandidat.getUTCMonth() !== bulan - 1 ||
+    kandidat.getUTCDate() !== hari
+  ) {
+    return null;
+  }
+  return nilai;
+}
+
+function tanggalSebagaiDate(tanggal) {
+  return new Date(`${tanggal}T00:00:00.000Z`);
+}
+
+function tambahUrlLampiran(item, petaUrl) {
+  if (!item?.fotoSurat) return item;
+  return {
+    ...item,
+    fotoSuratUrl: item.fotoSurat.startsWith("/uploads/")
+      ? item.fotoSurat
+      : petaUrl.get(item.fotoSurat) || null,
+  };
+}
 
 // ============================================================
 // KARYAWAN — Ajukan izin/sakit/cuti/urgent
@@ -17,12 +47,13 @@ async function ajukanIzin(req, res) {
   try {
     const { tanggal, jenis, keterangan } = req.body;
     const penggunaId = req.user.id;
+    const tanggalNormal = normalisasiTanggal(tanggal);
 
-    if (!tanggal || !jenis || !keterangan) {
+    if (!tanggalNormal || !jenis || !String(keterangan || "").trim()) {
       await hapusFotoJikaPerlu();
       return res
         .status(400)
-        .json({ pesan: "Tanggal, jenis, dan keterangan wajib diisi." });
+        .json({ pesan: "Tanggal, jenis, dan keterangan wajib diisi dengan benar." });
     }
 
     const jenisValid = ["izin", "sakit", "cuti", "urgent"];
@@ -31,28 +62,21 @@ async function ajukanIzin(req, res) {
       return res.status(400).json({ pesan: "Jenis pengajuan tidak valid." });
     }
 
-    // Sakit wajib lampirkan foto surat, sesuai dokumen sistem
+    // Sakit wajib memiliki surat. Untuk semua jenis lain lampiran tetap
+    // diperbolehkan agar Admin dapat melihat dokumen pendukung bila diperlukan.
     if (jenis === "sakit" && !req.file) {
       return res.status(400).json({
-        pesan: "Untuk pengajuan Sakit, foto surat sakit wajib dilampirkan.",
+        pesan: "Untuk pengajuan Sakit, surat sakit wajib dilampirkan dalam bentuk foto atau PDF.",
       });
     }
 
-    // ============================================================
-    // CEK PENGAJUAN AKTIF
-    //
-    // Pemeriksaan ini memberi pesan yang ramah untuk kasus normal.
-    // Perlindungan sebenarnya diperkuat lagi oleh partial unique
-    // index di database, sehingga race condition antar-request
-    // tetap aman.
-    // ============================================================
+    const tanggalDate = tanggalSebagaiDate(tanggalNormal);
+
     const pengajuanAktif = await prisma.pengajuanIzin.findFirst({
       where: {
         penggunaId,
-        tanggal: new Date(tanggal),
-        status: {
-          in: ["menunggu", "disetujui"],
-        },
+        tanggal: tanggalDate,
+        status: { in: ["menunggu", "disetujui"] },
       },
     });
 
@@ -67,9 +91,9 @@ async function ajukanIzin(req, res) {
     const izin = await prisma.pengajuanIzin.create({
       data: {
         penggunaId,
-        tanggal: new Date(tanggal),
+        tanggal: tanggalDate,
         jenis,
-        keterangan,
+        keterangan: String(keterangan).trim(),
         fotoSurat,
         status: "menunggu",
       },
@@ -84,8 +108,6 @@ async function ajukanIzin(req, res) {
   } catch (error) {
     console.error("Gagal membuat pengajuan izin:", error);
 
-    // P2002 = unique constraint. Ini terutama menangani dua request
-    // bersamaan yang lolos dari findFirst secara bersamaan.
     if (error?.code === "P2002") {
       await hapusFotoJikaPerlu();
       return res.status(400).json({
@@ -111,10 +133,17 @@ async function riwayatIzinSaya(req, res) {
 
     const data = await prisma.pengajuanIzin.findMany({
       where: { penggunaId },
-      orderBy: { tanggal: "desc" },
+      orderBy: [{ tanggal: "desc" }, { id: "desc" }],
     });
 
-    return res.json({ data });
+    const paths = data
+      .map((item) => item.fotoSurat)
+      .filter((path) => path && !path.startsWith("/uploads/"));
+    const petaUrl = await buatSignedUrlFotoBatch(paths);
+
+    return res.json({
+      data: data.map((item) => tambahUrlLampiran(item, petaUrl)),
+    });
   } catch (error) {
     console.error(error);
     return res.status(500).json({
@@ -140,10 +169,17 @@ async function daftarSemuaIzin(req, res) {
       include: {
         pengguna: { select: { nama: true, jabatan: true, divisi: true } },
       },
-      orderBy: { dibuatPada: "desc" },
+      orderBy: [{ dibuatPada: "desc" }, { id: "desc" }],
     });
 
-    return res.json({ data });
+    const paths = data
+      .map((item) => item.fotoSurat)
+      .filter((path) => path && !path.startsWith("/uploads/"));
+    const petaUrl = await buatSignedUrlFotoBatch(paths);
+
+    return res.json({
+      data: data.map((item) => tambahUrlLampiran(item, petaUrl)),
+    });
   } catch (error) {
     console.error(error);
     return res.status(500).json({
@@ -154,15 +190,13 @@ async function daftarSemuaIzin(req, res) {
 
 // ============================================================
 // ADMIN — Setujui pengajuan izin
-// Otomatis update status_final di tabel absensi hari itu jadi
-// izin/sakit/cuti/urgent, supaya gajinya gak ikut terpotong
 // ============================================================
 async function setujuiIzin(req, res) {
   try {
     const { id } = req.params;
     const { catatanAdmin } = req.body;
     const adminId = req.user.id;
-    const idPengajuan = parseInt(id);
+    const idPengajuan = parseInt(id, 10);
 
     if (!Number.isInteger(idPengajuan)) {
       return res.status(400).json({ pesan: "ID pengajuan tidak valid." });
@@ -182,16 +216,14 @@ async function setujuiIzin(req, res) {
       });
     }
 
-    // ============================================================
-    // UPDATE PENGAJUAN + ABSENSI DALAM SATU TRANSACTION
-    // ============================================================
     const hasil = await prisma.$transaction(async (tx) => {
+      const waktuProses = new Date();
       const izinDiupdate = await tx.pengajuanIzin.update({
         where: { id: idPengajuan },
         data: {
           status: "disetujui",
           diprosesOleh: adminId,
-          waktuProses: new Date(),
+          waktuProses,
           catatanAdmin: catatanAdmin || null,
         },
       });
@@ -207,7 +239,7 @@ async function setujuiIzin(req, res) {
           statusFinal: izin.jenis,
           catatanAdmin: `Disetujui sebagai ${izin.jenis} (pengajuan #${izin.id})`,
           dieditOleh: adminId,
-          waktuEdit: new Date(),
+          waktuEdit: waktuProses,
         },
         create: {
           penggunaId: izin.penggunaId,
@@ -215,7 +247,7 @@ async function setujuiIzin(req, res) {
           statusFinal: izin.jenis,
           catatanAdmin: `Disetujui sebagai ${izin.jenis} (pengajuan #${izin.id})`,
           dieditOleh: adminId,
-          waktuEdit: new Date(),
+          waktuEdit: waktuProses,
         },
       });
 
@@ -242,7 +274,7 @@ async function tolakIzin(req, res) {
     const { id } = req.params;
     const { catatanAdmin } = req.body;
     const adminId = req.user.id;
-    const idPengajuan = parseInt(id);
+    const idPengajuan = parseInt(id, 10);
 
     if (!Number.isInteger(idPengajuan)) {
       return res.status(400).json({ pesan: "ID pengajuan tidak valid." });
