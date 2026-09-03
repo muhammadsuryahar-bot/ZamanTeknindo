@@ -2,13 +2,11 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const prisma = require("../utils/prismaClient");
+const { kirimPushKeSemuaAdmin } = require("../utils/pushNotification");
 
 const DOMAIN_PERUSAHAAN = (
   process.env.ALLOWED_EMAIL_DOMAIN || "zamanteknindo.com"
-)
-  .trim()
-  .toLowerCase()
-  .replace(/^@/, "");
+).trim().toLowerCase().replace(/^@/, "");
 
 const EMAIL_ADMIN = (
   process.env.ADMIN_EMAIL || "admin@gmail.com"
@@ -16,9 +14,7 @@ const EMAIL_ADMIN = (
 
 function emailKaryawanValid(email) {
   const emailBersih = String(email || "").trim().toLowerCase();
-  const pola = new RegExp(
-    `^[^\\s@]+@${DOMAIN_PERUSAHAAN.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}$`,
-  );
+  const pola = new RegExp(`^[^\\s@]+@${DOMAIN_PERUSAHAAN.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}$`);
   return pola.test(emailBersih);
 }
 
@@ -38,6 +34,15 @@ async function daftarAkun(req, res) {
     if (sudahAda) return res.status(400).json({ pesan: "Email ini sudah terdaftar. Silakan login." });
     const kataSandiHash = await bcrypt.hash(kataSandi, 10);
     const penggunaBaru = await prisma.pengguna.create({ data: { nama: nama.trim(), email: emailBersih, kataSandi: kataSandiHash, peran: "karyawan", statusAkun: "menunggu_konfirmasi" } });
+
+    void kirimPushKeSemuaAdmin({
+      title: "Zaman Teknindo — Akun Baru",
+      body: `${penggunaBaru.nama} mendaftar dan menunggu konfirmasi Admin.`,
+      tag: `admin-akun-${penggunaBaru.id}`,
+      url: "/admin",
+      renotify: true,
+    }).catch((error) => console.error("Push akun baru gagal:", error));
+
     return res.status(201).json({ pesan: "Pendaftaran berhasil! Akun Anda sedang menunggu konfirmasi dari Admin sebelum bisa digunakan.", data: { id: penggunaBaru.id, nama: penggunaBaru.nama, email: penggunaBaru.email } });
   } catch (error) { console.error(error); return res.status(500).json({ pesan: "Terjadi kesalahan pada server." }); }
 }
@@ -57,11 +62,7 @@ async function login(req, res) {
     if (!cocok) return res.status(400).json({ pesan: "Email atau kata sandi salah." });
 
     const durasiToken = ingatSaya === true ? "30d" : "8h";
-    const token = jwt.sign(
-      { id: pengguna.id, peran: pengguna.peran, nama: pengguna.nama },
-      process.env.JWT_SECRET,
-      { expiresIn: durasiToken },
-    );
+    const token = jwt.sign({ id: pengguna.id, peran: pengguna.peran, nama: pengguna.nama }, process.env.JWT_SECRET, { expiresIn: durasiToken });
 
     return res.json({ pesan: "Login berhasil.", token, pengguna: { id: pengguna.id, nama: pengguna.nama, email: pengguna.email, peran: pengguna.peran, jabatan: pengguna.jabatan, divisi: pengguna.divisi } });
   } catch (error) { console.error(error); return res.status(500).json({ pesan: "Terjadi kesalahan pada server." }); }
