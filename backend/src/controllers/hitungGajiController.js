@@ -139,8 +139,16 @@ async function siapkanKonteksGaji(tahun, bulan) {
   const hariKerjaSetelahLibur = hariKerja.filter((d) => !setHariLibur.has(d.toISOString().slice(0, 10)));
   const sekarangWIB = tahunBulanSekarangWIB();
   const bulanIniBerjalan = tahun === sekarangWIB.tahun && bulan === sekarangWIB.bulan;
-  const sekarang = new Date();
-  const hariKerjaDihitung = bulanIniBerjalan ? hariKerjaSetelahLibur.filter((d) => d <= sekarang) : hariKerjaSetelahLibur;
+
+  // Hari yang sedang berjalan belum boleh dianggap alpha.
+  // Perhitungan bulan aktif hanya menghitung hari kerja yang SUDAH SELESAI
+  // sebelum tanggal WIB hari ini. Dengan begitu, menghitung gaji pukul pagi
+  // tidak langsung memberi potongan alpha kepada semua karyawan.
+  const tanggalHariIniWIB = tanggalUTC(sekarangWIB.tahun, sekarangWIB.bulan, sekarangWIB.tanggal);
+  const hariKerjaDihitung = bulanIniBerjalan
+    ? hariKerjaSetelahLibur.filter((d) => d < tanggalHariIniWIB)
+    : hariKerjaSetelahLibur;
+
   const awalBulan = tanggalUTC(tahun, bulan, 1);
   const akhirBulan = new Date(Date.UTC(tahun, bulan, 0, 23, 59, 59));
 
@@ -151,7 +159,7 @@ async function hitungGajiKaryawan(penggunaId, tahun, bulan) {
   const { pengaturan, hariKerjaDihitung, awalBulan, akhirBulan } = await siapkanKonteksGaji(tahun, bulan);
   const [gajiData, semuaAbsensi] = await Promise.all([
     prisma.gajiKaryawan.findUnique({ where: { penggunaId } }),
-    prisma.absensi.findMany({ where: { penggunaId, tanggal: { gte: awalBulan, lte: akhirBulan } } }),
+    prisma.absensi.findMany({ where: { penggunaId, tanggal: { gte: awalBulan, lte: akhirBulan } }),
   ]);
 
   return hitungDariData({ penggunaId, tahun, bulan, gajiData, pengaturan, hariKerjaDihitung, petaAbsensi: buatPetaAbsensi(semuaAbsensi) });
