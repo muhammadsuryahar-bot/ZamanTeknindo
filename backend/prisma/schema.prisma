@@ -22,26 +22,42 @@ model Kantor {
 }
 
 model Pengguna {
-  id            Int             @id @default(autoincrement())
-  nama          String
-  email         String          @unique
-  kataSandi     String          @map("kata_sandi")
-  peran         Peran           @default(karyawan)
-  jabatan       String?
-  divisi        String?
-  kantorId      Int?            @map("kantor_id")
-  statusAkun    StatusAkun      @default(menunggu_konfirmasi) @map("status_akun")
-  dibuatPada    DateTime        @default(now()) @map("dibuat_pada")
-  absensiDiedit Absensi[]       @relation("AbsensiDiedit")
-  absensi       Absensi[]       @relation("AbsensiPengguna")
-  gaji          GajiKaryawan?
-  laporanGaji   LaporanGaji[]
-  izinDiproses  PengajuanIzin[] @relation("IzinDiproses")
-  pengajuanIzin PengajuanIzin[] @relation("IzinPengaju")
-  kantor        Kantor?         @relation(fields: [kantorId], references: [id])
+  id               Int                @id @default(autoincrement())
+  nama             String
+  email            String             @unique
+  kataSandi        String             @map("kata_sandi")
+  peran            Peran              @default(karyawan)
+  jabatan          String?
+  divisi           String?
+  kantorId         Int?               @map("kantor_id")
+  statusAkun       StatusAkun         @default(menunggu_konfirmasi) @map("status_akun")
+  dibuatPada       DateTime           @default(now()) @map("dibuat_pada")
+  absensiDiedit    Absensi[]          @relation("AbsensiDiedit")
+  absensi          Absensi[]          @relation("AbsensiPengguna")
+  gaji             GajiKaryawan?
+  laporanGaji      LaporanGaji[]
+  izinDiproses     PengajuanIzin[]    @relation("IzinDiproses")
+  pengajuanIzin    PengajuanIzin[]    @relation("IzinPengaju")
+  pushSubscriptions PushSubscription[]
+  kantor           Kantor?            @relation(fields: [kantorId], references: [id])
 
   @@index([kantorId])
   @@map("pengguna")
+}
+
+model PushSubscription {
+  id         Int      @id @default(autoincrement())
+  penggunaId Int      @map("pengguna_id")
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  userAgent  String?  @map("user_agent")
+  dibuatPada DateTime @default(now()) @map("dibuat_pada")
+  diubahPada DateTime @updatedAt @map("diubah_pada")
+  pengguna   Pengguna @relation(fields: [penggunaId], references: [id], onDelete: Cascade)
+
+  @@index([penggunaId])
+  @@map("push_subscription")
 }
 
 model Absensi {
@@ -131,7 +147,7 @@ model LaporanGaji {
   jumlahAlpha      Int      @default(0) @map("jumlah_alpha")
   jumlahIzin       Int      @default(0) @map("jumlah_izin")
   jumlahSakit      Int      @default(0) @map("jumlah_sakit")
-  jumlahCuti      Int      @default(0) @map("jumlah_cuti")
+  jumlahCuti       Int      @default(0) @map("jumlah_cuti")
   gajiPokok        Decimal  @map("gaji_pokok") @db.Decimal(12, 2)
   totalPotongan    Decimal  @map("total_potongan") @db.Decimal(12, 2)
   gajiDiterima     Decimal  @map("gaji_diterima") @db.Decimal(12, 2)
