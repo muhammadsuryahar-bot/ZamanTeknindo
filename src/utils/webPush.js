@@ -9,10 +9,6 @@ function base64UrlKeUint8Array(base64Url) {
   return Uint8Array.from([...raw].map((char) => char.charCodeAt(0)));
 }
 
-function normalisasiPermission() {
-  return typeof Notification === "undefined" ? "unsupported" : Notification.permission;
-}
-
 async function ambilServiceWorker() {
   if (!("serviceWorker" in navigator)) return null;
   try {
@@ -46,7 +42,7 @@ async function registrasikanPush() {
   if (typeof window === "undefined" || typeof navigator === "undefined") return false;
   if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) return false;
   if (!getToken() || !getPenggunaLogin()) return false;
-  if (normalisasiPermission() !== "granted") return false;
+  if (Notification.permission !== "granted") return false;
 
   const sw = await ambilServiceWorker();
   if (!sw) return false;
@@ -84,7 +80,6 @@ async function mintaIzinDanDaftar() {
     }
   }
 
-  if (Notification.permission !== "granted") return false;
   return registrasikanPush();
 }
 
@@ -92,30 +87,60 @@ export function pasangWebPushOtomatis() {
   if (typeof window === "undefined" || window.__webPushOtomatisTerpasang) return;
   window.__webPushOtomatisTerpasang = true;
 
-  const sync = async () => {
+  let penggunaTerdeteksi = false;
+  let sudahMemintaIzinSesi = false;
+
+  const sync = async (bolehMintaIzin = false) => {
     const pengguna = getPenggunaLogin();
     const token = getToken();
-    if (!pengguna || !token) return;
-
-    if (prosesRegistrasi) return prosesRegistrasi;
-    prosesRegistrasi = mintaIzinDanDaftar().catch((error) => {
-      console.warn("Registrasi notifikasi otomatis gagal:", error);
+    if (!pengguna || !token) {
+      penggunaTerdeteksi = false;
       return false;
-    }).finally(() => {
-      prosesRegistrasi = null;
-    });
+    }
+
+    penggunaTerdeteksi = true;
+    if (prosesRegistrasi) return prosesRegistrasi;
+
+    if (Notification.permission !== "granted" && !bolehMintaIzin) return false;
+    if (Notification.permission === "default" && sudahMemintaIzinSesi) return false;
+    if (bolehMintaIzin && Notification.permission === "default") sudahMemintaIzinSesi = true;
+
+    prosesRegistrasi = (bolehMintaIzin ? mintaIzinDanDaftar() : registrasikanPush())
+      .catch((error) => {
+        console.warn("Registrasi notifikasi otomatis gagal:", error);
+        return false;
+      })
+      .finally(() => {
+        prosesRegistrasi = null;
+      });
 
     return prosesRegistrasi;
   };
 
-  // Dicoba otomatis setelah sesi login terdeteksi. Pada browser yang
-  // mensyaratkan user gesture, requestPermission dapat ditolak oleh browser;
-  // ketika izin sudah pernah diberikan, registrasi tetap berlangsung otomatis.
-  void sync();
-  window.setInterval(() => void sync(), 5000);
+  // Cek otomatis ketika sesi login sudah tersedia.
+  void sync(false);
+
+  // Tidak ada tombol "Aktifkan Notifikasi". Browser tetap wajib mendapat
+  // user activation untuk menampilkan dialog izin. Karena itu interaksi
+  // pertama karyawan/Admin setelah login dipakai untuk meminta izin satu kali.
+  const handlerInteraksiPertama = () => {
+    if (!penggunaTerdeteksi && !getPenggunaLogin()) return;
+    if (Notification.permission === "granted") {
+      void sync(false);
+    } else if (Notification.permission === "default") {
+      void sync(true);
+    }
+    window.removeEventListener("click", handlerInteraksiPertama, true);
+    window.removeEventListener("touchstart", handlerInteraksiPertama, true);
+  };
+
+  window.addEventListener("click", handlerInteraksiPertama, true);
+  window.addEventListener("touchstart", handlerInteraksiPertama, true);
+
+  window.setInterval(() => void sync(false), 15000);
 
   navigator.serviceWorker?.addEventListener("message", (event) => {
-    if (event?.data?.type === "ZAMAN_TEKNINDO_PUSH_READY") void sync();
+    if (event?.data?.type === "ZAMAN_TEKNINDO_PUSH_READY") void sync(false);
   });
 }
 
