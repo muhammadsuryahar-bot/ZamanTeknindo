@@ -8,6 +8,47 @@ import { pasangPenerjemahSesiKedaluwarsa } from './utils/api.js'
 // untuk semua pemanggilan fetch() dari halaman manapun.
 pasangPenerjemahSesiKedaluwarsa()
 
+// Sinkronisasi rekap Admin ke tanggal yang sedang dipilih di AdminShell.
+// DashboardAdmin adalah komponen lama yang tetap meminta endpoint
+// /admin/rekap-hari-ini tanpa query tanggal. Interceptor ini memastikan
+// request tersebut tetap membawa tanggal yang dipilih, tanpa mengganti
+// struktur halaman atau membuat endpoint/berkas baru.
+if (typeof window !== 'undefined' && !window.__adminRekapFetchTerpasang) {
+  const fetchAsli = window.fetch.bind(window)
+
+  window.fetch = (input, init) => {
+    const urlAsli =
+      typeof input === 'string'
+        ? input
+        : input instanceof Request
+          ? input.url
+          : ''
+
+    const tanggalRekap = window.__adminTanggalRekap
+    const perluSinkron =
+      tanggalRekap &&
+      urlAsli.includes('/admin/rekap-hari-ini') &&
+      !/[?&]tanggal=/.test(urlAsli)
+
+    if (!perluSinkron) return fetchAsli(input, init)
+
+    const separator = urlAsli.includes('?') ? '&' : '?'
+    const urlBaru = `${urlAsli}${separator}tanggal=${encodeURIComponent(tanggalRekap)}`
+
+    if (typeof input === 'string') {
+      return fetchAsli(urlBaru, init)
+    }
+
+    if (input instanceof Request) {
+      return fetchAsli(new Request(urlBaru, input), init)
+    }
+
+    return fetchAsli(urlBaru, init)
+  }
+
+  window.__adminRekapFetchTerpasang = true
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <App />
