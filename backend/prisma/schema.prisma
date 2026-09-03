@@ -83,12 +83,11 @@ model GajiKaryawan {
 }
 
 model PengaturanPotongan {
-  id               Int      @id @default(1)
-  potonganTelat    Decimal  @default(10000.00) @map("potongan_telat") @db.Decimal(12, 2)
-  potonganAlpha    Decimal  @default(15000.00) @map("potongan_alpha") @db.Decimal(12, 2)
-  jamMasukStandar  String   @default("08:10:00") @map("jam_masuk_standar")
-  jamPulangStandar String   @default("17:00:00") @map("jam_pulang_standar")
-  diubahPada       DateTime @updatedAt @map("diubah_pada")
+  id              Int      @id @default(1)
+  potonganTelat   Decimal  @default(10000.00) @map("potongan_telat") @db.Decimal(12, 2)
+  potonganAlpha   Decimal  @default(15000.00) @map("potongan_alpha") @db.Decimal(12, 2)
+  jamMasukStandar String   @default("08:10:00") @map("jam_masuk_standar")
+  diubahPada      DateTime @updatedAt @map("diubah_pada")
 
   @@map("pengaturan_potongan")
 }
@@ -133,9 +132,9 @@ model LaporanGaji {
   jumlahIzin       Int      @default(0) @map("jumlah_izin")
   jumlahSakit      Int      @default(0) @map("jumlah_sakit")
   jumlahCuti      Int      @default(0) @map("jumlah_cuti")
-  gajiPokok        Decimal  @map("gaji_pokok")
-  totalPotongan    Decimal  @map("total_potongan")
-  gajiDiterima     Decimal  @map("gaji_diterima")
+  gajiPokok        Decimal  @map("gaji_pokok") @db.Decimal(12, 2)
+  totalPotongan    Decimal  @map("total_potongan") @db.Decimal(12, 2)
+  gajiDiterima     Decimal  @map("gaji_diterima") @db.Decimal(12, 2)
   dibuatPada       DateTime @default(now()) @map("dibuat_pada")
   pengguna         Pengguna @relation(fields: [penggunaId], references: [id])
 
