@@ -155,6 +155,10 @@ function normalisasiTanggal(tanggal) {
   return nilai;
 }
 
+function tanggalSebagaiDate(tanggal) {
+  return new Date(`${tanggal}T00:00:00.000Z`);
+}
+
 async function ambilRekapTanggal(req, res) {
   try {
     const tanggal = normalisasiTanggal(req.query?.tanggal) || tanggalHariIniWIB();
@@ -166,9 +170,11 @@ async function ambilRekapTanggal(req, res) {
       });
     }
 
+    const tanggalDate = tanggalSebagaiDate(tanggal);
+
     const [data, karyawanAktif, pengaturan] = await Promise.all([
       prisma.absensi.findMany({
-        where: { tanggal },
+        where: { tanggal: tanggalDate },
         include: {
           pengguna: {
             select: {
@@ -188,7 +194,7 @@ async function ambilRekapTanggal(req, res) {
             },
           },
         },
-        orderBy: { jamMasuk: "asc" },
+        orderBy: [{ jamMasuk: "asc" }, { id: "asc" }],
       }),
       prisma.pengguna.findMany({
         where: { peran: "karyawan", statusAkun: "aktif" },
@@ -279,6 +285,8 @@ async function ubahStatusTanpaAbsensi(req, res) {
       });
     }
 
+    const tanggalDate = tanggalSebagaiDate(tanggal);
+
     const [pengguna, existing] = await Promise.all([
       prisma.pengguna.findFirst({
         where: {
@@ -289,7 +297,7 @@ async function ubahStatusTanpaAbsensi(req, res) {
         select: { id: true, nama: true },
       }),
       prisma.absensi.findUnique({
-        where: { penggunaId_tanggal: { penggunaId, tanggal } },
+        where: { penggunaId_tanggal: { penggunaId, tanggal: tanggalDate } },
         select: { id: true },
       }),
     ]);
@@ -305,13 +313,12 @@ async function ubahStatusTanpaAbsensi(req, res) {
       });
     }
 
-    const statusOtomatis =
-      statusFinal === "alpha" ? "alpha" : null;
+    const statusOtomatis = statusFinal === "alpha" ? "alpha" : null;
 
     const absensi = await prisma.absensi.create({
       data: {
         penggunaId,
-        tanggal,
+        tanggal: tanggalDate,
         statusOtomatis,
         statusFinal,
         catatanAdmin,
