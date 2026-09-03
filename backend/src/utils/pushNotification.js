@@ -2,6 +2,7 @@ const webpush = require("web-push");
 const prisma = require("./prismaClient");
 
 let vapidSiap = false;
+let tabelPushSiap = false;
 
 function siapkanVapid() {
   if (vapidSiap) return true;
@@ -25,6 +26,33 @@ function siapkanVapid() {
   }
 }
 
+async function pastikanTabelPushSubscription() {
+  if (tabelPushSiap) return true;
+
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "push_subscription" (
+        "id" SERIAL PRIMARY KEY,
+        "pengguna_id" INTEGER NOT NULL,
+        "endpoint" TEXT NOT NULL UNIQUE,
+        "p256dh" TEXT NOT NULL,
+        "auth" TEXT NOT NULL,
+        "user_agent" TEXT,
+        "dibuat_pada" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "diubah_pada" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "push_subscription_pengguna_id_fkey"
+          FOREIGN KEY ("pengguna_id") REFERENCES "pengguna"("id") ON DELETE CASCADE ON UPDATE CASCADE
+      )
+    `);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "push_subscription_pengguna_id_idx" ON "push_subscription"("pengguna_id")`);
+    tabelPushSiap = true;
+    return true;
+  } catch (error) {
+    console.error("Gagal memastikan tabel push_subscription:", error?.message || error);
+    return false;
+  }
+}
+
 function webPushAktif() {
   return siapkanVapid();
 }
@@ -40,13 +68,12 @@ function normalisasiSubscription(subscription) {
 
 async function kirimPushKePengguna(penggunaIds, payload) {
   if (!siapkanVapid()) return { terkirim: 0, dihapus: 0, dinonaktifkan: true };
+  if (!(await pastikanTabelPushSubscription())) return { terkirim: 0, dihapus: 0 };
 
   const ids = [...new Set((Array.isArray(penggunaIds) ? penggunaIds : [penggunaIds]).map(Number).filter(Number.isInteger))];
   if (!ids.length) return { terkirim: 0, dihapus: 0 };
 
-  const subscriptions = await prisma.pushSubscription.findMany({
-    where: { penggunaId: { in: ids } },
-  });
+  const subscriptions = await prisma.pushSubscription.findMany({ where: { penggunaId: { in: ids } } });
 
   let terkirim = 0;
   let dihapus = 0;
@@ -54,10 +81,7 @@ async function kirimPushKePengguna(penggunaIds, payload) {
   for (const item of subscriptions) {
     try {
       await webpush.sendNotification(
-        {
-          endpoint: item.endpoint,
-          keys: { p256dh: item.p256dh, auth: item.auth },
-        },
+        { endpoint: item.endpoint, keys: { p256dh: item.p256dh, auth: item.auth } },
         JSON.stringify(payload),
         { TTL: 300 },
       );
@@ -86,6 +110,7 @@ async function kirimPushKeSemuaAdmin(payload) {
 
 module.exports = {
   webPushAktif,
+  pastikanTabelPushSubscription,
   normalisasiSubscription,
   kirimPushKePengguna,
   kirimPushKeSemuaAdmin,
