@@ -138,6 +138,14 @@ function tambahInfoLokasi(item, petaUrlFoto, jamMasukStandar) {
 }
 
 function normalisasiTanggal(tanggal) {
+  if (tanggal instanceof Date) {
+    if (Number.isNaN(tanggal.getTime())) return null;
+    const tahun = tanggal.getUTCFullYear();
+    const bulan = String(tanggal.getUTCMonth() + 1).padStart(2, "0");
+    const hari = String(tanggal.getUTCDate()).padStart(2, "0");
+    return `${tahun}-${bulan}-${hari}`;
+  }
+
   const nilai = String(tanggal || "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(nilai)) return null;
 
@@ -156,13 +164,18 @@ function normalisasiTanggal(tanggal) {
 }
 
 function tanggalSebagaiDate(tanggal) {
-  return new Date(`${tanggal}T00:00:00.000Z`);
+  const date = new Date(`${tanggal}T00:00:00.000Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 async function ambilRekapTanggal(req, res) {
   try {
-    const tanggal = normalisasiTanggal(req.query?.tanggal) || tanggalHariIniWIB();
-    const hariIni = tanggalHariIniWIB();
+    const hariIni = normalisasiTanggal(tanggalHariIniWIB());
+    const tanggal = normalisasiTanggal(req.query?.tanggal) || hariIni;
+
+    if (!tanggal || !hariIni) {
+      return res.status(500).json({ pesan: "Tanggal sistem tidak valid." });
+    }
 
     if (tanggal > hariIni) {
       return res.status(400).json({
@@ -171,6 +184,9 @@ async function ambilRekapTanggal(req, res) {
     }
 
     const tanggalDate = tanggalSebagaiDate(tanggal);
+    if (!tanggalDate) {
+      return res.status(400).json({ pesan: "Tanggal rekap tidak valid." });
+    }
 
     const [data, karyawanAktif, pengaturan] = await Promise.all([
       prisma.absensi.findMany({
@@ -286,6 +302,9 @@ async function ubahStatusTanpaAbsensi(req, res) {
     }
 
     const tanggalDate = tanggalSebagaiDate(tanggal);
+    if (!tanggalDate) {
+      return res.status(400).json({ pesan: "Tanggal absensi tidak valid." });
+    }
 
     const [pengguna, existing] = await Promise.all([
       prisma.pengguna.findFirst({
