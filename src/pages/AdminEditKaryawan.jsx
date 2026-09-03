@@ -109,17 +109,14 @@ export default function AdminEditKaryawan() {
         <button type="button" onClick={() => navigate("/admin")} style={styles.back}><ArrowLeft size={17} /> Kembali ke Dashboard</button>
         <div><h1 style={styles.title}>Edit Data Karyawan</h1><p style={styles.subtitle}>Perbarui email, jabatan, divisi, dan kantor kerja tanpa mengubah password karyawan.</p></div>
       </div>
-
       {pesan && <div style={styles.alertError}><X size={17} /> {pesan}</div>}
       {sukses && <div style={styles.alertSuccess}><CheckCircle2 size={17} /> {sukses}</div>}
-
       <div style={styles.toolbar}><Search size={17} color={warna.tintaSamar} /><input value={cari} onChange={(e) => setCari(e.target.value)} placeholder="Cari nama, email, jabatan, divisi, atau kantor..." style={styles.search} /></div>
-
       <section style={styles.card}>
         {loading ? <div style={styles.loading}><LoaderCircle className="spin" size={20} /> Memuat karyawan...</div> : hasil.length === 0 ? <div style={styles.empty}>Tidak ada karyawan yang ditemukan.</div> : <>
           <div className="edit-karyawan-desktop">
             <table style={styles.table}>
-              <colgroup><col style={{width:"18%"}}/><col style={{width:"25%"}}/><col style={{width:"16%"}}/><col style={{width:"14%"}}/><col style={{width:"17%"}}/><col style={{width:"10%"}}/></colgroup>
+              <colgroup><col style={{width:"18%"}}/><col style={{width:"23%"}}/><col style={{width:"14%"}}/><col style={{width:"13%"}}/><col style={{width:"16%"}}/><col style={{width:"16%"}}/></colgroup>
               <thead><tr>{["Nama","Email","Jabatan","Divisi","Kantor","Aksi"].map((x,i)=><th key={x} style={i===5?styles.thAction:styles.th}>{x}</th>)}</tr></thead>
               <tbody>{hasil.map((item)=>{const sedangEdit=editId===item.id; return <tr key={item.id}>
                 <td style={styles.td}><strong style={styles.name}>{item.nama}</strong></td>
@@ -133,7 +130,7 @@ export default function AdminEditKaryawan() {
           </div>
           <div className="edit-karyawan-mobile">
             {hasil.map((item)=>{const sedangEdit=editId===item.id; return <article key={item.id} style={styles.mobileCard}>
-              <div style={styles.mobileTop}><div><strong style={styles.mobileName}>{item.nama}</strong><span style={styles.mobileOffice}>{item.kantor?.namaKantor||"Belum ditentukan"}</span></div>{aksi(item,true)}</div>
+              <div style={styles.mobileTop}><div style={{minWidth:0}}><strong style={styles.mobileName}>{item.nama}</strong><span style={styles.mobileOffice}>{item.kantor?.namaKantor||"Belum ditentukan"}</span></div>{aksi(item,true)}</div>
               {sedangEdit ? <div style={styles.mobileForm}>
                 <label style={styles.label}>Email{input("email",{type:"email",autoComplete:"username"})}</label>
                 <label style={styles.label}>Jabatan{input("jabatan")}</label>
@@ -146,12 +143,7 @@ export default function AdminEditKaryawan() {
           </div>
         </>}
       </section>
-
-      <style>{`
-        .spin{animation:editSpin 1s linear infinite}@keyframes editSpin{to{transform:rotate(360deg)}}
-        .edit-karyawan-mobile{display:none}
-        @media(max-width:900px){.edit-karyawan-desktop{display:none}.edit-karyawan-mobile{display:grid;gap:10px;padding:10px}}
-      `}</style>
+      <style>{`.spin{animation:editSpin 1s linear infinite}@keyframes editSpin{to{transform:rotate(360deg)}}.edit-karyawan-mobile{display:none}@media(max-width:900px){.edit-karyawan-desktop{display:none}.edit-karyawan-mobile{display:grid;gap:10px;padding:10px}}`}</style>
     </div>
   );
 }
@@ -168,12 +160,12 @@ const styles = {
   table:{width:"100%",tableLayout:"fixed",borderCollapse:"collapse",fontFamily:font.display},
   th:{padding:"12px 14px",textAlign:"left",fontSize:teks.kecil,fontWeight:700,lineHeight:1.35,color:warna.tintaSamar,background:warna.panelAlt,borderBottom:`1px solid ${warna.garis}`},
   thAction:{padding:"12px 10px",textAlign:"center",fontSize:teks.kecil,fontWeight:700,lineHeight:1.35,color:warna.tintaSamar,background:warna.panelAlt,borderBottom:`1px solid ${warna.garis}`},
-  td:{padding:"13px 14px",fontSize:teks.badan,lineHeight:1.45,color:warna.tinta,borderBottom:`1px solid ${warna.garis}`,verticalAlign:"middle",overflow:"hidden"},
+  td:{padding:"13px 12px",fontSize:teks.badan,lineHeight:1.45,color:warna.tinta,borderBottom:`1px solid ${warna.garis}`,verticalAlign:"middle",overflow:"hidden"},
   cellText:{display:"block",overflowWrap:"anywhere",wordBreak:"break-word",whiteSpace:"normal"},
   name:{display:"block",overflowWrap:"break-word",wordBreak:"normal",whiteSpace:"normal"},
   input:{width:"100%",minWidth:0,minHeight:40,boxSizing:"border-box",padding:"8px 9px",border:`1px solid ${warna.garis}`,borderRadius:radius.kecil,outline:0,color:warna.tinta,background:warna.panel,fontSize:teks.badan,fontFamily:font.display},
   actionCell:{textAlign:"center"},
-  actions:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,width:"100%"},
+  actions:{display:"grid",gridTemplateColumns:"1fr 1.15fr",gap:6,width:"100%"},
   edit:{width:"100%",minHeight:40,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,border:`1px solid ${warna.garis}`,background:warna.panel,color:warna.tinta,borderRadius:radius.sedang,padding:"8px 8px",cursor:"pointer",fontSize:teks.kecil,fontWeight:700,fontFamily:font.display},
   cancel:{minHeight:40,border:`1px solid ${warna.garis}`,background:warna.panel,color:warna.tintaLembut,borderRadius:radius.sedang,padding:"8px 10px",cursor:"pointer",fontSize:teks.badan,fontFamily:font.display},
   save:{minHeight:40,border:0,background:warna.aksen,color:"#fff",borderRadius:radius.sedang,padding:"8px 10px",cursor:"pointer",fontSize:teks.badan,fontWeight:700,fontFamily:font.display},
