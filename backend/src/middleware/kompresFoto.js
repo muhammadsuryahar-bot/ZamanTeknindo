@@ -9,9 +9,52 @@ const {
 const TARGET_MAKS_BYTES = 200 * 1024;
 const LEBAR_MAKS_PX = 1280;
 
+function buatPathStorage(penggunaId, ekstensi = "jpg") {
+  const sekarang = new Date();
+  const tahun = sekarang.getUTCFullYear();
+  const bulan = String(sekarang.getUTCMonth() + 1).padStart(2, "0");
+  const hari = String(sekarang.getUTCDate()).padStart(2, "0");
+  const namaFile = `${penggunaId}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}.${ekstensi}`;
+  return `${tahun}/${bulan}/${hari}/${namaFile}`;
+}
+
 async function kompresFoto(req, res, next) {
   try {
     if (!req.file) return next();
+
+    // Lampiran surat boleh PDF. PDF tidak boleh dilewatkan ke Sharp karena
+    // Sharp hanya dipakai untuk gambar. Upload PDF langsung ke Storage.
+    if (req.file.mimetype === "application/pdf" && req.file.fieldname === "fotoSurat") {
+      const filePath = buatPathStorage(req.user.id, "pdf");
+      const storagePath = await uploadFotoAbsensi(
+        req.file.buffer,
+        filePath,
+        "application/pdf",
+      );
+
+      req.file.filename = storagePath;
+      req.file.path = storagePath;
+      req.file.size = req.file.buffer.length;
+
+      res.once("finish", () => {
+        if (res.statusCode >= 400 && storagePath) {
+          deleteFotoAbsensi(storagePath).catch((error) => {
+            console.error(
+              "Gagal membersihkan lampiran setelah request gagal:",
+              error,
+            );
+          });
+        }
+      });
+
+      return next();
+    }
+
+    if (!req.file.mimetype.startsWith("image/")) {
+      return res.status(400).json({
+        pesan: "Lampiran harus berupa gambar atau PDF.",
+      });
+    }
 
     let kualitas = 80;
 
@@ -37,16 +80,7 @@ async function kompresFoto(req, res, next) {
         .toBuffer();
     }
 
-    const namaFile =
-      `${req.user.id}-` +
-      `${Date.now()}-` +
-      `${crypto.randomBytes(4).toString("hex")}.jpg`;
-
-    const tanggal = new Date();
-    const tahun = tanggal.getFullYear();
-    const bulan = String(tanggal.getMonth() + 1).padStart(2, "0");
-    const hari = String(tanggal.getDate()).padStart(2, "0");
-    const filePath = `${tahun}/${bulan}/${hari}/${namaFile}`;
+    const filePath = buatPathStorage(req.user.id, "jpg");
 
     console.log("FILE PATH SUPABASE:", filePath);
     console.log("FILE SIZE:", bufferHasil.length);
@@ -81,7 +115,7 @@ async function kompresFoto(req, res, next) {
     console.error("Gagal memproses/upload foto:", error);
 
     return res.status(500).json({
-      pesan: "Gagal memproses foto. Coba ambil ulang.",
+      pesan: "Gagal memproses file. Coba pilih file lain lalu ulangi.",
     });
   }
 }
