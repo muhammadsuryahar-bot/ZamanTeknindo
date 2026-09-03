@@ -1,5 +1,9 @@
 const prisma = require("../utils/prismaClient");
-const { normalisasiSubscription, webPushAktif } = require("../utils/pushNotification");
+const {
+  normalisasiSubscription,
+  webPushAktif,
+  pastikanTabelPushSubscription,
+} = require("../utils/pushNotification");
 
 async function infoPush(req, res) {
   return res.json({
@@ -12,6 +16,10 @@ async function simpanSubscription(req, res) {
   try {
     if (!webPushAktif()) {
       return res.status(503).json({ pesan: "Layanan notifikasi push belum dikonfigurasi di server." });
+    }
+
+    if (!(await pastikanTabelPushSubscription())) {
+      return res.status(503).json({ pesan: "Database notifikasi belum siap. Silakan coba lagi." });
     }
 
     const subscription = normalisasiSubscription(req.body);
