@@ -19,7 +19,11 @@ const {
 } = require("../controllers/adminController");
 const { aktifkanAkunFixed } = require("../controllers/aktivasiAkunFixedController");
 const { daftarKaryawanFixed } = require("../controllers/adminKaryawanFixedController");
-const { rekapHariIniFixed } = require("../controllers/rekapAbsensiFixedController");
+const {
+  rekapHariIniFixed,
+  ambilRekapTanggal,
+  ubahStatusTanpaAbsensi,
+} = require("../controllers/rekapAbsensiFixedController");
 const { daftarKantorFixed, tambahKantorFixed, ubahKantorFixed } = require("../controllers/kantorControllerFixed");
 const { ubahProfilKaryawan } = require("../controllers/adminProfilKaryawanController");
 const {
@@ -101,6 +105,12 @@ router.put("/karyawan/:id/status", validasiStatusAkun, ubahStatusKaryawan);
 router.put("/karyawan/:id/reset-password", resetPasswordOlehAdmin);
 
 router.get("/rekap-hari-ini", rekapHariIniFixed);
+router.get("/rekap-tanggal", ambilRekapTanggal);
+router.put(
+  "/absensi/tanggal/:tanggal/pengguna/:penggunaId/status",
+  validasiEditStatusAbsensi,
+  ubahStatusTanpaAbsensi,
+);
 router.get("/ringkasan", ringkasanDashboard);
 router.put("/absensi/:id/edit-status", validasiEditStatusAbsensi, editStatusAbsensi);
 
