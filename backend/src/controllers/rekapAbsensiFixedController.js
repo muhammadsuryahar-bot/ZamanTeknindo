@@ -6,161 +6,47 @@ const {
 } = require("../utils/waktuIndonesia");
 const { buatSignedUrlFotoBatch } = require("../utils/supabaseStorage");
 
-// Radius hanya dipakai untuk memberi status informasi kepada Admin.
-// Absensi tetap diterima walaupun berada di luar radius.
 const RADIUS_HOMEBASE_METER = 1500;
-
-const STATUS_MANUAL_VALID = new Set([
-  "tepat_waktu",
-  "telat",
-  "alpha",
-  "izin",
-  "sakit",
-  "cuti",
-  "urgent",
-]);
+const STATUS_MANUAL_VALID = new Set(["tepat_waktu", "telat", "alpha", "izin", "sakit", "cuti", "urgent"]);
 
 function hitungJarakMeter(latitude, longitude, homebaseLatitude, homebaseLongitude) {
-  const lat = Number(latitude);
-  const lng = Number(longitude);
-  const hLat = Number(homebaseLatitude);
-  const hLng = Number(homebaseLongitude);
-
+  const lat = Number(latitude); const lng = Number(longitude);
+  const hLat = Number(homebaseLatitude); const hLng = Number(homebaseLongitude);
   if (![lat, lng, hLat, hLng].every(Number.isFinite)) return null;
-
   const toRad = (nilai) => (nilai * Math.PI) / 180;
   const R = 6_371_000;
-  const dLat = toRad(hLat - lat);
-  const dLng = toRad(hLng - lng);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat)) *
-      Math.cos(toRad(hLat)) *
-      Math.sin(dLng / 2) ** 2;
-
+  const dLat = toRad(hLat - lat); const dLng = toRad(hLng - lng);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat)) * Math.cos(toRad(hLat)) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 function buatInfoHomebase(latitude, longitude, kantor) {
-  if (!kantor) {
-    return {
-      id: null,
-      namaKantor: null,
-      alamatKantor: null,
-      latitudeKantor: null,
-      longitudeKantor: null,
-      jarakMeter: null,
-      dalamRadius: null,
-      status: "Homebase belum ditentukan",
-    };
-  }
-
-  const jarakMeter = hitungJarakMeter(
-    latitude,
-    longitude,
-    kantor.latitude,
-    kantor.longitude,
-  );
-
-  if (jarakMeter == null) {
-    return {
-      id: kantor.id,
-      namaKantor: kantor.namaKantor,
-      alamatKantor: kantor.alamat,
-      latitudeKantor: kantor.latitude,
-      longitudeKantor: kantor.longitude,
-      jarakMeter: null,
-      dalamRadius: null,
-      status: "Koordinat homebase belum lengkap",
-    };
-  }
-
-  const jarakBulat = Math.round(jarakMeter);
-  const dalamRadius = jarakMeter <= RADIUS_HOMEBASE_METER;
-
-  return {
-    id: kantor.id,
-    namaKantor: kantor.namaKantor,
-    alamatKantor: kantor.alamat,
-    latitudeKantor: kantor.latitude,
-    longitudeKantor: kantor.longitude,
-    jarakMeter: jarakBulat,
-    dalamRadius,
-    status: dalamRadius
-      ? "Dalam radius homebase"
-      : "Di luar radius homebase",
-  };
+  if (!kantor) return { id: null, namaKantor: null, alamatKantor: null, latitudeKantor: null, longitudeKantor: null, jarakMeter: null, dalamRadius: null, status: "Homebase belum ditentukan" };
+  const jarakMeter = hitungJarakMeter(latitude, longitude, kantor.latitude, kantor.longitude);
+  if (jarakMeter == null) return { id: kantor.id, namaKantor: kantor.namaKantor, alamatKantor: kantor.alamat, latitudeKantor: kantor.latitude, longitudeKantor: kantor.longitude, jarakMeter: null, dalamRadius: null, status: "Koordinat homebase belum lengkap" };
+  const jarakBulat = Math.round(jarakMeter); const dalamRadius = jarakMeter <= RADIUS_HOMEBASE_METER;
+  return { id: kantor.id, namaKantor: kantor.namaKantor, alamatKantor: kantor.alamat, latitudeKantor: kantor.latitude, longitudeKantor: kantor.longitude, jarakMeter: jarakBulat, dalamRadius, status: dalamRadius ? "Dalam radius homebase" : "Di luar radius homebase" };
 }
 
 function tambahInfoLokasi(item, petaUrlFoto, jamMasukStandar) {
-  const fotoMasukUrl = item.fotoMasuk
-    ? item.fotoMasuk.startsWith("/uploads/")
-      ? item.fotoMasuk
-      : petaUrlFoto.get(item.fotoMasuk) || null
-    : null;
-
-  const fotoPulangUrl = item.fotoPulang
-    ? item.fotoPulang.startsWith("/uploads/")
-      ? item.fotoPulang
-      : petaUrlFoto.get(item.fotoPulang) || null
-    : null;
-
-  const homebaseMasuk = buatInfoHomebase(
-    item.latitudeMasuk,
-    item.longitudeMasuk,
-    item.pengguna?.kantor || null,
-  );
-  const homebasePulang = buatInfoHomebase(
-    item.latitudePulang,
-    item.longitudePulang,
-    item.pengguna?.kantor || null,
-  );
-
+  const fotoMasukUrl = item.fotoMasuk ? (item.fotoMasuk.startsWith("/uploads/") ? item.fotoMasuk : petaUrlFoto.get(item.fotoMasuk) || null) : null;
+  const fotoPulangUrl = item.fotoPulang ? (item.fotoPulang.startsWith("/uploads/") ? item.fotoPulang : petaUrlFoto.get(item.fotoPulang) || null) : null;
+  const homebaseMasuk = buatInfoHomebase(item.latitudeMasuk, item.longitudeMasuk, item.pengguna?.kantor || null);
+  const homebasePulang = buatInfoHomebase(item.latitudePulang, item.longitudePulang, item.pengguna?.kantor || null);
   const statusTampilan = statusEfektif(item, jamMasukStandar);
-
-  return {
-    ...item,
-    fotoMasukUrl,
-    fotoPulangUrl,
-    statusFinal: statusTampilan,
-    statusEfektif: statusTampilan,
-    kantorAbsensi: homebaseMasuk,
-    kantorPulangAbsensi: homebasePulang,
-    homebaseMasuk,
-    homebasePulang,
-    jarakHomebaseMasukMeter: homebaseMasuk.jarakMeter,
-    jarakHomebasePulangMeter: homebasePulang.jarakMeter,
-    statusHomebaseMasuk: homebaseMasuk.status,
-    statusHomebasePulang: homebasePulang.status,
-    alamatMasuk: item.alamatMasuk || "Lokasi GPS belum tersedia",
-    alamatPulang: item.alamatPulang || "Lokasi GPS belum tersedia",
-  };
+  return { ...item, fotoMasukUrl, fotoPulangUrl, statusFinal: statusTampilan, statusEfektif: statusTampilan, kantorAbsensi: homebaseMasuk, kantorPulangAbsensi: homebasePulang, homebaseMasuk, homebasePulang, jarakHomebaseMasukMeter: homebaseMasuk.jarakMeter, jarakHomebasePulangMeter: homebasePulang.jarakMeter, statusHomebaseMasuk: homebaseMasuk.status, statusHomebasePulang: homebasePulang.status, alamatMasuk: item.alamatMasuk || "Lokasi GPS belum tersedia", alamatPulang: item.alamatPulang || "Lokasi GPS belum tersedia" };
 }
 
 function normalisasiTanggal(tanggal) {
   if (tanggal instanceof Date) {
     if (Number.isNaN(tanggal.getTime())) return null;
-    const tahun = tanggal.getUTCFullYear();
-    const bulan = String(tanggal.getUTCMonth() + 1).padStart(2, "0");
-    const hari = String(tanggal.getUTCDate()).padStart(2, "0");
-    return `${tahun}-${bulan}-${hari}`;
+    return `${tanggal.getUTCFullYear()}-${String(tanggal.getUTCMonth() + 1).padStart(2, "0")}-${String(tanggal.getUTCDate()).padStart(2, "0")}`;
   }
-
   const nilai = String(tanggal || "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(nilai)) return null;
-
   const [tahun, bulan, hari] = nilai.split("-").map(Number);
   const kandidat = new Date(Date.UTC(tahun, bulan - 1, hari));
-
-  if (
-    kandidat.getUTCFullYear() !== tahun ||
-    kandidat.getUTCMonth() !== bulan - 1 ||
-    kandidat.getUTCDate() !== hari
-  ) {
-    return null;
-  }
-
-  return nilai;
+  return kandidat.getUTCFullYear() === tahun && kandidat.getUTCMonth() === bulan - 1 && kandidat.getUTCDate() === hari ? nilai : null;
 }
 
 function tanggalSebagaiDate(tanggal) {
@@ -172,101 +58,31 @@ async function ambilRekapTanggal(req, res) {
   try {
     const hariIni = normalisasiTanggal(tanggalHariIniWIB());
     const tanggal = normalisasiTanggal(req.query?.tanggal) || hariIni;
-
-    if (!tanggal || !hariIni) {
-      return res.status(500).json({ pesan: "Tanggal sistem tidak valid." });
-    }
-
-    if (tanggal > hariIni) {
-      return res.status(400).json({
-        pesan: "Tanggal rekap tidak boleh melebihi hari ini.",
-      });
-    }
-
+    if (!tanggal || !hariIni) return res.status(500).json({ pesan: "Tanggal sistem tidak valid." });
+    if (tanggal > hariIni) return res.status(400).json({ pesan: "Tanggal rekap tidak boleh melebihi hari ini." });
     const tanggalDate = tanggalSebagaiDate(tanggal);
-    if (!tanggalDate) {
-      return res.status(400).json({ pesan: "Tanggal rekap tidak valid." });
-    }
+    if (!tanggalDate) return res.status(400).json({ pesan: "Tanggal rekap tidak valid." });
 
-    const [data, karyawanAktif, pengaturan] = await Promise.all([
-      prisma.absensi.findMany({
-        where: { tanggal: tanggalDate },
-        include: {
-          pengguna: {
-            select: {
-              id: true,
-              nama: true,
-              jabatan: true,
-              divisi: true,
-              kantor: {
-                select: {
-                  id: true,
-                  namaKantor: true,
-                  alamat: true,
-                  latitude: true,
-                  longitude: true,
-                },
-              },
-            },
-          },
-        },
-        orderBy: [{ jamMasuk: "asc" }, { id: "asc" }],
-      }),
-      prisma.pengguna.findMany({
-        where: { peran: "karyawan", statusAkun: "aktif" },
-        select: {
-          id: true,
-          nama: true,
-          jabatan: true,
-          divisi: true,
-          kantor: { select: { id: true, namaKantor: true } },
-        },
-        orderBy: { nama: "asc" },
-      }),
-      prisma.pengaturanPotongan.upsert({
-        where: { id: 1 },
-        update: {},
-        create: {
-          id: 1,
-          potonganTelat: 10000,
-          potonganAlpha: 15000,
-          jamMasukStandar: JAM_MASUK_STANDAR_DEFAULT,
-        },
-      }),
+    const [data, karyawanAktif, pengaturan, pengajuanDisetujui] = await Promise.all([
+      prisma.absensi.findMany({ where: { tanggal: tanggalDate }, include: { pengguna: { select: { id: true, nama: true, jabatan: true, divisi: true, kantor: { select: { id: true, namaKantor: true, alamat: true, latitude: true, longitude: true } } } } }, orderBy: [{ jamMasuk: "asc" }, { id: "asc" }] }),
+      prisma.pengguna.findMany({ where: { peran: "karyawan", statusAkun: "aktif" }, select: { id: true, nama: true, jabatan: true, divisi: true, kantor: { select: { id: true, namaKantor: true } } }, orderBy: { nama: "asc" } }),
+      prisma.pengaturanPotongan.upsert({ where: { id: 1 }, update: {}, create: { id: 1, potonganTelat: 10000, potonganAlpha: 15000, jamMasukStandar: JAM_MASUK_STANDAR_DEFAULT } }),
+      prisma.pengajuanIzin.findMany({ where: { tanggal: tanggalDate, status: "disetujui", pengguna: { peran: "karyawan", statusAkun: "aktif" } }, select: { penggunaId: true, jenis: true } }),
     ]);
 
-    const jamMasukStandar =
-      pengaturan?.jamMasukStandar || JAM_MASUK_STANDAR_DEFAULT;
-
+    const jamMasukStandar = pengaturan?.jamMasukStandar || JAM_MASUK_STANDAR_DEFAULT;
     const semuaPathFoto = [];
     for (const item of data) {
-      if (item.fotoMasuk && !item.fotoMasuk.startsWith("/uploads/")) {
-        semuaPathFoto.push(item.fotoMasuk);
-      }
-      if (item.fotoPulang && !item.fotoPulang.startsWith("/uploads/")) {
-        semuaPathFoto.push(item.fotoPulang);
-      }
+      if (item.fotoMasuk && !item.fotoMasuk.startsWith("/uploads/")) semuaPathFoto.push(item.fotoMasuk);
+      if (item.fotoPulang && !item.fotoPulang.startsWith("/uploads/")) semuaPathFoto.push(item.fotoPulang);
     }
-
     const petaUrlFoto = await buatSignedUrlFotoBatch(semuaPathFoto);
-    const dataDenganKantor = data.map((item) =>
-      tambahInfoLokasi(item, petaUrlFoto, jamMasukStandar),
-    );
+    const dataDenganKantor = data.map((item) => tambahInfoLokasi(item, petaUrlFoto, jamMasukStandar));
+    const sudahAbsen = new Set(data.map((item) => item.pengguna?.id).filter((id) => id != null));
+    const sudahPunyaIzin = new Set(pengajuanDisetujui.map((item) => item.penggunaId).filter((id) => id != null));
+    const belumAbsen = karyawanAktif.filter((karyawan) => !sudahAbsen.has(karyawan.id) && !sudahPunyaIzin.has(karyawan.id));
 
-    const sudahAbsen = new Set(
-      data.map((item) => item.pengguna?.id).filter((id) => id != null),
-    );
-    const belumAbsen = karyawanAktif.filter(
-      (karyawan) => !sudahAbsen.has(karyawan.id),
-    );
-
-    return res.json({
-      tanggal,
-      hariIni,
-      data: dataDenganKantor,
-      belumAbsen,
-      jumlahKaryawanAktif: karyawanAktif.length,
-    });
+    return res.json({ tanggal, hariIni, data: dataDenganKantor, belumAbsen, jumlahKaryawanAktif: karyawanAktif.length, pengajuanDisetujui });
   } catch (error) {
     console.error("Gagal mengambil rekap absensi tanggal:", error);
     return res.status(500).json({ pesan: "Terjadi kesalahan pada server." });
@@ -280,88 +96,29 @@ async function ubahStatusTanpaAbsensi(req, res) {
     const statusFinal = String(req.body?.statusFinal || "").trim();
     const catatanAdmin = String(req.body?.catatanAdmin || "").trim();
     const adminId = Number(req.user.id);
-
-    if (!Number.isInteger(penggunaId) || penggunaId <= 0 || !tanggal) {
-      return res.status(400).json({ pesan: "Karyawan atau tanggal tidak valid." });
-    }
-
-    if (!STATUS_MANUAL_VALID.has(statusFinal)) {
-      return res.status(400).json({ pesan: "Status absensi tidak valid." });
-    }
-
-    if (!catatanAdmin) {
-      return res.status(400).json({
-        pesan: "Catatan wajib diisi untuk perubahan status manual.",
-      });
-    }
-
-    if (catatanAdmin.length > 500) {
-      return res.status(400).json({
-        pesan: "Catatan Admin maksimal 500 karakter.",
-      });
-    }
-
+    if (!Number.isInteger(penggunaId) || penggunaId <= 0 || !tanggal) return res.status(400).json({ pesan: "Karyawan atau tanggal tidak valid." });
+    if (!STATUS_MANUAL_VALID.has(statusFinal)) return res.status(400).json({ pesan: "Status absensi tidak valid." });
+    if (!catatanAdmin) return res.status(400).json({ pesan: "Catatan wajib diisi untuk perubahan status manual." });
+    if (catatanAdmin.length > 500) return res.status(400).json({ pesan: "Catatan Admin maksimal 500 karakter." });
     const tanggalDate = tanggalSebagaiDate(tanggal);
-    if (!tanggalDate) {
-      return res.status(400).json({ pesan: "Tanggal absensi tidak valid." });
-    }
+    if (!tanggalDate) return res.status(400).json({ pesan: "Tanggal absensi tidak valid." });
 
-    const [pengguna, existing] = await Promise.all([
-      prisma.pengguna.findFirst({
-        where: {
-          id: penggunaId,
-          peran: "karyawan",
-          statusAkun: "aktif",
-        },
-        select: { id: true, nama: true },
-      }),
-      prisma.absensi.findUnique({
-        where: { penggunaId_tanggal: { penggunaId, tanggal: tanggalDate } },
-        select: { id: true },
-      }),
+    const [pengguna, existing, pengajuanDisetujui] = await Promise.all([
+      prisma.pengguna.findFirst({ where: { id: penggunaId, peran: "karyawan", statusAkun: "aktif" }, select: { id: true, nama: true } }),
+      prisma.absensi.findUnique({ where: { penggunaId_tanggal: { penggunaId, tanggal: tanggalDate } }, select: { id: true } }),
+      prisma.pengajuanIzin.findFirst({ where: { penggunaId, tanggal: tanggalDate, status: "disetujui" }, select: { id: true, jenis: true } }),
     ]);
+    if (!pengguna) return res.status(404).json({ pesan: "Karyawan aktif tidak ditemukan." });
+    if (existing) return res.status(409).json({ pesan: "Karyawan sudah memiliki record absensi. Gunakan edit status absensi biasa.", absensiId: existing.id });
+    if (pengajuanDisetujui) return res.status(409).json({ pesan: `Pengajuan ${pengajuanDisetujui.jenis} karyawan ini sudah disetujui. Tidak perlu membuat status manual lagi.` });
 
-    if (!pengguna) {
-      return res.status(404).json({ pesan: "Karyawan aktif tidak ditemukan." });
-    }
-
-    if (existing) {
-      return res.status(409).json({
-        pesan: "Karyawan sudah memiliki record absensi. Gunakan edit status absensi biasa.",
-        absensiId: existing.id,
-      });
-    }
-
-    const statusOtomatis = statusFinal === "alpha" ? "alpha" : null;
-
-    const absensi = await prisma.absensi.create({
-      data: {
-        penggunaId,
-        tanggal: tanggalDate,
-        statusOtomatis,
-        statusFinal,
-        catatanAdmin,
-        dieditOleh: adminId,
-        waktuEdit: new Date(),
-      },
-    });
-
-    return res.status(201).json({
-      pesan: `Status ${pengguna.nama} pada ${tanggal} berhasil dicatat sebagai ${statusFinal}.`,
-      data: absensi,
-    });
+    const absensi = await prisma.absensi.create({ data: { penggunaId, tanggal: tanggalDate, statusOtomatis: statusFinal === "alpha" ? "alpha" : null, statusFinal, catatanAdmin, dieditOleh: adminId, waktuEdit: new Date() } });
+    return res.status(201).json({ pesan: `Status ${pengguna.nama} pada ${tanggal} berhasil dicatat sebagai ${statusFinal}.`, data: absensi });
   } catch (error) {
     console.error("Gagal memberi status pada karyawan tanpa absensi:", error);
     return res.status(500).json({ pesan: "Terjadi kesalahan pada server." });
   }
 }
 
-async function rekapHariIniFixed(req, res) {
-  return ambilRekapTanggal(req, res);
-}
-
-module.exports = {
-  rekapHariIniFixed,
-  ambilRekapTanggal,
-  ubahStatusTanpaAbsensi,
-};
+async function rekapHariIniFixed(req, res) { return ambilRekapTanggal(req, res); }
+module.exports = { rekapHariIniFixed, ambilRekapTanggal, ubahStatusTanpaAbsensi };
