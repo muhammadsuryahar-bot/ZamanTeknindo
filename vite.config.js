@@ -38,12 +38,10 @@ export default defineConfig({
         ],
       },
       workbox: {
+        importScripts: ["/push-sw.js"],
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         navigateFallbackDenylist: [/^\/api/, /^\/uploads/],
 
-        // Bersihkan cache Workbox lama yang tidak lagi direferensikan
-        // oleh service worker baru agar chunk yang sudah dihapus tidak
-        // terus dipanggil oleh browser/PWA lama.
         cleanupOutdatedCaches: true,
 
         globIgnores: [
@@ -57,8 +55,6 @@ export default defineConfig({
 
         runtimeCaching: [
           {
-            // Chunk halaman lazy-load disimpan setelah benar-benar diminta.
-            // Cache name dibuat berversi agar cache lama tidak terus dipakai.
             urlPattern: /\.(?:js|css)$/,
             handler: "StaleWhileRevalidate",
             options: {
@@ -71,15 +67,12 @@ export default defineConfig({
   ],
   server: {
     host: true,
-
     allowedHosts: [".ngrok-free.dev"],
-
     proxy: {
       "/api": {
         target: "http://localhost:5000",
         changeOrigin: true,
       },
-
       "/uploads": {
         target: "http://localhost:5000",
         changeOrigin: true,
