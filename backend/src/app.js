@@ -8,6 +8,7 @@ const adminRoutes = require("./routes/adminRoutes");
 const izinRoutes = require("./routes/izinRoutes");
 const arsipRoutes = require("./routes/arsipRoutes");
 const cronRoutes = require("./routes/cronRoutes");
+const pushNotificationRoutes = require("./routes/pushNotificationRoutes");
 
 const app = express();
 
@@ -57,7 +58,6 @@ const polaNgrok = /^https:\/\/[a-z0-9-]+\.ngrok-free\.dev$/;
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Request same-origin atau non-browser request tidak punya Origin.
       if (!origin) return callback(null, true);
 
       const originNormal = normalisasiOrigin(origin);
@@ -78,13 +78,13 @@ app.use("/api/absensi", absensiRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/admin/arsip-bulanan", arsipRoutes);
 app.use("/api/izin", izinRoutes);
+app.use("/api/notifikasi", pushNotificationRoutes);
 app.use("/api/cron", cronRoutes);
 
 app.get("/api", (req, res) => {
   res.json({ pesan: "Server Sistem Absensi berjalan dengan baik 🚀" });
 });
 
-// Jangan kirim stack trace/detail internal ke client.
 app.use((error, req, res, next) => {
   console.error("Unhandled API error:", error);
 
