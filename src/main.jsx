@@ -4,6 +4,58 @@ import './index.css'
 import App from './App.jsx'
 import { pasangPenerjemahSesiKedaluwarsa } from './utils/api.js'
 
+// Bersihkan cache runtime lama yang dibuat versi PWA sebelumnya.
+// Versi lama memakai cache StaleWhileRevalidate untuk lazy chunk dan dapat
+// meninggalkan bundle yang tidak cocok dengan index terbaru.
+if (typeof window !== 'undefined' && 'caches' in window) {
+  void caches.delete('aset-halaman-lazy-v2').catch(() => {})
+}
+
+// Recovery global untuk kasus dynamic import/chunk lama gagal dimuat.
+// Ini mencegah layar putih permanen setelah PWA menerima versi baru.
+if (typeof window !== 'undefined' && !window.__pwaChunkRecoveryTerpasang) {
+  const KEY = 'zaman-teknindo:pwa-chunk-recovery'
+  const BATAS_MS = 30_000
+
+  const cobaPulihkanChunk = (alasan = 'chunk') => {
+    try {
+      const sebelumnya = Number(sessionStorage.getItem(KEY) || 0)
+      const sekarang = Date.now()
+      if (sebelumnya && sekarang - sebelumnya < BATAS_MS) return
+      sessionStorage.setItem(KEY, String(sekarang))
+      window.location.reload()
+    } catch {
+      window.location.reload()
+    }
+  }
+
+  window.addEventListener('vite:preloadError', (event) => {
+    event.preventDefault()
+    cobaPulihkanChunk('vite-preload')
+  })
+
+  window.addEventListener('error', (event) => {
+    const pesan = String(event?.error?.message || event?.message || '')
+    if (/ChunkLoadError|Loading chunk|Failed to fetch dynamically imported module|Importing a module script failed/i.test(pesan)) {
+      cobaPulihkanChunk('window-error')
+    }
+  })
+
+  window.__pwaChunkRecoveryTerpasang = true
+}
+
+// Setelah aplikasi berhasil berjalan cukup lama, izinkan recovery otomatis
+// dipakai kembali pada kegagalan chunk berikutnya.
+if (typeof window !== 'undefined') {
+  window.setTimeout(() => {
+    try {
+      sessionStorage.removeItem('zaman-teknindo:pwa-chunk-recovery')
+    } catch {
+      // Abaikan bila sessionStorage tidak tersedia.
+    }
+  }, 30_000)
+}
+
 // Dipasang SEKALI di sini, sebelum aplikasi mulai render, supaya berlaku
 // untuk semua pemanggilan fetch() dari halaman manapun.
 pasangPenerjemahSesiKedaluwarsa()
@@ -54,23 +106,3 @@ createRoot(document.getElementById('root')).render(
     <App />
   </StrictMode>,
 )
-
-// Muat chunk halaman penting saat browser sedang senggang. Ini tidak menahan
-// first paint/login, tetapi membuat perpindahan ke Dashboard, Gaji, Arsip,
-// dan Edit Karyawan terasa jauh lebih cepat setelah halaman pertama terbuka.
-function prefetchHalamanPenting() {
-  void import('./pages/DashboardAdmin.jsx')
-  void import('./pages/DashboardKaryawan.jsx')
-  void import('./pages/PengaturanGaji.jsx')
-  void import('./pages/AdminGajiMassal.jsx')
-  void import('./pages/AdminArsip.jsx')
-  void import('./pages/AdminEditKaryawan.jsx')
-}
-
-if (typeof window !== 'undefined') {
-  if ('requestIdleCallback' in window) {
-    window.requestIdleCallback(prefetchHalamanPenting, { timeout: 1500 })
-  } else {
-    window.setTimeout(prefetchHalamanPenting, 1200)
-  }
-}
