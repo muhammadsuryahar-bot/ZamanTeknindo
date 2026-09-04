@@ -234,41 +234,34 @@ async function statusHariIni(req, res) {
     const penggunaId = req.user.id;
     const tanggal = tanggalHariIni();
 
-    const hasil = await prisma.$queryRaw`
-      SELECT
-        (
-          SELECT jsonb_build_object(
-            'id', a.id,
-            'tanggal', a.tanggal,
-            'jamMasuk', a.jam_masuk,
-            'jamPulang', a.jam_pulang,
-            'statusOtomatis', a.status_otomatis,
-            'statusFinal', a.status_final
-          )
-          FROM absensi a
-          WHERE a.pengguna_id = ${penggunaId}
-            AND a.tanggal = ${tanggal}
-          LIMIT 1
-        ) AS "absensi",
-        (
-          SELECT jsonb_build_object(
-            'id', p.id,
-            'jenis', p.jenis,
-            'tanggal', p.tanggal,
-            'keterangan', p.keterangan,
-            'status', p.status
-          )
-          FROM pengajuan_izin p
-          WHERE p.pengguna_id = ${penggunaId}
-            AND p.tanggal = ${tanggal}
-            AND p.status = 'disetujui'
-          ORDER BY p.id DESC
-          LIMIT 1
-        ) AS "pengajuan"
-    `;
+    // Gunakan Prisma biasa secara berurutan pada endpoint awal ini.
+    // Endpoint ini dipanggil saat dashboard karyawan dibuka dan harus
+    // stabil pada connection pool produksi yang kecil. Jangan memakai
+    // $queryRaw dengan nama kolom database mentah di sini karena schema
+    // Prisma memakai pemetaan camelCase -> snake_case dan raw SQL menjadi
+    // titik rawan ketika schema berubah.
+    const absensi = await prisma.absensi.findUnique({
+      where: { penggunaId_tanggal: { penggunaId, tanggal } },
+      select: {
+        id: true,
+        tanggal: true,
+        jamMasuk: true,
+        jamPulang: true,
+        statusOtomatis: true,
+        statusFinal: true,
+      },
+    });
 
-    const absensi = hasil?.[0]?.absensi || null;
-    const pengajuanDisetujui = hasil?.[0]?.pengajuan || null;
+    const pengajuanDisetujui = await prisma.pengajuanIzin.findFirst({
+      where: { penggunaId, tanggal, status: "disetujui" },
+      select: {
+        id: true,
+        jenis: true,
+        tanggal: true,
+        keterangan: true,
+        status: true,
+      },
+    });
 
     if (pengajuanDisetujui) {
       return res.json({
