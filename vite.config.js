@@ -41,27 +41,11 @@ export default defineConfig({
         importScripts: ["/push-sw.js"],
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         navigateFallbackDenylist: [/^\/api/, /^\/uploads/],
-
         cleanupOutdatedCaches: true,
-
-        globIgnores: [
-          "**/DashboardAdmin-*.js",
-          "**/DashboardKaryawan-*.js",
-          "**/PengajuanIzin-*.js",
-          "**/RiwayatAbsensi-*.js",
-          "**/GantiPassword-*.js",
-          "**/Daftar-*.js",
-        ],
-
-        runtimeCaching: [
-          {
-            urlPattern: /\.(?:js|css)$/,
-            handler: "StaleWhileRevalidate",
-            options: {
-              cacheName: "aset-halaman-lazy-v2",
-            },
-          },
-        ],
+        // Semua bundle JS/CSS yang dibuat Vite ikut diprecache.
+        // Ini menghindari kombinasi cache lama + lazy chunk baru yang
+        // sebelumnya bisa membuat PWA stuck/blank saat versi berubah.
+        runtimeCaching: [],
       },
     }),
   ],
