@@ -118,7 +118,26 @@ async function absenMasuk(req, res) {
 
     let absensi;
     if (sudahAbsen) {
-      absensi = await prisma.absensi.update({ where: { id: sudahAbsen.id }, data });
+      // Atomic compare-and-set: hanya request pertama yang melihat
+      // jamMasuk masih NULL yang boleh mengisi record existing.
+      const hasilUpdate = await prisma.absensi.updateMany({
+        where: {
+          id: sudahAbsen.id,
+          jamMasuk: null,
+        },
+        data,
+      });
+
+      if (hasilUpdate.count !== 1) {
+        await hapusFotoJikaPerlu();
+        return res.status(409).json({
+          pesan: "Absensi masuk sudah tercatat. Silakan periksa status hari ini.",
+        });
+      }
+
+      absensi = await prisma.absensi.findUnique({
+        where: { id: sudahAbsen.id },
+      });
     } else {
       try {
         absensi = await prisma.absensi.create({ data: { penggunaId, tanggal, ...data } });
@@ -188,8 +207,13 @@ async function absenPulang(req, res) {
       });
     }
 
-    const absensi = await prisma.absensi.update({
-      where: { id: absensiHariIni.id },
+    // Atomic compare-and-set: hanya request pertama yang melihat
+    // jamPulang masih NULL yang boleh mengisi record.
+    const hasilUpdate = await prisma.absensi.updateMany({
+      where: {
+        id: absensiHariIni.id,
+        jamPulang: null,
+      },
       data: {
         jamPulang: waktuAbsensiServer(),
         fotoPulang: fotoPath,
@@ -197,6 +221,17 @@ async function absenPulang(req, res) {
         longitudePulang: koordinat.longitude,
         alamatPulang: alamat || null,
       },
+    });
+
+    if (hasilUpdate.count !== 1) {
+      await hapusFotoJikaPerlu();
+      return res.status(409).json({
+        pesan: "Absensi pulang sudah tercatat. Silakan periksa status hari ini.",
+      });
+    }
+
+    const absensi = await prisma.absensi.findUnique({
+      where: { id: absensiHariIni.id },
     });
 
     fotoTersimpanDiDatabase = true;
