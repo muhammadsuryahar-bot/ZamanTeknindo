@@ -99,7 +99,7 @@ async function editStatusAbsensiFixed(req, res) {
 
     const existing = await prisma.absensi.findUnique({
       where: { id: absensiId },
-      select: { id: true, penggunaId: true },
+      select: { id: true },
     });
 
     if (!existing) {
@@ -130,20 +130,16 @@ async function editStatusAbsensiFixed(req, res) {
 
 async function ambilPengaturanPotonganFixed(req, res) {
   try {
-    const existing = await prisma.pengaturanPotongan.findUnique({
+    const data = await prisma.pengaturanPotongan.upsert({
       where: { id: 1 },
+      update: {},
+      create: {
+        id: 1,
+        potonganTelat: 10000,
+        potonganAlpha: 15000,
+        jamMasukStandar: JAM_MASUK_STANDAR_DEFAULT,
+      },
     });
-
-    const data =
-      existing ||
-      (await prisma.pengaturanPotongan.create({
-        data: {
-          id: 1,
-          potonganTelat: 10000,
-          potonganAlpha: 15000,
-          jamMasukStandar: JAM_MASUK_STANDAR_DEFAULT,
-        },
-      }));
 
     return res.json({ data });
   } catch (error) {
