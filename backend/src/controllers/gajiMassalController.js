@@ -13,11 +13,24 @@ function normalizeHeader(value) {
 
 function parseMoney(value) {
   if (value == null || value === "") return null;
-  if (typeof value === "number") return Number.isFinite(value) ? Math.round(value) : null;
-  const digits = String(value).replace(/\D/g, "");
+
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value < 0) return null;
+    return Number.isSafeInteger(value) ? value : null;
+  }
+
+  const text = String(value).trim();
+  if (!text || /^-/.test(text)) return null;
+  if (/\d+\s*[.,]\s*-/.test(text)) return null;
+
+  // Gaji pokok pada sistem disimpan sebagai nominal rupiah bulat.
+  // Format pemisah ribuan seperti 7.500.000 atau Rp 7.500.000 tetap didukung,
+  // tetapi tanda minus tidak boleh dihapus lalu berubah menjadi nilai positif.
+  const digits = text.replace(/\D/g, "");
   if (!digits) return null;
+
   const n = Number(digits);
-  return Number.isSafeInteger(n) ? n : null;
+  return Number.isSafeInteger(n) && n >= 0 ? n : null;
 }
 
 function normalizeEmail(value) {
