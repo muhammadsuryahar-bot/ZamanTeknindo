@@ -78,6 +78,36 @@ if (typeof window !== 'undefined') {
   }, 5 * 60 * 1000)
 }
 
+// Pada PWA terpasang, periksa service worker tanpa mengubah halaman aktif.
+// Update baru dibiarkan menunggu agar tidak memutus kamera/absensi yang sedang berjalan.
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  const periksaUpdatePWA = async () => {
+    if (!navigator.onLine) return
+    try {
+      const registrasi = await navigator.serviceWorker.getRegistration('/')
+      await registrasi?.update()
+    } catch (error) {
+      console.warn('Pemeriksaan update PWA belum berhasil:', error)
+    }
+  }
+
+  window.addEventListener('online', () => { void periksaUpdatePWA() })
+  window.addEventListener('pageshow', () => { void periksaUpdatePWA() })
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void periksaUpdatePWA()
+  })
+
+  const standalone =
+    window.matchMedia?.('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true
+
+  if (standalone && navigator.storage?.persist) {
+    void navigator.storage.persist().catch(() => {})
+  }
+
+  void periksaUpdatePWA()
+}
+
 // Dipasang SEKALI di sini, sebelum aplikasi mulai render, supaya berlaku
 // untuk semua pemanggilan fetch() dari halaman manapun.
 pasangPenerjemahSesiKedaluwarsa()
