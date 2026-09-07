@@ -3,6 +3,7 @@ const {
   normalisasiSubscription,
   webPushAktif,
   pastikanTabelPushSubscription,
+  kirimPushKePengguna,
 } = require("../utils/pushNotification");
 
 async function infoPush(req, res) {
@@ -67,8 +68,40 @@ async function hapusSubscription(req, res) {
   }
 }
 
+async function tesPushAdmin(req, res) {
+  try {
+    if (req.user?.peran !== "admin") {
+      return res.status(403).json({ pesan: "Tes notifikasi hanya tersedia untuk Admin." });
+    }
+
+    const hasil = await kirimPushKePengguna(req.user.id, {
+      title: "Zaman Teknindo — Tes Notifikasi",
+      body: "Web Push perangkat Admin berhasil menerima pesan tes.",
+      tag: `admin-tes-${Date.now()}`,
+      url: "/admin",
+      renotify: true,
+    });
+
+    console.info("Tes Web Push Admin:", hasil);
+
+    if (hasil.dinonaktifkan) {
+      return res.status(503).json({ pesan: "Web Push belum aktif di server." });
+    }
+
+    if (hasil.terkirim < 1) {
+      return res.status(404).json({ pesan: "Belum ada perangkat Admin yang terdaftar untuk menerima Web Push.", hasil });
+    }
+
+    return res.json({ pesan: "Notifikasi tes berhasil dikirim ke perangkat Admin.", hasil });
+  } catch (error) {
+    console.error("Tes Web Push Admin gagal:", error);
+    return res.status(500).json({ pesan: "Tes notifikasi gagal dikirim." });
+  }
+}
+
 module.exports = {
   infoPush,
   simpanSubscription,
   hapusSubscription,
+  tesPushAdmin,
 };
