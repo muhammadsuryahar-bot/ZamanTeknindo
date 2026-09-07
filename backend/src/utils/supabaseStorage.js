@@ -3,6 +3,7 @@ const { createClient } = require("@supabase/supabase-js");
 const BUCKET_NAME = "absensi";
 const SIGNED_URL_TTL_SECONDS = 300;
 const SIGNED_URL_CACHE_SECONDS = 180;
+const DELETE_RETRY_DELAYS_MS = [300, 900, 1800];
 
 let supabaseClient = null;
 
@@ -28,6 +29,26 @@ function ambilSupabase() {
 
   supabaseClient = createClient(supabaseUrl, supabaseServiceRoleKey);
   return supabaseClient;
+}
+
+function tunggu(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function errorLayakDiulangi(error) {
+  const statusCode = Number(error?.statusCode || error?.status || 0);
+  if (statusCode === 408 || statusCode === 425 || statusCode === 429) return true;
+  if (statusCode >= 500 && statusCode <= 599) return true;
+
+  const pesan = String(error?.message || "").toLowerCase();
+  return (
+    pesan.includes("fetch failed") ||
+    pesan.includes("network") ||
+    pesan.includes("timeout") ||
+    pesan.includes("timed out") ||
+    pesan.includes("econnreset") ||
+    pesan.includes("socket")
+  );
 }
 
 // Cache memory hanya untuk warm function instance.
@@ -81,32 +102,55 @@ async function uploadFotoAbsensi(buffer, filePath, contentType = "image/jpeg") {
 }
 
 async function deleteFotoAbsensi(filePath) {
-  if (!filePath) return { berhasil: false, dilewati: true };
+  const path = String(filePath || "").trim();
+  if (!path || path.startsWith("/uploads/")) {
+    return { berhasil: false, dilewati: true };
+  }
 
-  try {
-    const supabase = ambilSupabase();
-    const { error } = await supabase.storage
-      .from(BUCKET_NAME)
-      .remove([filePath]);
+  const supabase = ambilSupabase();
+  let errorTerakhir = null;
 
-    if (error) {
-      console.error(
-        "Gagal menghapus foto dari Supabase Storage:",
-        error.message,
-      );
-      return { berhasil: false, pesan: error.message };
+  for (let percobaan = 0; percobaan <= DELETE_RETRY_DELAYS_MS.length; percobaan += 1) {
+    try {
+      const { error } = await supabase.storage
+        .from(BUCKET_NAME)
+        .remove([path]);
+
+      if (!error) {
+        signedUrlCache.delete(path);
+        return { berhasil: true };
+      }
+
+      errorTerakhir = error;
+      if (!errorLayakDiulangi(error) || percobaan >= DELETE_RETRY_DELAYS_MS.length) {
+        break;
+      }
+    } catch (error) {
+      errorTerakhir = error;
+      if (!errorLayakDiulangi(error) || percobaan >= DELETE_RETRY_DELAYS_MS.length) {
+        break;
+      }
     }
 
-    signedUrlCache.delete(filePath);
-    return { berhasil: true };
+    await tunggu(DELETE_RETRY_DELAYS_MS[percobaan]);
+  }
+
+  console.error(
+    "Gagal menghapus foto dari Supabase Storage:",
+    errorTerakhir?.message || errorTerakhir,
+  );
+
+  return {
+    berhasil: false,
+    pesan: errorTerakhir?.message || "Gagal menghapus foto dari Storage.",
+  };
+}
+
+async function hapusBatchSekali(supabase, batch) {
+  try {
+    return await supabase.storage.from(BUCKET_NAME).remove(batch);
   } catch (error) {
-    // Cleanup bersifat best-effort. Gangguan jaringan Storage tidak boleh
-    // mengubah hasil utama proses absensi menjadi error server.
-    console.error(
-      "Gagal menghapus foto dari Supabase Storage:",
-      error?.message || error,
-    );
-    return { berhasil: false, pesan: error?.message || "fetch failed" };
+    return { data: null, error };
   }
 }
 
@@ -130,16 +174,33 @@ async function deleteFotoAbsensiBatch(filePaths) {
 
   for (let i = 0; i < pathUnik.length; i += UKURAN_BATCH) {
     const batch = pathUnik.slice(i, i + UKURAN_BATCH);
+    let hasil = null;
+    let errorTerakhir = null;
 
-    const { error } = await supabase.storage.from(BUCKET_NAME).remove(batch);
+    for (let percobaan = 0; percobaan <= DELETE_RETRY_DELAYS_MS.length; percobaan += 1) {
+      const response = await hapusBatchSekali(supabase, batch);
+      hasil = response;
 
-    if (error) {
+      if (!response?.error) {
+        jumlahDihapus += batch.length;
+        break;
+      }
+
+      errorTerakhir = response.error;
+      if (!errorLayakDiulangi(response.error) || percobaan >= DELETE_RETRY_DELAYS_MS.length) {
+        break;
+      }
+
+      await tunggu(DELETE_RETRY_DELAYS_MS[percobaan]);
+    }
+
+    if (hasil?.error) {
       throw new Error(
-        `Gagal menghapus ${batch.length} foto dari Supabase Storage: ${error.message}`,
+        `Gagal menghapus ${batch.length} foto dari Supabase Storage: ${errorTerakhir?.message || hasil.error.message}`,
       );
     }
 
-    jumlahDihapus += batch.length;
+    for (const path of batch) signedUrlCache.delete(path);
   }
 
   return { jumlahDihapus };
