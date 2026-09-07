@@ -14,7 +14,10 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: "autoUpdate",
+      // Update PWA tidak boleh memaksa reload pada perangkat karyawan.
+      // Service worker tetap memperbarui asset, tetapi halaman aktif tidak
+      // dipindahkan mendadak saat karyawan sedang membuka kamera/absensi.
+      registerType: "prompt",
       includeAssets: ["favicon.png", "favicon.svg"],
       manifest: {
         name: "Absensi PT. Zaman Teknindo",
