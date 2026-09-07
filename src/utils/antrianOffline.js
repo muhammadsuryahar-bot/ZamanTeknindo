@@ -100,8 +100,6 @@ function statusBolehDihapus(status, pesan) {
   const teks = String(pesan || "").toLowerCase();
   if (status === 409) return true;
 
-  // Respons 400 berikut adalah hasil final dari server untuk item antrean.
-  // Menyimpannya terus-menerus hanya akan membuat tombol kamera terkunci.
   if (status === 400) {
     return (
       teks.includes("sudah melakukan absen") ||
@@ -127,106 +125,124 @@ async function fetchDenganTimeout(url, options = {}) {
   }
 }
 
-// Setelah retry gagal, status server dipakai untuk memastikan apakah item
-// sebenarnya sudah masuk sebelum koneksi putus. Ini mencegah antrean lama
-// terkunci selamanya dan mencegah karyawan mengirim absen ganda.
-export async function bersihkanAntrianYangSudahTercatat({
-  apiUrl,
-  getToken,
-  penggunaId,
-  tahap,
-}) {
+// Cek status server setelah item gagal dikirim. Tujuannya untuk kondisi
+// penting seperti: server sebenarnya sudah mencatat absen, tetapi response
+// hilang karena jaringan. Item kemudian dibuang dari antrean sehingga HP
+// tidak mengunci tombol kamera dan pengguna tidak melakukan absen ganda.
+export async function verifikasiDanBersihkanAntrian({ apiUrl, getToken, penggunaId }) {
   const penggunaIdAktif = Number(penggunaId);
   const token = getToken?.();
-  if (!Number.isInteger(penggunaIdAktif) || penggunaIdAktif <= 0 || !token) {
-    return 0;
+  if (!Number.isInteger(penggunaIdAktif) || penggunaIdAktif <= 0 || !token || !navigator.onLine) {
+    return { dihapus: 0, tahap: null };
   }
 
-  const cocokUntukTahap = (item) => {
-    if (tahap === "tidak_perlu_absen") return true;
-    if (tahap === "sudah_masuk") return item.endpoint === "masuk";
-    if (tahap === "selesai") return item.endpoint === "masuk" || item.endpoint === "pulang";
-    return false;
-  };
+  try {
+    const respons = await fetchDenganTimeout(`${apiUrl}/absensi/status-hari-ini`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!respons.ok) return { dihapus: 0, tahap: null };
 
-  if (!cocokUntukTahap({ endpoint: "masuk" }) && !cocokUntukTahap({ endpoint: "pulang" })) {
-    return 0;
+    const data = await respons.json();
+    const tahap = data?.tahap;
+    const semua = await ambilSemuaAntrian();
+    let dihapus = 0;
+
+    for (const item of semua) {
+      if (Number(item.penggunaId) !== penggunaIdAktif) continue;
+
+      const sudahTercatat =
+        tahap === "tidak_perlu_absen" ||
+        (tahap === "sudah_masuk" && item.endpoint === "masuk") ||
+        (tahap === "selesai" && (item.endpoint === "masuk" || item.endpoint === "pulang"));
+
+      if (!sudahTercatat) continue;
+      await hapusDariAntrian(item.id);
+      dihapus++;
+    }
+
+    return { dihapus, tahap };
+  } catch (error) {
+    console.warn("Rekonsiliasi antrean offline belum berhasil:", error);
+    return { dihapus: 0, tahap: null };
   }
-
-  const semua = await ambilSemuaAntrian();
-  let dihapus = 0;
-
-  for (const item of semua) {
-    if (Number(item.penggunaId) !== penggunaIdAktif || !cocokUntukTahap(item)) continue;
-    await hapusDariAntrian(item.id);
-    dihapus++;
-  }
-
-  return dihapus;
 }
 
+let sinkronisasiAktif = null;
+
 export async function sinkronkanAntrian({ apiUrl, getToken, penggunaId }) {
-  const semua = await ambilSemuaAntrian();
-  let berhasil = 0;
-  let gagal = 0;
-  let tidakCocok = 0;
-  let perluLogin = 0;
-  const penggunaIdAktif = Number(penggunaId);
+  // Cegah Dashboard + recovery global melakukan upload antrean yang sama
+  // secara bersamaan pada perangkat yang sama.
+  if (sinkronisasiAktif) return sinkronisasiAktif;
 
-  if (!Number.isInteger(penggunaIdAktif) || penggunaIdAktif <= 0 || !getToken()) {
-    return { berhasil: 0, gagal: semua.length, tidakCocok: 0, perluLogin: semua.length };
-  }
+  sinkronisasiAktif = (async () => {
+    const semua = await ambilSemuaAntrian();
+    let berhasil = 0;
+    let gagal = 0;
+    let tidakCocok = 0;
+    let perluLogin = 0;
+    const penggunaIdAktif = Number(penggunaId);
 
-  const token = getToken();
-
-  for (const item of semua) {
-    if (Number(item.penggunaId) !== penggunaIdAktif) {
-      tidakCocok++;
-      continue;
+    if (!Number.isInteger(penggunaIdAktif) || penggunaIdAktif <= 0 || !getToken()) {
+      return { berhasil: 0, gagal: semua.length, tidakCocok: 0, perluLogin: semua.length };
     }
 
-    try {
-      const formData = new FormData();
-      formData.append("foto", item.foto, "absen.jpg");
-      if (item.latitude != null) formData.append("latitude", item.latitude);
-      if (item.longitude != null) formData.append("longitude", item.longitude);
-      if (item.alamat) formData.append("alamat", item.alamat);
-      if (item.waktuAsli) formData.append("waktuAsli", item.waktuAsli);
+    const token = getToken();
 
-      const respons = await fetchDenganTimeout(`${apiUrl}/absensi/${item.endpoint}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-
-      let data = {};
-      try { data = await respons.json(); } catch { data = {}; }
-
-      if (respons.ok) {
-        await hapusDariAntrian(item.id);
-        berhasil++;
+    for (const item of semua) {
+      if (Number(item.penggunaId) !== penggunaIdAktif) {
+        tidakCocok++;
         continue;
       }
 
-      if (respons.status === 401 || respons.status === 403 || respons.status >= 500 || respons.status === 408 || respons.status === 429) {
-        await catatKegagalanSementara(item.id, respons.status);
+      try {
+        const formData = new FormData();
+        formData.append("foto", item.foto, "absen.jpg");
+        if (item.latitude != null) formData.append("latitude", item.latitude);
+        if (item.longitude != null) formData.append("longitude", item.longitude);
+        if (item.alamat) formData.append("alamat", item.alamat);
+        if (item.waktuAsli) formData.append("waktuAsli", item.waktuAsli);
+
+        const respons = await fetchDenganTimeout(`${apiUrl}/absensi/${item.endpoint}`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+
+        let data = {};
+        try { data = await respons.json(); } catch { data = {}; }
+
+        if (respons.ok) {
+          await hapusDariAntrian(item.id);
+          berhasil++;
+          continue;
+        }
+
+        if (respons.status === 401 || respons.status === 403 || respons.status >= 500 || respons.status === 408 || respons.status === 429) {
+          await catatKegagalanSementara(item.id, respons.status);
+          gagal++;
+          if (respons.status === 401 || respons.status === 403) perluLogin++;
+          continue;
+        }
+
+        if (statusBolehDihapus(respons.status, data?.pesan)) {
+          await hapusDariAntrian(item.id);
+        } else {
+          await catatKegagalanSementara(item.id, respons.status);
+        }
         gagal++;
-        if (respons.status === 401 || respons.status === 403) perluLogin++;
-        continue;
+      } catch (err) {
+        console.warn("Gagal sinkron item offline:", err);
+        await catatKegagalanSementara(item.id, err?.name === "AbortError" ? "TIMEOUT" : "NETWORK_ERROR");
+        gagal++;
       }
-
-      if (statusBolehDihapus(respons.status, data?.pesan)) {
-        await hapusDariAntrian(item.id);
-      } else {
-        await catatKegagalanSementara(item.id, respons.status);
-      }
-      gagal++;
-    } catch (err) {
-      console.warn("Gagal sinkron item offline:", err);
-      await catatKegagalanSementara(item.id, err?.name === "AbortError" ? "TIMEOUT" : "NETWORK_ERROR");
-      gagal++;
     }
-  }
 
-  return { berhasil, gagal, tidakCocok, perluLogin };
+    return { berhasil, gagal, tidakCocok, perluLogin };
+  })();
+
+  try {
+    return await sinkronisasiAktif;
+  } finally {
+    sinkronisasiAktif = null;
+  }
 }
