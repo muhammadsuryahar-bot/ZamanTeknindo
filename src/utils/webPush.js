@@ -3,39 +3,12 @@ import { API_URL, getToken, getPenggunaLogin } from "./api.js";
 let prosesRegistrasi = null;
 let terakhirSinkronPush = 0;
 const INTERVAL_SINKRON_PUSH_MS = 10 * 60 * 1000;
-const KUNCI_PUSH_TIDAK_AKTIF = "zaman-teknindo:web-push-tidak-aktif";
-const PUSH_TIDAK_AKTIF_CACHE_MS = 6 * 60 * 60 * 1000;
 
 function base64UrlKeUint8Array(base64Url) {
   const padding = "=".repeat((4 - (base64Url.length % 4)) % 4);
   const base64 = (base64Url + padding).replace(/-/g, "+").replace(/_/g, "/");
   const raw = window.atob(base64);
   return Uint8Array.from([...raw].map((char) => char.charCodeAt(0)));
-}
-
-function pushDiketahuiTidakAktif() {
-  try {
-    const nilai = Number(localStorage.getItem(KUNCI_PUSH_TIDAK_AKTIF) || 0);
-    return nilai > 0 && Date.now() - nilai < PUSH_TIDAK_AKTIF_CACHE_MS;
-  } catch {
-    return false;
-  }
-}
-
-function tandaiPushTidakAktif() {
-  try {
-    localStorage.setItem(KUNCI_PUSH_TIDAK_AKTIF, String(Date.now()));
-  } catch {
-    // Abaikan storage yang tidak tersedia.
-  }
-}
-
-function hapusTandaPushTidakAktif() {
-  try {
-    localStorage.removeItem(KUNCI_PUSH_TIDAK_AKTIF);
-  } catch {
-    // Abaikan storage yang tidak tersedia.
-  }
 }
 
 async function ambilServiceWorker() {
@@ -73,7 +46,6 @@ async function registrasikanPush() {
   if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) return false;
   if (!getToken() || !getPenggunaLogin()) return false;
   if (Notification.permission !== "granted") return false;
-  if (pushDiketahuiTidakAktif()) return false;
 
   const sekarang = Date.now();
   if (sekarang - terakhirSinkronPush < INTERVAL_SINKRON_PUSH_MS) return false;
@@ -90,12 +62,7 @@ async function registrasikanPush() {
   });
   if (!infoResponse.ok) return false;
   const info = await infoResponse.json().catch(() => ({}));
-  if (!info?.aktif || !info?.publicKey) {
-    tandaiPushTidakAktif();
-    return false;
-  }
-
-  hapusTandaPushTidakAktif();
+  if (!info?.aktif || !info?.publicKey) return false;
 
   let subscription = await sw.pushManager.getSubscription();
   if (!subscription) {
