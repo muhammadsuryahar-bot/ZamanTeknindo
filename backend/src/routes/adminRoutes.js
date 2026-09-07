@@ -85,6 +85,53 @@ function validasiEditStatusAbsensi(req, res, next) {
   next();
 }
 
+function validasiNominalNonNegatif(field, label) {
+  return (req, res, next) => {
+    const raw = req.body?.[field];
+    if (raw == null || String(raw).trim() === "") {
+      return res.status(400).json({ pesan: `${label} wajib diisi.` });
+    }
+
+    const nilai = Number(raw);
+    if (!Number.isFinite(nilai) || nilai < 0) {
+      return res.status(400).json({ pesan: `${label} harus berupa angka yang valid dan tidak boleh negatif.` });
+    }
+
+    req.body[field] = nilai;
+    next();
+  };
+}
+
+function validasiPengaturanPotongan(req, res, next) {
+  const jamMasuk = String(req.body?.jamMasukStandar || "08:10:00").trim();
+  if (!/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(jamMasuk)) {
+    return res.status(400).json({ pesan: "Jam masuk standar tidak valid. Gunakan format HH:MM atau HH:MM:SS." });
+  }
+  req.body.jamMasukStandar = jamMasuk;
+  next();
+}
+
+function validasiTanggalHariLibur(req, res, next) {
+  const nilai = String(req.body?.tanggal || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(nilai)) {
+    return res.status(400).json({ pesan: "Tanggal hari libur harus menggunakan format YYYY-MM-DD." });
+  }
+
+  const [tahun, bulan, hari] = nilai.split("-").map(Number);
+  const kandidat = new Date(Date.UTC(tahun, bulan - 1, hari));
+  const valid =
+    kandidat.getUTCFullYear() === tahun &&
+    kandidat.getUTCMonth() === bulan - 1 &&
+    kandidat.getUTCDate() === hari;
+
+  if (!valid) {
+    return res.status(400).json({ pesan: "Tanggal hari libur tidak valid." });
+  }
+
+  req.body.tanggal = nilai;
+  next();
+}
+
 const uploadExcelGaji = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 2 * 1024 * 1024 },
@@ -117,10 +164,20 @@ router.get("/ringkasan", ringkasanDashboardFixed);
 router.put("/absensi/:id/edit-status", validasiEditStatusAbsensi, editStatusAbsensi);
 
 router.get("/pengaturan-potongan", ambilPengaturanPotonganFixed);
-router.put("/pengaturan-potongan", ubahPengaturanPotongan);
+router.put(
+  "/pengaturan-potongan",
+  validasiNominalNonNegatif("potonganTelat", "Potongan telat"),
+  validasiNominalNonNegatif("potonganAlpha", "Potongan alpha"),
+  validasiPengaturanPotongan,
+  ubahPengaturanPotongan,
+);
 
 router.get("/gaji", daftarGajiKaryawan);
-router.put("/gaji/:id/atur", ubahGajiKaryawan);
+router.put(
+  "/gaji/:id/atur",
+  validasiNominalNonNegatif("gajiPokok", "Gaji pokok"),
+  ubahGajiKaryawan,
+);
 router.post("/gaji/hitung/:penggunaId", hitungDanSimpanSatu);
 router.post("/gaji/hitung-semua", hitungDanSimpanSemua);
 router.get("/gaji/laporan", lihatLaporanBulanan);
@@ -140,7 +197,7 @@ router.post("/kantor", tambahKantorFixed);
 router.put("/kantor/:id", ubahKantorFixed);
 
 router.get("/hari-libur", daftarHariLibur);
-router.post("/hari-libur", tambahHariLibur);
+router.post("/hari-libur", validasiTanggalHariLibur, tambahHariLibur);
 router.delete("/hari-libur/:id", hapusHariLibur);
 router.get("/hari-libur-usulan", usulanHariLibur);
 
