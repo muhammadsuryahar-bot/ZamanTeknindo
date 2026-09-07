@@ -51,9 +51,10 @@ if (typeof window !== 'undefined') {
 // untuk semua pemanggilan fetch() dari halaman manapun.
 pasangPenerjemahSesiKedaluwarsa()
 
-// Rekonsiliasi antrean offline dijalankan di background. Kalau server
-// sebenarnya sudah mencatat absensi tetapi response hilang, antrean lokal
-// dibersihkan sehingga pengguna tidak terjebak pada "Menunggu Sinkronisasi".
+// Recovery antrean dilakukan hanya pada momen yang memang relevan:
+// saat koneksi kembali dan saat PWA/tab kembali terlihat. Dashboard sendiri
+// tetap menampilkan status dan kontrol sinkronisasi untuk pengguna. Tidak ada
+// polling 30 detik global yang terus-menerus membebani backend.
 if (typeof window !== 'undefined' && !window.__zamanOfflineRecoveryTerpasang) {
   const jalankanRecoveryOffline = async () => {
     if (!navigator.onLine) return
@@ -76,9 +77,13 @@ if (typeof window !== 'undefined' && !window.__zamanOfflineRecoveryTerpasang) {
     }
   }
 
-  window.addEventListener('online', () => { void jalankanRecoveryOffline() })
-  window.addEventListener('pageshow', () => { void jalankanRecoveryOffline() })
-  window.setInterval(() => { void jalankanRecoveryOffline() }, 30_000)
+  const ketikaOnline = () => { void jalankanRecoveryOffline() }
+  const ketikaTerlihat = () => {
+    if (document.visibilityState === 'visible') void jalankanRecoveryOffline()
+  }
+
+  window.addEventListener('online', ketikaOnline)
+  document.addEventListener('visibilitychange', ketikaTerlihat)
   window.__zamanOfflineRecoveryTerpasang = true
   void jalankanRecoveryOffline()
 }
