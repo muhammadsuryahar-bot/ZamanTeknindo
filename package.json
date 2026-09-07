@@ -7,7 +7,7 @@
     "dev": "vite",
     "dev:backend": "nodemon backend/src/server.js",
     "build": "vite build",
-    "vercel-build": "prisma generate --schema=backend/prisma/schema.prisma && vite build",
+    "vercel-build": "npx prisma generate --schema=backend/prisma/schema.prisma && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "prisma:generate": "prisma generate --schema=backend/prisma/schema.prisma",
@@ -36,7 +36,7 @@
     "web-push": "^3.6.7"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
+    "@eslint/js": "^10.8.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-basic-ssl": "^2.3.0",
