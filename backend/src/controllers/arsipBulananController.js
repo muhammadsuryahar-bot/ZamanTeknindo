@@ -1,4 +1,5 @@
 const prisma = require("../utils/prismaClient");
+const { tanggalHariIniWIB, bagianWaktuWIB } = require("../utils/waktuIndonesia");
 const { deleteFotoAbsensiBatch } = require("../utils/supabaseStorage");
 
 const MASA_TUNGGU_HARI = 7;
@@ -28,8 +29,19 @@ function awalBulanBerikutnyaUTC(tahun, bulan) {
   return new Date(Date.UTC(tahun, bulan, 1));
 }
 
-function bulanSudahSelesai(tahun, bulan) {
-  return awalBulanBerikutnyaUTC(tahun, bulan).getTime() <= Date.now();
+function bulanBerikutnyaWIB(tahun, bulan) {
+  if (bulan === 12) return { tahun: tahun + 1, bulan: 1 };
+  return { tahun, bulan: bulan + 1 };
+}
+
+function bulanSudahSelesai(tahun, bulan, sekarang = new Date()) {
+  const sekarangWIB = bagianWaktuWIB(sekarang);
+  const berikutnya = bulanBerikutnyaWIB(tahun, bulan);
+
+  return (
+    sekarangWIB.tahun > berikutnya.tahun ||
+    (sekarangWIB.tahun === berikutnya.tahun && sekarangWIB.bulan >= berikutnya.bulan)
+  );
 }
 
 function hitungSiapDihapusPada(tahun, bulan, sekarang = new Date()) {
@@ -37,6 +49,9 @@ function hitungSiapDihapusPada(tahun, bulan, sekarang = new Date()) {
     sekarang.getTime() + MASA_TUNGGU_HARI * 24 * 60 * 60 * 1000,
   );
 
+  // Batas awal bulan berikutnya tetap direpresentasikan sebagai tengah malam
+  // UTC karena field arsip menyimpan timestamp, sementara keputusan apakah
+  // periode sudah selesai dibuat berdasarkan tanggal WIB.
   const minimumSetelahBulan = new Date(
     awalBulanBerikutnyaUTC(tahun, bulan).getTime() +
       MASA_TUNGGU_HARI * 24 * 60 * 60 * 1000,
@@ -84,7 +99,6 @@ async function hitungStatistikPeriode(tahun, bulan) {
   };
 }
 
-// GET /api/admin/arsip-bulanan
 async function daftarArsipBulanan(req, res) {
   try {
     const data = await prisma.arsipBulanan.findMany({
@@ -101,7 +115,6 @@ async function daftarArsipBulanan(req, res) {
   }
 }
 
-// GET /api/admin/arsip-bulanan/:tahun/:bulan/preview
 async function previewArsipBulanan(req, res) {
   try {
     const hasil = validasiPeriode(req.params.tahun, req.params.bulan);
@@ -142,8 +155,6 @@ async function previewArsipBulanan(req, res) {
   }
 }
 
-// POST /api/admin/arsip-bulanan/:tahun/:bulan/konfirmasi
-// Body: { "namaFile": "Laporan_Gaji_Agustus_2026.xlsx", "lokasiArsip": "Laptop perusahaan" }
 async function konfirmasiArsipBulanan(req, res) {
   try {
     const hasil = validasiPeriode(req.params.tahun, req.params.bulan);
@@ -260,7 +271,6 @@ async function konfirmasiArsipBulanan(req, res) {
   }
 }
 
-// POST /api/admin/arsip-bulanan/:tahun/:bulan/batalkan
 async function batalkanArsipBulanan(req, res) {
   try {
     const hasil = validasiPeriode(req.params.tahun, req.params.bulan);
@@ -338,129 +348,61 @@ async function prosesSatuArsip(arsip) {
       },
     });
 
-    if (batch.length === 0) {
-      break;
-    }
+    if (batch.length === 0) break;
 
     const semuaFoto = batch.flatMap((item) => [item.fotoMasuk, item.fotoPulang]);
-
-    // WAJIB berhasil dulu. Kalau Storage gagal, record Absensi
-    // batch ini tidak dihapus sehingga bisa dicoba ulang.
     const hasilFoto = await deleteFotoAbsensiBatch(semuaFoto);
     jumlahFotoDihapus += hasilFoto.jumlahDihapus;
 
     const ids = batch.map((item) => item.id);
-
-    const hasilDelete = await prisma.absensi.deleteMany({
-      where: {
-        id: {
-          in: ids,
-        },
-      },
-    });
+    const hasilDelete = await prisma.absensi.deleteMany({ where: { id: { in: ids } } });
 
     jumlahAbsensiDihapus += hasilDelete.count;
     batchDiproses += 1;
 
     await prisma.arsipBulanan.update({
       where: { id: arsip.id },
-      data: {
-        jumlahAbsensiDihapus,
-        jumlahFotoDihapus,
-      },
+      data: { jumlahAbsensiDihapus, jumlahFotoDihapus },
     });
 
-    if (batch.length < BATCH_ABSENSI) {
-      break;
-    }
+    if (batch.length < BATCH_ABSENSI) break;
   }
 
   const sisaAbsensi = await prisma.absensi.count({
-    where: {
-      tanggal: {
-        gte: awal,
-        lt: berikutnya,
-      },
-    },
+    where: { tanggal: { gte: awal, lt: berikutnya } },
   });
 
   if (sisaAbsensi === 0) {
-    return {
-      selesai: true,
-      jumlahAbsensiDihapus,
-      jumlahFotoDihapus,
-      jumlahAbsensiTersisa: 0,
-    };
+    return { selesai: true, jumlahAbsensiDihapus, jumlahFotoDihapus, jumlahAbsensiTersisa: 0 };
   }
 
-  return {
-    selesai: false,
-    jumlahAbsensiDihapus,
-    jumlahFotoDihapus,
-    jumlahAbsensiTersisa: sisaAbsensi,
-  };
+  return { selesai: false, jumlahAbsensiDihapus, jumlahFotoDihapus, jumlahAbsensiTersisa: sisaAbsensi };
 }
 
-// GET /api/cron/cleanup-absensi
-// Header wajib: Authorization: Bearer <CRON_SECRET>
 async function jalankanCleanupAbsensi(req, res) {
   let arsipYangDiproses = null;
 
   try {
     const sekarang = new Date();
-    const tigaPuluhMenitLalu = new Date(
-      sekarang.getTime() - 30 * 60 * 1000,
-    );
+    const tigaPuluhMenitLalu = new Date(sekarang.getTime() - 30 * 60 * 1000);
 
     const kandidat = await prisma.arsipBulanan.findFirst({
       where: {
         OR: [
-          {
-            status: "siap_dihapus",
-            siapDihapusPada: {
-              lte: sekarang,
-            },
-          },
-          {
-            status: "gagal",
-            siapDihapusPada: {
-              lte: sekarang,
-            },
-          },
-          {
-            // Recovery kalau deployment/serverless timeout setelah status
-            // sempat menjadi "diproses". Setelah 30 menit dianggap stale.
-            status: "diproses",
-            mulaiDihapusPada: {
-              lte: tigaPuluhMenitLalu,
-            },
-          },
+          { status: "siap_dihapus", siapDihapusPada: { lte: sekarang } },
+          { status: "gagal", siapDihapusPada: { lte: sekarang } },
+          { status: "diproses", mulaiDihapusPada: { lte: tigaPuluhMenitLalu } },
         ],
       },
-      orderBy: [
-        {
-          siapDihapusPada: "asc",
-        },
-        {
-          id: "asc",
-        },
-      ],
+      orderBy: [{ siapDihapusPada: "asc" }, { id: "asc" }],
     });
 
     if (String(req.query?.dryRun || "") === "1") {
       if (!kandidat) {
-        return res.json({
-          dryRun: true,
-          diproses: false,
-          pesan: "Tidak ada periode yang siap dibersihkan.",
-        });
+        return res.json({ dryRun: true, diproses: false, pesan: "Tidak ada periode yang siap dibersihkan." });
       }
 
-      const statistik = await hitungStatistikPeriode(
-        kandidat.tahun,
-        kandidat.bulan,
-      );
-
+      const statistik = await hitungStatistikPeriode(kandidat.tahun, kandidat.bulan);
       return res.json({
         dryRun: true,
         diproses: false,
@@ -477,54 +419,26 @@ async function jalankanCleanupAbsensi(req, res) {
     }
 
     if (!kandidat) {
-      return res.json({
-        diproses: false,
-        pesan: "Tidak ada periode yang siap dibersihkan.",
-      });
+      return res.json({ diproses: false, pesan: "Tidak ada periode yang siap dibersihkan." });
     }
 
     const klaim = await prisma.arsipBulanan.updateMany({
       where: {
         id: kandidat.id,
         OR: [
-          {
-            status: "siap_dihapus",
-            siapDihapusPada: {
-              lte: sekarang,
-            },
-          },
-          {
-            status: "gagal",
-            siapDihapusPada: {
-              lte: sekarang,
-            },
-          },
-          {
-            status: "diproses",
-            mulaiDihapusPada: {
-              lte: tigaPuluhMenitLalu,
-            },
-          },
+          { status: "siap_dihapus", siapDihapusPada: { lte: sekarang } },
+          { status: "gagal", siapDihapusPada: { lte: sekarang } },
+          { status: "diproses", mulaiDihapusPada: { lte: tigaPuluhMenitLalu } },
         ],
       },
-      data: {
-        status: "diproses",
-        mulaiDihapusPada: sekarang,
-        pesanError: null,
-      },
+      data: { status: "diproses", mulaiDihapusPada: sekarang, pesanError: null },
     });
 
     if (klaim.count === 0) {
-      return res.json({
-        diproses: false,
-        pesan: "Periode sedang diproses proses lain. Coba lagi pada jadwal berikutnya.",
-      });
+      return res.json({ diproses: false, pesan: "Periode sedang diproses proses lain. Coba lagi pada jadwal berikutnya." });
     }
 
-    arsipYangDiproses = await prisma.arsipBulanan.findUnique({
-      where: { id: kandidat.id },
-    });
-
+    arsipYangDiproses = await prisma.arsipBulanan.findUnique({ where: { id: kandidat.id } });
     const hasil = await prosesSatuArsip(arsipYangDiproses);
 
     if (hasil.selesai) {
@@ -539,12 +453,7 @@ async function jalankanCleanupAbsensi(req, res) {
         },
       });
 
-      return res.json({
-        diproses: true,
-        selesai: true,
-        pesan: "Cleanup periode berhasil diselesaikan.",
-        data: selesai,
-      });
+      return res.json({ diproses: true, selesai: true, pesan: "Cleanup periode berhasil diselesaikan.", data: selesai });
     }
 
     const besok = new Date();
@@ -560,12 +469,7 @@ async function jalankanCleanupAbsensi(req, res) {
       },
     });
 
-    return res.json({
-      diproses: true,
-      selesai: false,
-      pesan: "Sebagian data dibersihkan. Sisa akan dilanjutkan pada jadwal cron berikutnya.",
-      data: lanjut,
-    });
+    return res.json({ diproses: true, selesai: false, pesan: "Sebagian data dibersihkan. Sisa akan dilanjutkan pada jadwal cron berikutnya.", data: lanjut });
   } catch (error) {
     console.error("Cleanup absensi gagal:", error);
 
@@ -587,10 +491,7 @@ async function jalankanCleanupAbsensi(req, res) {
       }
     }
 
-    return res.status(500).json({
-      diproses: false,
-      pesan: "Cleanup periode gagal. Sistem akan mencoba kembali pada jadwal berikutnya.",
-    });
+    return res.status(500).json({ diproses: false, pesan: "Cleanup periode gagal. Sistem akan mencoba kembali pada jadwal berikutnya." });
   }
 }
 
