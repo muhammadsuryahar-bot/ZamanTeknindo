@@ -20,6 +20,7 @@ export default defineConfig({
       registerType: "prompt",
       includeAssets: ["favicon.png", "favicon.svg"],
       manifest: {
+        id: "/karyawan",
         name: "Absensi PT. Zaman Teknindo",
         short_name: "Absensi Zaman",
         description:
@@ -27,8 +28,10 @@ export default defineConfig({
         theme_color: "#0B6E45",
         background_color: "#F4F5F7",
         display: "standalone",
+        display_override: ["standalone"],
         orientation: "portrait",
-        start_url: "/",
+        start_url: "/karyawan",
+        scope: "/",
         icons: [
           { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
           { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
