@@ -35,13 +35,21 @@ async function daftarAkun(req, res) {
     const kataSandiHash = await bcrypt.hash(kataSandi, 10);
     const penggunaBaru = await prisma.pengguna.create({ data: { nama: nama.trim(), email: emailBersih, kataSandi: kataSandiHash, peran: "karyawan", statusAkun: "menunggu_konfirmasi" } });
 
-    void kirimPushKeSemuaAdmin({
-      title: "Zaman Teknindo — Akun Baru",
-      body: `${penggunaBaru.nama} mendaftar dan menunggu konfirmasi Admin.`,
-      tag: `admin-akun-${penggunaBaru.id}`,
-      url: "/admin",
-      renotify: true,
-    }).catch((error) => console.error("Push akun baru gagal:", error));
+    // Pada Vercel, pekerjaan async yang tidak di-await bisa dihentikan segera setelah response selesai.
+    // Push harus ditunggu agar benar-benar dikirim sebelum request pendaftaran berakhir.
+    try {
+      const hasilPush = await kirimPushKeSemuaAdmin({
+        title: "Zaman Teknindo — Akun Baru",
+        body: `${penggunaBaru.nama} mendaftar dan menunggu konfirmasi Admin.`,
+        tag: `admin-akun-${penggunaBaru.id}`,
+        url: "/admin",
+        renotify: true,
+      });
+      console.info("Push akun baru selesai:", hasilPush);
+    } catch (error) {
+      // Pendaftaran tetap sukses walaupun provider push sedang bermasalah.
+      console.error("Push akun baru gagal:", error?.message || error);
+    }
 
     return res.status(201).json({ pesan: "Pendaftaran berhasil! Akun Anda sedang menunggu konfirmasi dari Admin sebelum bisa digunakan.", data: { id: penggunaBaru.id, nama: penggunaBaru.nama, email: penggunaBaru.email } });
   } catch (error) { console.error(error); return res.status(500).json({ pesan: "Terjadi kesalahan pada server." }); }
