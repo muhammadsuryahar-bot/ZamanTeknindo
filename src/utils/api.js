@@ -51,10 +51,14 @@ function nilaiHeader(argumen, nama) {
   const headers = init.headers;
   if (headers instanceof Headers) return headers.get(nama) || "";
   if (Array.isArray(headers)) {
-    const pasangan = headers.find(([key]) => String(key).toLowerCase() === nama.toLowerCase());
+    const pasangan = headers.find(
+      ([key]) => String(key).toLowerCase() === nama.toLowerCase(),
+    );
     return pasangan ? String(pasangan[1] || "") : "";
   }
-  const kunci = Object.keys(headers).find((key) => key.toLowerCase() === nama.toLowerCase());
+  const kunci = Object.keys(headers).find(
+    (key) => key.toLowerCase() === nama.toLowerCase(),
+  );
   return kunci ? String(headers[kunci] || "") : "";
 }
 
@@ -73,12 +77,18 @@ function tokenSudahKedaluwarsa(token) {
       decodeURIComponent(
         atob(bagian[1].replace(/-/g, "+").replace(/_/g, "/"))
           .split("")
-          .map((karakter) => `%${`00${karakter.charCodeAt(0).toString(16)}`.slice(-2)}`)
+          .map(
+            (karakter) =>
+              `%${`00${karakter.charCodeAt(0).toString(16)}`.slice(-2)}`,
+          )
           .join(""),
       ),
     );
 
-    return Number.isFinite(Number(payload?.exp)) && Number(payload.exp) <= Math.floor(Date.now() / 1000);
+    return (
+      Number.isFinite(Number(payload?.exp)) &&
+      Number(payload.exp) <= Math.floor(Date.now() / 1000)
+    );
   } catch {
     // Token rusak tetap dibiarkan ke backend agar backend yang menentukan
     // apakah token benar-benar invalid. Fungsi ini khusus mendeteksi expiry.
@@ -102,12 +112,17 @@ function tanggalRekapAktif() {
   if (typeof window === "undefined") return null;
 
   const globalTanggal = window.__adminTanggalRekap;
-  if (typeof globalTanggal === "string" && /^\d{4}-\d{2}-\d{2}$/.test(globalTanggal)) {
+  if (
+    typeof globalTanggal === "string" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(globalTanggal)
+  ) {
     return globalTanggal;
   }
 
   try {
-    const inputTanggal = document.querySelector('input[aria-label="Pilih tanggal rekap"]');
+    const inputTanggal = document.querySelector(
+      'input[aria-label="Pilih tanggal rekap"]',
+    );
     const tanggalDOM = inputTanggal?.value;
     if (tanggalDOM && /^\d{4}-\d{2}-\d{2}$/.test(tanggalDOM)) return tanggalDOM;
   } catch {
@@ -116,7 +131,9 @@ function tanggalRekapAktif() {
 
   try {
     const tanggalStorage = sessionStorage.getItem("admin-tanggal-rekap");
-    if (tanggalStorage && /^\d{4}-\d{2}-\d{2}$/.test(tanggalStorage)) return tanggalStorage;
+    if (tanggalStorage && /^\d{4}-\d{2}-\d{2}$/.test(tanggalStorage)) {
+      return tanggalStorage;
+    }
   } catch {
     // Abaikan storage yang tidak tersedia.
   }
@@ -142,7 +159,10 @@ function tambahkanTanggalRekap(urlPermintaan) {
 async function fetchRetryDenganTimeout(fetchAsli, argumen) {
   const [input, init] = initTanpaSignal(argumen);
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), RETRY_STATUS_TIMEOUT_MS);
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    RETRY_STATUS_TIMEOUT_MS,
+  );
 
   try {
     return await fetchAsli(input, { ...(init || {}), signal: controller.signal });
@@ -152,7 +172,9 @@ async function fetchRetryDenganTimeout(fetchAsli, argumen) {
 }
 
 export function pasangPenerjemahSesiKedaluwarsa() {
-  if (typeof window === "undefined" || window.__interceptorSesiSudahDipasang) return;
+  if (typeof window === "undefined" || window.__interceptorSesiSudahDipasang) {
+    return;
+  }
 
   window.__interceptorSesiSudahDipasang = true;
   const fetchAsli = window.fetch.bind(window);
@@ -161,7 +183,9 @@ export function pasangPenerjemahSesiKedaluwarsa() {
     const urlPermintaanAwal = urlDariArgumen(argumen);
     const urlPermintaan = tambahkanTanggalRekap(urlPermintaanAwal);
     const argumenDenganTanggal = [urlPermintaan, argumen[1]];
-    const iniStatusAbsensi = urlPermintaan.includes("/api/absensi/status-hari-ini");
+    const iniStatusAbsensi = urlPermintaan.includes(
+      "/api/absensi/status-hari-ini",
+    );
     const iniBackground = permintaanBackground(argumen);
     const permintaanKeBackendKita = urlPermintaan.includes("/api/");
     const iniPermintaanAuth = urlPermintaan.includes("/api/auth/");
@@ -169,7 +193,11 @@ export function pasangPenerjemahSesiKedaluwarsa() {
     // Jangan biarkan halaman menembakkan request API dengan JWT yang sudah
     // pasti expired. Ini mencegah lonjakan 401 "jwt expired" di server dan
     // membuat sesi berakhir dengan alur yang konsisten.
-    if (permintaanKeBackendKita && !iniPermintaanAuth && tokenSudahKedaluwarsa(getToken())) {
+    if (
+      permintaanKeBackendKita &&
+      !iniPermintaanAuth &&
+      tokenSudahKedaluwarsa(getToken())
+    ) {
       logoutKarenaTokenExpired();
 
       if (!iniBackground && window.location.pathname !== "/login") {
@@ -199,7 +227,10 @@ export function pasangPenerjemahSesiKedaluwarsa() {
       for (const delay of RETRY_STATUS_DELAYS_MS) {
         try {
           await tunggu(delay);
-          respons = await fetchRetryDenganTimeout(fetchAsli, argumenDenganTanggal);
+          respons = await fetchRetryDenganTimeout(
+            fetchAsli,
+            argumenDenganTanggal,
+          );
           break;
         } catch (errorRetry) {
           errorTerakhir = errorRetry;
@@ -213,7 +244,10 @@ export function pasangPenerjemahSesiKedaluwarsa() {
       for (const delay of RETRY_STATUS_DELAYS_MS) {
         try {
           await tunggu(delay);
-          const retry = await fetchRetryDenganTimeout(fetchAsli, argumenDenganTanggal);
+          const retry = await fetchRetryDenganTimeout(
+            fetchAsli,
+            argumenDenganTanggal,
+          );
           responsTerakhir = retry;
           if (retry.status < 500) break;
         } catch (errorRetry) {
@@ -253,7 +287,9 @@ export function pasangPenerjemahSesiKedaluwarsa() {
           "pesanSetelahLogout",
           data?.pesan || "Sesi login sudah berakhir. Silakan login kembali.",
         );
-        if (window.location.pathname !== "/login") window.location.href = "/login";
+        if (window.location.pathname !== "/login") {
+          window.location.href = "/login";
+        }
       }
 
       return respons;
@@ -266,15 +302,19 @@ export function pasangPenerjemahSesiKedaluwarsa() {
         const data = await respons.clone().json();
         const pesan = String(data?.pesan || "").toLowerCase();
         const akunTidakAktif =
-          pesan.includes("dinonaktifkan") || pesan.includes("menunggu konfirmasi");
+          pesan.includes("dinonaktifkan") ||
+          pesan.includes("menunggu konfirmasi");
 
         if (akunTidakAktif && getToken()) {
           hapusSesiLogin();
           sessionStorage.setItem(
             "pesanSetelahLogout",
-            data?.pesan || "Akun Anda tidak dapat digunakan. Silakan hubungi Admin.",
+            data?.pesan ||
+              "Akun Anda tidak dapat digunakan. Silakan hubungi Admin.",
           );
-          if (window.location.pathname !== "/login") window.location.href = "/login";
+          if (window.location.pathname !== "/login") {
+            window.location.href = "/login";
+          }
         }
       } catch (error) {
         console.warn("Tidak dapat membaca response 403:", error);
@@ -283,11 +323,4 @@ export function pasangPenerjemahSesiKedaluwarsa() {
 
     return respons;
   };
-
-  // Import dinamis agar utilitas API tidak membuat circular dependency.
-  void import("./webPush.js").then(({ pasangWebPushOtomatis }) => {
-    pasangWebPushOtomatis();
-  }).catch((error) => {
-    console.warn("Web Push belum dapat dipasang:", error);
-  });
 }
