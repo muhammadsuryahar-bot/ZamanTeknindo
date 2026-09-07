@@ -81,18 +81,32 @@ async function uploadFotoAbsensi(buffer, filePath, contentType = "image/jpeg") {
 }
 
 async function deleteFotoAbsensi(filePath) {
-  if (!filePath) return;
+  if (!filePath) return { berhasil: false, dilewati: true };
 
-  const supabase = ambilSupabase();
-  const { error } = await supabase.storage
-    .from(BUCKET_NAME)
-    .remove([filePath]);
+  try {
+    const supabase = ambilSupabase();
+    const { error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .remove([filePath]);
 
-  if (error) {
+    if (error) {
+      console.error(
+        "Gagal menghapus foto dari Supabase Storage:",
+        error.message,
+      );
+      return { berhasil: false, pesan: error.message };
+    }
+
+    signedUrlCache.delete(filePath);
+    return { berhasil: true };
+  } catch (error) {
+    // Cleanup bersifat best-effort. Gangguan jaringan Storage tidak boleh
+    // mengubah hasil utama proses absensi menjadi error server.
     console.error(
       "Gagal menghapus foto dari Supabase Storage:",
-      error.message,
+      error?.message || error,
     );
+    return { berhasil: false, pesan: error?.message || "fetch failed" };
   }
 }
 
