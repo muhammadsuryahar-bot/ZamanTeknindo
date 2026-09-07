@@ -108,6 +108,13 @@ async function resetPasswordOlehAdmin(req, res) {
     const pengguna = await prisma.pengguna.findUnique({ where: { id: penggunaId } });
     if (!pengguna) return res.status(404).json({ pesan: "Akun tidak ditemukan." });
 
+    // Endpoint ini dipanggil dari /admin/karyawan/:id/reset-password.
+    // Pastikan hanya akun karyawan yang boleh direset dari menu tersebut;
+    // akun Admin/role lain tidak boleh disentuh oleh endpoint ini.
+    if (pengguna.peran !== "karyawan") {
+      return res.status(403).json({ pesan: "Password hanya dapat direset dari menu karyawan." });
+    }
+
     const passwordSementara = buatPasswordSementara();
     const passwordBaruHash = await bcrypt.hash(passwordSementara, 10);
     await prisma.pengguna.update({ where: { id: penggunaId }, data: { kataSandi: passwordBaruHash } });
