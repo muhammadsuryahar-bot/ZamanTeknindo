@@ -1,4 +1,4 @@
-// Antrian offline: kalau karyawan absen tapi koneksi internet terputus,
+// Antrian offline: kalau karyawan absen tetapi koneksi internet terputus,
 // data absen (foto + lokasi) disimpan di IndexedDB lalu dikirim ulang
 // ketika koneksi tersedia kembali.
 //
@@ -9,6 +9,7 @@ const NAMA_DB = "absensi_zaman_offline";
 const VERSI_DB = 2;
 const NAMA_STORE = "antrian_absen";
 const REQUEST_TIMEOUT_MS = 15000;
+const HEADER_BACKGROUND = "X-Zaman-Background";
 
 function bukaDb() {
   return new Promise((resolve, reject) => {
@@ -28,6 +29,7 @@ export async function simpanKeAntrian(item) {
   if (item?.penggunaId == null) {
     throw new Error("Identitas pengguna wajib disimpan bersama antrian offline.");
   }
+
   const db = await bukaDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(NAMA_STORE, "readwrite");
@@ -69,7 +71,10 @@ export async function hapusDariAntrian(id) {
 
 export async function jumlahAntrian(penggunaId = null) {
   const semua = await ambilSemuaAntrian();
-  if (penggunaId == null) return semua.filter((item) => Number.isInteger(Number(item.penggunaId))).length;
+  if (penggunaId == null) {
+    return semua.filter((item) => Number.isInteger(Number(item.penggunaId))).length;
+  }
+
   const aktif = Number(penggunaId);
   if (!Number.isInteger(aktif) || aktif <= 0) return 0;
   return semua.filter((item) => Number(item.penggunaId) === aktif).length;
@@ -81,34 +86,41 @@ async function catatKegagalanSementara(id, status) {
     const tx = db.transaction(NAMA_STORE, "readwrite");
     const store = tx.objectStore(NAMA_STORE);
     const request = store.get(id);
+
     request.onsuccess = () => {
       const item = request.result;
-      if (!item) return resolve();
+      if (!item) {
+        resolve();
+        return;
+      }
+
       item.percobaanKirim = (Number(item.percobaanKirim) || 0) + 1;
       item.terakhirGagalPada = Date.now();
       item.statusTerakhir = status;
+
       const update = store.put(item);
       update.onsuccess = () => resolve();
       update.onerror = () => reject(update.error);
     };
+
     request.onerror = () => reject(request.error);
     tx.onerror = () => reject(tx.error);
   });
 }
 
+// Hanya buang item ketika server sudah memberi jawaban yang menunjukkan
+// bahwa tindakan tersebut memang sudah tidak boleh/ tidak perlu dikirim lagi.
+// Error validasi lain dipertahankan agar data offline tidak hilang.
 function statusBolehDihapus(status, pesan) {
   const teks = String(pesan || "").toLowerCase();
+
   if (status === 409) return true;
 
   if (status === 400) {
     return (
       teks.includes("sudah melakukan absen") ||
       teks.includes("sudah melakukan absensi") ||
-      teks.includes("absensi tidak diperlukan") ||
-      teks.includes("belum melakukan absen masuk") ||
-      teks.includes("belum melakukan absen") ||
-      teks.includes("foto absen wajib") ||
-      teks.includes("lokasi gps wajib")
+      teks.includes("absensi tidak diperlukan")
     );
   }
 
@@ -118,28 +130,33 @@ function statusBolehDihapus(status, pesan) {
 async function fetchDenganTimeout(url, options = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
   try {
-    return await fetch(url, { ...options, signal: controller.signal });
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
   } finally {
     clearTimeout(timer);
   }
 }
 
-// Cek status server setelah item gagal dikirim. Tujuannya untuk kondisi
-// penting seperti: server sebenarnya sudah mencatat absen, tetapi response
-// hilang karena jaringan. Item kemudian dibuang dari antrean sehingga HP
-// tidak mengunci tombol kamera dan pengguna tidak melakukan absen ganda.
-export async function verifikasiDanBersihkanAntrian({ apiUrl, getToken, penggunaId }) {
+async function rekonsiliasiAntrian({ apiUrl, getToken, penggunaId }) {
   const penggunaIdAktif = Number(penggunaId);
   const token = getToken?.();
+
   if (!Number.isInteger(penggunaIdAktif) || penggunaIdAktif <= 0 || !token || !navigator.onLine) {
     return { dihapus: 0, tahap: null };
   }
 
   try {
     const respons = await fetchDenganTimeout(`${apiUrl}/absensi/status-hari-ini`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        [HEADER_BACKGROUND]: "offline-reconciliation",
+      },
     });
+
     if (!respons.ok) return { dihapus: 0, tahap: null };
 
     const data = await respons.json();
@@ -156,6 +173,7 @@ export async function verifikasiDanBersihkanAntrian({ apiUrl, getToken, pengguna
         (tahap === "selesai" && (item.endpoint === "masuk" || item.endpoint === "pulang"));
 
       if (!sudahTercatat) continue;
+
       await hapusDariAntrian(item.id);
       dihapus++;
     }
@@ -167,10 +185,15 @@ export async function verifikasiDanBersihkanAntrian({ apiUrl, getToken, pengguna
   }
 }
 
+// Public API dipertahankan agar kompatibel dengan kode Dashboard/main lama.
+export async function verifikasiDanBersihkanAntrian(args) {
+  return rekonsiliasiAntrian(args);
+}
+
 let sinkronisasiAktif = null;
 
 export async function sinkronkanAntrian({ apiUrl, getToken, penggunaId }) {
-  // Cegah Dashboard + recovery global melakukan upload antrean yang sama
+  // Cegah Dashboard + recovery global mengirim item antrean yang sama
   // secara bersamaan pada perangkat yang sama.
   if (sinkronisasiAktif) return sinkronisasiAktif;
 
@@ -183,7 +206,12 @@ export async function sinkronkanAntrian({ apiUrl, getToken, penggunaId }) {
     const penggunaIdAktif = Number(penggunaId);
 
     if (!Number.isInteger(penggunaIdAktif) || penggunaIdAktif <= 0 || !getToken()) {
-      return { berhasil: 0, gagal: semua.length, tidakCocok: 0, perluLogin: semua.length };
+      return {
+        berhasil: 0,
+        gagal: semua.length,
+        tidakCocok: 0,
+        perluLogin: semua.length,
+      };
     }
 
     const token = getToken();
@@ -194,22 +222,36 @@ export async function sinkronkanAntrian({ apiUrl, getToken, penggunaId }) {
         continue;
       }
 
+      // Data lama yang korup jangan dilempar ke server sebagai multipart.
+      if (!item.foto || !item.endpoint || !["masuk", "pulang"].includes(item.endpoint)) {
+        await catatKegagalanSementara(item.id, "INVALID_LOCAL_QUEUE");
+        gagal++;
+        continue;
+      }
+
       try {
         const formData = new FormData();
         formData.append("foto", item.foto, "absen.jpg");
-        if (item.latitude != null) formData.append("latitude", item.latitude);
-        if (item.longitude != null) formData.append("longitude", item.longitude);
+        if (item.latitude != null) formData.append("latitude", String(item.latitude));
+        if (item.longitude != null) formData.append("longitude", String(item.longitude));
         if (item.alamat) formData.append("alamat", item.alamat);
         if (item.waktuAsli) formData.append("waktuAsli", item.waktuAsli);
 
         const respons = await fetchDenganTimeout(`${apiUrl}/absensi/${item.endpoint}`, {
           method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            [HEADER_BACKGROUND]: "offline-sync",
+          },
           body: formData,
         });
 
         let data = {};
-        try { data = await respons.json(); } catch { data = {}; }
+        try {
+          data = await respons.json();
+        } catch {
+          data = {};
+        }
 
         if (respons.ok) {
           await hapusDariAntrian(item.id);
@@ -232,12 +274,26 @@ export async function sinkronkanAntrian({ apiUrl, getToken, penggunaId }) {
         gagal++;
       } catch (err) {
         console.warn("Gagal sinkron item offline:", err);
-        await catatKegagalanSementara(item.id, err?.name === "AbortError" ? "TIMEOUT" : "NETWORK_ERROR");
+        await catatKegagalanSementara(
+          item.id,
+          err?.name === "AbortError" ? "TIMEOUT" : "NETWORK_ERROR",
+        );
         gagal++;
       }
     }
 
-    return { berhasil, gagal, tidakCocok, perluLogin };
+    // Selalu cek keadaan server sesudah batch, termasuk skenario response
+    // hilang setelah server sebenarnya berhasil menyimpan absensi.
+    const rekonsiliasi = await rekonsiliasiAntrian({ apiUrl, getToken, penggunaId });
+
+    return {
+      berhasil,
+      gagal,
+      tidakCocok,
+      perluLogin,
+      direkonsiliasi: rekonsiliasi.dihapus,
+      tahapServer: rekonsiliasi.tahap,
+    };
   })();
 
   try {
