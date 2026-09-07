@@ -4,20 +4,20 @@ const router = express.Router();
 const { cekLogin, cekAdmin } = require("../middleware/authMiddleware");
 const { batasResetPassword } = require("../middleware/rateLimiter");
 const {
-  daftarMenungguKonfirmasi,
-  editStatusAbsensi,
-  ubahPengaturanPotongan,
-  daftarGajiKaryawan,
-  ubahGajiKaryawan,
-  daftarHariLibur,
-  tambahHariLibur,
-  hapusHariLibur,
-  usulanHariLibur,
-} = require("../controllers/adminController");
+  daftarMenungguKonfirmasiFixed,
+  editStatusAbsensiFixed,
+  ambilPengaturanPotonganFixed,
+  ubahPengaturanPotonganFixed,
+  daftarGajiKaryawanFixed,
+  ubahGajiKaryawanFixed,
+  daftarHariLiburFixed,
+  tambahHariLiburFixed,
+  hapusHariLiburFixed,
+  usulanHariLiburFixed,
+} = require("../controllers/adminFinanceFixedController");
 const {
   ringkasanDashboardFixed,
   notifikasiAdminFixed,
-  ambilPengaturanPotonganFixed,
   ubahStatusKaryawanFixed,
 } = require("../controllers/adminOperationalFixedController");
 const { aktifkanAkunFixed } = require("../controllers/aktivasiAkunFixedController");
@@ -145,7 +145,7 @@ const uploadExcelGaji = multer({
   },
 });
 
-router.get("/akun-menunggu", daftarMenungguKonfirmasi);
+router.get("/akun-menunggu", daftarMenungguKonfirmasiFixed);
 router.get("/notifikasi", notifikasiAdminFixed);
 router.put("/akun/:id/aktifkan", aktifkanAkunFixed);
 
@@ -162,7 +162,7 @@ router.put(
   ubahStatusTanpaAbsensi,
 );
 router.get("/ringkasan", ringkasanDashboardFixed);
-router.put("/absensi/:id/edit-status", validasiEditStatusAbsensi, editStatusAbsensi);
+router.put("/absensi/:id/edit-status", editStatusAbsensiFixed);
 
 router.get("/pengaturan-potongan", ambilPengaturanPotonganFixed);
 router.put(
@@ -170,14 +170,14 @@ router.put(
   validasiNominalNonNegatif("potonganTelat", "Potongan telat"),
   validasiNominalNonNegatif("potonganAlpha", "Potongan alpha"),
   validasiPengaturanPotongan,
-  ubahPengaturanPotongan,
+  ubahPengaturanPotonganFixed,
 );
 
-router.get("/gaji", daftarGajiKaryawan);
+router.get("/gaji", daftarGajiKaryawanFixed);
 router.put(
   "/gaji/:id/atur",
   validasiNominalNonNegatif("gajiPokok", "Gaji pokok"),
-  ubahGajiKaryawan,
+  ubahGajiKaryawanFixed,
 );
 router.post("/gaji/hitung/:penggunaId", hitungDanSimpanSatu);
 router.post("/gaji/hitung-semua", hitungDanSimpanSemua);
@@ -197,9 +197,9 @@ router.get("/kantor", daftarKantorFixed);
 router.post("/kantor", tambahKantorFixed);
 router.put("/kantor/:id", ubahKantorFixed);
 
-router.get("/hari-libur", daftarHariLibur);
-router.post("/hari-libur", validasiTanggalHariLibur, tambahHariLibur);
-router.delete("/hari-libur/:id", hapusHariLibur);
-router.get("/hari-libur-usulan", usulanHariLibur);
+router.get("/hari-libur", daftarHariLiburFixed);
+router.post("/hari-libur", validasiTanggalHariLibur, tambahHariLiburFixed);
+router.delete("/hari-libur/:id", hapusHariLiburFixed);
+router.get("/hari-libur-usulan", usulanHariLiburFixed);
 
 module.exports = router;
