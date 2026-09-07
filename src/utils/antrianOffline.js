@@ -101,13 +101,46 @@ export async function hapusDariAntrian(id) {
 
 export async function jumlahAntrian(penggunaId = null) {
   const semua = await ambilSemuaAntrian();
+  const tanggalHariIni = tanggalWIBHariIni();
+
   if (penggunaId == null) {
-    return semua.filter((item) => Number.isInteger(Number(item.penggunaId))).length;
+    return semua.filter((item) => {
+      const tanggalItem = item.tanggalAbsensi || tanggalWIBDariISO(item.waktuAsli);
+      return Number.isInteger(Number(item.penggunaId)) && tanggalItem === tanggalHariIni;
+    }).length;
   }
 
   const aktif = Number(penggunaId);
   if (!Number.isInteger(aktif) || aktif <= 0) return 0;
-  return semua.filter((item) => Number(item.penggunaId) === aktif).length;
+  return semua.filter((item) => {
+    const tanggalItem = item.tanggalAbsensi || tanggalWIBDariISO(item.waktuAsli);
+    return Number(item.penggunaId) === aktif && tanggalItem === tanggalHariIni;
+  }).length;
+}
+
+async function tandaiStatusItem(id, status) {
+  const db = await bukaDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(NAMA_STORE, "readwrite");
+    const store = tx.objectStore(NAMA_STORE);
+    const request = store.get(id);
+
+    request.onsuccess = () => {
+      const item = request.result;
+      if (!item) {
+        resolve();
+        return;
+      }
+
+      item.statusTerakhir = status;
+      const update = store.put(item);
+      update.onsuccess = () => resolve();
+      update.onerror = () => reject(update.error);
+    };
+
+    request.onerror = () => reject(request.error);
+    tx.onerror = () => reject(tx.error);
+  });
 }
 
 async function catatKegagalanSementara(id, status) {
@@ -195,9 +228,6 @@ async function rekonsiliasiAntrian({ apiUrl, getToken, penggunaId }) {
     for (const item of semua) {
       if (Number(item.penggunaId) !== penggunaIdAktif) continue;
 
-      // Item lama yang tidak mempunyai tanggal sengaja tidak dihapus otomatis.
-      // Ini mencegah absensi dari hari sebelumnya ikut dibuang ketika status
-      // hari ini menunjukkan sudah masuk/selesai.
       const tanggalItem = item.tanggalAbsensi || tanggalWIBDariISO(item.waktuAsli);
       if (!tanggalItem || !/^\d{4}-\d{2}-\d{2}$/.test(tanggalItem)) continue;
       if (tanggalItem !== tanggalServer) continue;
@@ -235,7 +265,9 @@ export async function sinkronkanAntrian({ apiUrl, getToken, penggunaId }) {
     let gagal = 0;
     let tidakCocok = 0;
     let perluLogin = 0;
+    let kedaluwarsa = 0;
     const penggunaIdAktif = Number(penggunaId);
+    const tanggalHariIni = tanggalWIBHariIni();
 
     if (!Number.isInteger(penggunaIdAktif) || penggunaIdAktif <= 0 || !getToken()) {
       return {
@@ -243,6 +275,7 @@ export async function sinkronkanAntrian({ apiUrl, getToken, penggunaId }) {
         gagal: semua.length,
         tidakCocok: 0,
         perluLogin: semua.length,
+        kedaluwarsa: 0,
       };
     }
 
@@ -251,6 +284,13 @@ export async function sinkronkanAntrian({ apiUrl, getToken, penggunaId }) {
     for (const item of semua) {
       if (Number(item.penggunaId) !== penggunaIdAktif) {
         tidakCocok++;
+        continue;
+      }
+
+      const tanggalItem = item.tanggalAbsensi || tanggalWIBDariISO(item.waktuAsli);
+      if (tanggalItem !== tanggalHariIni) {
+        kedaluwarsa++;
+        await tandaiStatusItem(item.id, "STALE_DATE");
         continue;
       }
 
@@ -320,6 +360,7 @@ export async function sinkronkanAntrian({ apiUrl, getToken, penggunaId }) {
       gagal,
       tidakCocok,
       perluLogin,
+      kedaluwarsa,
       direkonsiliasi: rekonsiliasi.dihapus,
       tahapServer: rekonsiliasi.tahap,
     };
