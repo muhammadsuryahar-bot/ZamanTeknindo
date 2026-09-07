@@ -4,24 +4,24 @@ const upload = require("../utils/uploadConfig");
 const kompresFoto = require("../middleware/kompresFoto");
 const { cekLogin, cekAdmin } = require("../middleware/authMiddleware");
 const {
-  ajukanIzin,
+  ajukanIzinFixed,
   riwayatIzinSaya,
   daftarSemuaIzin,
-  setujuiIzin,
-  tolakIzin,
-} = require("../controllers/izinController");
+  setujuiIzinFixed,
+  tolakIzinFixed,
+} = require("../controllers/izinFixedController");
 
 // ------------------------------------------------------------
 // KARYAWAN — cukup login, gak perlu admin
 // ------------------------------------------------------------
-router.post("/ajukan", cekLogin, upload.single("fotoSurat"), kompresFoto, ajukanIzin); // POST /api/izin/ajukan
-router.get("/riwayat-saya", cekLogin, riwayatIzinSaya); // GET /api/izin/riwayat-saya
+router.post("/ajukan", cekLogin, upload.single("fotoSurat"), kompresFoto, ajukanIzinFixed);
+router.get("/riwayat-saya", cekLogin, riwayatIzinSaya);
 
 // ------------------------------------------------------------
 // ADMIN — wajib login DAN berperan admin
 // ------------------------------------------------------------
-router.get("/semua", cekLogin, cekAdmin, daftarSemuaIzin); // GET /api/izin/semua?status=menunggu
-router.put("/:id/setujui", cekLogin, cekAdmin, setujuiIzin); // PUT /api/izin/1/setujui
-router.put("/:id/tolak", cekLogin, cekAdmin, tolakIzin); // PUT /api/izin/1/tolak
+router.get("/semua", cekLogin, cekAdmin, daftarSemuaIzin);
+router.put("/:id/setujui", cekLogin, cekAdmin, setujuiIzinFixed);
+router.put("/:id/tolak", cekLogin, cekAdmin, tolakIzinFixed);
 
 module.exports = router;
