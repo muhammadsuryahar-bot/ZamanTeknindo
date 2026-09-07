@@ -63,53 +63,11 @@ async function ambilRekapTanggal(req, res) {
     const tanggalDate = tanggalSebagaiDate(tanggal);
     if (!tanggalDate) return res.status(400).json({ pesan: "Tanggal rekap tidak valid." });
 
-    const data = await prisma.absensi.findMany({
-      where: { tanggal: tanggalDate },
-      include: {
-        pengguna: {
-          select: {
-            id: true,
-            nama: true,
-            jabatan: true,
-            divisi: true,
-            kantor: {
-              select: { id: true, namaKantor: true, alamat: true, latitude: true, longitude: true },
-            },
-          },
-        },
-      },
-      orderBy: [{ jamMasuk: "asc" }, { id: "asc" }],
-    });
-
-    const karyawanAktif = await prisma.pengguna.findMany({
-      where: { peran: "karyawan", statusAkun: "aktif" },
-      select: {
-        id: true,
-        nama: true,
-        jabatan: true,
-        divisi: true,
-        kantor: { select: { id: true, namaKantor: true } },
-      },
-      orderBy: { nama: "asc" },
-    });
-
+    const data = await prisma.absensi.findMany({ where: { tanggal: tanggalDate }, include: { pengguna: { select: { id: true, nama: true, jabatan: true, divisi: true, kantor: { select: { id: true, namaKantor: true, alamat: true, latitude: true, longitude: true } } } } }, orderBy: [{ jamMasuk: "asc" }, { id: "asc" }] });
+    const karyawanAktif = await prisma.pengguna.findMany({ where: { peran: "karyawan", statusAkun: "aktif" }, select: { id: true, nama: true, jabatan: true, divisi: true, kantor: { select: { id: true, namaKantor: true } } }, orderBy: { nama: "asc" } });
     const pengaturan = await prisma.pengaturanPotongan.findUnique({ where: { id: 1 } });
-    const pengaturanAman = pengaturan || {
-      id: 1,
-      potonganTelat: 10000,
-      potonganAlpha: 15000,
-      jamMasukStandar: JAM_MASUK_STANDAR_DEFAULT,
-    };
-
-    const pengajuanDisetujui = await prisma.pengajuanIzin.findMany({
-      where: {
-        tanggal: tanggalDate,
-        status: "disetujui",
-        pengguna: { peran: "karyawan", statusAkun: "aktif" },
-      },
-      select: { penggunaId: true, jenis: true },
-    });
-
+    const pengaturanAman = pengaturan || { id: 1, potonganTelat: 10000, potonganAlpha: 15000, jamMasukStandar: JAM_MASUK_STANDAR_DEFAULT };
+    const pengajuanDisetujui = await prisma.pengajuanIzin.findMany({ where: { tanggal: tanggalDate, status: "disetujui", pengguna: { peran: "karyawan", statusAkun: "aktif" } }, select: { penggunaId: true, jenis: true } });
     const jamMasukStandar = pengaturanAman.jamMasukStandar || JAM_MASUK_STANDAR_DEFAULT;
     const semuaPathFoto = [];
     for (const item of data) {
@@ -121,7 +79,6 @@ async function ambilRekapTanggal(req, res) {
     const sudahAbsen = new Set(data.map((item) => item.pengguna?.id).filter((id) => id != null));
     const sudahPunyaIzin = new Set(pengajuanDisetujui.map((item) => item.penggunaId).filter((id) => id != null));
     const belumAbsen = karyawanAktif.filter((karyawan) => !sudahAbsen.has(karyawan.id) && !sudahPunyaIzin.has(karyawan.id));
-
     return res.json({ tanggal, hariIni, data: dataDenganKantor, belumAbsen, jumlahKaryawanAktif: karyawanAktif.length, pengajuanDisetujui });
   } catch (error) {
     console.error("Gagal mengambil rekap absensi tanggal:", error);
@@ -142,41 +99,17 @@ async function ubahStatusTanpaAbsensi(req, res) {
     if (catatanAdmin.length > 500) return res.status(400).json({ pesan: "Catatan Admin maksimal 500 karakter." });
     const tanggalDate = tanggalSebagaiDate(tanggal);
     if (!tanggalDate) return res.status(400).json({ pesan: "Tanggal absensi tidak valid." });
-
-    const pengguna = await prisma.pengguna.findFirst({
-      where: { id: penggunaId, peran: "karyawan", statusAkun: "aktif" },
-      select: { id: true, nama: true },
-    });
-    const existing = await prisma.absensi.findUnique({
-      where: { penggunaId_tanggal: { penggunaId, tanggal: tanggalDate } },
-      select: { id: true },
-    });
-    const pengajuanDisetujui = await prisma.pengajuanIzin.findFirst({
-      where: { penggunaId, tanggal: tanggalDate, status: "disetujui" },
-      select: { id: true, jenis: true },
-    });
-
+    const pengguna = await prisma.pengguna.findFirst({ where: { id: penggunaId, peran: "karyawan", statusAkun: "aktif" }, select: { id: true, nama: true } });
+    const existing = await prisma.absensi.findUnique({ where: { penggunaId_tanggal: { penggunaId, tanggal: tanggalDate } }, select: { id: true } });
+    const pengajuanDisetujui = await prisma.pengajuanIzin.findFirst({ where: { penggunaId, tanggal: tanggalDate, status: "disetujui" }, select: { id: true, jenis: true } });
     if (!pengguna) return res.status(404).json({ pesan: "Karyawan aktif tidak ditemukan." });
     if (existing) return res.status(409).json({ pesan: "Karyawan sudah memiliki record absensi. Gunakan edit status absensi biasa.", absensiId: existing.id });
     if (pengajuanDisetujui) return res.status(409).json({ pesan: `Pengajuan ${pengajuanDisetujui.jenis} karyawan ini sudah disetujui. Tidak perlu membuat status manual lagi.` });
-
     try {
-      const absensi = await prisma.absensi.create({
-        data: {
-          penggunaId,
-          tanggal: tanggalDate,
-          statusOtomatis: statusFinal === "alpha" ? "alpha" : null,
-          statusFinal,
-          catatanAdmin,
-          dieditOleh: adminId,
-          waktuEdit: new Date(),
-        },
-      });
+      const absensi = await prisma.absensi.create({ data: { penggunaId, tanggal: tanggalDate, statusOtomatis: statusFinal === "alpha" ? "alpha" : null, statusFinal, catatanAdmin, dieditOleh: adminId, waktuEdit: new Date() } });
       return res.status(201).json({ pesan: `Status ${pengguna.nama} pada ${tanggal} berhasil dicatat sebagai ${statusFinal}.`, data: absensi });
     } catch (error) {
-      if (error?.code === "P2002") {
-        return res.status(409).json({ pesan: "Karyawan sudah memiliki record absensi untuk tanggal tersebut. Gunakan edit status absensi biasa." });
-      }
+      if (error?.code === "P2002") return res.status(409).json({ pesan: "Karyawan sudah memiliki record absensi untuk tanggal tersebut. Gunakan edit status absensi biasa." });
       throw error;
     }
   } catch (error) {
