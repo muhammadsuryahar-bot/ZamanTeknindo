@@ -271,42 +271,14 @@ function DialJamKerja({ tahap }) {
             Senin–Jumat · 08:00–17:00 WIB · Tepat waktu sampai 08:10
           </p>
         </div>
-        <span
-          style={{
-            ...dialStyles.statusBadge,
-            color: warnaDial,
-            background:
-              tahap === "selesai"
-                ? warna.suksesLembut
-                : tahap === "sudah_masuk"
-                  ? warna.peringatanLembut
-                  : warna.aksenLembut,
-          }}
-        >
+        <span style={{ ...dialStyles.statusBadge, color: warnaDial, background: tahap === "selesai" ? warna.suksesLembut : tahap === "sudah_masuk" ? warna.peringatanLembut : warna.aksenLembut }}>
           {labelStatus}
         </span>
       </div>
       <div style={dialStyles.cincinWrapper}>
-        <div
-          style={{
-            ...dialStyles.cincin,
-            background: `conic-gradient(
-              ${warna.garis} 0%,
-              ${warna.garis} ${persenMulai}%,
-              ${warnaDial} ${persenMulai}%,
-              ${warnaDial} ${persenSelesai}%,
-              ${warna.garis} ${persenSelesai}%,
-              ${warna.garis} 100%
-            )`,
-          }}
-        >
+        <div style={{ ...dialStyles.cincin, background: `conic-gradient(${warna.garis} 0%, ${warna.garis} ${persenMulai}%, ${warnaDial} ${persenMulai}%, ${warnaDial} ${persenSelesai}%, ${warna.garis} ${persenSelesai}%, ${warna.garis} 100%)` }}>
           <div style={dialStyles.penandaWrapper}>
-            <div
-              style={{
-                ...dialStyles.penanda,
-                transform: `rotate(${sudutSekarang}deg)`,
-              }}
-            >
+            <div style={{ ...dialStyles.penanda, transform: `rotate(${sudutSekarang}deg)` }}>
               <div style={{ ...dialStyles.titikPenanda, background: warnaDial }} />
             </div>
           </div>
@@ -317,29 +289,9 @@ function DialJamKerja({ tahap }) {
         </div>
       </div>
       <div style={dialStyles.rentang}>
-        <div>
-          <span style={dialStyles.rentangLabel}>Mulai</span>
-          <strong style={dialStyles.rentangValue}>08:00</strong>
-        </div>
-        <div style={dialStyles.garisRentang}>
-          <span
-            style={{
-              ...dialStyles.progressRentang,
-              background: warnaDial,
-              width: `${Math.max(
-                0,
-                Math.min(
-                  100,
-                  ((jamDesimal - jamMulai) / (jamSelesai - jamMulai)) * 100,
-                ),
-              )}%`,
-            }}
-          />
-        </div>
-        <div style={{ textAlign: "right" }}>
-          <span style={dialStyles.rentangLabel}>Selesai</span>
-          <strong style={dialStyles.rentangValue}>17:00</strong>
-        </div>
+        <div><span style={dialStyles.rentangLabel}>Mulai</span><strong style={dialStyles.rentangValue}>08:00</strong></div>
+        <div style={dialStyles.garisRentang}><span style={{ ...dialStyles.progressRentang, background: warnaDial, width: `${Math.max(0, Math.min(100, ((jamDesimal - jamMulai) / (jamSelesai - jamMulai)) * 100))}%` }} /></div>
+        <div style={{ textAlign: "right" }}><span style={dialStyles.rentangLabel}>Selesai</span><strong style={dialStyles.rentangValue}>17:00</strong></div>
       </div>
     </div>
   );
@@ -347,30 +299,16 @@ function DialJamKerja({ tahap }) {
 
 const dialStyles = {
   wrapper: { width: "100%", marginBottom: 22 },
-  header: {
-    display: "flex", alignItems: "flex-start", justifyContent: "space-between",
-    gap: 12, flexWrap: "wrap", marginBottom: 12,
-  },
+  header: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 12 },
   eyebrow: { margin: 0, fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", color: warna.aksen },
   description: { margin: "3px 0 0", fontSize: 11.5, color: warna.tintaSamar },
-  statusBadge: {
-    display: "inline-flex", alignItems: "center", minHeight: 28, padding: "5px 9px",
-    borderRadius: 999, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap",
-  },
+  statusBadge: { display: "inline-flex", alignItems: "center", minHeight: 28, padding: "5px 9px", borderRadius: 999, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" },
   cincinWrapper: { display: "flex", justifyContent: "center", margin: "4px 0 18px" },
-  cincin: {
-    width: 138, height: 138, borderRadius: "50%", position: "relative", display: "flex",
-    alignItems: "center", justifyContent: "center",
-  },
+  cincin: { width: 138, height: 138, borderRadius: "50%", position: "relative", display: "flex", alignItems: "center", justifyContent: "center" },
   penandaWrapper: { position: "absolute", inset: 0 },
-  penanda: {
-    position: "absolute", inset: 0, display: "flex", justifyContent: "center", transformOrigin: "center",
-  },
+  penanda: { position: "absolute", inset: 0, display: "flex", justifyContent: "center", transformOrigin: "center" },
   titikPenanda: { width: 10, height: 10, borderRadius: "50%", marginTop: -1, boxShadow: "0 0 0 3px #fff" },
-  lubang: {
-    width: 106, height: 106, borderRadius: "50%", background: warna.panel, border: `1px solid ${warna.garis}`,
-    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-  },
+  lubang: { width: 106, height: 106, borderRadius: "50%", background: warna.panel, border: `1px solid ${warna.garis}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" },
   jamText: { fontFamily: font.mono, fontSize: 22, fontWeight: 700, color: warna.tinta, lineHeight: 1.1 },
   jamLabel: { marginTop: 4, fontFamily: font.mono, fontSize: 9.5, color: warna.tintaSamar, letterSpacing: "0.08em" },
   rentang: { display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "end", gap: 10 },
@@ -394,9 +332,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   const [loading, setLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [jumlahTertunda, setJumlahTertunda] = useState(0);
-  const [isOnline, setIsOnline] = useState(() =>
-    typeof navigator === "undefined" ? true : navigator.onLine,
-  );
+  const [isOnline, setIsOnline] = useState(() => typeof navigator === "undefined" ? true : navigator.onLine);
   const [sedangSinkron, setSedangSinkron] = useState(false);
   const [statusTerverifikasi, setStatusTerverifikasi] = useState(false);
   const [statusVerifikasiSedang, setStatusVerifikasiSedang] = useState(false);
@@ -410,6 +346,9 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   const lokasiSesiRef = useRef(0);
   const statusRequestRef = useRef(0);
   const mountedRef = useRef(true);
+  const kameraSesiRef = useRef(0);
+  const kameraSiapRef = useRef(false);
+  const sesiKirimRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -450,6 +389,43 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pengguna]);
 
+  useEffect(() => {
+    const ketikaTerlihat = () => {
+      if (document.visibilityState !== "visible") return;
+      if (kameraAktif && streamRef.current) {
+        const track = streamRef.current.getVideoTracks?.()[0];
+        const streamMasihHidup = track && track.readyState === "live";
+        if (!streamMasihHidup) {
+          kameraSiapRef.current = false;
+          hentikanStreamKamera();
+          hentikanPelacakanLokasi();
+          setKameraAktif(false);
+          setStatusLokasi("gagal");
+          setPesan("Kamera terputus setelah aplikasi kembali aktif. Tekan Foto Ulang untuk menyalakan kamera lagi.");
+        }
+      }
+      if (!kameraAktif && !fotoTerambil) {
+        void ambilStatusHariIni({ pertahankanVerifikasiSaatFallback: true });
+      }
+    };
+
+    const ketikaPageHide = () => {
+      // Jangan mematikan kamera hanya karena pagehide. Beberapa browser
+      // mengirim pagehide ketika transisi ringan. Saat kembali, stream
+      // diverifikasi lewat visibilitychange/pageshow.
+    };
+
+    window.addEventListener("pageshow", ketikaTerlihat);
+    window.addEventListener("pagehide", ketikaPageHide);
+    document.addEventListener("visibilitychange", ketikaTerlihat);
+    return () => {
+      window.removeEventListener("pageshow", ketikaTerlihat);
+      window.removeEventListener("pagehide", ketikaPageHide);
+      document.removeEventListener("visibilitychange", ketikaTerlihat);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kameraAktif, fotoTerambil]);
+
   async function cobaSinkronAntrian({ refreshStatus = true } = {}) {
     try {
       const sisa = await jumlahAntrian(pengguna.id);
@@ -474,27 +450,15 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       setJumlahTertunda(sisaTerbaru);
       if (hasil.berhasil > 0) {
         setPesan(`${hasil.berhasil} absen yang sempat tertunda berhasil terkirim.`);
-        setPesanSinkronisasi(
-          sisaTerbaru > 0
-            ? `${sisaTerbaru} absen masih menunggu sinkronisasi berikutnya.`
-            : "Semua absensi tertunda sudah tersinkronkan.",
-        );
+        setPesanSinkronisasi(sisaTerbaru > 0 ? `${sisaTerbaru} absen masih menunggu sinkronisasi berikutnya.` : "Semua absensi tertunda sudah tersinkronkan.");
         await ambilStatusHariIni();
       } else {
-        setPesanSinkronisasi(
-          sisaTerbaru > 0
-            ? "Sinkronisasi belum berhasil. Data tetap aman di perangkat dan akan dicoba lagi otomatis."
-            : "",
-        );
+        setPesanSinkronisasi(sisaTerbaru > 0 ? "Sinkronisasi belum berhasil. Data tetap aman di perangkat dan akan dicoba lagi otomatis." : "");
         if (refreshStatus) await ambilStatusHariIni();
       }
     } catch (err) {
       console.error("Sinkronisasi offline gagal:", err);
-      if (mountedRef.current) {
-        setPesanSinkronisasi(
-          "Sinkronisasi belum berhasil. Data tetap aman di perangkat dan akan dicoba lagi otomatis.",
-        );
-      }
+      if (mountedRef.current) setPesanSinkronisasi("Sinkronisasi belum berhasil. Data tetap aman di perangkat dan akan dicoba lagi otomatis.");
     } finally {
       if (mountedRef.current) setSedangSinkron(false);
     }
@@ -528,11 +492,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       return true;
     };
     if (!navigator.onLine) {
-      const berhasilPakaiCache = terapkanCache(
-        statusTerverifikasi
-          ? "Sedang offline. Status terakhir yang sudah diverifikasi tetap digunakan."
-          : "Sedang offline. Status terakhir yang tersimpan di perangkat ditampilkan, tetapi verifikasi server tetap diperlukan sebelum absensi.",
-      );
+      const berhasilPakaiCache = terapkanCache(statusTerverifikasi ? "Sedang offline. Status terakhir yang sudah diverifikasi tetap digunakan." : "Sedang offline. Status terakhir yang tersimpan di perangkat ditampilkan, tetapi verifikasi server tetap diperlukan sebelum absensi.");
       if (!berhasilPakaiCache && mountedRef.current) {
         setTahap("belum_terverifikasi");
         setStatusTerverifikasi(false);
@@ -548,33 +508,18 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     const timeoutId = setTimeout(() => controller.abort(), STATUS_REQUEST_TIMEOUT_MS);
     setStatusVerifikasiSedang(true);
     try {
-      const res = await fetch(`${API_URL}/absensi/status-hari-ini`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-        signal: controller.signal,
-      });
+      const res = await fetch(`${API_URL}/absensi/status-hari-ini`, { headers: { Authorization: `Bearer ${getToken()}` }, signal: controller.signal });
       let data = {};
-      try {
-        data = await res.json();
-      } catch (parseError) {
-        console.warn("Respons status absensi bukan JSON:", parseError);
-      }
+      try { data = await res.json(); } catch (parseError) { console.warn("Respons status absensi bukan JSON:", parseError); }
       if (requestId !== statusRequestRef.current || !mountedRef.current) return;
       if (!res.ok) {
         const berhasilPakaiCache = terapkanCache(data.pesan || "Server tidak dapat memuat status terbaru. Status terakhir di perangkat digunakan.");
-        if (!berhasilPakaiCache) {
-          setPesan(data.pesan || "Gagal memuat status absen.");
-          setTahap("belum_terverifikasi");
-          setStatusTerverifikasi(false);
-        }
+        if (!berhasilPakaiCache) { setPesan(data.pesan || "Gagal memuat status absen."); setTahap("belum_terverifikasi"); setStatusTerverifikasi(false); }
         return;
       }
       if (!TAHAP_VALID.has(data.tahap)) {
         const berhasilPakaiCache = terapkanCache("Status dari server tidak dikenali. Status terakhir di perangkat digunakan.");
-        if (!berhasilPakaiCache) {
-          setTahap("belum_terverifikasi");
-          setStatusTerverifikasi(false);
-          setPesan("Status absensi dari server tidak valid.");
-        }
+        if (!berhasilPakaiCache) { setTahap("belum_terverifikasi"); setStatusTerverifikasi(false); setPesan("Status absensi dari server tidak valid."); }
         return;
       }
       setTahap(data.tahap);
@@ -586,17 +531,10 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       console.error("Gagal memuat status absensi:", err);
       const pesanGagal = err?.name === "AbortError" ? "Server terlalu lama merespons. Status terakhir di perangkat digunakan." : "Server tidak dapat dihubungi. Status terakhir di perangkat digunakan.";
       const berhasilPakaiCache = terapkanCache(pesanGagal);
-      if (!berhasilPakaiCache) {
-        setTahap("belum_terverifikasi");
-        setStatusTerverifikasi(false);
-        setPesan(err?.name === "AbortError" ? "Server terlalu lama merespons. Coba muat ulang atau periksa koneksi." : "Gagal memuat status absen. Coba lagi atau periksa koneksi.");
-      }
+      if (!berhasilPakaiCache) { setTahap("belum_terverifikasi"); setStatusTerverifikasi(false); setPesan(err?.name === "AbortError" ? "Server terlalu lama merespons. Coba lagi atau periksa koneksi." : "Gagal memuat status absen. Coba lagi atau periksa koneksi."); }
     } finally {
       clearTimeout(timeoutId);
-      if (requestId === statusRequestRef.current && mountedRef.current) {
-        setStatusVerifikasiSedang(false);
-        setLoadingStatus(false);
-      }
+      if (requestId === statusRequestRef.current && mountedRef.current) { setStatusVerifikasiSedang(false); setLoadingStatus(false); }
     }
   }
 
@@ -605,49 +543,60 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
+    kameraSiapRef.current = false;
+  }
+
+  function jadwalkanLokasiSetelahKameraSiap(sesiKamera) {
+    const mulai = () => {
+      if (!mountedRef.current || !kameraAktif || kameraSesiRef.current !== sesiKamera || !kameraSiapRef.current) return;
+      window.setTimeout(() => {
+        if (mountedRef.current && kameraAktif && kameraSesiRef.current === sesiKamera && kameraSiapRef.current) {
+          ambilLokasi();
+        }
+      }, 180);
+    };
+
+    const video = videoRef.current;
+    if (video?.readyState >= 2) {
+      mulai();
+      return;
+    }
+    if (video) video.addEventListener("canplay", mulai, { once: true });
+    window.setTimeout(mulai, 1200);
   }
 
   async function bukaKamera() {
     setPesan("");
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setPesan("Browser ini tidak mendukung akses kamera.");
-      return;
-    }
-    if (kameraMembuka) return;
+    if (!navigator.mediaDevices?.getUserMedia) { setPesan("Browser ini tidak mendukung akses kamera."); return; }
+    if (kameraMembuka || kameraAktif) return;
     setKameraMembuka(true);
     hentikanStreamKamera();
+    hentikanPelacakanLokasi();
+    const sesiKamera = kameraSesiRef.current + 1;
+    kameraSesiRef.current = sesiKamera;
+    sesiKirimRef.current = false;
     try {
       let stream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "user" } }, audio: false });
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "user" }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
       } catch (firstError) {
         if (firstError?.name === "NotAllowedError" || firstError?.name === "SecurityError") throw firstError;
         stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       }
-      if (!mountedRef.current) {
-        stream.getTracks().forEach((track) => track.stop());
-        return;
-      }
+      if (!mountedRef.current || kameraSesiRef.current !== sesiKamera) { stream.getTracks().forEach((track) => track.stop()); return; }
       streamRef.current = stream;
       setFotoTerambil(null);
       setLokasi(null);
       setStatusLokasi("mencari");
       setKameraAktif(true);
-      window.requestAnimationFrame(() => {
-        if (mountedRef.current) ambilLokasi();
-      });
+      requestAnimationFrame(() => jadwalkanLokasiSetelahKameraSiap(sesiKamera));
     } catch (err) {
       console.error("Gagal membuka kamera:", err);
       if (!mountedRef.current) return;
-      if (err?.name === "NotAllowedError" || err?.name === "SecurityError") {
-        setPesan("Akses kamera ditolak. Izinkan kamera untuk situs ini melalui pengaturan browser, lalu coba lagi.");
-      } else if (err?.name === "NotFoundError") {
-        setPesan("Kamera tidak ditemukan pada perangkat ini.");
-      } else if (err?.name === "NotReadableError" || err?.name === "TrackStartError") {
-        setPesan("Kamera sedang digunakan aplikasi lain atau gagal dinyalakan. Tutup aplikasi lain yang memakai kamera, lalu coba lagi.");
-      } else {
-        setPesan("Kamera belum bisa dibuka. Coba lagi beberapa saat lagi.");
-      }
+      if (err?.name === "NotAllowedError" || err?.name === "SecurityError") setPesan("Akses kamera ditolak. Izinkan kamera untuk situs ini melalui pengaturan browser HP, lalu coba lagi.");
+      else if (err?.name === "NotFoundError") setPesan("Kamera tidak ditemukan pada perangkat ini.");
+      else if (err?.name === "NotReadableError" || err?.name === "TrackStartError") setPesan("Kamera sedang digunakan aplikasi lain atau gagal dinyalakan. Tutup aplikasi lain yang memakai kamera, lalu coba lagi.");
+      else setPesan("Kamera belum bisa dibuka. Coba lagi beberapa saat lagi.");
     } finally {
       if (mountedRef.current) setKameraMembuka(false);
     }
@@ -656,68 +605,56 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   useEffect(() => {
     if (!kameraAktif || !streamRef.current || !videoRef.current) return;
     const video = videoRef.current;
+    const sesiKamera = kameraSesiRef.current;
+    kameraSiapRef.current = false;
     video.srcObject = streamRef.current;
     const mulaiVideo = () => {
+      if (!mountedRef.current || kameraSesiRef.current !== sesiKamera) return;
+      kameraSiapRef.current = true;
       video.play().catch((err) => console.warn("Preview kamera belum dapat diputar otomatis:", err));
+      jadwalkanLokasiSetelahKameraSiap(sesiKamera);
     };
     if (video.readyState >= 1) mulaiVideo();
     else video.addEventListener("loadedmetadata", mulaiVideo, { once: true });
-    return () => video.removeEventListener("loadedmetadata", mulaiVideo);
+    return () => {
+      video.removeEventListener("loadedmetadata", mulaiVideo);
+      video.srcObject = null;
+    };
   }, [kameraAktif]);
 
   function hentikanPelacakanLokasi() {
     lokasiSesiRef.current += 1;
-    if (lokasiWatchRef.current !== null) {
-      navigator.geolocation?.clearWatch(lokasiWatchRef.current);
-      lokasiWatchRef.current = null;
-    }
-    if (lokasiTimerRef.current) {
-      clearTimeout(lokasiTimerRef.current);
-      lokasiTimerRef.current = null;
-    }
+    if (lokasiWatchRef.current !== null) { navigator.geolocation?.clearWatch(lokasiWatchRef.current); lokasiWatchRef.current = null; }
+    if (lokasiTimerRef.current) { clearTimeout(lokasiTimerRef.current); lokasiTimerRef.current = null; }
   }
 
   function hentikanKamera() {
+    kameraSesiRef.current += 1;
     hentikanStreamKamera();
-    if (mountedRef.current) {
-      setKameraAktif(false);
-      setKameraMembuka(false);
-    }
+    hentikanPelacakanLokasi();
+    if (videoRef.current) videoRef.current.srcObject = null;
+    if (mountedRef.current) { setKameraAktif(false); setKameraMembuka(false); }
   }
 
   async function ambilFoto() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    if (!video || !canvas || !video.videoWidth || !video.videoHeight) {
-      setPesan("Kamera belum siap. Tunggu sebentar lalu coba lagi.");
-      return;
-    }
+    if (!video || !canvas || !video.videoWidth || !video.videoHeight) { setPesan("Kamera belum siap. Tunggu sebentar lalu coba lagi."); return; }
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      setPesan("Tidak dapat memproses foto kamera.");
-      return;
-    }
-    ctx.save();
-    ctx.translate(canvas.width, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    ctx.restore();
+    if (!ctx) { setPesan("Tidak dapat memproses foto kamera."); return; }
+    ctx.save(); ctx.translate(canvas.width, 0); ctx.scale(-1, 1); ctx.drawImage(video, 0, 0, canvas.width, canvas.height); ctx.restore();
     try {
       const blob = await kompresFotoUntukUpload(canvas);
       if (!mountedRef.current) return;
       setFotoTerambil(blob);
       hentikanKamera();
-    } catch (err) {
-      console.error("Gagal mengompres foto:", err);
-      if (mountedRef.current) setPesan("Foto gagal diproses. Silakan coba lagi.");
-    }
+    } catch (err) { console.error("Gagal mengompres foto:", err); if (mountedRef.current) setPesan("Foto gagal diproses. Silakan coba lagi."); }
   }
 
   async function fotoUlang() {
     hentikanKamera();
-    hentikanPelacakanLokasi();
     setFotoTerambil(null);
     setLokasi(null);
     setStatusLokasi("mencari");
@@ -726,7 +663,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
   async function ambilKotaKecamatanBigDataCloud(latitude, longitude) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 7000);
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
     try {
       const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=id`, { signal: controller.signal });
       if (!res.ok) throw new Error(`BigDataCloud HTTP ${res.status}`);
@@ -734,54 +671,35 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       const bagian = [data.locality, data.city && data.city !== data.locality ? data.city : null].filter(Boolean);
       if (bagian.length === 0) throw new Error("Data BigDataCloud kosong");
       return bagian.join(", ");
-    } finally {
-      clearTimeout(timeoutId);
-    }
+    } finally { clearTimeout(timeoutId); }
   }
 
   async function ambilDetailNominatim(latitude, longitude) {
     const detail = await ambilDetailNominatimPadaZoom(latitude, longitude, 18);
     if (!detail.jalan) {
-      try {
-        const detailZoomLebihLuas = await ambilDetailNominatimPadaZoom(latitude, longitude, 17);
-        if (detailZoomLebihLuas.jalan) return detailZoomLebihLuas;
-      } catch (err) {
-        // Biarkan menggunakan detail sebelumnya.
-      }
+      try { const detailZoomLebihLuas = await ambilDetailNominatimPadaZoom(latitude, longitude, 17); if (detailZoomLebihLuas.jalan) return detailZoomLebihLuas; } catch (err) { /* Biarkan menggunakan detail sebelumnya. */ }
     }
     return detail;
   }
 
   async function ambilDetailNominatimPadaZoom(latitude, longitude, zoom) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 7000);
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=${zoom}&addressdetails=1`, {
-        signal: controller.signal,
-        headers: { Accept: "application/json" },
-      });
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=${zoom}&addressdetails=1`, { signal: controller.signal, headers: { Accept: "application/json" } });
       if (!res.ok) throw new Error(`Nominatim HTTP ${res.status}`);
       const data = await res.json();
       const a = data.address || {};
       const namaJalan = a.road || a.pedestrian || a.residential || a.living_street || a.footway || a.cycleway || a.path || a.service || null;
-      const jalanLengkap = [namaJalan, a.house_number].filter(Boolean).join(" No. ");
-      return {
-        jalan: jalanLengkap || null,
-        kotaKecamatan: [a.village || a.suburb, a.city || a.town || a.county].filter(Boolean).join(", ") || null,
-      };
-    } finally {
-      clearTimeout(timeoutId);
-    }
+      return { jalan: [namaJalan, a.house_number].filter(Boolean).join(" No. ") || null, kotaKecamatan: [a.village || a.suburb, a.city || a.town || a.county].filter(Boolean).join(", ") || null };
+    } finally { clearTimeout(timeoutId); }
   }
 
   async function ambilAlamatDariKoordinat(latitude, longitude) {
     const [kotaKecamatanBDC, detailNominatim, provinsiResmi] = await Promise.all([
       ambilKotaKecamatanBigDataCloud(latitude, longitude).catch(() => null),
       ambilDetailNominatim(latitude, longitude).catch(() => null),
-      cariProvinsiResmi(latitude, longitude).catch((err) => {
-        console.error("Gagal mencari provinsi resmi:", err);
-        return null;
-      }),
+      cariProvinsiResmi(latitude, longitude).catch((err) => { console.error("Gagal mencari provinsi resmi:", err); return null; }),
     ]);
     const jalan = detailNominatim?.jalan || null;
     const kotaKecamatan = kotaKecamatanBDC || detailNominatim?.kotaKecamatan || null;
@@ -792,53 +710,38 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   function ambilLokasi() {
     hentikanPelacakanLokasi();
     setStatusLokasi("mencari");
-    if (!navigator.geolocation) {
-      setStatusLokasi("gagal");
-      setPesan("Perangkat/browser ini tidak menyediakan layanan lokasi. Periksa izin lokasi di HP lalu coba lagi.");
-      return;
-    }
+    if (!navigator.geolocation) { setStatusLokasi("gagal"); setPesan("Perangkat/browser ini tidak menyediakan layanan lokasi. Periksa izin lokasi di HP lalu coba lagi."); return; }
 
     const sesi = lokasiSesiRef.current;
     let posisiTerbaik = null;
     let sudahSelesai = false;
-    const sesiMasihAktif = () => mountedRef.current && sesi === lokasiSesiRef.current;
+    const sesiMasihAktif = () => mountedRef.current && sesi === lokasiSesiRef.current && kameraSiapRef.current;
 
     const selesaikan = async () => {
       if (sudahSelesai || !sesiMasihAktif()) return;
       sudahSelesai = true;
-      if (lokasiWatchRef.current !== null) {
-        navigator.geolocation.clearWatch(lokasiWatchRef.current);
-        lokasiWatchRef.current = null;
-      }
-      if (lokasiTimerRef.current) {
-        clearTimeout(lokasiTimerRef.current);
-        lokasiTimerRef.current = null;
-      }
-      if (!posisiTerbaik) {
-        setStatusLokasi("gagal");
-        setPesan("Lokasi belum berhasil ditemukan. Pastikan GPS/lokasi HP aktif dan izin lokasi untuk situs ini diberikan, lalu coba lagi.");
-        return;
-      }
+      if (lokasiWatchRef.current !== null) { navigator.geolocation.clearWatch(lokasiWatchRef.current); lokasiWatchRef.current = null; }
+      if (lokasiTimerRef.current) { clearTimeout(lokasiTimerRef.current); lokasiTimerRef.current = null; }
+      if (!posisiTerbaik) { setStatusLokasi("gagal"); setPesan("Lokasi belum berhasil ditemukan. Pastikan GPS/lokasi HP aktif dan izin lokasi untuk situs ini diberikan, lalu coba lagi."); return; }
       const { latitude, longitude, akurasi } = posisiTerbaik;
       setLokasi({ latitude, longitude, akurasi, alamat: null });
       setStatusLokasi("ditemukan");
-      try {
-        const alamatLengkap = await ambilAlamatDariKoordinat(latitude, longitude);
-        if (!sesiMasihAktif()) return;
-        setLokasi({ latitude, longitude, akurasi, alamat: alamatLengkap });
-      } catch (err) {
-        console.error("Reverse geocoding gagal:", err);
-      }
+      void ambilAlamatDariKoordinat(latitude, longitude).then((alamatLengkap) => {
+        if (!mountedRef.current || !sesiMasihAktif()) return;
+        setLokasi((prev) => prev ? { ...prev, alamat: alamatLengkap } : prev);
+      }).catch((err) => console.error("Reverse geocoding gagal:", err));
     };
 
     const watchId = navigator.geolocation.watchPosition(
       (posisi) => {
         if (!sesiMasihAktif() || sudahSelesai) return;
-        const akurasi = Math.round(Number(posisi.coords.accuracy) || 0);
-        if (!Number.isFinite(posisi.coords.latitude) || !Number.isFinite(posisi.coords.longitude) || !Number.isFinite(akurasi)) return;
+        const akurasi = Math.round(Number(posisi.coords.accuracy));
+        const latitude = Number(posisi.coords.latitude);
+        const longitude = Number(posisi.coords.longitude);
+        if (![latitude, longitude, akurasi].every(Number.isFinite) || akurasi <= 0) return;
         if (!posisiTerbaik || akurasi < posisiTerbaik.akurasi) {
-          posisiTerbaik = { latitude: posisi.coords.latitude, longitude: posisi.coords.longitude, akurasi };
-          setLokasi((prev) => ({ latitude: posisiTerbaik.latitude, longitude: posisiTerbaik.longitude, akurasi: posisiTerbaik.akurasi, alamat: prev?.alamat || null }));
+          posisiTerbaik = { latitude, longitude, akurasi };
+          setLokasi((prev) => ({ latitude, longitude, akurasi, alamat: prev?.alamat || null }));
           setStatusLokasi("ditemukan");
         }
         if (akurasi <= 20) void selesaikan();
@@ -849,111 +752,58 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         if (error?.code === 1) {
           setStatusLokasi("gagal");
           setPesan("Izin lokasi ditolak. Izinkan lokasi untuk situs ini, lalu tekan Foto Ulang dan coba lagi.");
-          if (lokasiWatchRef.current !== null) {
-            navigator.geolocation.clearWatch(lokasiWatchRef.current);
-            lokasiWatchRef.current = null;
-          }
-          if (lokasiTimerRef.current) {
-            clearTimeout(lokasiTimerRef.current);
-            lokasiTimerRef.current = null;
-          }
-        } else {
-          setStatusLokasi(posisiTerbaik ? "ditemukan" : "mencari");
+          hentikanPelacakanLokasi();
+        } else if (!posisiTerbaik) {
+          setStatusLokasi("mencari");
         }
       },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 3000,
-        timeout: LOKASI_REQUEST_TIMEOUT_MS,
-      },
+      { enableHighAccuracy: true, maximumAge: 3000, timeout: LOKASI_REQUEST_TIMEOUT_MS },
     );
 
     lokasiWatchRef.current = watchId;
-    lokasiTimerRef.current = setTimeout(() => {
-      void selesaikan();
-    }, LOKASI_REQUEST_TIMEOUT_MS);
+    lokasiTimerRef.current = setTimeout(() => { void selesaikan(); }, LOKASI_REQUEST_TIMEOUT_MS);
   }
 
   async function kirimAbsen() {
-    if (!fotoTerambil) {
-      setPesan("Silakan ambil foto terlebih dahulu.");
-      return;
-    }
-    if (!statusTerverifikasi) {
-      setPesan("Status absensi belum diverifikasi oleh server. Tunggu sampai verifikasi selesai, lalu coba lagi.");
-      return;
-    }
-    if (!TAHAP_VALID.has(tahap) || tahap === "selesai") {
-      setPesan("Status absensi belum siap untuk dikirim. Muat ulang status absensi.");
-      return;
-    }
+    if (sesiKirimRef.current || loading) return;
+    if (!fotoTerambil) { setPesan("Silakan ambil foto terlebih dahulu."); return; }
+    if (!statusTerverifikasi) { setPesan("Status absensi belum diverifikasi oleh server. Tunggu sampai verifikasi selesai, lalu coba lagi."); return; }
+    if (!TAHAP_VALID.has(tahap) || tahap === "selesai") { setPesan("Status absensi belum siap untuk dikirim. Muat ulang status absensi."); return; }
+    if (!lokasi?.latitude || !lokasi?.longitude || !Number.isFinite(Number(lokasi?.akurasi))) { setPesan("Lokasi belum berhasil diperoleh. Tunggu sampai lokasi ditemukan lalu coba lagi."); return; }
+
+    sesiKirimRef.current = true;
     setLoading(true);
     setPesan("");
     const waktuAsli = new Date().toISOString();
     const formData = new FormData();
     formData.append("foto", fotoTerambil, "absen.jpg");
     formData.append("waktuAsli", waktuAsli);
-    if (lokasi) {
-      formData.append("latitude", lokasi.latitude);
-      formData.append("longitude", lokasi.longitude);
-      const alamatDasar = lokasi.alamat || `${lokasi.latitude}, ${lokasi.longitude}`;
-      const infoAkurasi = lokasi.akurasi ? ` (akurasi ±${lokasi.akurasi}m)` : "";
-      formData.append("alamat", alamatDasar + infoAkurasi);
-    }
+    formData.append("latitude", String(lokasi.latitude));
+    formData.append("longitude", String(lokasi.longitude));
+    const alamatDasar = lokasi.alamat || `${lokasi.latitude}, ${lokasi.longitude}`;
+    const infoAkurasi = lokasi.akurasi ? ` (akurasi ±${lokasi.akurasi}m)` : "";
+    formData.append("alamat", alamatDasar + infoAkurasi);
     const endpoint = tahap === "belum_masuk" ? "masuk" : "pulang";
     const simpanOffline = async () => {
-      await simpanKeAntrian({ foto: fotoTerambil, penggunaId: pengguna.id, latitude: lokasi?.latitude, longitude: lokasi?.longitude, alamat: formData.get("alamat"), waktuAsli, endpoint });
+      await simpanKeAntrian({ foto: fotoTerambil, penggunaId: pengguna.id, latitude: lokasi.latitude, longitude: lokasi.longitude, alamat: formData.get("alamat"), waktuAsli, endpoint });
       const sisa = await jumlahAntrian(pengguna.id);
-      if (mountedRef.current) {
-        setJumlahTertunda(sisa);
-        setPesan("Sinyal lagi tidak stabil. Absen kamu sudah tersimpan aman di HP dan akan otomatis terkirim begitu koneksi kembali normal — tidak perlu ulangi.");
-        setFotoTerambil(null);
-        setLokasi(null);
-        setStatusLokasi("mencari");
-      }
+      if (mountedRef.current) { setJumlahTertunda(sisa); setPesan("Sinyal lagi tidak stabil. Absen kamu sudah tersimpan aman di HP dan akan otomatis terkirim begitu koneksi kembali normal — tidak perlu ulangi."); setFotoTerambil(null); setLokasi(null); setStatusLokasi("mencari"); }
     };
     try {
-      if (!navigator.onLine) {
-        await simpanOffline();
-        return;
-      }
+      if (!navigator.onLine) { await simpanOffline(); return; }
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), ABSENSI_REQUEST_TIMEOUT_MS);
       let res;
-      try {
-        res = await fetch(`${API_URL}/absensi/${endpoint}`, { method: "POST", headers: { Authorization: `Bearer ${getToken()}` }, body: formData, signal: controller.signal });
-      } catch (networkError) {
-        console.error(networkError);
-        await simpanOffline();
-        return;
-      } finally {
-        clearTimeout(timeoutId);
-      }
+      try { res = await fetch(`${API_URL}/absensi/${endpoint}`, { method: "POST", headers: { Authorization: `Bearer ${getToken()}` }, body: formData, signal: controller.signal }); }
+      catch (networkError) { console.error(networkError); await simpanOffline(); return; }
+      finally { clearTimeout(timeoutId); }
       let data = {};
-      try {
-        data = await res.json();
-      } catch (parseError) {
-        console.warn("Respons absensi bukan JSON:", parseError);
-      }
-      if (!res.ok) {
-        setPesan(data.pesan || "Gagal mengirim absen.");
-        return;
-      }
+      try { data = await res.json(); } catch (parseError) { console.warn("Respons absensi bukan JSON:", parseError); }
+      if (!res.ok) { setPesan(data.pesan || "Gagal mengirim absen."); return; }
       const tahapSetelahAbsen = endpoint === "masuk" ? "sudah_masuk" : "selesai";
-      setTahap(tahapSetelahAbsen);
-      setStatusTerverifikasi(true);
-      setStatusVerifikasiSedang(false);
-      simpanCacheStatusHariIni(pengguna, tahapSetelahAbsen);
-      setPesan(data.pesan || "Absensi berhasil dikirim.");
-      setFotoTerambil(null);
-      setLokasi(null);
-      setStatusLokasi("mencari");
-    } catch (err) {
-      console.error("Pengiriman/simpan offline gagal:", err);
-      setPesan("Tidak bisa terhubung ke server, dan gagal menyimpan absen secara offline. Coba lagi.");
-    } finally {
-      if (mountedRef.current) setLoading(false);
-    }
+      setTahap(tahapSetelahAbsen); setStatusTerverifikasi(true); setStatusVerifikasiSedang(false); simpanCacheStatusHariIni(pengguna, tahapSetelahAbsen); setPesan(data.pesan || "Absensi berhasil dikirim."); setFotoTerambil(null); setLokasi(null); setStatusLokasi("mencari");
+    } catch (err) { console.error("Pengiriman/simpan offline gagal:", err); setPesan("Tidak bisa terhubung ke server, dan gagal menyimpan absen secara offline. Coba lagi."); }
+    finally { sesiKirimRef.current = false; if (mountedRef.current) setLoading(false); }
   }
 
   const judulAksi = tahap === "belum_masuk" ? "Absensi Masuk" : tahap === "sudah_masuk" ? "Absensi Pulang" : tahap === "selesai" ? "Absensi Hari Ini" : tahap === "tidak_perlu_absen" ? "Tidak Perlu Absensi" : "Status Absensi";
@@ -962,225 +812,37 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     <div className="karyawan-page" style={styles.page}>
       <div style={styles.container}>
         <header style={styles.header}>
-          <div style={styles.brandHeader}>
-            <img className="karyawan-header-logo" src={logoHorizontal} alt="PT. Zaman Teknindo" style={styles.logoHeader} />
-            <div style={styles.userBlock}>
-              <div style={styles.avatarBadge}>{inisialNama(pengguna.nama)}</div>
-              <div style={{ minWidth: 0 }}>
-                <p className="karyawan-header-user-name" style={styles.namaUser}>{pengguna.nama}</p>
-                <p style={styles.subNamaUser}>{pengguna.jabatan || "Karyawan"}{pengguna.divisi ? ` · ${pengguna.divisi}` : ""}</p>
-              </div>
-            </div>
-          </div>
-          <div style={styles.headerActions} className="karyawan-header-actions">
-            <button onClick={() => navigate("/karyawan/izin")} style={styles.headerButton} className="karyawan-header-button" type="button"><FileText size={16} /><span>Izin</span></button>
-            <button onClick={() => navigate("/karyawan/riwayat")} style={styles.headerButton} className="karyawan-header-button" type="button"><History size={16} /><span>Riwayat</span></button>
-            <button onClick={onLogout} style={styles.headerLogout} className="karyawan-header-button" type="button" aria-label="Keluar"><LogOut size={16} /><span>Keluar</span></button>
-          </div>
+          <div style={styles.brandHeader}><img className="karyawan-header-logo" src={logoHorizontal} alt="PT. Zaman Teknindo" style={styles.logoHeader} /><div style={styles.userBlock}><div style={styles.avatarBadge}>{inisialNama(pengguna.nama)}</div><div style={{ minWidth: 0 }}><p className="karyawan-header-user-name" style={styles.namaUser}>{pengguna.nama}</p><p style={styles.subNamaUser}>{pengguna.jabatan || "Karyawan"}{pengguna.divisi ? ` · ${pengguna.divisi}` : ""}</p></div></div></div>
+          <div style={styles.headerActions} className="karyawan-header-actions"><button onClick={() => navigate("/karyawan/izin")} style={styles.headerButton} className="karyawan-header-button" type="button"><FileText size={16} /><span>Izin</span></button><button onClick={() => navigate("/karyawan/riwayat")} style={styles.headerButton} className="karyawan-header-button" type="button"><History size={16} /><span>Riwayat</span></button><button onClick={onLogout} style={styles.headerLogout} className="karyawan-header-button" type="button" aria-label="Keluar"><LogOut size={16} /><span>Keluar</span></button></div>
         </header>
 
-        <section style={styles.heroCard}>
-          <div>
-            <p style={styles.eyebrow}>SISTEM ABSENSI PT. ZAMAN TEKNINDO</p>
-            <h1 style={styles.heroTitle}>{judulAksi}</h1>
-            {jumlahTertunda > 0 && <p style={styles.badgeTertunda}><Clock3 size={13} />{jumlahTertunda} absen menunggu dikirim (tersimpan offline)</p>}
-            <p style={styles.heroDate}>{new Date().toLocaleDateString("id-ID", { timeZone: TIMEZONE_WIB, weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
-          </div>
-          <div style={styles.heroBadges}>
-            <div style={{ ...styles.networkBadge, color: isOnline ? warna.sukses : warna.peringatan, background: isOnline ? warna.suksesLembut : warna.peringatanLembut }}>{isOnline ? <Wifi size={14} /> : <WifiOff size={14} />}{isOnline ? "Online" : "Offline"}</div>
-            <div style={styles.securityBadge}><ShieldCheck size={15} />Data absensi terlindungi</div>
-            {!isOnline && <div style={styles.offlineNotice}>Koneksi terputus. Absensi akan tetap disimpan di perangkat dan dikirim otomatis saat internet kembali.</div>}
-            {isOnline && sedangSinkron && jumlahTertunda > 0 && <div style={styles.syncNotice}><RefreshCcw size={13} />Sedang mengirim {jumlahTertunda} absen yang tertunda...</div>}
-            {isOnline && pesanSinkronisasi && !sedangSinkron && <div style={styles.syncNotice}><RefreshCcw size={13} />{pesanSinkronisasi}</div>}
-          </div>
-        </section>
+        <section style={styles.heroCard}><div><p style={styles.eyebrow}>SISTEM ABSENSI PT. ZAMAN TEKNINDO</p><h1 style={styles.heroTitle}>{judulAksi}</h1>{jumlahTertunda > 0 && <p style={styles.badgeTertunda}><Clock3 size={13} />{jumlahTertunda} absen menunggu dikirim (tersimpan offline)</p>}<p style={styles.heroDate}>{new Date().toLocaleDateString("id-ID", { timeZone: TIMEZONE_WIB, weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p></div><div style={styles.heroBadges}><div style={{ ...styles.networkBadge, color: isOnline ? warna.sukses : warna.peringatan, background: isOnline ? warna.suksesLembut : warna.peringatanLembut }}>{isOnline ? <Wifi size={14} /> : <WifiOff size={14} />}{isOnline ? "Online" : "Offline"}</div><div style={styles.securityBadge}><ShieldCheck size={15} />Data absensi terlindungi</div>{!isOnline && <div style={styles.offlineNotice}>Koneksi terputus. Absensi akan tetap disimpan di perangkat dan dikirim otomatis saat internet kembali.</div>}{isOnline && sedangSinkron && jumlahTertunda > 0 && <div style={styles.syncNotice}><RefreshCcw size={13} />Sedang mengirim {jumlahTertunda} absen yang tertunda...</div>}{isOnline && pesanSinkronisasi && !sedangSinkron && <div style={styles.syncNotice}><RefreshCcw size={13} />{pesanSinkronisasi}</div>}</div></section>
 
         <section style={styles.mainCard}>
           {loadingStatus && <div style={styles.loadingState}><Clock3 size={18} /><span>Memuat status absensi...</span></div>}
           {!loadingStatus && tahap !== "memuat" && tahap !== "belum_terverifikasi" && tahap !== "tidak_perlu_absen" && <DialJamKerja tahap={tahap} />}
-
-          {tahap === "belum_terverifikasi" && <div style={styles.unverifiedBox}>
-            <div style={styles.unverifiedIcon}><WifiOff size={24} /></div>
-            <h2 style={styles.sectionTitle}>Status absensi belum tersedia</h2>
-            <p style={styles.sectionDescription}>Sistem belum berhasil memastikan status absensi hari ini. Untuk keamanan, tombol absensi tidak ditampilkan sampai status berhasil diverifikasi.</p>
-            <button onClick={() => void ambilStatusHariIni()} style={styles.secondaryButton} type="button" disabled={!isOnline || loadingStatus}><RefreshCcw size={17} />{loadingStatus ? "Memuat..." : "Coba Muat Status"}</button>
-          </div>}
-
-          {tahap === "selesai" && <div style={styles.successBox}>
-            <div style={styles.successIcon}><CheckCircle2 size={28} /></div>
-            <h2 style={styles.sectionTitle}>Absensi Hari Ini Selesai</h2>
-            <p style={styles.sectionDescription}>Absen masuk dan pulang kamu sudah tercatat. Terima kasih, sampai jumpa besok.</p>
-          </div>}
-
-          {(tahap === "belum_masuk" || tahap === "sudah_masuk") && <>
-            <div style={styles.actionHeading}>
-              <div>
-                <p style={styles.actionEyebrow}>{tahap === "belum_masuk" ? "LANGKAH 1 · ABSEN MASUK" : "LANGKAH 1 · ABSEN PULANG"}</p>
-                <h2 style={styles.sectionTitle}>Ambil foto untuk mencatat kehadiran</h2>
-                <p style={styles.statusVerificationHint}>{statusVerifikasiSedang ? "Memverifikasi status absensi terbaru..." : statusTerverifikasi ? "Status absensi sudah diverifikasi." : "Status absensi belum terverifikasi."}</p>
-              </div>
-            </div>
-
-            {!kameraAktif && !fotoTerambil && <div style={styles.startPanel}>
-              <div style={styles.cameraIconCircle}><Camera size={28} /></div>
-              <p style={styles.startTitle}>Siapkan kamera</p>
-              <p style={styles.startDescription}>Pastikan wajah terlihat jelas dan izinkan kamera serta lokasi pada browser HP kamu.</p>
-              {jumlahTertunda > 0 && <p style={styles.pendingActionNote}>{jumlahTertunda} absensi masih menunggu sinkronisasi. Selesaikan sinkronisasi terlebih dahulu agar tidak terjadi absensi ganda.</p>}
-              <button onClick={() => void bukaKamera()} style={styles.primaryButton} type="button" disabled={kameraMembuka || sedangSinkron || jumlahTertunda > 0} title={jumlahTertunda > 0 ? "Tunggu absensi yang tersimpan offline selesai disinkronkan." : undefined}>
-                <Camera size={18} />{kameraMembuka ? "Menyiapkan Kamera..." : jumlahTertunda > 0 ? "Menunggu Sinkronisasi" : "Buka Kamera"}
-              </button>
-            </div>}
-
-            {kameraAktif && <div style={styles.cameraSection}>
-              <div style={styles.cameraTopbar} className="cameraTopbar">
-                <div><p style={styles.cameraEyebrow}>KAMERA AKTIF</p><p style={styles.cameraTitle} className="cameraTitle">Posisikan wajah di tengah panduan</p></div>
-                <div style={styles.cameraReadyBadge} className="cameraReadyBadge"><span style={styles.cameraReadyDot} />Siap</div>
-              </div>
-              <div style={styles.cameraFrame}>
-                <video ref={videoRef} autoPlay playsInline muted style={styles.video} />
-                <div style={styles.cameraOverlay}><div style={styles.faceGuide} /><div style={styles.faceGuideHint} className="faceGuideHint">Wajah berada di tengah</div></div>
-                <div style={styles.cameraLocationBadge} className="cameraLocationBadge"><MapPin size={12} /><span>{statusLokasi === "mencari" && "Mencari lokasi..."}{statusLokasi === "ditemukan" && "Lokasi ditemukan"}{statusLokasi === "gagal" && "Lokasi belum ditemukan"}</span></div>
-              </div>
-              <div style={styles.cameraHelpRow} className="cameraHelpRow"><ShieldCheck size={14} color={warna.aksen} /><span>Foto diproses untuk pencatatan absensi.</span></div>
-              <button onClick={ambilFoto} style={styles.primaryButton} type="button"><Camera size={18} />Ambil Foto</button>
-            </div>}
-
-            {fotoTerambil && <div style={styles.previewSection}>
-              <div style={styles.previewFrame}><img src={fotoPreview} alt="Foto absen" style={styles.previewImage} /></div>
-              <div style={styles.locationCard}>
-                <div style={styles.locationHeader}>
-                  <div style={styles.locationIcon}><MapPin size={17} /></div>
-                  <div style={styles.locationMain}>
-                    <div style={styles.locationTitleRow}>
-                      <p style={styles.locationTitle}>Lokasi Absensi</p>
-                      {statusLokasi === "ditemukan" && <span style={{ ...styles.locationAccuracyBadge, ...(lokasi?.akurasi <= 50 ? styles.locationAccuracyGood : lokasi?.akurasi <= 100 ? styles.locationAccuracyMedium : styles.locationAccuracyWeak) }}>{lokasi?.akurasi <= 50 ? "Akurat" : lokasi?.akurasi <= 100 ? "Cukup" : "Kurang presisi"}</span>}
-                    </div>
-                    <p style={styles.locationStatus}>{statusLokasi === "mencari" && "Sedang mencari lokasi terbaik..."}{statusLokasi === "ditemukan" && (lokasi?.alamat || "Lokasi ditemukan, membaca alamat...")}{statusLokasi === "gagal" && "Lokasi tidak terdeteksi. Tekan Foto Ulang lalu pastikan GPS dan izin lokasi aktif."}</p>
-                  </div>
-                </div>
-                {statusLokasi === "ditemukan" && lokasi?.akurasi && <div style={styles.locationMeta}><span>Akurasi ±{lokasi.akurasi} meter</span><span style={styles.locationDot} /><span>Koordinat berhasil diperoleh</span></div>}
-                {statusLokasi === "ditemukan" && lokasi?.latitude !== undefined && lokasi?.longitude !== undefined && <div style={styles.locationActions}><a href={`https://www.google.com/maps?q=${lokasi.latitude},${lokasi.longitude}`} target="_blank" rel="noopener noreferrer" style={styles.mapsLink}><Navigation size={14} />Lihat lokasi di Google Maps</a></div>}
-              </div>
-              <div style={styles.actionButtons} className="karyawan-action-buttons">
-                <button onClick={fotoUlang} style={styles.secondaryButton} type="button" disabled={loading}><RefreshCcw size={17} />Foto Ulang</button>
-                <button onClick={kirimAbsen} style={styles.primaryButton} type="button" disabled={loading}>{loading ? "Mengirim..." : "Kirim Absen"}</button>
-              </div>
-            </div>}
-          </>}
-
+          {tahap === "belum_terverifikasi" && <div style={styles.unverifiedBox}><div style={styles.unverifiedIcon}><WifiOff size={24} /></div><h2 style={styles.sectionTitle}>Status absensi belum tersedia</h2><p style={styles.sectionDescription}>Sistem belum berhasil memastikan status absensi hari ini. Untuk keamanan, tombol absensi tidak ditampilkan sampai status berhasil diverifikasi.</p><button onClick={() => void ambilStatusHariIni()} style={styles.secondaryButton} type="button" disabled={!isOnline || loadingStatus}><RefreshCcw size={17} />{loadingStatus ? "Memuat..." : "Coba Muat Status"}</button></div>}
+          {tahap === "selesai" && <div style={styles.successBox}><div style={styles.successIcon}><CheckCircle2 size={28} /></div><h2 style={styles.sectionTitle}>Absensi Hari Ini Selesai</h2><p style={styles.sectionDescription}>Absen masuk dan pulang kamu sudah tercatat. Terima kasih, sampai jumpa besok.</p></div>}
+          {(tahap === "belum_masuk" || tahap === "sudah_masuk") && <><div style={styles.actionHeading}><div><p style={styles.actionEyebrow}>{tahap === "belum_masuk" ? "LANGKAH 1 · ABSEN MASUK" : "LANGKAH 1 · ABSEN PULANG"}</p><h2 style={styles.sectionTitle}>Ambil foto untuk mencatat kehadiran</h2><p style={styles.statusVerificationHint}>{statusVerifikasiSedang ? "Memverifikasi status absensi terbaru..." : statusTerverifikasi ? "Status absensi sudah diverifikasi." : "Status absensi belum terverifikasi."}</p></div></div>{!kameraAktif && !fotoTerambil && <div style={styles.startPanel}><div style={styles.cameraIconCircle}><Camera size={28} /></div><p style={styles.startTitle}>Siapkan kamera</p><p style={styles.startDescription}>Pastikan wajah terlihat jelas dan izinkan kamera serta lokasi pada browser HP kamu.</p>{jumlahTertunda > 0 && <p style={styles.pendingActionNote}>{jumlahTertunda} absensi masih menunggu sinkronisasi. Selesaikan sinkronisasi terlebih dahulu agar tidak terjadi absensi ganda.</p>}<button onClick={() => void bukaKamera()} style={styles.primaryButton} type="button" disabled={kameraMembuka || sedangSinkron || jumlahTertunda > 0} title={jumlahTertunda > 0 ? "Tunggu absensi yang tersimpan offline selesai disinkronkan." : undefined}><Camera size={18} />{kameraMembuka ? "Menyiapkan Kamera..." : jumlahTertunda > 0 ? "Menunggu Sinkronisasi" : "Buka Kamera"}</button></div>}{kameraAktif && <div style={styles.cameraSection}><div style={styles.cameraTopbar} className="cameraTopbar"><div><p style={styles.cameraEyebrow}>KAMERA AKTIF</p><p style={styles.cameraTitle} className="cameraTitle">Posisikan wajah di tengah panduan</p></div><div style={styles.cameraReadyBadge} className="cameraReadyBadge"><span style={styles.cameraReadyDot} />{kameraSiapRef.current ? "Siap" : "Menyiapkan..."}</div></div><div style={styles.cameraFrame}><video ref={videoRef} autoPlay playsInline muted style={styles.video} /><div style={styles.cameraOverlay}><div style={styles.faceGuide} /><div style={styles.faceGuideHint} className="faceGuideHint">Wajah berada di tengah</div></div><div style={styles.cameraLocationBadge} className="cameraLocationBadge"><MapPin size={12} /><span>{statusLokasi === "mencari" && "Mencari lokasi..."}{statusLokasi === "ditemukan" && "Lokasi ditemukan"}{statusLokasi === "gagal" && "Lokasi belum ditemukan"}</span></div></div><div style={styles.cameraHelpRow} className="cameraHelpRow"><ShieldCheck size={14} color={warna.aksen} /><span>Foto diproses untuk pencatatan absensi.</span></div><button onClick={ambilFoto} style={styles.primaryButton} type="button" disabled={!kameraSiapRef.current}><Camera size={18} />Ambil Foto</button></div>}{fotoTerambil && <div style={styles.previewSection}><div style={styles.previewFrame}><img src={fotoPreview} alt="Foto absen" style={styles.previewImage} /></div><div style={styles.locationCard}><div style={styles.locationHeader}><div style={styles.locationIcon}><MapPin size={17} /></div><div style={styles.locationMain}><div style={styles.locationTitleRow}><p style={styles.locationTitle}>Lokasi Absensi</p>{statusLokasi === "ditemukan" && <span style={{ ...styles.locationAccuracyBadge, ...(lokasi?.akurasi <= 50 ? styles.locationAccuracyGood : lokasi?.akurasi <= 100 ? styles.locationAccuracyMedium : styles.locationAccuracyWeak) }}>{lokasi?.akurasi <= 50 ? "Akurat" : lokasi?.akurasi <= 100 ? "Cukup" : "Kurang presisi"}</span>}</div><p style={styles.locationStatus}>{statusLokasi === "mencari" && "Sedang mencari lokasi terbaik..."}{statusLokasi === "ditemukan" && (lokasi?.alamat || "Lokasi ditemukan, membaca alamat...")}{statusLokasi === "gagal" && "Lokasi tidak terdeteksi. Tekan Foto Ulang lalu pastikan GPS dan izin lokasi aktif."}</p></div></div>{statusLokasi === "ditemukan" && lokasi?.akurasi && <div style={styles.locationMeta}><span>Akurasi ±{lokasi.akurasi} meter</span><span style={styles.locationDot} /><span>Koordinat berhasil diperoleh</span></div>}{statusLokasi === "ditemukan" && lokasi?.latitude !== undefined && lokasi?.longitude !== undefined && <div style={styles.locationActions}><a href={`https://www.google.com/maps?q=${lokasi.latitude},${lokasi.longitude}`} target="_blank" rel="noopener noreferrer" style={styles.mapsLink}><Navigation size={14} />Lihat lokasi di Google Maps</a></div>}</div><div style={styles.actionButtons} className="karyawan-action-buttons"><button onClick={fotoUlang} style={styles.secondaryButton} type="button" disabled={loading}><RefreshCcw size={17} />Foto Ulang</button><button onClick={kirimAbsen} style={styles.primaryButton} type="button" disabled={loading}>{loading ? "Mengirim..." : "Kirim Absen"}</button></div></div>}</>}
           {pesan && <div style={styles.messageBox} role="alert">{pesan}</div>}
         </section>
-
         <div style={styles.footerNote}><ShieldCheck size={14} /><span>Gunakan koneksi internet yang stabil saat mengirim absensi.</span></div>
       </div>
       <canvas ref={canvasRef} style={{ display: "none" }} />
-      <style>{`
-        * { box-sizing: border-box; }
-        .karyawan-scroll-hidden { scrollbar-width: none; -ms-overflow-style: none; }
-        .karyawan-scroll-hidden::-webkit-scrollbar { display: none; width: 0; height: 0; }
-        .karyawan-button-hover:hover { transform: translateY(-1px); }
-        .karyawan-page button:disabled { opacity: 0.58; cursor: not-allowed !important; transform: none !important; }
-        @media (max-width: 760px) { .karyawan-desktop-only { display: none; } }
-        @media (max-width: 520px) {
-          .karyawan-header-logo { width: 150px !important; margin-bottom: 10px !important; }
-          .karyawan-header-user-name { font-size: 15px !important; }
-          .karyawan-header-actions { width: 100%; display: grid !important; grid-template-columns: repeat(3, 1fr); gap: 7px !important; }
-          .karyawan-header-button { width: 100% !important; min-height: 44px !important; padding: 8px 6px !important; justify-content: center !important; font-size: 11px !important; white-space: nowrap; }
-          .karyawan-action-buttons { grid-template-columns: 1fr !important; }
-          .cameraTopbar { align-items: flex-start; }
-          .cameraTitle { max-width: 230px; }
-          .cameraReadyBadge { flex-shrink: 0; }
-          .faceGuideHint { transform: translate(-50%, calc(-50% + 82px)); font-size: 9.5px; }
-          .cameraLocationBadge { left: 9px; top: 9px; }
-          .cameraHelpRow { font-size: 10.5px; }
-        }
-      `}</style>
+      <style>{`* { box-sizing: border-box; } .karyawan-scroll-hidden { scrollbar-width: none; -ms-overflow-style: none; } .karyawan-scroll-hidden::-webkit-scrollbar { display: none; width: 0; height: 0; } .karyawan-page button:disabled { opacity: 0.58; cursor: not-allowed !important; transform: none !important; } @media (max-width: 760px) { .karyawan-desktop-only { display: none; } } @media (max-width: 520px) { .karyawan-header-logo { width: 150px !important; margin-bottom: 10px !important; } .karyawan-header-user-name { font-size: 15px !important; } .karyawan-header-actions { width: 100%; display: grid !important; grid-template-columns: repeat(3, 1fr); gap: 7px !important; } .karyawan-header-button { width: 100% !important; min-height: 44px !important; padding: 8px 6px !important; justify-content: center !important; font-size: 11px !important; white-space: nowrap; } .karyawan-action-buttons { grid-template-columns: 1fr !important; } .cameraTopbar { align-items: flex-start; } .cameraTitle { max-width: 230px; } .cameraReadyBadge { flex-shrink: 0; } .faceGuideHint { transform: translate(-50%, calc(-50% + 82px)); font-size: 9.5px; } .cameraLocationBadge { left: 9px; top: 9px; } .cameraHelpRow { font-size: 10.5px; } }`}</style>
     </div>
   );
 }
 
-function inisialNama(nama) {
-  if (!nama) return "?";
-  const bagian = nama.trim().split(/\s+/);
-  if (bagian.length === 1) return bagian[0].slice(0, 2).toUpperCase();
-  return (bagian[0][0] + bagian[bagian.length - 1][0]).toUpperCase();
-}
+function inisialNama(nama) { if (!nama) return "?"; const bagian = nama.trim().split(/\s+/); if (bagian.length === 1) return bagian[0].slice(0, 2).toUpperCase(); return (bagian[0][0] + bagian[bagian.length - 1][0]).toUpperCase(); }
 
 const styles = {
   page: { minHeight: "100dvh", background: "#FFFFFF", fontFamily: font.display, color: warna.tinta, padding: "max(12px, env(safe-area-inset-top)) 12px max(20px, env(safe-area-inset-bottom))" },
   container: { width: "100%", maxWidth: 760, margin: "0 auto" },
   header: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, padding: "14px", marginBottom: 12, background: warna.panel, border: `1px solid ${warna.garis}`, borderRadius: 18, flexWrap: "wrap" },
-  brandHeader: { minWidth: 0 },
-  logoHeader: { width: "min(190px, 68vw)", height: "auto", maxHeight: 42, objectFit: "contain", objectPosition: "left center", display: "block", marginBottom: 12 },
-  userBlock: { display: "flex", alignItems: "center", gap: 10, minWidth: 0 },
-  avatarBadge: { width: 38, height: 38, flexShrink: 0, borderRadius: "50%", background: warna.aksen, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 },
-  namaUser: { margin: 0, fontSize: 16, fontWeight: 700, color: warna.tinta, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
-  subNamaUser: { margin: "2px 0 0", fontSize: 12, color: warna.tintaLembut, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
-  headerActions: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" },
-  headerButton: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 40, padding: "8px 12px", background: warna.panel, border: `1px solid ${warna.garis}`, borderRadius: 10, color: warna.tinta, fontSize: 12, fontWeight: 600, cursor: "pointer" },
-  headerLogout: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 40, padding: "8px 12px", background: "transparent", border: `1px solid ${warna.garis}`, borderRadius: 10, color: warna.bahaya, fontSize: 12, fontWeight: 600, cursor: "pointer" },
-  heroCard: { background: `linear-gradient(145deg, ${warna.aksenLembut}, ${warna.panel})`, border: `1px solid ${warna.garis}`, borderRadius: 18, padding: "18px 18px", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" },
-  eyebrow: { margin: 0, fontSize: 10.5, fontWeight: 800, letterSpacing: "0.1em", color: warna.aksen },
-  heroTitle: { margin: "6px 0 2px", fontSize: "clamp(24px, 5vw, 34px)", lineHeight: 1.1, fontWeight: 750, color: warna.tinta },
-  heroDate: { margin: 0, fontSize: 12.5, color: warna.tintaLembut },
-  badgeTertunda: { margin: "6px 0", fontSize: 12, fontWeight: 600, color: warna.peringatan, background: warna.peringatanLembut, display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 20 },
-  heroBadges: { display: "flex", alignItems: "flex-end", justifyContent: "flex-end", flexDirection: "column", gap: 7, maxWidth: 310 },
-  networkBadge: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 30, padding: "6px 10px", borderRadius: 999, border: `1px solid ${warna.garis}`, fontSize: 10.5, fontWeight: 700, whiteSpace: "nowrap" },
-  securityBadge: { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 10px", borderRadius: 999, background: "rgba(255,255,255,0.7)", border: `1px solid ${warna.garis}`, color: warna.aksen, fontSize: 10.5, fontWeight: 650, whiteSpace: "nowrap" },
-  offlineNotice: { maxWidth: 310, padding: "8px 10px", borderRadius: 11, background: warna.peringatanLembut, border: `1px solid ${warna.garis}`, color: warna.tintaLembut, fontSize: 10.5, lineHeight: 1.45, textAlign: "right" },
-  syncNotice: { display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 10px", borderRadius: 10, background: warna.aksenLembut, border: `1px solid ${warna.garis}`, color: warna.aksen, fontSize: 10.5, fontWeight: 650, textAlign: "right" },
-  mainCard: { background: warna.panel, borderRadius: 18, padding: "22px 18px 20px", border: `1px solid ${warna.garis}`, boxShadow: "0 8px 30px rgba(22,35,61,0.05)" },
-  loadingState: { minHeight: 180, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: warna.tintaLembut, fontSize: 13 },
-  actionHeading: { marginBottom: 18, textAlign: "center" },
-  statusVerificationHint: { margin: "6px 0 0", fontSize: 11.5, color: warna.tintaSamar },
-  actionEyebrow: { margin: 0, fontSize: 10.5, fontWeight: 800, letterSpacing: "0.08em", color: warna.tintaSamar },
-  sectionTitle: { margin: "5px 0 0", fontSize: 20, lineHeight: 1.2, fontWeight: 750, color: warna.tinta },
-  sectionDescription: { margin: "8px auto 0", maxWidth: 420, color: warna.tintaLembut, fontSize: 13, lineHeight: 1.65 },
-  startPanel: { textAlign: "center", padding: "18px 10px 4px" },
-  cameraIconCircle: { width: 68, height: 68, margin: "0 auto 14px", borderRadius: "50%", background: warna.aksenLembut, color: warna.aksen, display: "flex", alignItems: "center", justifyContent: "center" },
-  startTitle: { margin: 0, fontSize: 15, fontWeight: 700, color: warna.tinta },
-  startDescription: { margin: "7px auto 16px", maxWidth: 430, fontSize: 12.5, lineHeight: 1.65, color: warna.tintaLembut },
-  pendingActionNote: { maxWidth: 430, margin: "-4px auto 14px", padding: "8px 10px", borderRadius: 10, background: warna.peringatanLembut, border: `1px solid ${warna.garis}`, color: warna.tintaLembut, fontSize: 11.5, lineHeight: 1.5 },
-  primaryButton: { width: "100%", minHeight: 48, padding: "12px 16px", background: warna.aksen, color: "#fff", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 },
-  secondaryButton: { width: "100%", minHeight: 48, padding: "12px 16px", background: warna.panelAlt, color: warna.tinta, border: `1px solid ${warna.garis}`, borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 },
-  cameraSection: { width: "100%" },
-  cameraTopbar: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 },
-  cameraEyebrow: { margin: 0, fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", color: warna.aksen },
-  cameraTitle: { margin: "3px 0 0", fontSize: 12, color: warna.tintaLembut },
-  cameraReadyBadge: { display: "inline-flex", alignItems: "center", gap: 6, minHeight: 28, padding: "5px 9px", borderRadius: 999, background: warna.suksesLembut, color: warna.sukses, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" },
-  cameraReadyDot: { width: 7, height: 7, borderRadius: "50%", background: warna.sukses },
-  faceGuideHint: { position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, calc(-50% + 98px))", padding: "6px 10px", borderRadius: 999, background: "rgba(0,0,0,0.42)", color: "#fff", fontSize: 10.5, fontWeight: 600, whiteSpace: "nowrap", backdropFilter: "blur(6px)" },
-  cameraLocationBadge: { position: "absolute", left: 12, top: 12, display: "inline-flex", alignItems: "center", gap: 6, maxWidth: "calc(100% - 24px)", minHeight: 30, padding: "6px 9px", borderRadius: 999, background: "rgba(0,0,0,0.46)", color: "#fff", fontSize: 10, fontWeight: 600, backdropFilter: "blur(7px)" },
-  cameraHelpRow: { display: "flex", alignItems: "center", justifyContent: "center", gap: 7, margin: "10px 0 12px", color: warna.tintaLembut, fontSize: 11.5, textAlign: "center" },
-  cameraFrame: { position: "relative", width: "100%", overflow: "hidden", borderRadius: 16, background: "#0B1110", border: `1px solid ${warna.garis}`, aspectRatio: "3 / 4", maxHeight: 560 },
-  video: { width: "100%", height: "100%", objectFit: "cover", display: "block", transform: "scaleX(-1)" },
-  cameraOverlay: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" },
-  faceGuide: { width: "58%", height: "56%", border: "2px solid rgba(255,255,255,0.82)", borderRadius: "42%", boxShadow: "0 0 0 999px rgba(0,0,0,0.12)" },
-  cameraHelp: { margin: "9px 0 12px", textAlign: "center", color: warna.tintaLembut, fontSize: 11.5 },
-  previewSection: { width: "100%" },
-  previewFrame: { width: "100%", borderRadius: 16, overflow: "hidden", background: "#0B1110", border: `1px solid ${warna.garis}`, aspectRatio: "3 / 4", maxHeight: 560 },
-  previewImage: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
-  locationCard: { marginTop: 12, padding: 14, background: warna.panelAlt, border: `1px solid ${warna.garis}`, borderRadius: 14, textAlign: "left" },
-  locationHeader: { display: "flex", alignItems: "flex-start", gap: 10 },
-  locationMain: { minWidth: 0, flex: 1 },
-  locationTitleRow: { display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" },
-  locationAccuracyBadge: { display: "inline-flex", alignItems: "center", minHeight: 22, padding: "3px 7px", borderRadius: 999, fontSize: 9.5, fontWeight: 700 },
-  locationAccuracyGood: { color: warna.sukses, background: warna.suksesLembut },
-  locationAccuracyMedium: { color: warna.aksen, background: warna.aksenLembut },
-  locationAccuracyWeak: { color: warna.peringatan, background: warna.peringatanLembut },
-  locationIcon: { width: 34, height: 34, borderRadius: 10, background: warna.aksenLembut, color: warna.aksen, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  locationTitle: { margin: 0, fontSize: 12, fontWeight: 750, color: warna.tinta },
-  locationStatus: { margin: "3px 0 0", fontSize: 12, lineHeight: 1.55, color: warna.tintaLembut, wordBreak: "break-word" },
-  locationMeta: { display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", marginTop: 9, fontSize: 10.5, fontFamily: font.mono, color: warna.tintaSamar },
-  locationDot: { width: 3, height: 3, borderRadius: "50%", background: warna.tintaSamar },
-  locationActions: { marginTop: 9, paddingTop: 9, borderTop: `1px solid ${warna.garis}` },
-  locationWarning: { color: warna.peringatan, fontFamily: font.display, fontWeight: 700 },
-  mapsLink: { display: "inline-flex", alignItems: "center", gap: 6, marginTop: 0, color: warna.aksen, fontSize: 11.5, fontWeight: 700, textDecoration: "none" },
-  actionButtons: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 },
-  unverifiedBox: { textAlign: "center", padding: "6px 4px 12px", maxWidth: 520, margin: "0 auto" },
-  unverifiedIcon: { width: 64, height: 64, margin: "0 auto 14px", borderRadius: "50%", background: warna.peringatanLembut, color: warna.peringatan, display: "flex", alignItems: "center", justifyContent: "center" },
-  successBox: { textAlign: "center", padding: "4px 0 10px" },
-  successIcon: { width: 64, height: 64, margin: "0 auto 14px", borderRadius: "50%", background: warna.suksesLembut, color: warna.sukses, display: "flex", alignItems: "center", justifyContent: "center" },
-  messageBox: { marginTop: 14, padding: "11px 12px", borderRadius: 12, borderLeft: `3px solid ${warna.aksen}`, background: warna.panelAlt, color: warna.tinta, fontSize: 12.5, lineHeight: 1.55, textAlign: "left" },
-  footerNote: { display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "14px 4px 4px", color: warna.tintaSamar, fontSize: 10.5, textAlign: "center" },
+  brandHeader: { minWidth: 0 }, logoHeader: { width: "min(190px, 68vw)", height: "auto", maxHeight: 42, objectFit: "contain", objectPosition: "left center", display: "block", marginBottom: 12 },
+  userBlock: { display: "flex", alignItems: "center", gap: 10, minWidth: 0 }, avatarBadge: { width: 38, height: 38, flexShrink: 0, borderRadius: "50%", background: warna.aksen, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }, namaUser: { margin: 0, fontSize: 16, fontWeight: 700, color: warna.tinta, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }, subNamaUser: { margin: "2px 0 0", fontSize: 12, color: warna.tintaLembut, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+  headerActions: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }, headerButton: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 40, padding: "8px 12px", background: warna.panel, border: `1px solid ${warna.garis}`, borderRadius: 10, color: warna.tinta, fontSize: 12, fontWeight: 600, cursor: "pointer" }, headerLogout: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 40, padding: "8px 12px", background: "transparent", border: `1px solid ${warna.garis}`, borderRadius: 10, color: warna.bahaya, fontSize: 12, fontWeight: 600, cursor: "pointer" },
+  heroCard: { background: `linear-gradient(145deg, ${warna.aksenLembut}, ${warna.panel})`, border: `1px solid ${warna.garis}`, borderRadius: 18, padding: "18px 18px", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }, eyebrow: { margin: 0, fontSize: 10.5, fontWeight: 800, letterSpacing: "0.1em", color: warna.aksen }, heroTitle: { margin: "6px 0 2px", fontSize: "clamp(24px, 5vw, 34px)", lineHeight: 1.1, fontWeight: 750, color: warna.tinta }, heroDate: { margin: 0, fontSize: 12.5, color: warna.tintaLembut }, badgeTertunda: { margin: "6px 0", fontSize: 12, fontWeight: 600, color: warna.peringatan, background: warna.peringatanLembut, display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 20 }, heroBadges: { display: "flex", alignItems: "flex-end", justifyContent: "flex-end", flexDirection: "column", gap: 7, maxWidth: 310 }, networkBadge: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 30, padding: "6px 10px", borderRadius: 999, border: `1px solid ${warna.garis}`, fontSize: 10.5, fontWeight: 700, whiteSpace: "nowrap" }, securityBadge: { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 10px", borderRadius: 999, background: "rgba(255,255,255,0.7)", border: `1px solid ${warna.garis}`, color: warna.aksen, fontSize: 10.5, fontWeight: 650, whiteSpace: "nowrap" }, offlineNotice: { maxWidth: 310, padding: "8px 10px", borderRadius: 11, background: warna.peringatanLembut, border: `1px solid ${warna.garis}`, color: warna.tintaLembut, fontSize: 10.5, lineHeight: 1.45, textAlign: "right" }, syncNotice: { display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 10px", borderRadius: 10, background: warna.aksenLembut, border: `1px solid ${warna.garis}`, color: warna.aksen, fontSize: 10.5, fontWeight: 650, textAlign: "right" },
+  mainCard: { background: warna.panel, borderRadius: 18, padding: "22px 18px 20px", border: `1px solid ${warna.garis}`, boxShadow: "0 8px 30px rgba(22,35,61,0.05)" }, loadingState: { minHeight: 180, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: warna.tintaLembut, fontSize: 13 }, actionHeading: { marginBottom: 18, textAlign: "center" }, statusVerificationHint: { margin: "6px 0 0", fontSize: 11.5, color: warna.tintaSamar }, actionEyebrow: { margin: 0, fontSize: 10.5, fontWeight: 800, letterSpacing: "0.08em", color: warna.tintaSamar }, sectionTitle: { margin: "5px 0 0", fontSize: 20, lineHeight: 1.2, fontWeight: 750, color: warna.tinta }, sectionDescription: { margin: "8px auto 0", maxWidth: 420, color: warna.tintaLembut, fontSize: 13, lineHeight: 1.65 }, startPanel: { textAlign: "center", padding: "18px 10px 4px" }, cameraIconCircle: { width: 68, height: 68, margin: "0 auto 14px", borderRadius: "50%", background: warna.aksenLembut, color: warna.aksen, display: "flex", alignItems: "center", justifyContent: "center" }, startTitle: { margin: 0, fontSize: 15, fontWeight: 700, color: warna.tinta }, startDescription: { margin: "7px auto 16px", maxWidth: 430, fontSize: 12.5, lineHeight: 1.65, color: warna.tintaLembut }, pendingActionNote: { maxWidth: 430, margin: "-4px auto 14px", padding: "8px 10px", borderRadius: 10, background: warna.peringatanLembut, border: `1px solid ${warna.garis}`, color: warna.tintaLembut, fontSize: 11.5, lineHeight: 1.5 }, primaryButton: { width: "100%", minHeight: 48, padding: "12px 16px", background: warna.aksen, color: "#fff", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }, secondaryButton: { width: "100%", minHeight: 48, padding: "12px 16px", background: warna.panelAlt, color: warna.tinta, border: `1px solid ${warna.garis}`, borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }, cameraSection: { width: "100%" }, cameraTopbar: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }, cameraEyebrow: { margin: 0, fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", color: warna.aksen }, cameraTitle: { margin: "3px 0 0", fontSize: 12, color: warna.tintaLembut }, cameraReadyBadge: { display: "inline-flex", alignItems: "center", gap: 6, minHeight: 28, padding: "5px 9px", borderRadius: 999, background: warna.suksesLembut, color: warna.sukses, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }, cameraReadyDot: { width: 7, height: 7, borderRadius: "50%", background: warna.sukses }, faceGuideHint: { position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, calc(-50% + 98px))", padding: "6px 10px", borderRadius: 999, background: "rgba(0,0,0,0.42)", color: "#fff", fontSize: 10.5, fontWeight: 600, whiteSpace: "nowrap", backdropFilter: "blur(6px)" }, cameraLocationBadge: { position: "absolute", left: 12, top: 12, display: "inline-flex", alignItems: "center", gap: 6, maxWidth: "calc(100% - 24px)", minHeight: 30, padding: "6px 9px", borderRadius: 999, background: "rgba(0,0,0,0.46)", color: "#fff", fontSize: 10, fontWeight: 600, backdropFilter: "blur(7px)" }, cameraHelpRow: { display: "flex", alignItems: "center", justifyContent: "center", gap: 7, margin: "10px 0 12px", color: warna.tintaLembut, fontSize: 11.5, textAlign: "center" }, cameraFrame: { position: "relative", width: "100%", overflow: "hidden", borderRadius: 16, background: "#0B1110", border: `1px solid ${warna.garis}`, aspectRatio: "3 / 4", maxHeight: 560 }, video: { width: "100%", height: "100%", objectFit: "cover", display: "block", transform: "scaleX(-1)" }, cameraOverlay: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }, faceGuide: { width: "58%", height: "56%", border: "2px solid rgba(255,255,255,0.82)", borderRadius: "42%", boxShadow: "0 0 0 999px rgba(0,0,0,0.12)" }, previewSection: { width: "100%" }, previewFrame: { width: "100%", borderRadius: 16, overflow: "hidden", background: "#0B1110", border: `1px solid ${warna.garis}`, aspectRatio: "3 / 4", maxHeight: 560 }, previewImage: { width: "100%", height: "100%", objectFit: "cover", display: "block" }, locationCard: { marginTop: 12, padding: 14, background: warna.panelAlt, border: `1px solid ${warna.garis}`, borderRadius: 14, textAlign: "left" }, locationHeader: { display: "flex", alignItems: "flex-start", gap: 10 }, locationMain: { minWidth: 0, flex: 1 }, locationTitleRow: { display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }, locationAccuracyBadge: { display: "inline-flex", alignItems: "center", minHeight: 22, padding: "3px 7px", borderRadius: 999, fontSize: 9.5, fontWeight: 700 }, locationAccuracyGood: { color: warna.sukses, background: warna.suksesLembut }, locationAccuracyMedium: { color: warna.aksen, background: warna.aksenLembut }, locationAccuracyWeak: { color: warna.peringatan, background: warna.peringatanLembut }, locationIcon: { width: 34, height: 34, borderRadius: 10, background: warna.aksenLembut, color: warna.aksen, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }, locationTitle: { margin: 0, fontSize: 12, fontWeight: 750, color: warna.tinta }, locationStatus: { margin: "3px 0 0", fontSize: 12, lineHeight: 1.55, color: warna.tintaLembut, wordBreak: "break-word" }, locationMeta: { display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", marginTop: 9, fontSize: 10.5, fontFamily: font.mono, color: warna.tintaSamar }, locationDot: { width: 3, height: 3, borderRadius: "50%", background: warna.tintaSamar }, locationActions: { marginTop: 9, paddingTop: 9, borderTop: `1px solid ${warna.garis}` }, mapsLink: { display: "inline-flex", alignItems: "center", gap: 6, marginTop: 0, color: warna.aksen, fontSize: 11.5, fontWeight: 700, textDecoration: "none" }, actionButtons: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }, unverifiedBox: { textAlign: "center", padding: "6px 4px 12px", maxWidth: 520, margin: "0 auto" }, unverifiedIcon: { width: 64, height: 64, margin: "0 auto 14px", borderRadius: "50%", background: warna.peringatanLembut, color: warna.peringatan, display: "flex", alignItems: "center", justifyContent: "center" }, successBox: { textAlign: "center", padding: "4px 0 10px" }, successIcon: { width: 64, height: 64, margin: "0 auto 14px", borderRadius: "50%", background: warna.suksesLembut, color: warna.sukses, display: "flex", alignItems: "center", justifyContent: "center" }, messageBox: { marginTop: 14, padding: "11px 12px", borderRadius: 12, borderLeft: `3px solid ${warna.aksen}`, background: warna.panelAlt, color: warna.tinta, fontSize: 12.5, lineHeight: 1.55, textAlign: "left" }, footerNote: { display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "14px 4px 4px", color: warna.tintaSamar, fontSize: 10.5, textAlign: "center" },
 };
