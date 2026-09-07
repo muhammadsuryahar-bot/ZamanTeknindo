@@ -4,10 +4,7 @@ const router = express.Router();
 const { cekLogin, cekAdmin } = require("../middleware/authMiddleware");
 const {
   daftarMenungguKonfirmasi,
-  ubahStatusKaryawan,
-  ringkasanDashboard,
   editStatusAbsensi,
-  ambilPengaturanPotongan,
   ubahPengaturanPotongan,
   daftarGajiKaryawan,
   ubahGajiKaryawan,
@@ -15,8 +12,13 @@ const {
   tambahHariLibur,
   hapusHariLibur,
   usulanHariLibur,
-  notifikasiAdmin,
 } = require("../controllers/adminController");
+const {
+  ringkasanDashboardFixed,
+  notifikasiAdminFixed,
+  ambilPengaturanPotonganFixed,
+  ubahStatusKaryawanFixed,
+} = require("../controllers/adminOperationalFixedController");
 const { aktifkanAkunFixed } = require("../controllers/aktivasiAkunFixedController");
 const { daftarKaryawanFixed } = require("../controllers/adminKaryawanFixedController");
 const {
@@ -96,12 +98,12 @@ const uploadExcelGaji = multer({
 });
 
 router.get("/akun-menunggu", daftarMenungguKonfirmasi);
-router.get("/notifikasi", notifikasiAdmin);
+router.get("/notifikasi", notifikasiAdminFixed);
 router.put("/akun/:id/aktifkan", aktifkanAkunFixed);
 
 router.get("/karyawan", daftarKaryawanFixed);
 router.put("/karyawan/:id", ubahProfilKaryawan);
-router.put("/karyawan/:id/status", validasiStatusAkun, ubahStatusKaryawan);
+router.put("/karyawan/:id/status", validasiStatusAkun, ubahStatusKaryawanFixed);
 router.put("/karyawan/:id/reset-password", resetPasswordOlehAdmin);
 
 router.get("/rekap-hari-ini", rekapHariIniFixed);
@@ -111,10 +113,10 @@ router.put(
   validasiEditStatusAbsensi,
   ubahStatusTanpaAbsensi,
 );
-router.get("/ringkasan", ringkasanDashboard);
+router.get("/ringkasan", ringkasanDashboardFixed);
 router.put("/absensi/:id/edit-status", validasiEditStatusAbsensi, editStatusAbsensi);
 
-router.get("/pengaturan-potongan", ambilPengaturanPotongan);
+router.get("/pengaturan-potongan", ambilPengaturanPotonganFixed);
 router.put("/pengaturan-potongan", ubahPengaturanPotongan);
 
 router.get("/gaji", daftarGajiKaryawan);
