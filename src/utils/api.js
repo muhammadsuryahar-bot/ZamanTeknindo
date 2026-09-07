@@ -29,6 +29,7 @@ export function hapusSesiLogin() {
 
 const RETRY_STATUS_DELAYS_MS = [400, 1000];
 const RETRY_STATUS_TIMEOUT_MS = 9000;
+const HEADER_BACKGROUND = "X-Zaman-Background";
 
 function tunggu(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -42,6 +43,23 @@ function initTanpaSignal(argumen) {
   const [input, init] = argumen;
   if (!init) return [input, undefined];
   return [input, { ...init, signal: undefined }];
+}
+
+function nilaiHeader(argumen, nama) {
+  const init = argumen?.[1];
+  if (!init?.headers) return "";
+  const headers = init.headers;
+  if (headers instanceof Headers) return headers.get(nama) || "";
+  if (Array.isArray(headers)) {
+    const pasangan = headers.find(([key]) => String(key).toLowerCase() === nama.toLowerCase());
+    return pasangan ? String(pasangan[1] || "") : "";
+  }
+  const kunci = Object.keys(headers).find((key) => key.toLowerCase() === nama.toLowerCase());
+  return kunci ? String(headers[kunci] || "") : "";
+}
+
+function permintaanBackground(argumen) {
+  return Boolean(nilaiHeader(argumen, HEADER_BACKGROUND));
 }
 
 function tanggalRekapAktif() {
@@ -108,13 +126,14 @@ export function pasangPenerjemahSesiKedaluwarsa() {
     const urlPermintaan = tambahkanTanggalRekap(urlPermintaanAwal);
     const argumenDenganTanggal = [urlPermintaan, argumen[1]];
     const iniStatusAbsensi = urlPermintaan.includes("/api/absensi/status-hari-ini");
+    const iniBackground = permintaanBackground(argumen);
 
     let respons;
 
     try {
       respons = await fetchAsli(...argumenDenganTanggal);
     } catch (errorPertama) {
-      if (!iniStatusAbsensi) throw errorPertama;
+      if (!iniStatusAbsensi || iniBackground) throw errorPertama;
 
       let errorTerakhir = errorPertama;
       for (const delay of RETRY_STATUS_DELAYS_MS) {
@@ -129,7 +148,7 @@ export function pasangPenerjemahSesiKedaluwarsa() {
       if (!respons) throw errorTerakhir;
     }
 
-    if (iniStatusAbsensi && respons.status >= 500) {
+    if (iniStatusAbsensi && !iniBackground && respons.status >= 500) {
       let responsTerakhir = respons;
       for (const delay of RETRY_STATUS_DELAYS_MS) {
         try {
@@ -150,7 +169,12 @@ export function pasangPenerjemahSesiKedaluwarsa() {
     const iniPermintaanAuth = urlPermintaan.includes("/api/auth/");
     if (iniPermintaanAuth) return respons;
 
+    // Request background seperti rekonsiliasi antrean atau registrasi push
+    // tidak boleh menghapus sesi dan memindahkan halaman karyawan hanya karena
+    // token kedaluwarsa. Request foreground tetap memakai perilaku lama.
     if (respons.status === 401) {
+      if (iniBackground) return respons;
+
       let data = {};
       try {
         data = await respons.clone().json();
@@ -179,6 +203,8 @@ export function pasangPenerjemahSesiKedaluwarsa() {
     }
 
     if (respons.status === 403) {
+      if (iniBackground) return respons;
+
       try {
         const data = await respons.clone().json();
         const pesan = String(data?.pesan || "").toLowerCase();
