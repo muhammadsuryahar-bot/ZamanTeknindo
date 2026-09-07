@@ -13,6 +13,14 @@ self.addEventListener("push", (event) => {
     badge: data.badge || "/icon-192.png",
     tag: data.tag || "zaman-teknindo-push",
     renotify: Boolean(data.renotify),
+    // Minta notifikasi memakai suara/notifikasi sistem normal pada perangkat.
+    // Browser/OS tetap berhak menentukan apakah suara dimainkan.
+    silent: false,
+    // Pada perangkat yang mendukung, getaran membantu memberi tanda tambahan.
+    vibrate: [200, 100, 200],
+    // Biarkan notifikasi tetap terlihat sampai pengguna berinteraksi jika
+    // platform mendukung opsi ini.
+    requireInteraction: true,
     data: { url: data.url || "/" },
   };
 
