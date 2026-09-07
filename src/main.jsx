@@ -108,6 +108,35 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   void periksaUpdatePWA()
 }
 
+// Pada versi DashboardKaryawan saat ini, status "kamera siap" disimpan di ref
+// agar callback kamera tidak memicu render ulang. Atribut disabled pada tombol
+// Ambil Foto ikut berasal dari ref tersebut sehingga React tidak selalu merender
+// ulang ketika preview kamera benar-benar sudah siap. Guard kecil ini hanya
+// menyentuh tombol Ambil Foto ketika elemen video benar-benar memiliki dimensi
+// frame; fungsi ambilFoto() tetap melakukan validasi kedua sebelum mengambil foto.
+// Ini mencegah tombol tertahan nonaktif pada HP tertentu tanpa mengubah alur
+// kamera, GPS, kompresi foto, atau pengiriman absensi.
+if (typeof window !== 'undefined' && !window.__kameraAmbilFotoGuardTerpasang) {
+  const aktifkanTombolAmbilFoto = () => {
+    const videoElements = document.querySelectorAll('.cameraSection video')
+
+    for (const video of videoElements) {
+      if (!(video instanceof HTMLVideoElement)) continue
+      if (video.videoWidth <= 0 || video.videoHeight <= 0) continue
+
+      const tombol = video.closest('.cameraSection')?.querySelector('button[type="button"]')
+      if (!(tombol instanceof HTMLButtonElement)) continue
+      if (!tombol.textContent?.includes('Ambil Foto')) continue
+
+      tombol.disabled = false
+    }
+  }
+
+  const interval = window.setInterval(aktifkanTombolAmbilFoto, 250)
+  window.addEventListener('pagehide', () => window.clearInterval(interval), { once: true })
+  window.__kameraAmbilFotoGuardTerpasang = true
+}
+
 // Dipasang SEKALI di sini, sebelum aplikasi mulai render, supaya berlaku
 // untuk semua pemanggilan fetch() dari halaman manapun.
 pasangPenerjemahSesiKedaluwarsa()
