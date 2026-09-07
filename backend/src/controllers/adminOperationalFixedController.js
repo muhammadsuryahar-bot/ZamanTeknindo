@@ -5,6 +5,9 @@ const {
   statusEfektif,
 } = require("../utils/waktuIndonesia");
 
+const CACHE_NOTIFIKASI_MS = 5000;
+let cacheNotifikasi = null;
+
 function tanggalKeHariIniDanRentang() {
   const hariIni = tanggalHariIniWIB();
   const tujuhHariLalu = new Date(hariIni);
@@ -135,6 +138,12 @@ async function ringkasanDashboardFixed(req, res) {
 }
 
 async function notifikasiAdminFixed(req, res) {
+  const sekarang = Date.now();
+
+  if (cacheNotifikasi && sekarang - cacheNotifikasi.dibuatPada < CACHE_NOTIFIKASI_MS) {
+    return res.json({ data: cacheNotifikasi.data });
+  }
+
   try {
     const jumlahAkunBaru = await prisma.pengguna.count({
       where: {
@@ -147,13 +156,15 @@ async function notifikasiAdminFixed(req, res) {
       where: { status: "menunggu" },
     });
 
-    return res.json({
-      data: {
-        akunBaru: jumlahAkunBaru,
-        izinBaru: jumlahIzinMenunggu,
-        total: jumlahAkunBaru + jumlahIzinMenunggu,
-      },
-    });
+    const data = {
+      akunBaru: jumlahAkunBaru,
+      izinBaru: jumlahIzinMenunggu,
+      total: jumlahAkunBaru + jumlahIzinMenunggu,
+    };
+
+    cacheNotifikasi = { dibuatPada: Date.now(), data };
+
+    return res.json({ data });
   } catch (error) {
     console.error("Gagal mengambil notifikasi Admin:", error);
     return res.status(500).json({
@@ -207,6 +218,9 @@ async function ubahStatusKaryawanFixed(req, res) {
         statusAkun: true,
       },
     });
+
+    // Status akun berubah, jadi hasil notifikasi harus langsung dianggap stale.
+    cacheNotifikasi = null;
 
     return res.json({
       pesan: `Status ${data.nama} diubah menjadi ${statusAkun}.`,
