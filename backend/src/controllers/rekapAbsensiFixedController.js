@@ -63,14 +63,57 @@ async function ambilRekapTanggal(req, res) {
     const tanggalDate = tanggalSebagaiDate(tanggal);
     if (!tanggalDate) return res.status(400).json({ pesan: "Tanggal rekap tidak valid." });
 
-    const [data, karyawanAktif, pengaturan, pengajuanDisetujui] = await Promise.all([
-      prisma.absensi.findMany({ where: { tanggal: tanggalDate }, include: { pengguna: { select: { id: true, nama: true, jabatan: true, divisi: true, kantor: { select: { id: true, namaKantor: true, alamat: true, latitude: true, longitude: true } } } } }, orderBy: [{ jamMasuk: "asc" }, { id: "asc" }] }),
-      prisma.pengguna.findMany({ where: { peran: "karyawan", statusAkun: "aktif" }, select: { id: true, nama: true, jabatan: true, divisi: true, kantor: { select: { id: true, namaKantor: true } } }, orderBy: { nama: "asc" } }),
-      prisma.pengaturanPotongan.upsert({ where: { id: 1 }, update: {}, create: { id: 1, potonganTelat: 10000, potonganAlpha: 15000, jamMasukStandar: JAM_MASUK_STANDAR_DEFAULT } }),
-      prisma.pengajuanIzin.findMany({ where: { tanggal: tanggalDate, status: "disetujui", pengguna: { peran: "karyawan", statusAkun: "aktif" } }, select: { penggunaId: true, jenis: true } }),
-    ]);
+    // Jalankan query database secara berurutan. Production memakai transaction
+    // pooler dengan connection_limit rendah, sehingga Promise.all di endpoint
+    // rekap dapat membuat beberapa operasi berebut koneksi yang sama.
+    const data = await prisma.absensi.findMany({
+      where: { tanggal: tanggalDate },
+      include: {
+        pengguna: {
+          select: {
+            id: true,
+            nama: true,
+            jabatan: true,
+            divisi: true,
+            kantor: {
+              select: { id: true, namaKantor: true, alamat: true, latitude: true, longitude: true },
+            },
+          },
+        },
+      },
+      orderBy: [{ jamMasuk: "asc" }, { id: "asc" }],
+    });
 
-    const jamMasukStandar = pengaturan?.jamMasukStandar || JAM_MASUK_STANDAR_DEFAULT;
+    const karyawanAktif = await prisma.pengguna.findMany({
+      where: { peran: "karyawan", statusAkun: "aktif" },
+      select: {
+        id: true,
+        nama: true,
+        jabatan: true,
+        divisi: true,
+        kantor: { select: { id: true, namaKantor: true } },
+      },
+      orderBy: { nama: "asc" },
+    });
+
+    const pengaturan = await prisma.pengaturanPotongan.findUnique({ where: { id: 1 } });
+    const pengaturanAman = pengaturan || {
+      id: 1,
+      potonganTelat: 10000,
+      potonganAlpha: 15000,
+      jamMasukStandar: JAM_MASUK_STANDAR_DEFAULT,
+    };
+
+    const pengajuanDisetujui = await prisma.pengajuanIzin.findMany({
+      where: {
+        tanggal: tanggalDate,
+        status: "disetujui",
+        pengguna: { peran: "karyawan", statusAkun: "aktif" },
+      },
+      select: { penggunaId: true, jenis: true },
+    });
+
+    const jamMasukStandar = pengaturanAman.jamMasukStandar || JAM_MASUK_STANDAR_DEFAULT;
     const semuaPathFoto = [];
     for (const item of data) {
       if (item.fotoMasuk && !item.fotoMasuk.startsWith("/uploads/")) semuaPathFoto.push(item.fotoMasuk);
@@ -103,11 +146,21 @@ async function ubahStatusTanpaAbsensi(req, res) {
     const tanggalDate = tanggalSebagaiDate(tanggal);
     if (!tanggalDate) return res.status(400).json({ pesan: "Tanggal absensi tidak valid." });
 
-    const [pengguna, existing, pengajuanDisetujui] = await Promise.all([
-      prisma.pengguna.findFirst({ where: { id: penggunaId, peran: "karyawan", statusAkun: "aktif" }, select: { id: true, nama: true } }),
-      prisma.absensi.findUnique({ where: { penggunaId_tanggal: { penggunaId, tanggal: tanggalDate } }, select: { id: true } }),
-      prisma.pengajuanIzin.findFirst({ where: { penggunaId, tanggal: tanggalDate, status: "disetujui" }, select: { id: true, jenis: true } }),
-    ]);
+    // Query tetap berurutan karena environment production menggunakan pool
+    // kecil; validasi ini hanya read dan tidak perlu dibuat paralel.
+    const pengguna = await prisma.pengguna.findFirst({
+      where: { id: penggunaId, peran: "karyawan", statusAkun: "aktif" },
+      select: { id: true, nama: true },
+    });
+    const existing = await prisma.absensi.findUnique({
+      where: { penggunaId_tanggal: { penggunaId, tanggal: tanggalDate } },
+      select: { id: true },
+    });
+    const pengajuanDisetujui = await prisma.pengajuanIzin.findFirst({
+      where: { penggunaId, tanggal: tanggalDate, status: "disetujui" },
+      select: { id: true, jenis: true },
+    });
+
     if (!pengguna) return res.status(404).json({ pesan: "Karyawan aktif tidak ditemukan." });
     if (existing) return res.status(409).json({ pesan: "Karyawan sudah memiliki record absensi. Gunakan edit status absensi biasa.", absensiId: existing.id });
     if (pengajuanDisetujui) return res.status(409).json({ pesan: `Pengajuan ${pengajuanDisetujui.jenis} karyawan ini sudah disetujui. Tidak perlu membuat status manual lagi.` });
