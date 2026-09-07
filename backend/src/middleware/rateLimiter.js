@@ -22,4 +22,29 @@ const batasDaftar = rateLimit({
   legacyHeaders: false,
 });
 
-module.exports = { batasLogin, batasDaftar };
+// Reset password admin adalah operasi sensitif. Batasi percobaan per IP
+// supaya endpoint tidak dapat dipanggil berulang-ulang secara agresif.
+const batasResetPassword = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { pesan: "Terlalu banyak percobaan reset password. Coba lagi dalam beberapa menit." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Ganti password juga sensitif, tetapi diberi sedikit ruang lebih longgar
+// karena pengguna bisa salah memasukkan password lama beberapa kali.
+const batasGantiPassword = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 8,
+  message: { pesan: "Terlalu banyak percobaan ganti password. Coba lagi dalam beberapa menit." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+module.exports = {
+  batasLogin,
+  batasDaftar,
+  batasResetPassword,
+  batasGantiPassword,
+};
