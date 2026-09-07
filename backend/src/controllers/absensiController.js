@@ -9,6 +9,9 @@ const { deleteFotoAbsensi } = require("../utils/supabaseStorage");
 // Nilai aktual dibaca dari PengaturanPotongan.jamMasukStandar agar
 // pengaturan Admin di halaman Gaji benar-benar dipakai oleh absensi.
 const JAM_BATAS_TEPAT_WAKTU_DEFAULT = "08:10:00";
+const HEADER_OFFLINE_SYNC = "X-Zaman-Background";
+const OFFLINE_SYNC_HEADER_VALUE = "offline-sync";
+const MAX_OFFLINE_CLOCK_DRIFT_MS = 24 * 60 * 60 * 1000;
 
 function tanggalHariIni() {
   return tanggalHariIniWIB();
@@ -21,11 +24,6 @@ function jamKeMenit(jam) {
   if (jamAngka < 0 || jamAngka > 23 || menit < 0 || menit > 59) return null;
   // Aturan keterlambatan berbasis MENIT, bukan detik.
   return jamAngka * 60 + menit;
-}
-
-function menitSekarangWIB(date = new Date()) {
-  const jam = jamSekarangWIB(date);
-  return Math.floor(jam * 60);
 }
 
 async function ambilBatasTepatWaktu() {
@@ -52,9 +50,31 @@ function koordinatDariRequest(latitude, longitude) {
   return { latitude: lat, longitude: lng };
 }
 
-// Waktu absensi ditetapkan oleh SERVER, bukan jam perangkat klien.
-function waktuAbsensiServer() {
-  return new Date();
+// Online: gunakan waktu server sebagai sumber kebenaran.
+// Offline-sync: gunakan waktu asli ketika karyawan menekan "Kirim Absen",
+// karena saat itu memang belum ada koneksi sehingga waktu server belum tersedia.
+function waktuAbsensiDariRequest(req) {
+  const sekarang = new Date();
+  if (req.get(HEADER_OFFLINE_SYNC) !== OFFLINE_SYNC_HEADER_VALUE) return sekarang;
+
+  const raw = String(req.body?.waktuAsli || "").trim();
+  if (!raw) return sekarang;
+
+  const kandidat = new Date(raw);
+  if (Number.isNaN(kandidat.getTime())) return sekarang;
+
+  // Tolak timestamp offline yang terlalu jauh dari waktu server. Ini menjaga
+  // data tetap masuk akal tanpa menghilangkan kemampuan sinkronisasi offline.
+  if (Math.abs(kandidat.getTime() - sekarang.getTime()) > MAX_OFFLINE_CLOCK_DRIFT_MS) {
+    return sekarang;
+  }
+
+  return kandidat;
+}
+
+function menitSekarangWIB(date = new Date()) {
+  const jam = jamSekarangWIB(date);
+  return Math.floor(jam * 60);
 }
 
 async function absenMasuk(req, res) {
@@ -90,7 +110,7 @@ async function absenMasuk(req, res) {
       return res.status(409).json({ pesan: "Anda sudah melakukan absen masuk hari ini." });
     }
 
-    const waktuServer = waktuAbsensiServer();
+    const waktuServer = waktuAbsensiDariRequest(req);
     const menitServerWIB = menitSekarangWIB(waktuServer);
     const batasTepatWaktu = await ambilBatasTepatWaktu();
     const koordinat = koordinatDariRequest(latitude, longitude);
@@ -215,7 +235,7 @@ async function absenPulang(req, res) {
         jamPulang: null,
       },
       data: {
-        jamPulang: waktuAbsensiServer(),
+        jamPulang: waktuAbsensiDariRequest(req),
         fotoPulang: fotoPath,
         latitudePulang: koordinat.latitude,
         longitudePulang: koordinat.longitude,
