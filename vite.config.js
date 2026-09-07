@@ -58,6 +58,13 @@ export default defineConfig({
   // risiko syntax JavaScript modern menjadi sumber gagal memuat halaman.
   build: {
     target: "es2019",
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          geospasial: ["@turf/turf"],
+        },
+      },
+    },
   },
 
   server: {
