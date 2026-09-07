@@ -17,7 +17,7 @@
     "prisma:studio": "prisma studio --schema=backend/prisma/schema.prisma"
   },
   "dependencies": {
-    "@prisma/client": "^5.19.1",
+    "@prisma/client": "5.22.0",
     "@supabase/supabase-js": "^2.112.3",
     "@turf/turf": "^7.4.0",
     "bcryptjs": "^2.4.3",
@@ -46,7 +46,6 @@
     "eslint-plugin-react-refresh": "^0.5.3",
     "globals": "^17.7.0",
     "nodemon": "^3.1.4",
-    "prisma": "^5.22.0",
     "vite": "^8.2.0",
     "vite-plugin-pwa": "^1.3.0"
   }
