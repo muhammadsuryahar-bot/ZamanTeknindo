@@ -28,6 +28,7 @@ async function daftarPerangkatKeServer(subscription) {
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${getToken()}`,
+      "X-Zaman-Background": "web-push-registration",
     },
     body: JSON.stringify(subscription.toJSON()),
   });
@@ -48,7 +49,10 @@ async function registrasikanPush() {
   if (!sw) return false;
 
   const infoResponse = await fetch(`${API_URL}/notifikasi/info`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
+    headers: {
+      Authorization: `Bearer ${getToken()}`,
+      "X-Zaman-Background": "web-push-registration",
+    },
   });
   if (!infoResponse.ok) return false;
   const info = await infoResponse.json().catch(() => ({}));
@@ -117,12 +121,11 @@ export function pasangWebPushOtomatis() {
     return prosesRegistrasi;
   };
 
-  // Cek otomatis ketika sesi login sudah tersedia.
+  // Jalankan sekali saat sesi login tersedia.
   void sync(false);
 
-  // Tidak ada tombol "Aktifkan Notifikasi". Browser tetap wajib mendapat
-  // user activation untuk menampilkan dialog izin. Karena itu interaksi
-  // pertama karyawan/Admin setelah login dipakai untuk meminta izin satu kali.
+  // Browser memerlukan user activation untuk meminta izin. Interaksi pertama
+  // setelah login digunakan sekali saja; tidak ada polling berkala.
   const handlerInteraksiPertama = () => {
     if (!penggunaTerdeteksi && !getPenggunaLogin()) return;
     if (Notification.permission === "granted") {
@@ -137,7 +140,12 @@ export function pasangWebPushOtomatis() {
   window.addEventListener("click", handlerInteraksiPertama, true);
   window.addEventListener("touchstart", handlerInteraksiPertama, true);
 
-  window.setInterval(() => void sync(false), 15000);
+  // Saat tab/PWA kembali terlihat, lakukan satu sinkronisasi ringan untuk
+  // memastikan subscription perangkat masih terdaftar. Tidak ada interval.
+  const ketikaTerlihat = () => {
+    if (document.visibilityState === "visible") void sync(false);
+  };
+  document.addEventListener("visibilitychange", ketikaTerlihat);
 
   navigator.serviceWorker?.addEventListener("message", (event) => {
     if (event?.data?.type === "ZAMAN_TEKNINDO_PUSH_READY") void sync(false);
