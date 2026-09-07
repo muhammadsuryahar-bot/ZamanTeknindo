@@ -1,5 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { registerSW } from 'virtual:pwa-register'
 import './index.css'
 import App from './App.jsx'
 import { pasangPenerjemahSesiKedaluwarsa, getToken, getPenggunaLogin, API_URL } from './utils/api.js'
@@ -78,23 +79,92 @@ if (typeof window !== 'undefined') {
   }, 5 * 60 * 1000)
 }
 
-// Pada PWA terpasang, periksa service worker tanpa mengubah halaman aktif.
-// Update baru dibiarkan menunggu agar tidak memutus kamera/absensi yang sedang berjalan.
+// PWA memakai mode prompt: service worker boleh menyiapkan versi baru di
+// belakang layar, tetapi reload hanya dilakukan ketika aman sehingga tidak
+// memutus kamera/absensi yang sedang berlangsung.
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-  const periksaUpdatePWA = async () => {
-    if (!navigator.onLine) return
-    try {
-      const registrasi = await navigator.serviceWorker.getRegistration('/')
-      await registrasi?.update()
-    } catch (error) {
-      console.warn('Pemeriksaan update PWA belum berhasil:', error)
+  let updatePWA = null
+  let pembaruanTertunda = false
+  let penjagaPembaruan = null
+
+  const kameraMasihAktif = () => {
+    const videoElements = document.querySelectorAll('.cameraSection video')
+
+    for (const video of videoElements) {
+      if (!(video instanceof HTMLVideoElement)) continue
+      const stream = video.srcObject
+      if (!(stream instanceof MediaStream)) continue
+      if (stream.getVideoTracks().some((track) => track.readyState === 'live')) {
+        return true
+      }
     }
+
+    return false
   }
 
-  window.addEventListener('online', () => { void periksaUpdatePWA() })
-  window.addEventListener('pageshow', () => { void periksaUpdatePWA() })
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') void periksaUpdatePWA()
+  const terapkanPembaruanJikaAman = () => {
+    if (!pembaruanTertunda || typeof updatePWA !== 'function') return
+
+    // Jangan reload ketika kamera masih live. Setelah kamera dilepas,
+    // pembaruan diterapkan otomatis tanpa perlu karyawan memasang ulang PWA.
+    if (kameraMasihAktif()) {
+      if (penjagaPembaruan !== null) return
+      penjagaPembaruan = window.setInterval(() => {
+        if (!kameraMasihAktif()) {
+          if (penjagaPembaruan !== null) {
+            window.clearInterval(penjagaPembaruan)
+            penjagaPembaruan = null
+          }
+          pembaruanTertunda = false
+          void updatePWA()
+        }
+      }, 1000)
+      return
+    }
+
+    pembaruanTertunda = false
+    if (penjagaPembaruan !== null) {
+      window.clearInterval(penjagaPembaruan)
+      penjagaPembaruan = null
+    }
+    void updatePWA()
+  }
+
+  updatePWA = registerSW({
+    immediate: true,
+    onNeedRefresh() {
+      pembaruanTertunda = true
+      terapkanPembaruanJikaAman()
+    },
+    onRegisteredSW(swUrl, registration) {
+      if (!registration) return
+
+      const periksaUpdatePWA = async () => {
+        if (!navigator.onLine) return
+        try {
+          await registration.update()
+        } catch (error) {
+          console.warn('Pemeriksaan update PWA belum berhasil:', error)
+        }
+      }
+
+      window.addEventListener('online', () => {
+        void periksaUpdatePWA()
+        terapkanPembaruanJikaAman()
+      })
+      window.addEventListener('pageshow', () => {
+        void periksaUpdatePWA()
+        terapkanPembaruanJikaAman()
+      })
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          void periksaUpdatePWA()
+          terapkanPembaruanJikaAman()
+        }
+      })
+
+      void periksaUpdatePWA()
+    },
   })
 
   const standalone =
@@ -104,8 +174,6 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   if (standalone && navigator.storage?.persist) {
     void navigator.storage.persist().catch(() => {})
   }
-
-  void periksaUpdatePWA()
 }
 
 // Pada versi DashboardKaryawan saat ini, status "kamera siap" disimpan di ref
