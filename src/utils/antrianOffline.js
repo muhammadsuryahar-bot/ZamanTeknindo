@@ -6,10 +6,36 @@
 // boleh dikirim jika penggunaId item sama dengan pengguna yang sedang login.
 
 const NAMA_DB = "absensi_zaman_offline";
-const VERSI_DB = 2;
+const VERSI_DB = 3;
 const NAMA_STORE = "antrian_absen";
 const REQUEST_TIMEOUT_MS = 15000;
 const HEADER_BACKGROUND = "X-Zaman-Background";
+const TIMEZONE_WIB = "Asia/Jakarta";
+
+function tanggalWIBDariISO(waktu) {
+  if (!waktu) return null;
+  const date = new Date(waktu);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const bagian = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TIMEZONE_WIB,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const hasil = {};
+  for (const part of bagian) {
+    if (part.type !== "literal") hasil[part.type] = part.value;
+  }
+
+  if (!hasil.year || !hasil.month || !hasil.day) return null;
+  return `${hasil.year}-${hasil.month}-${hasil.day}`;
+}
+
+function tanggalWIBHariIni() {
+  return tanggalWIBDariISO(new Date().toISOString());
+}
 
 function bukaDb() {
   return new Promise((resolve, reject) => {
@@ -30,6 +56,8 @@ export async function simpanKeAntrian(item) {
     throw new Error("Identitas pengguna wajib disimpan bersama antrian offline.");
   }
 
+  const waktuAsli = item?.waktuAsli || new Date().toISOString();
+  const tanggalAbsensi = item?.tanggalAbsensi || tanggalWIBDariISO(waktuAsli);
   const db = await bukaDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(NAMA_STORE, "readwrite");
@@ -37,6 +65,8 @@ export async function simpanKeAntrian(item) {
     const request = store.add({
       ...item,
       penggunaId: Number(item.penggunaId),
+      waktuAsli,
+      tanggalAbsensi,
       disimpanPada: Date.now(),
       percobaanKirim: Number(item.percobaanKirim) || 0,
       terakhirGagalPada: null,
@@ -108,9 +138,6 @@ async function catatKegagalanSementara(id, status) {
   });
 }
 
-// Hanya buang item ketika server sudah memberi jawaban yang menunjukkan
-// bahwa tindakan tersebut memang sudah tidak boleh/ tidak perlu dikirim lagi.
-// Error validasi lain dipertahankan agar data offline tidak hilang.
 function statusBolehDihapus(status, pesan) {
   const teks = String(pesan || "").toLowerCase();
 
@@ -161,11 +188,19 @@ async function rekonsiliasiAntrian({ apiUrl, getToken, penggunaId }) {
 
     const data = await respons.json();
     const tahap = data?.tahap;
+    const tanggalServer = String(data?.tanggal || tanggalWIBHariIni() || "");
     const semua = await ambilSemuaAntrian();
     let dihapus = 0;
 
     for (const item of semua) {
       if (Number(item.penggunaId) !== penggunaIdAktif) continue;
+
+      // Item lama yang tidak mempunyai tanggal sengaja tidak dihapus otomatis.
+      // Ini mencegah absensi dari hari sebelumnya ikut dibuang ketika status
+      // hari ini menunjukkan sudah masuk/selesai.
+      const tanggalItem = item.tanggalAbsensi || tanggalWIBDariISO(item.waktuAsli);
+      if (!tanggalItem || !/^\d{4}-\d{2}-\d{2}$/.test(tanggalItem)) continue;
+      if (tanggalItem !== tanggalServer) continue;
 
       const sudahTercatat =
         tahap === "tidak_perlu_absen" ||
@@ -185,7 +220,6 @@ async function rekonsiliasiAntrian({ apiUrl, getToken, penggunaId }) {
   }
 }
 
-// Public API dipertahankan agar kompatibel dengan kode Dashboard/main lama.
 export async function verifikasiDanBersihkanAntrian(args) {
   return rekonsiliasiAntrian(args);
 }
@@ -193,8 +227,6 @@ export async function verifikasiDanBersihkanAntrian(args) {
 let sinkronisasiAktif = null;
 
 export async function sinkronkanAntrian({ apiUrl, getToken, penggunaId }) {
-  // Cegah Dashboard + recovery global mengirim item antrean yang sama
-  // secara bersamaan pada perangkat yang sama.
   if (sinkronisasiAktif) return sinkronisasiAktif;
 
   sinkronisasiAktif = (async () => {
@@ -222,7 +254,6 @@ export async function sinkronkanAntrian({ apiUrl, getToken, penggunaId }) {
         continue;
       }
 
-      // Data lama yang korup jangan dilempar ke server sebagai multipart.
       if (!item.foto || !item.endpoint || !["masuk", "pulang"].includes(item.endpoint)) {
         await catatKegagalanSementara(item.id, "INVALID_LOCAL_QUEUE");
         gagal++;
@@ -282,8 +313,6 @@ export async function sinkronkanAntrian({ apiUrl, getToken, penggunaId }) {
       }
     }
 
-    // Selalu cek keadaan server sesudah batch, termasuk skenario response
-    // hilang setelah server sebenarnya berhasil menyimpan absensi.
     const rekonsiliasi = await rekonsiliasiAntrian({ apiUrl, getToken, penggunaId });
 
     return {
