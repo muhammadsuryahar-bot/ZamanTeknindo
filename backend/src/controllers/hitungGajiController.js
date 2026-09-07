@@ -157,12 +157,14 @@ async function siapkanKonteksGaji(tahun, bulan) {
 
 async function hitungGajiKaryawan(penggunaId, tahun, bulan) {
   const { pengaturan, hariKerjaDihitung, awalBulan, akhirBulan } = await siapkanKonteksGaji(tahun, bulan);
-  const [gajiData, semuaAbsensi] = await Promise.all([
-    prisma.gajiKaryawan.findUnique({ where: { penggunaId } }),
-    prisma.absensi.findMany({
-      where: { penggunaId, tanggal: { gte: awalBulan, lte: akhirBulan } },
-    }),
-  ]);
+
+  // Production memakai transaction pooler dengan connection_limit kecil.
+  // Baca berurutan supaya satu perhitungan gaji tidak berebut koneksi dengan
+  // query absensi/gaji lain dan memicu P2024.
+  const gajiData = await prisma.gajiKaryawan.findUnique({ where: { penggunaId } });
+  const semuaAbsensi = await prisma.absensi.findMany({
+    where: { penggunaId, tanggal: { gte: awalBulan, lte: akhirBulan } },
+  });
 
   return hitungDariData({ penggunaId, tahun, bulan, gajiData, pengaturan, hariKerjaDihitung, petaAbsensi: buatPetaAbsensi(semuaAbsensi) });
 }
@@ -191,11 +193,19 @@ async function hitungDanSimpanSemua(req, res) {
     const { tahun, bulan } = validasiTahunBulan(req);
     const { pengaturan, hariKerjaDihitung, awalBulan, akhirBulan } = await siapkanKonteksGaji(tahun, bulan);
 
-    const [karyawanAktif, semuaGaji, semuaAbsensi] = await Promise.all([
-      prisma.pengguna.findMany({ where: { peran: "karyawan", statusAkun: "aktif" }, select: { id: true, nama: true } }),
-      prisma.gajiKaryawan.findMany(),
-      prisma.absensi.findMany({ where: { tanggal: { gte: awalBulan, lte: akhirBulan }, pengguna: { peran: "karyawan", statusAkun: "aktif" } } }),
-    ]);
+    // Jalankan query berurutan karena pool production sengaja kecil.
+    // Urutannya tidak mengubah hasil perhitungan, hanya mengurangi perebutan koneksi.
+    const karyawanAktif = await prisma.pengguna.findMany({
+      where: { peran: "karyawan", statusAkun: "aktif" },
+      select: { id: true, nama: true },
+    });
+    const semuaGaji = await prisma.gajiKaryawan.findMany();
+    const semuaAbsensi = await prisma.absensi.findMany({
+      where: {
+        tanggal: { gte: awalBulan, lte: akhirBulan },
+        pengguna: { peran: "karyawan", statusAkun: "aktif" },
+      },
+    });
 
     const petaGaji = new Map(semuaGaji.map((item) => [item.penggunaId, item]));
     const petaAbsensiPerKaryawan = new Map();
