@@ -63,9 +63,6 @@ async function ambilRekapTanggal(req, res) {
     const tanggalDate = tanggalSebagaiDate(tanggal);
     if (!tanggalDate) return res.status(400).json({ pesan: "Tanggal rekap tidak valid." });
 
-    // Jalankan query database secara berurutan. Production memakai transaction
-    // pooler dengan connection_limit rendah, sehingga Promise.all di endpoint
-    // rekap dapat membuat beberapa operasi berebut koneksi yang sama.
     const data = await prisma.absensi.findMany({
       where: { tanggal: tanggalDate },
       include: {
@@ -146,8 +143,6 @@ async function ubahStatusTanpaAbsensi(req, res) {
     const tanggalDate = tanggalSebagaiDate(tanggal);
     if (!tanggalDate) return res.status(400).json({ pesan: "Tanggal absensi tidak valid." });
 
-    // Query tetap berurutan karena environment production menggunakan pool
-    // kecil; validasi ini hanya read dan tidak perlu dibuat paralel.
     const pengguna = await prisma.pengguna.findFirst({
       where: { id: penggunaId, peran: "karyawan", statusAkun: "aktif" },
       select: { id: true, nama: true },
@@ -165,8 +160,25 @@ async function ubahStatusTanpaAbsensi(req, res) {
     if (existing) return res.status(409).json({ pesan: "Karyawan sudah memiliki record absensi. Gunakan edit status absensi biasa.", absensiId: existing.id });
     if (pengajuanDisetujui) return res.status(409).json({ pesan: `Pengajuan ${pengajuanDisetujui.jenis} karyawan ini sudah disetujui. Tidak perlu membuat status manual lagi.` });
 
-    const absensi = await prisma.absensi.create({ data: { penggunaId, tanggal: tanggalDate, statusOtomatis: statusFinal === "alpha" ? "alpha" : null, statusFinal, catatanAdmin, dieditOleh: adminId, waktuEdit: new Date() } });
-    return res.status(201).json({ pesan: `Status ${pengguna.nama} pada ${tanggal} berhasil dicatat sebagai ${statusFinal}.`, data: absensi });
+    try {
+      const absensi = await prisma.absensi.create({
+        data: {
+          penggunaId,
+          tanggal: tanggalDate,
+          statusOtomatis: statusFinal === "alpha" ? "alpha" : null,
+          statusFinal,
+          catatanAdmin,
+          dieditOleh: adminId,
+          waktuEdit: new Date(),
+        },
+      });
+      return res.status(201).json({ pesan: `Status ${pengguna.nama} pada ${tanggal} berhasil dicatat sebagai ${statusFinal}.`, data: absensi });
+    } catch (error) {
+      if (error?.code === "P2002") {
+        return res.status(409).json({ pesan: "Karyawan sudah memiliki record absensi untuk tanggal tersebut. Gunakan edit status absensi biasa." });
+      }
+      throw error;
+    }
   } catch (error) {
     console.error("Gagal memberi status pada karyawan tanpa absensi:", error);
     return res.status(500).json({ pesan: "Terjadi kesalahan pada server." });
