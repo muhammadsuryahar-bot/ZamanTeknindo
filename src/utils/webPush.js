@@ -49,7 +49,6 @@ async function registrasikanPush() {
 
   const sekarang = Date.now();
   if (sekarang - terakhirSinkronPush < INTERVAL_SINKRON_PUSH_MS) return false;
-  terakhirSinkronPush = sekarang;
 
   const sw = await ambilServiceWorker();
   if (!sw) return false;
@@ -73,6 +72,7 @@ async function registrasikanPush() {
   }
 
   await daftarPerangkatKeServer(subscription);
+  terakhirSinkronPush = Date.now();
   localStorage.setItem("zaman-teknindo:web-push-terdaftar:v2", "1");
   return true;
 }
