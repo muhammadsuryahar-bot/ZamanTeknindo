@@ -179,15 +179,19 @@ async function simpanGajiMassal(req, res) {
     const missing = emails.filter((email) => !byEmail.has(email));
     if (missing.length) return res.status(400).json({ pesan: `${missing.length} email tidak ditemukan pada karyawan aktif. Tidak ada data yang disimpan.` });
 
-    await prisma.$transaction(async (tx) => {
-      for (const row of rows) {
-        await tx.gajiKaryawan.upsert({
-          where: { penggunaId: byEmail.get(row.email) },
-          update: { gajiPokok: row.gajiPokok },
-          create: { penggunaId: byEmail.get(row.email), gajiPokok: row.gajiPokok },
-        });
-      }
+    // Gunakan array transaction Prisma agar seluruh import tetap atomik,
+    // tetapi tanpa interactive transaction callback yang menahan koneksi
+    // sambil menjalankan 500 await secara berurutan di JavaScript.
+    const operasi = rows.map((row) => {
+      const penggunaId = byEmail.get(row.email);
+      return prisma.gajiKaryawan.upsert({
+        where: { penggunaId },
+        update: { gajiPokok: row.gajiPokok },
+        create: { penggunaId, gajiPokok: row.gajiPokok },
+      });
     });
+
+    await prisma.$transaction(operasi);
 
     return res.json({ pesan: `${rows.length} gaji pokok berhasil disimpan.` });
   } catch (error) {
