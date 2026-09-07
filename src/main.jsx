@@ -15,23 +15,54 @@ if (typeof window !== 'undefined' && 'caches' in window) {
 // tertangkap secara keliru lalu memindahkan halaman pengguna.
 if (typeof window !== 'undefined' && !window.__pwaChunkRecoveryTerpasang) {
   const KEY = 'zaman-teknindo:pwa-chunk-recovery'
-  const BATAS_MS = 30_000
+  const BATAS_MS = 5 * 60 * 1000
 
-  const cobaPulihkanChunk = () => {
+  const bersihkanCacheDanServiceWorker = async () => {
+    try {
+      if ('caches' in window) {
+        const namaCache = await caches.keys()
+        await Promise.all(
+          namaCache
+            .filter((nama) => /workbox|precache|aset-halaman/i.test(nama))
+            .map((nama) => caches.delete(nama)),
+        )
+      }
+    } catch (error) {
+      console.warn('Pembersihan cache PWA gagal:', error)
+    }
+
+    try {
+      if ('serviceWorker' in navigator) {
+        const registrasi = await navigator.serviceWorker.getRegistrations()
+        await Promise.all(registrasi.map((item) => item.unregister()))
+      }
+    } catch (error) {
+      console.warn('Pembersihan service worker PWA gagal:', error)
+    }
+  }
+
+  const cobaPulihkanChunk = async () => {
     try {
       const sebelumnya = Number(sessionStorage.getItem(KEY) || 0)
       const sekarang = Date.now()
       if (sebelumnya && sekarang - sebelumnya < BATAS_MS) return
       sessionStorage.setItem(KEY, String(sekarang))
+
+      await bersihkanCacheDanServiceWorker()
       window.location.reload()
-    } catch {
-      window.location.reload()
+    } catch (error) {
+      console.warn('Recovery chunk PWA gagal:', error)
+      try {
+        window.location.reload()
+      } catch {
+        // Biarkan halaman tetap hidup bila reload juga tidak tersedia.
+      }
     }
   }
 
   window.addEventListener('vite:preloadError', (event) => {
     event.preventDefault()
-    cobaPulihkanChunk()
+    void cobaPulihkanChunk()
   })
 
   window.__pwaChunkRecoveryTerpasang = true
@@ -44,7 +75,7 @@ if (typeof window !== 'undefined') {
     } catch {
       // Abaikan bila sessionStorage tidak tersedia.
     }
-  }, 30_000)
+  }, 5 * 60 * 1000)
 }
 
 // Dipasang SEKALI di sini, sebelum aplikasi mulai render, supaya berlaku
