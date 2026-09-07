@@ -54,6 +54,7 @@ const originYangDiizinkan = new Set(
 const polaIpLokal =
   /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}):\d+$/;
 const polaNgrok = /^https:\/\/[a-z0-9-]+\.ngrok-free\.dev$/;
+const isProduction = process.env.VERCEL_ENV === "production";
 
 app.use(
   cors({
@@ -61,9 +62,10 @@ app.use(
       if (!origin) return callback(null, true);
 
       const originNormal = normalisasiOrigin(origin);
+      const bolehDevelopment = !isProduction;
 
-      if (polaIpLokal.test(origin)) return callback(null, true);
-      if (polaNgrok.test(originNormal)) return callback(null, true);
+      if (bolehDevelopment && polaIpLokal.test(origin)) return callback(null, true);
+      if (bolehDevelopment && polaNgrok.test(originNormal)) return callback(null, true);
       if (originYangDiizinkan.has(originNormal)) return callback(null, true);
 
       return callback(new Error("Domain ini tidak diizinkan mengakses API."));
