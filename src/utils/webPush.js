@@ -77,6 +77,39 @@ async function registrasikanPush() {
   return true;
 }
 
+async function tesPushAdminDariUrl() {
+  if (typeof window === "undefined") return;
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("tes-notifikasi") !== "1") return;
+
+  const pengguna = getPenggunaLogin();
+  const token = getToken();
+  if (!pengguna || !token || pengguna.peran !== "admin") return;
+
+  try {
+    const terdaftar = await registrasikanPush();
+    if (!terdaftar && Notification.permission !== "granted") return;
+
+    const res = await fetch(`${API_URL}/notifikasi/test-admin`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "X-Zaman-Background": "web-push-test",
+      },
+      body: JSON.stringify({}),
+    });
+    const data = await res.json().catch(() => ({}));
+    console.info("Hasil tes Web Push:", data);
+
+    const url = new URL(window.location.href);
+    url.searchParams.delete("tes-notifikasi");
+    window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+  } catch (error) {
+    console.error("Tes Web Push dari URL gagal:", error);
+  }
+}
+
 async function mintaIzinDanDaftar() {
   if (typeof Notification === "undefined") return false;
 
@@ -127,7 +160,9 @@ export function pasangWebPushOtomatis() {
     return prosesRegistrasi;
   };
 
-  void sync(false);
+  void sync(false).finally(() => {
+    void tesPushAdminDariUrl();
+  });
 
   const handlerInteraksiPertama = () => {
     if (!penggunaTerdeteksi && !getPenggunaLogin()) return;
