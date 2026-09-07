@@ -79,19 +79,19 @@ function statusEfektif(
 ) {
   if (!absensi) return "alpha";
 
-  // dieditOleh hanya terisi saat Admin benar-benar melakukan override manual.
+  // Status yang sudah tersimpan menjadi sumber kebenaran untuk riwayat.
+  // Perubahan pengaturan jam standar berlaku untuk absensi baru, bukan
+  // mengubah status absensi yang sudah terjadi.
   if (absensi.dieditOleh != null) {
     return absensi.statusFinal || absensi.statusOtomatis || "alpha";
   }
 
-  // Status otomatis selalu dihitung dari jam masuk aktual agar perubahan
-  // pengaturan batas waktu tidak dikunci oleh statusFinal lama.
-  const statusDariWaktu = statusOtomatisDariWaktu(
-    absensi.jamMasuk,
-    jamMasukStandar,
-  );
+  if (absensi.statusOtomatis || absensi.statusFinal) {
+    return absensi.statusFinal || absensi.statusOtomatis || "alpha";
+  }
 
-  return statusDariWaktu || absensi.statusOtomatis || absensi.statusFinal || "alpha";
+  // Fallback hanya untuk record lama yang belum memiliki status tersimpan.
+  return statusOtomatisDariWaktu(absensi.jamMasuk, jamMasukStandar) || "alpha";
 }
 
 module.exports = {
