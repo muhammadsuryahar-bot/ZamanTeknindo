@@ -2,6 +2,7 @@ const express = require("express");
 const multer = require("multer");
 const router = express.Router();
 const { cekLogin, cekAdmin } = require("../middleware/authMiddleware");
+const { batasResetPassword } = require("../middleware/rateLimiter");
 const {
   daftarMenungguKonfirmasi,
   editStatusAbsensi,
@@ -151,7 +152,7 @@ router.put("/akun/:id/aktifkan", aktifkanAkunFixed);
 router.get("/karyawan", daftarKaryawanFixed);
 router.put("/karyawan/:id", ubahProfilKaryawan);
 router.put("/karyawan/:id/status", validasiStatusAkun, ubahStatusKaryawanFixed);
-router.put("/karyawan/:id/reset-password", resetPasswordOlehAdmin);
+router.put("/karyawan/:id/reset-password", batasResetPassword, resetPasswordOlehAdmin);
 
 router.get("/rekap-hari-ini", rekapHariIniFixed);
 router.get("/rekap-tanggal", ambilRekapTanggal);
