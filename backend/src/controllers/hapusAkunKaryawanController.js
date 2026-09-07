@@ -57,15 +57,9 @@ async function hapusAkunKaryawan(req, res) {
       ...izin.map((item) => item.fotoSurat),
     ].filter(Boolean);
 
-    // Bersihkan object Storage dahulu. Kalau gagal, akun TIDAK dihapus,
-    // supaya tidak meninggalkan file foto yatim di Storage.
-    if (fotoYangPerluDihapus.length > 0) {
-      await deleteFotoAbsensiBatch(fotoYangPerluDihapus);
-    }
-
-    // Hapus semua relasi database secara eksplisit agar tidak tergantung
-    // ON DELETE CASCADE dan tetap cocok dengan foreign key schema sekarang.
-    // Urutan dibuat dari tabel anak -> tabel induk.
+    // Hapus relasi database lebih dahulu dan pastikan transaksi berhasil.
+    // Ini mencegah kondisi akun masih ada tetapi foto yang dirujuk database
+    // sudah terhapus apabila transaksi database gagal.
     const hasil = await prisma.$transaction(async (tx) => {
       const jumlahLaporanGaji = await tx.laporanGaji.deleteMany({
         where: { penggunaId: id },
@@ -108,18 +102,39 @@ async function hapusAkunKaryawan(req, res) {
       };
     });
 
+    // Database sudah konsisten dan akun benar-benar terhapus.
+    // Storage adalah layanan terpisah, jadi kegagalan cleanup tidak boleh
+    // membatalkan hasil transaksi database yang sudah sukses. Jika gagal,
+    // kirim peringatan agar admin bisa mengetahui ada file yatim yang perlu
+    // dibersihkan, tetapi jangan mengembalikan status gagal palsu.
+    let peringatanStorage = null;
+    let jumlahFotoDihapus = 0;
+
+    if (fotoYangPerluDihapus.length > 0) {
+      try {
+        const hasilStorage = await deleteFotoAbsensiBatch(fotoYangPerluDihapus);
+        jumlahFotoDihapus = hasilStorage?.jumlahDihapus || 0;
+      } catch (error) {
+        peringatanStorage =
+          "Akun berhasil dihapus, tetapi sebagian foto di Storage belum dapat dibersihkan. Coba cleanup Storage kembali.";
+        console.error("Cleanup foto Storage setelah hapus akun gagal:", error);
+      }
+    }
+
     return res.json({
       pesan: `Akun ${hasil.akun.nama} (${hasil.akun.email}) berhasil dihapus permanen.`,
       data: {
         id: hasil.akun.id,
         nama: hasil.akun.nama,
         email: hasil.akun.email,
-        jumlahFotoDihapus: fotoYangPerluDihapus.length,
+        jumlahFotoDihapus,
+        jumlahFotoTerdata: fotoYangPerluDihapus.length,
         jumlahAbsensiDihapus: hasil.jumlahAbsensi,
         jumlahGajiDihapus: hasil.jumlahGajiKaryawan,
         jumlahLaporanGajiDihapus: hasil.jumlahLaporanGaji,
         jumlahPengajuanDihapus: hasil.jumlahPengajuanSebagaiPengaju,
       },
+      ...(peringatanStorage ? { peringatan: peringatanStorage } : {}),
     });
   } catch (error) {
     console.error("Gagal menghapus akun karyawan:", error);
