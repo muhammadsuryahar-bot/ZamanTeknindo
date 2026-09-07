@@ -42,13 +42,18 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         navigateFallbackDenylist: [/^\/api/, /^\/uploads/],
         cleanupOutdatedCaches: true,
-        // Semua bundle JS/CSS yang dibuat Vite ikut diprecache.
-        // Ini menghindari kombinasi cache lama + lazy chunk baru yang
-        // sebelumnya bisa membuat PWA stuck/blank saat versi berubah.
         runtimeCaching: [],
       },
     }),
   ],
+
+  // Kompilasi syntax JS ke target yang lebih ramah perangkat/browser lama.
+  // Ini tidak menambahkan polyfill API yang tidak tersedia, tetapi mengurangi
+  // risiko syntax JavaScript modern menjadi sumber gagal memuat halaman.
+  build: {
+    target: "es2019",
+  },
+
   server: {
     host: true,
     allowedHosts: [".ngrok-free.dev"],
