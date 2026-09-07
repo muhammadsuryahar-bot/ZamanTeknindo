@@ -62,6 +62,42 @@ function permintaanBackground(argumen) {
   return Boolean(nilaiHeader(argumen, HEADER_BACKGROUND));
 }
 
+function tokenSudahKedaluwarsa(token) {
+  if (!token) return false;
+
+  try {
+    const bagian = String(token).split(".");
+    if (bagian.length !== 3) return false;
+
+    const payload = JSON.parse(
+      decodeURIComponent(
+        atob(bagian[1].replace(/-/g, "+").replace(/_/g, "/"))
+          .split("")
+          .map((karakter) => `%${`00${karakter.charCodeAt(0).toString(16)}`.slice(-2)}`)
+          .join(""),
+      ),
+    );
+
+    return Number.isFinite(Number(payload?.exp)) && Number(payload.exp) <= Math.floor(Date.now() / 1000);
+  } catch {
+    // Token rusak tetap dibiarkan ke backend agar backend yang menentukan
+    // apakah token benar-benar invalid. Fungsi ini khusus mendeteksi expiry.
+    return false;
+  }
+}
+
+function logoutKarenaTokenExpired() {
+  hapusSesiLogin();
+  try {
+    sessionStorage.setItem(
+      "pesanSetelahLogout",
+      "Sesi login sudah berakhir. Silakan login kembali.",
+    );
+  } catch {
+    // Abaikan bila sessionStorage tidak tersedia.
+  }
+}
+
 function tanggalRekapAktif() {
   if (typeof window === "undefined") return null;
 
@@ -127,6 +163,30 @@ export function pasangPenerjemahSesiKedaluwarsa() {
     const argumenDenganTanggal = [urlPermintaan, argumen[1]];
     const iniStatusAbsensi = urlPermintaan.includes("/api/absensi/status-hari-ini");
     const iniBackground = permintaanBackground(argumen);
+    const permintaanKeBackendKita = urlPermintaan.includes("/api/");
+    const iniPermintaanAuth = urlPermintaan.includes("/api/auth/");
+
+    // Jangan biarkan halaman menembakkan request API dengan JWT yang sudah
+    // pasti expired. Ini mencegah lonjakan 401 "jwt expired" di server dan
+    // membuat sesi berakhir dengan alur yang konsisten.
+    if (permintaanKeBackendKita && !iniPermintaanAuth && tokenSudahKedaluwarsa(getToken())) {
+      logoutKarenaTokenExpired();
+
+      if (!iniBackground && window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
+
+      return new Response(
+        JSON.stringify({
+          pesan: "Sesi login sudah berakhir. Silakan login kembali.",
+          kode: "TOKEN_EXPIRED",
+        }),
+        {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
 
     let respons;
 
@@ -163,10 +223,7 @@ export function pasangPenerjemahSesiKedaluwarsa() {
       respons = responsTerakhir;
     }
 
-    const permintaanKeBackendKita = urlPermintaan.includes("/api/");
     if (!permintaanKeBackendKita) return respons;
-
-    const iniPermintaanAuth = urlPermintaan.includes("/api/auth/");
     if (iniPermintaanAuth) return respons;
 
     // Request background seperti rekonsiliasi antrean atau registrasi push
