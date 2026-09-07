@@ -54,14 +54,13 @@ export default defineConfig({
   ],
 
   // Kompilasi syntax JS ke target yang lebih ramah perangkat/browser lama.
-  // Ini tidak menambahkan polyfill API yang tidak tersedia, tetapi mengurangi
-  // risiko syntax JavaScript modern menjadi sumber gagal memuat halaman.
   build: {
     target: "es2019",
     rollupOptions: {
       output: {
-        manualChunks: {
-          geospasial: ["@turf/turf"],
+        manualChunks(id) {
+          if (id.includes("node_modules/@turf/")) return "geospasial";
+          return undefined;
         },
       },
     },
