@@ -99,7 +99,22 @@ async function catatKegagalanSementara(id, status) {
 function statusBolehDihapus(status, pesan) {
   const teks = String(pesan || "").toLowerCase();
   if (status === 409) return true;
-  return status === 400 && (teks.includes("sudah melakukan absen") || teks.includes("sudah melakukan absensi"));
+
+  // Respons 400 berikut adalah hasil final dari server untuk item antrean.
+  // Menyimpannya terus-menerus hanya akan membuat tombol kamera terkunci.
+  if (status === 400) {
+    return (
+      teks.includes("sudah melakukan absen") ||
+      teks.includes("sudah melakukan absensi") ||
+      teks.includes("absensi tidak diperlukan") ||
+      teks.includes("belum melakukan absen masuk") ||
+      teks.includes("belum melakukan absen") ||
+      teks.includes("foto absen wajib") ||
+      teks.includes("lokasi gps wajib")
+    );
+  }
+
+  return false;
 }
 
 async function fetchDenganTimeout(url, options = {}) {
@@ -110,6 +125,44 @@ async function fetchDenganTimeout(url, options = {}) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+// Setelah retry gagal, status server dipakai untuk memastikan apakah item
+// sebenarnya sudah masuk sebelum koneksi putus. Ini mencegah antrean lama
+// terkunci selamanya dan mencegah karyawan mengirim absen ganda.
+export async function bersihkanAntrianYangSudahTercatat({
+  apiUrl,
+  getToken,
+  penggunaId,
+  tahap,
+}) {
+  const penggunaIdAktif = Number(penggunaId);
+  const token = getToken?.();
+  if (!Number.isInteger(penggunaIdAktif) || penggunaIdAktif <= 0 || !token) {
+    return 0;
+  }
+
+  const cocokUntukTahap = (item) => {
+    if (tahap === "tidak_perlu_absen") return true;
+    if (tahap === "sudah_masuk") return item.endpoint === "masuk";
+    if (tahap === "selesai") return item.endpoint === "masuk" || item.endpoint === "pulang";
+    return false;
+  };
+
+  if (!cocokUntukTahap({ endpoint: "masuk" }) && !cocokUntukTahap({ endpoint: "pulang" })) {
+    return 0;
+  }
+
+  const semua = await ambilSemuaAntrian();
+  let dihapus = 0;
+
+  for (const item of semua) {
+    if (Number(item.penggunaId) !== penggunaIdAktif || !cocokUntukTahap(item)) continue;
+    await hapusDariAntrian(item.id);
+    dihapus++;
+  }
+
+  return dihapus;
 }
 
 export async function sinkronkanAntrian({ apiUrl, getToken, penggunaId }) {
