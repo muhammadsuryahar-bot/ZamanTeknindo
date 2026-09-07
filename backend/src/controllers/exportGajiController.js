@@ -5,6 +5,7 @@ const prisma = require("../utils/prismaClient");
 const {
   tahunBulanSekarangWIB,
   bagianWaktuWIB,
+  JAM_MASUK_STANDAR_DEFAULT,
 } = require("../utils/waktuIndonesia");
 const { ambilSetHariLibur } = require("../utils/hariLibur");
 
@@ -75,7 +76,7 @@ function formatJam(date) {
   )}:${String(wib.detik).padStart(2, "0")}`;
 }
 
-function hitungMenitTerlambat(jamMasuk, jamStandar = "08:00:00") {
+function hitungMenitTerlambat(jamMasuk, jamStandar = JAM_MASUK_STANDAR_DEFAULT) {
   if (!jamMasuk) return 0;
 
   const [jam, menit, detik = 0] = String(jamStandar).split(":").map(Number);
@@ -255,7 +256,11 @@ async function exportLaporanExcel(req, res) {
       },
     });
 
-    const jamMasukStandar = pengaturan?.jamMasukStandar || "08:00:00";
+    // Gunakan default yang sama dengan modul hitung gaji/absensi.
+    // Jika row pengaturan belum ada, hasil export tidak boleh diam-diam
+    // memakai jadwal 08:00 yang berbeda dari default sistem 08:10.
+    const jamMasukStandar =
+      pengaturan?.jamMasukStandar || JAM_MASUK_STANDAR_DEFAULT;
 
     const potonganTelat = Number(pengaturan?.potonganTelat || 0);
 
