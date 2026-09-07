@@ -343,17 +343,26 @@ async function tambahHariLiburFixed(req, res) {
       });
     }
 
-    const hariLibur = await prisma.hariLibur.create({
-      data: {
-        tanggal: tanggalDb,
-        keterangan,
-      },
-    });
+    try {
+      const hariLibur = await prisma.hariLibur.create({
+        data: {
+          tanggal: tanggalDb,
+          keterangan,
+        },
+      });
 
-    return res.status(201).json({
-      pesan: `Hari libur "${hariLibur.keterangan}" berhasil ditambahkan.`,
-      data: hariLibur,
-    });
+      return res.status(201).json({
+        pesan: `Hari libur "${hariLibur.keterangan}" berhasil ditambahkan.`,
+        data: hariLibur,
+      });
+    } catch (error) {
+      if (error?.code === "P2002") {
+        return res.status(409).json({
+          pesan: "Tanggal ini sudah terdaftar sebagai hari libur.",
+        });
+      }
+      throw error;
+    }
   } catch (error) {
     console.error("Gagal menambahkan hari libur:", error);
     return res.status(500).json({
