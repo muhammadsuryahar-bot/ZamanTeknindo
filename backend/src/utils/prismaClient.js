@@ -13,16 +13,32 @@ function buatDatabaseUrlRuntime() {
     const url = new URL(raw);
 
     // Production memakai Supavisor transaction pooler (6543).
-    // Prisma perlu pgbouncer=true pada mode transaction pooling.
+    // Mode ini memang direkomendasikan untuk serverless. Jangan memakai
+    // limit koneksi yang besar secara default karena setiap instance Vercel
+    // dapat memiliki client Prisma sendiri.
     if (url.port === "6543") {
       url.searchParams.set("pgbouncer", "true");
-      url.searchParams.set("connection_limit", "1");
+
+      // Bisa dinaikkan tanpa mengubah kode melalui environment variable
+      // PRISMA_CONNECTION_LIMIT bila beban produksi memang membutuhkan lebih.
+      const envLimit = Number.parseInt(
+        String(process.env.PRISMA_CONNECTION_LIMIT || "2"),
+        10,
+      );
+      const connectionLimit = Number.isInteger(envLimit)
+        ? Math.min(5, Math.max(1, envLimit))
+        : 2;
+
+      url.searchParams.set("connection_limit", String(connectionLimit));
       url.searchParams.set("pool_timeout", "20");
     }
 
     return url.toString();
   } catch (error) {
-    console.warn("DATABASE_URL tidak dapat dinormalisasi untuk runtime:", error?.message);
+    console.warn(
+      "DATABASE_URL tidak dapat dinormalisasi untuk runtime:",
+      error?.message,
+    );
     return raw;
   }
 }
@@ -39,9 +55,9 @@ if (!globalForPrisma.__zamanTeknindoPrisma) {
   globalForPrisma.__zamanTeknindoPrisma = prisma;
 }
 
-// Retry hanya untuk operasi BACA yang gagal karena koneksi sementara.
-// Jangan retry create/update/delete agar tidak ada risiko operasi tulis
-// dieksekusi dua kali ketika jaringan putus di tengah request.
+// Retry hanya untuk operasi BACA yang gagal karena gangguan koneksi sementara.
+// Operasi tulis sengaja tidak di-retry otomatis agar tidak berisiko melakukan
+// create/update/delete dua kali setelah koneksi putus di tengah request.
 const AKSI_BACA = new Set([
   "findUnique",
   "findFirst",
@@ -55,10 +71,14 @@ if (!globalForPrisma.__zamanTeknindoPrismaMiddlewareTerpasang) {
   prisma.$use(async (params, next) => {
     if (!AKSI_BACA.has(params.action)) return next(params);
 
-    const DELAY_RETRY_MS = [250, 800];
+    const DELAY_RETRY_MS = [250, 800, 1500];
     let errorTerakhir;
 
-    for (let percobaan = 0; percobaan <= DELAY_RETRY_MS.length; percobaan += 1) {
+    for (
+      let percobaan = 0;
+      percobaan <= DELAY_RETRY_MS.length;
+      percobaan += 1
+    ) {
       try {
         return await next(params);
       } catch (error) {
@@ -70,7 +90,9 @@ if (!globalForPrisma.__zamanTeknindoPrismaMiddlewareTerpasang) {
           throw error;
         }
 
-        await new Promise((resolve) => setTimeout(resolve, DELAY_RETRY_MS[percobaan]));
+        await new Promise((resolve) =>
+          setTimeout(resolve, DELAY_RETRY_MS[percobaan]),
+        );
       }
     }
 
