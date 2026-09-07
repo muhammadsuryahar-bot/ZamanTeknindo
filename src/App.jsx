@@ -2,6 +2,7 @@ import { useEffect, useState, lazy, Suspense, Component } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import Login from "./pages/Login";
 import { getPenggunaLogin, getToken, hapusSesiLogin } from "./utils/api";
+import { pasangWebPushOtomatis } from "./utils/webPush";
 import { warna } from "./styles/theme";
 
 const Daftar = lazy(() => import("./pages/Daftar"));
@@ -419,6 +420,9 @@ export default function App() {
   const [pengguna, setPengguna] = useState(undefined);
   useEffect(() => {
     setPengguna(getPenggunaLogin() || null);
+  }, []);
+  useEffect(() => {
+    pasangWebPushOtomatis();
   }, []);
   function handleLogout() {
     hapusSesiLogin();
