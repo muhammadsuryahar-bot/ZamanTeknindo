@@ -33,10 +33,16 @@ async function cekLogin(req, res, next) {
   try {
     dataToken = jwt.verify(token, process.env.JWT_SECRET);
   } catch (error) {
-    console.error("JWT tidak valid:", error.message);
+    // Token yang memang sudah habis masa berlakunya adalah kondisi
+    // autentikasi yang normal, bukan error server. Jangan masukkan
+    // kondisi ini ke console.error agar monitoring tidak penuh noise.
+    if (error?.name !== "TokenExpiredError") {
+      console.error("JWT tidak valid:", error.message);
+    }
 
     return res.status(401).json({
       pesan: "Sesi login tidak valid atau sudah kedaluwarsa.",
+      kode: error?.name === "TokenExpiredError" ? "TOKEN_EXPIRED" : "TOKEN_INVALID",
     });
   }
 
