@@ -24,31 +24,22 @@ async function cekLogin(req, res, next) {
 
   const token = bagian[1];
 
-  // ==========================================================
-  // 1. VERIFIKASI JWT
-  // ==========================================================
-
   let dataToken;
 
   try {
     dataToken = jwt.verify(token, process.env.JWT_SECRET);
   } catch (error) {
-    // Token yang memang sudah habis masa berlakunya adalah kondisi
-    // autentikasi yang normal, bukan error server. Jangan masukkan
-    // kondisi ini ke console.error agar monitoring tidak penuh noise.
-    if (error?.name !== "TokenExpiredError") {
-      console.error("JWT tidak valid:", error.message);
-    }
+    // Token invalid/expired adalah kegagalan autentikasi normal, bukan
+    // kegagalan server. Catat sebagai warning agar monitoring tidak salah
+    // menganggap percobaan token rusak sebagai error aplikasi.
+    console.warn("JWT tidak valid:", error?.message || "Token invalid");
 
     return res.status(401).json({
       pesan: "Sesi login tidak valid atau sudah kedaluwarsa.",
-      kode: error?.name === "TokenExpiredError" ? "TOKEN_EXPIRED" : "TOKEN_INVALID",
+      kode:
+        error?.name === "TokenExpiredError" ? "TOKEN_EXPIRED" : "TOKEN_INVALID",
     });
   }
-
-  // ==========================================================
-  // 2. CEK USER KE DATABASE
-  // ==========================================================
 
   let pengguna;
 
@@ -67,27 +58,16 @@ async function cekLogin(req, res, next) {
   } catch (error) {
     console.error("Gagal mengambil pengguna dari database:", error);
 
-    // PENTING:
-    // Error database bukan berarti token expired.
-    // Jadi harus 500, bukan 401.
     return res.status(500).json({
       pesan: "Server gagal memeriksa sesi login. Silakan coba lagi.",
     });
   }
-
-  // ==========================================================
-  // 3. USER TIDAK DITEMUKAN
-  // ==========================================================
 
   if (!pengguna) {
     return res.status(401).json({
       pesan: "Akun tidak ditemukan. Silakan login ulang.",
     });
   }
-
-  // ==========================================================
-  // 4. CEK STATUS AKUN
-  // ==========================================================
 
   if (pengguna.statusAkun === "nonaktif") {
     return res.status(403).json({
@@ -100,10 +80,6 @@ async function cekLogin(req, res, next) {
       pesan: "Akun Anda masih menunggu konfirmasi Admin.",
     });
   }
-
-  // ==========================================================
-  // 5. SIMPAN USER TERKINI
-  // ==========================================================
 
   req.user = {
     id: pengguna.id,
