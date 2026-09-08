@@ -176,31 +176,182 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   }
 }
 
+// Hardening geolocation untuk HP yang GPS-nya butuh waktu memperoleh fix.
+// DashboardKaryawan tetap menjadi pemilik lifecycle utamanya, sedangkan
+// adapter ini hanya menambahkan fallback lokasi jaringan/cache agar tidak
+// bergantung penuh pada satu provider lokasi.
+if (typeof window !== 'undefined' && !window.__zamanGeolocationFallbackTerpasang) {
+  const geolocation = navigator.geolocation
+  const watchAsli = geolocation?.watchPosition?.bind(geolocation)
+  const currentAsli = geolocation?.getCurrentPosition?.bind(geolocation)
+  const clearAsli = geolocation?.clearWatch?.bind(geolocation)
+
+  if (geolocation && watchAsli && currentAsli && clearAsli) {
+    const watchRecords = new Map()
+    let nextId = 1
+
+    const bersihkanWatch = (id) => {
+      const record = watchRecords.get(id)
+      if (!record) return
+
+      record.aktif = false
+      if (record.fallbackTimer) window.clearTimeout(record.fallbackTimer)
+      if (record.networkTimer) window.clearTimeout(record.networkTimer)
+      if (record.nativeWatchId !== null) clearAsli(record.nativeWatchId)
+      watchRecords.delete(id)
+    }
+
+    geolocation.watchPosition = (success, error, options = {}) => {
+      const id = nextId++
+      const record = {
+        aktif: true,
+        nativeWatchId: null,
+        fallbackTimer: null,
+        networkTimer: null,
+      }
+      watchRecords.set(id, record)
+
+      const kirimSuccess = (position) => {
+        if (!record.aktif) return
+        window.__zamanLokasiTerakhir = {
+          latitude: Number(position?.coords?.latitude),
+          longitude: Number(position?.coords?.longitude),
+          accuracy: Number(position?.coords?.accuracy),
+          pada: Date.now(),
+        }
+        success?.(position)
+      }
+
+      const kirimError = (geoError) => {
+        if (!record.aktif) return
+        error?.(geoError)
+      }
+
+      record.nativeWatchId = watchAsli(
+        kirimSuccess,
+        (geoError) => {
+          if (!record.aktif) return
+          if (geoError?.code === 1) {
+            kirimError(geoError)
+            bersihkanWatch(id)
+            return
+          }
+          // Error 2/3 tidak langsung menghentikan watch. Fallback network/cache
+          // tetap diberi kesempatan mencari koordinat.
+        },
+        {
+          ...options,
+          enableHighAccuracy: true,
+          maximumAge: Math.min(Number(options.maximumAge) || 0, 10000),
+          timeout: Math.max(Number(options.timeout) || 12000, 12000),
+        },
+      )
+
+      // Coba lokasi network/cache lebih awal, tanpa menunggu GPS presisi tinggi.
+      record.fallbackTimer = window.setTimeout(() => {
+        if (!record.aktif) return
+        currentAsli(
+          kirimSuccess,
+          () => {},
+          {
+            ...options,
+            enableHighAccuracy: false,
+            maximumAge: 30000,
+            timeout: 8000,
+          },
+        )
+      }, 1200)
+
+      // Bila HP baru keluar dari mode hemat baterai / lokasi baru diaktifkan,
+      // lakukan satu percobaan kedua menjelang batas waktu utama.
+      record.networkTimer = window.setTimeout(() => {
+        if (!record.aktif) return
+        currentAsli(
+          kirimSuccess,
+          () => {},
+          {
+            ...options,
+            enableHighAccuracy: false,
+            maximumAge: 60000,
+            timeout: 7000,
+          },
+        )
+      }, 9000)
+
+      return id
+    }
+
+    geolocation.clearWatch = (id) => {
+      const numericId = Number(id)
+      if (Number.isFinite(numericId) && watchRecords.has(numericId)) {
+        bersihkanWatch(numericId)
+        return
+      }
+      clearAsli(id)
+    }
+
+    window.__zamanGeolocationFallbackTerpasang = true
+  }
+}
+
 // Pada versi DashboardKaryawan saat ini, status "kamera siap" disimpan di ref
 // agar callback kamera tidak memicu render ulang. Atribut disabled pada tombol
 // Ambil Foto ikut berasal dari ref tersebut sehingga React tidak selalu merender
-// ulang ketika preview kamera benar-benar sudah siap. Guard kecil ini hanya
-// menyentuh tombol Ambil Foto ketika elemen video benar-benar memiliki dimensi
-// frame; fungsi ambilFoto() tetap melakukan validasi kedua sebelum mengambil foto.
-// Ini mencegah tombol tertahan nonaktif pada HP tertentu tanpa mengubah alur
-// kamera, GPS, kompresi foto, atau pengiriman absensi.
+// ulang ketika preview kamera benar-benar sudah siap.
+// Guard di bawah sekarang juga mewajibkan koordinat sudah didapat sebelum foto
+// boleh diambil. Ini mencegah race: foto diambil -> tracker lokasi langsung
+// dihentikan -> koordinat tidak pernah sempat masuk -> tombol Kirim Absen macet.
 if (typeof window !== 'undefined' && !window.__kameraAmbilFotoGuardTerpasang) {
-  const aktifkanTombolAmbilFoto = () => {
-    const videoElements = document.querySelectorAll('.cameraSection video')
+  const rapikanStatusLokasi = () => {
+    const cameraSections = document.querySelectorAll('.cameraSection')
+    const adaKamera = cameraSections.length > 0
 
-    for (const video of videoElements) {
-      if (!(video instanceof HTMLVideoElement)) continue
-      if (video.videoWidth <= 0 || video.videoHeight <= 0) continue
+    if (!adaKamera) {
+      window.__zamanLokasiSesiAktif = false
+      window.__zamanLokasiSudahDitemukan = false
+      return
+    }
 
-      const tombol = video.closest('.cameraSection')?.querySelector('button[type="button"]')
+    const lokasiTerakhir = window.__zamanLokasiTerakhir
+    const lokasiMasihFresh =
+      lokasiTerakhir &&
+      Number.isFinite(lokasiTerakhir.latitude) &&
+      Number.isFinite(lokasiTerakhir.longitude) &&
+      Number.isFinite(lokasiTerakhir.accuracy) &&
+      Date.now() - lokasiTerakhir.pada <= 120000
+
+    if (!window.__zamanLokasiSesiAktif) {
+      window.__zamanLokasiSesiAktif = true
+      window.__zamanLokasiSudahDitemukan = Boolean(lokasiMasihFresh)
+    }
+
+    for (const section of cameraSections) {
+      const video = section.querySelector('video')
+      const tombol = Array.from(section.querySelectorAll('button[type="button"]')).find((button) =>
+        button.textContent?.includes('Ambil Foto'),
+      )
+
       if (!(tombol instanceof HTMLButtonElement)) continue
-      if (!tombol.textContent?.includes('Ambil Foto')) continue
 
-      tombol.disabled = false
+      const videoSiap =
+        video instanceof HTMLVideoElement &&
+        video.videoWidth > 0 &&
+        video.videoHeight > 0
+
+      const lokasiSiap = window.__zamanLokasiSudahDitemukan === true
+      tombol.disabled = !videoSiap || !lokasiSiap
+      tombol.title =
+        !videoSiap
+          ? 'Menyiapkan kamera...'
+          : !lokasiSiap
+            ? 'Menunggu lokasi perangkat ditemukan...'
+            : ''
     }
   }
 
-  const interval = window.setInterval(aktifkanTombolAmbilFoto, 250)
+  const interval = window.setInterval(rapikanStatusLokasi, 250)
+  document.addEventListener('visibilitychange', rapikanStatusLokasi)
+  window.addEventListener('pageshow', rapikanStatusLokasi)
   window.addEventListener('pagehide', () => window.clearInterval(interval), { once: true })
   window.__kameraAmbilFotoGuardTerpasang = true
 }
