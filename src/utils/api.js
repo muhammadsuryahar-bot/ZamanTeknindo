@@ -66,6 +66,11 @@ function permintaanBackground(argumen) {
   return Boolean(nilaiHeader(argumen, HEADER_BACKGROUND));
 }
 
+function tokenJWTValidBentuk(token) {
+  if (!token) return false;
+  return String(token).split(".").length === 3;
+}
+
 function tokenSudahKedaluwarsa(token) {
   if (!token) return false;
 
@@ -90,19 +95,17 @@ function tokenSudahKedaluwarsa(token) {
       Number(payload.exp) <= Math.floor(Date.now() / 1000)
     );
   } catch {
-    // Token rusak tetap dibiarkan ke backend agar backend yang menentukan
-    // apakah token benar-benar invalid. Fungsi ini khusus mendeteksi expiry.
+    // Token rusak tetap ditangani sebagai token invalid. Fungsi ini hanya
+    // mendeteksi expiry sehingga parser payload yang gagal tidak dianggap
+    // sebagai token kedaluwarsa.
     return false;
   }
 }
 
-function logoutKarenaTokenExpired() {
+function logoutKarenaTokenTidakValid(pesan) {
   hapusSesiLogin();
   try {
-    sessionStorage.setItem(
-      "pesanSetelahLogout",
-      "Sesi login sudah berakhir. Silakan login kembali.",
-    );
+    sessionStorage.setItem("pesanSetelahLogout", pesan);
   } catch {
     // Abaikan bila sessionStorage tidak tersedia.
   }
@@ -189,16 +192,41 @@ export function pasangPenerjemahSesiKedaluwarsa() {
     const iniBackground = permintaanBackground(argumen);
     const permintaanKeBackendKita = urlPermintaan.includes("/api/");
     const iniPermintaanAuth = urlPermintaan.includes("/api/auth/");
+    const token = getToken();
 
-    // Jangan biarkan halaman menembakkan request API dengan JWT yang sudah
-    // pasti expired. Ini mencegah lonjakan 401 "jwt expired" di server dan
-    // membuat sesi berakhir dengan alur yang konsisten.
+    // Jangan kirim JWT yang jelas-jelas rusak atau sudah kedaluwarsa ke API.
+    // Sesi lokal dibersihkan lebih awal agar backend tidak menerima request
+    // 401 berulang dari token yang tidak mungkin berhasil.
     if (
       permintaanKeBackendKita &&
       !iniPermintaanAuth &&
-      tokenSudahKedaluwarsa(getToken())
+      token &&
+      !tokenJWTValidBentuk(token)
     ) {
-      logoutKarenaTokenExpired();
+      const pesan = "Sesi login tidak valid. Silakan login kembali.";
+      logoutKarenaTokenTidakValid(pesan);
+
+      if (!iniBackground && window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
+
+      return new Response(
+        JSON.stringify({ pesan, kode: "TOKEN_INVALID" }),
+        {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    if (
+      permintaanKeBackendKita &&
+      !iniPermintaanAuth &&
+      tokenSudahKedaluwarsa(token)
+    ) {
+      logoutKarenaTokenTidakValid(
+        "Sesi login sudah berakhir. Silakan login kembali.",
+      );
 
       if (!iniBackground && window.location.pathname !== "/login") {
         window.location.href = "/login";
