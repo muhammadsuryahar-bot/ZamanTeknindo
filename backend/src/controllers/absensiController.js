@@ -12,6 +12,7 @@ const JAM_BATAS_TEPAT_WAKTU_DEFAULT = "08:10:00";
 const HEADER_OFFLINE_SYNC = "X-Zaman-Background";
 const OFFLINE_SYNC_HEADER_VALUE = "offline-sync";
 const MAX_OFFLINE_CLOCK_DRIFT_MS = 24 * 60 * 60 * 1000;
+const RADIUS_ABSENSI_METER = Number(process.env.ABSENSI_RADIUS_METER || 1500);
 
 function tanggalHariIni() {
   return tanggalHariIniWIB();
@@ -50,6 +51,113 @@ function koordinatDariRequest(latitude, longitude) {
   return { latitude: lat, longitude: lng };
 }
 
+function hitungJarakMeter(latitude, longitude, targetLatitude, targetLongitude) {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  const tLat = Number(targetLatitude);
+  const tLng = Number(targetLongitude);
+
+  if (![lat, lng, tLat, tLng].every(Number.isFinite)) return null;
+
+  const toRad = (nilai) => (nilai * Math.PI) / 180;
+  const bumiMeter = 6_371_000;
+  const dLat = toRad(tLat - lat);
+  const dLng = toRad(tLng - lng);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat)) *
+      Math.cos(toRad(tLat)) *
+      Math.sin(dLng / 2) ** 2;
+
+  return (
+    2 *
+    bumiMeter *
+    Math.atan2(Math.sqrt(a), Math.sqrt(Math.max(0, 1 - a)))
+  );
+}
+
+async function validasiLokasiAbsensi(penggunaId, koordinat) {
+  const pengguna = await prisma.pengguna.findUnique({
+    where: { id: penggunaId },
+    select: {
+      kantor: {
+        select: {
+          id: true,
+          namaKantor: true,
+          latitude: true,
+          longitude: true,
+        },
+      },
+    },
+  });
+
+  const kantor = pengguna?.kantor;
+  if (!kantor) {
+    return {
+      ok: false,
+      status: 409,
+      pesan:
+        "Kantor Anda belum ditentukan oleh Admin. Absensi belum dapat dilakukan. Hubungi Admin.",
+    };
+  }
+
+  if (
+    !Number.isFinite(Number(kantor.latitude)) ||
+    !Number.isFinite(Number(kantor.longitude))
+  ) {
+    return {
+      ok: false,
+      status: 409,
+      pesan: `Koordinat kantor ${kantor.namaKantor} belum dikonfigurasi oleh Admin. Absensi belum dapat dilakukan.`,
+    };
+  }
+
+  if (!Number.isFinite(RADIUS_ABSENSI_METER) || RADIUS_ABSENSI_METER <= 0) {
+    console.error("ABSENSI_RADIUS_METER tidak valid:", process.env.ABSENSI_RADIUS_METER);
+    return {
+      ok: false,
+      status: 500,
+      pesan: "Konfigurasi radius absensi pada server tidak valid.",
+    };
+  }
+
+  const jarakMeter = hitungJarakMeter(
+    koordinat.latitude,
+    koordinat.longitude,
+    kantor.latitude,
+    kantor.longitude,
+  );
+
+  if (!Number.isFinite(jarakMeter)) {
+    return {
+      ok: false,
+      status: 400,
+      pesan: "Lokasi GPS tidak valid. Silakan ambil lokasi kembali.",
+    };
+  }
+
+  if (jarakMeter > RADIUS_ABSENSI_METER) {
+    return {
+      ok: false,
+      status: 400,
+      pesan: `Anda berada sekitar ${Math.round(
+        jarakMeter,
+      )} meter dari ${kantor.namaKantor}. Absensi hanya dapat dilakukan dalam radius ${Math.round(
+        RADIUS_ABSENSI_METER,
+      )} meter dari kantor.`,
+      jarakMeter: Math.round(jarakMeter),
+      radiusMeter: Math.round(RADIUS_ABSENSI_METER),
+    };
+  }
+
+  return {
+    ok: true,
+    kantor,
+    jarakMeter: Math.round(jarakMeter),
+    radiusMeter: Math.round(RADIUS_ABSENSI_METER),
+  };
+}
+
 // Online: gunakan waktu server sebagai sumber kebenaran.
 // Offline-sync: gunakan waktu asli ketika karyawan menekan "Kirim Absen",
 // karena saat itu memang belum ada koneksi sehingga waktu server belum tersedia.
@@ -65,7 +173,10 @@ function waktuAbsensiDariRequest(req) {
 
   // Tolak timestamp offline yang terlalu jauh dari waktu server. Ini menjaga
   // data tetap masuk akal tanpa menghilangkan kemampuan sinkronisasi offline.
-  if (Math.abs(kandidat.getTime() - sekarang.getTime()) > MAX_OFFLINE_CLOCK_DRIFT_MS) {
+  if (
+    Math.abs(kandidat.getTime() - sekarang.getTime()) >
+    MAX_OFFLINE_CLOCK_DRIFT_MS
+  ) {
     return sekarang;
   }
 
@@ -122,6 +233,16 @@ async function absenMasuk(req, res) {
       });
     }
 
+    const validasiLokasi = await validasiLokasiAbsensi(penggunaId, koordinat);
+    if (!validasiLokasi.ok) {
+      await hapusFotoJikaPerlu();
+      return res.status(validasiLokasi.status).json({
+        pesan: validasiLokasi.pesan,
+        jarakMeter: validasiLokasi.jarakMeter,
+        radiusMeter: validasiLokasi.radiusMeter,
+      });
+    }
+
     // Aturan berbasis MENIT: seluruh rentang 08:10:00-08:10:59
     // masih dianggap tepat waktu. Mulai 08:11:00 baru telat.
     const statusOtomatis = menitServerWIB <= batasTepatWaktu ? "tepat_waktu" : "telat";
@@ -138,8 +259,6 @@ async function absenMasuk(req, res) {
 
     let absensi;
     if (sudahAbsen) {
-      // Atomic compare-and-set: hanya request pertama yang melihat
-      // jamMasuk masih NULL yang boleh mengisi record existing.
       const hasilUpdate = await prisma.absensi.updateMany({
         where: {
           id: sudahAbsen.id,
@@ -227,8 +346,16 @@ async function absenPulang(req, res) {
       });
     }
 
-    // Atomic compare-and-set: hanya request pertama yang melihat
-    // jamPulang masih NULL yang boleh mengisi record.
+    const validasiLokasi = await validasiLokasiAbsensi(penggunaId, koordinat);
+    if (!validasiLokasi.ok) {
+      await hapusFotoJikaPerlu();
+      return res.status(validasiLokasi.status).json({
+        pesan: validasiLokasi.pesan,
+        jarakMeter: validasiLokasi.jarakMeter,
+        radiusMeter: validasiLokasi.radiusMeter,
+      });
+    }
+
     const hasilUpdate = await prisma.absensi.updateMany({
       where: {
         id: absensiHariIni.id,
@@ -289,12 +416,6 @@ async function statusHariIni(req, res) {
     const penggunaId = req.user.id;
     const tanggal = tanggalHariIni();
 
-    // Gunakan Prisma biasa secara berurutan pada endpoint awal ini.
-    // Endpoint ini dipanggil saat dashboard karyawan dibuka dan harus
-    // stabil pada connection pool produksi yang kecil. Jangan memakai
-    // $queryRaw dengan nama kolom database mentah di sini karena schema
-    // Prisma memakai pemetaan camelCase -> snake_case dan raw SQL menjadi
-    // titik rawan ketika schema berubah.
     const absensi = await prisma.absensi.findUnique({
       where: { penggunaId_tanggal: { penggunaId, tanggal } },
       select: {
