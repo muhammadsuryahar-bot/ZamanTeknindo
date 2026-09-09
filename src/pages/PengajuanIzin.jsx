@@ -22,7 +22,7 @@ export default function PengajuanIzin({ kembali }) {
   // AUTO_REFRESH_PengajuanIzin_APPLIED
   useEffect(() => {
     const refresh = () => {
-      if (document.visibilityState === "visible") void ambilRiwayat();
+      if (document.visibilityState === "visible") void ambilRiwayat({ silent: true });
     };
     const id = window.setInterval(refresh, 30000);
     document.addEventListener("visibilitychange", refresh);
@@ -33,15 +33,15 @@ export default function PengajuanIzin({ kembali }) {
   }, []);
   useEffect(() => { if (!pesan) return; const timer = setTimeout(() => setPesan(""), 5000); return () => clearTimeout(timer); }, [pesan]);
 
-  async function ambilRiwayat() {
-    setLoadingRiwayat(true); setErrorRiwayat("");
+  async function ambilRiwayat({ silent = false } = {}) {
+    if (!silent) setLoadingRiwayat(true); if (!silent) setErrorRiwayat("");
     try {
       const res = await fetch(`${API_URL}/izin/riwayat-saya`, { headers: { Authorization: `Bearer ${getToken()}` } });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.pesan || "Gagal memuat riwayat pengajuan.");
       setRiwayat(Array.isArray(data.data) ? data.data : []);
-    } catch (err) { console.error(err); setRiwayat([]); setErrorRiwayat(err?.message || "Gagal memuat riwayat pengajuan."); }
-    finally { setLoadingRiwayat(false); }
+    } catch (err) { console.error(err); if (!silent) { setRiwayat([]); setErrorRiwayat(err?.message || "Gagal memuat riwayat pengajuan."); } }
+    finally { if (!silent) setLoadingRiwayat(false); }
   }
 
   function pilihLampiran(e) {

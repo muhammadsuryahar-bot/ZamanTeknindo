@@ -265,6 +265,8 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       if (document.visibilityState !== "visible") return;
       void muatData({ silent: true });
       void muatNotifikasi();
+      if (tab === "karyawan") void muatKaryawan(true, { silent: true });
+      if (tab === "kantor") void muatKantor(true, { silent: true });
     };
 
     const mulai = () => {
@@ -451,7 +453,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
     }
   }
 
-  async function muatKaryawan(force = false) {
+  async function muatKaryawan(force = false, { silent = false } = {}) {
     if (karyawanSudahDimuat && !force) return;
 
     const token = getToken();
@@ -461,7 +463,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       return;
     }
 
-    setLoadingKaryawan(true);
+    if (!silent) setLoadingKaryawan(true);
 
     try {
       const res = await fetch(`${API_URL}/admin/karyawan`, {
@@ -484,13 +486,13 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       setKaryawanSudahDimuat(true);
     } catch (err) {
       console.error("Gagal memuat karyawan:", err);
-      setPesan(err?.message || "Gagal memuat data karyawan.");
+      if (!silent) setPesan(err?.message || "Gagal memuat data karyawan.");
     } finally {
-      setLoadingKaryawan(false);
+      if (!silent) setLoadingKaryawan(false);
     }
   }
 
-  async function muatKantor(force = false) {
+  async function muatKantor(force = false, { silent = false } = {}) {
     if (kantorSudahDimuat && !force) return;
 
     const token = getToken();
@@ -500,7 +502,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       return;
     }
 
-    setLoadingKantor(true);
+    if (!silent) setLoadingKantor(true);
 
     try {
       const res = await fetch(`${API_URL}/admin/kantor`, {
@@ -524,9 +526,9 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       return data.data;
     } catch (err) {
       console.error("Gagal memuat kantor:", err);
-      setPesan(err?.message || "Gagal memuat data kantor.");
+      if (!silent) setPesan(err?.message || "Gagal memuat data kantor.");
     } finally {
-      setLoadingKantor(false);
+      if (!silent) setLoadingKantor(false);
     }
 
     return [];

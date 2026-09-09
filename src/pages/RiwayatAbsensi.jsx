@@ -12,9 +12,9 @@ export default function RiwayatAbsensi({ kembali }) {
   const [loading, setLoading] = useState(true);
   const [pesan, setPesan] = useState("");
 
-  async function muatRiwayat() {
-    setLoading(true);
-    setPesan("");
+  async function muatRiwayat({ silent = false } = {}) {
+    if (!silent) setLoading(true);
+    if (!silent) setPesan("");
 
     try {
       const res = await fetch(`${API_URL}/absensi/riwayat-saya`, {
@@ -35,10 +35,9 @@ export default function RiwayatAbsensi({ kembali }) {
       setRiwayat(Array.isArray(data.data) ? data.data : []);
     } catch (err) {
       console.error(err);
-      setRiwayat([]);
-      setPesan(err?.message || "Gagal memuat riwayat. Cek koneksi ke server.");
+      if (!silent) { setRiwayat([]); setPesan(err?.message || "Gagal memuat riwayat. Cek koneksi ke server."); }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
@@ -49,7 +48,7 @@ export default function RiwayatAbsensi({ kembali }) {
   // AUTO_REFRESH_RiwayatAbsensi_APPLIED
   useEffect(() => {
     const refresh = () => {
-      if (document.visibilityState === "visible") void muatRiwayat();
+      if (document.visibilityState === "visible") void muatRiwayat({ silent: true });
     };
     const id = window.setInterval(refresh, 30000);
     document.addEventListener("visibilitychange", refresh);
