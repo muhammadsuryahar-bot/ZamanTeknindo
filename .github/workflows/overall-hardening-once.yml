@@ -1,0 +1,230 @@
+name: Overall hardening (temporary)
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    if: ${{ !contains(github.event.head_commit.message, '[overall-hardening-applied]') && !contains(github.event.head_commit.message, '[overall-hardening-cleanup]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply audited fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new, label):
+              p = Path(path)
+              s = p.read_text(encoding='utf-8')
+              n = s.count(old)
+              if n != 1:
+                  raise SystemExit(f'{label}: expected 1 match, got {n}')
+              p.write_text(s.replace(old, new), encoding='utf-8')
+
+          # 1) Stop remounting the whole Admin dashboard for "Atur Status".
+          replace_once(
+              'src/App.jsx',
+              'function AdminContextBar({ tanggal, onTanggalChange }) {',
+              'function AdminContextBar({ tanggal, onTanggalChange, onRekapRefresh }) {',
+              'AdminContextBar props',
+          )
+          replace_once(
+              'src/App.jsx',
+              '      onTanggalChange(tanggal, true);',
+              '      onRekapRefresh();',
+              'Atur Status remount removal',
+          )
+          replace_once(
+              'src/App.jsx',
+              '  const [refreshKey, setRefreshKey] = useState(0);\n',
+              '  const [rekapRefreshNonce, setRekapRefreshNonce] = useState(0);\n',
+              'AdminShell refresh state',
+          )
+          replace_once(
+              'src/App.jsx',
+              '  function onTanggalChange(tanggalBaru, forceRefresh = false) {',
+              '  function onTanggalChange(tanggalBaru) {',
+              'AdminShell date handler',
+          )
+          replace_once(
+              'src/App.jsx',
+              '    setTanggalRekap(aman);\n    setRefreshKey((nilai) => nilai + 1 + (forceRefresh ? 1 : 0));',
+              '    setTanggalRekap(aman);',
+              'AdminShell remount removal',
+          )
+          replace_once(
+              'src/App.jsx',
+              '      {!arsipTerbuka && <AdminContextBar tanggal={tanggalRekap} onTanggalChange={onTanggalChange} />}\n      <DashboardAdmin\n        key={`${tanggalRekap}-${refreshKey}`}\n        pengguna={pengguna}\n        onLogout={onLogout}\n        tanggalRekap={tanggalRekap}\n      />',
+              '      {!arsipTerbuka && <AdminContextBar tanggal={tanggalRekap} onTanggalChange={onTanggalChange} onRekapRefresh={() => setRekapRefreshNonce((nilai) => nilai + 1)} />}\n      <DashboardAdmin\n        pengguna={pengguna}\n        onLogout={onLogout}\n        tanggalRekap={tanggalRekap}\n        rekapRefreshNonce={rekapRefreshNonce}\n      />',
+              'AdminShell stable dashboard',
+          )
+
+          # 2) Make selected date remain the date used by Admin polling and refreshes.
+          replace_once(
+              'src/pages/DashboardAdmin.jsx',
+              'export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap }) {',
+              'export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekapRefreshNonce }) {',
+              'DashboardAdmin refresh prop',
+          )
+          replace_once(
+              'src/pages/DashboardAdmin.jsx',
+              '  useEffect(() => {\n    muatData();\n    // eslint-disable-next-line react-hooks/exhaustive-deps\n  }, []);',
+              '  useEffect(() => {\n    void muatData();\n    // eslint-disable-next-line react-hooks/exhaustive-deps\n  }, [tanggalRekap, rekapRefreshNonce]);',
+              'DashboardAdmin date refresh effect',
+          )
+          replace_once(
+              'src/pages/DashboardAdmin.jsx',
+              '    // eslint-disable-next-line react-hooks/exhaustive-deps\n  }, []);\n\n  useEffect(() => {\n    if (tab === "karyawan") {',
+              '    // eslint-disable-next-line react-hooks/exhaustive-deps\n  }, [tanggalRekap]);\n\n  useEffect(() => {\n    if (tab === "karyawan") {',
+              'DashboardAdmin polling date dependency',
+          )
+          replace_once(
+              'src/pages/DashboardAdmin.jsx',
+              '      setKaryawan((lama) => lama.filter((item) => item.id !== id));\n      setJumlahKaryawanAktif((jumlah) => Math.max(0, jumlah - 1));\n      void muatNotifikasi();',
+              '      if (statusBaru === "nonaktif") {\n        setKaryawan((lama) => lama.filter((item) => item.id !== id));\n        setJumlahKaryawanAktif((jumlah) => Math.max(0, jumlah - 1));\n      } else {\n        setJumlahKaryawanAktif((jumlah) => jumlah + 1);\n        void muatKaryawan(true, { silent: true });\n      }\n      void muatNotifikasi();',
+              'Karyawan status count logic',
+          )
+          replace_once(
+              'src/pages/DashboardAdmin.jsx',
+              '    const jamSekarang = new Date().toLocaleDateString("id-ID", {\n    weekday: "long",\n    day: "numeric",\n    month: "long",\n    year: "numeric",\n  });\n',
+              '    const jamSekarang = new Date().toLocaleDateString("id-ID", {\n    timeZone: "Asia/Jakarta",\n    weekday: "long",\n    day: "numeric",\n    month: "long",\n    year: "numeric",\n  });\n',
+              'Admin date timezone',
+          )
+          replace_once(
+              'src/pages/DashboardAdmin.jsx',
+              '  const jamSaatIni = new Date().getHours();',
+              '  const jamSaatIni = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jakarta", hour: "2-digit", hourCycle: "h23" }).format(new Date()));',
+              'Admin greeting timezone',
+          )
+          replace_once(
+              'src/pages/DashboardAdmin.jsx',
+              '    return new Date(tanggalIso).toLocaleTimeString("id-ID", {\n      hour: "2-digit",\n      minute: "2-digit",\n    });',
+              '    return new Date(tanggalIso).toLocaleTimeString("id-ID", {\n      timeZone: "Asia/Jakarta",\n      hour: "2-digit",\n      minute: "2-digit",\n    });',
+              'Admin attendance timezone',
+          )
+
+          # 3) Expose the configured standard arrival time to employee UI.
+          replace_once(
+              'backend/src/controllers/absensiController.js',
+              '    const pengajuanDisetujui = await prisma.pengajuanIzin.findFirst({\n      where: { penggunaId, tanggal, status: "disetujui" },',
+              '    const pengaturan = await prisma.pengaturanPotongan.findUnique({\n      where: { id: 1 },\n      select: { jamMasukStandar: true },\n    });\n\n    const pengajuanDisetujui = await prisma.pengajuanIzin.findFirst({\n      where: { penggunaId, tanggal, status: "disetujui" },',
+              'Status endpoint standard arrival setting',
+          )
+          replace_once(
+              'backend/src/controllers/absensiController.js',
+              '        pengajuanIzin: pengajuanDisetujui,\n      });',
+              '        pengajuanIzin: pengajuanDisetujui,\n        jamMasukStandar: pengaturan?.jamMasukStandar || JAM_BATAS_TEPAT_WAKTU_DEFAULT,\n      });',
+              'Status endpoint leave response setting',
+          )
+          replace_once(
+              'backend/src/controllers/absensiController.js',
+              '    return res.json({ tahap, data: absensi, pengajuanIzin: null });',
+              '    return res.json({\n      tahap,\n      data: absensi,\n      pengajuanIzin: null,\n      jamMasukStandar: pengaturan?.jamMasukStandar || JAM_BATAS_TEPAT_WAKTU_DEFAULT,\n    });',
+              'Status endpoint normal response setting',
+          )
+          replace_once(
+              'src/pages/DashboardKaryawan.jsx',
+              'function DialJamKerja({ tahap }) {',
+              'function DialJamKerja({ tahap, jamMasukStandar = "08:10:00" }) {',
+              'Employee dial setting prop',
+          )
+          replace_once(
+              'src/pages/DashboardKaryawan.jsx',
+              'Senin–Jumat · 08:00–17:00 WIB · Tepat waktu sampai 08:10',
+              'Senin–Jumat · 08:00–17:00 WIB · Tepat waktu sampai ${jamMasukStandar.slice(0, 5)}',
+              'Employee dial dynamic threshold',
+          )
+          replace_once(
+              'src/pages/DashboardKaryawan.jsx',
+              '  const [pengajuanHariIni, setPengajuanHariIni] = useState(null);',
+              '  const [pengajuanHariIni, setPengajuanHariIni] = useState(null);\n  const [jamMasukStandar, setJamMasukStandar] = useState("08:10:00");',
+              'Employee standard time state',
+          )
+          replace_once(
+              'src/pages/DashboardKaryawan.jsx',
+              '      setTahap(data.tahap);\n      setPengajuanHariIni(data.pengajuanIzin || null);',
+              '      setTahap(data.tahap);\n      setPengajuanHariIni(data.pengajuanIzin || null);\n      setJamMasukStandar(data.jamMasukStandar || "08:10:00");',
+              'Employee standard time response',
+          )
+          replace_once(
+              'src/pages/DashboardKaryawan.jsx',
+              '<DialJamKerja tahap={tahap} />',
+              '<DialJamKerja tahap={tahap} jamMasukStandar={jamMasukStandar} />',
+              'Employee dial dynamic prop',
+          )
+
+          # 4) Prevent future payroll periods from being calculated.
+          replace_once(
+              'backend/src/controllers/hitungGajiController.js',
+              '  if (!Number.isInteger(bulan) || bulan < 1 || bulan > 12) {\n    const error = new Error("Bulan tidak valid. Gunakan angka 1-12.");\n    error.code = "INPUT_INVALID";\n    throw error;\n  }\n\n  return { tahun, bulan };',
+              '  if (!Number.isInteger(bulan) || bulan < 1 || bulan > 12) {\n    const error = new Error("Bulan tidak valid. Gunakan angka 1-12.");\n    error.code = "INPUT_INVALID";\n    throw error;\n  }\n\n  if (tahun > sekarangWIB.tahun || (tahun === sekarangWIB.tahun && bulan > sekarangWIB.bulan)) {\n    const error = new Error("Periode gaji mendatang belum dapat dihitung atau dibuat laporannya.");\n    error.code = "INPUT_INVALID";\n    throw error;\n  }\n\n  return { tahun, bulan };',
+              'Future payroll guard',
+          )
+
+          # 5) Prevent duplicate payroll saves while one row is being written.
+          replace_once(
+              'src/pages/PengaturanGaji.jsx',
+              '  const [pesan, setPesan] = useState("");\n',
+              '  const [pesan, setPesan] = useState("");\n  const [sedangSimpanPotongan, setSedangSimpanPotongan] = useState(false);\n  const [sedangSimpanGajiId, setSedangSimpanGajiId] = useState(null);\n',
+              'Payroll save states',
+          )
+          replace_once(
+              'src/pages/PengaturanGaji.jsx',
+              '  async function simpanPotongan(e) {\n    e.preventDefault();\n    setPesan("");\n',
+              '  async function simpanPotongan(e) {\n    e.preventDefault();\n    if (sedangSimpanPotongan) return;\n    setPesan("");\n    setSedangSimpanPotongan(true);\n',
+              'Payroll settings save guard',
+          )
+          replace_once(
+              'src/pages/PengaturanGaji.jsx',
+              '    } catch (err) {\n      console.error(err);\n      setPesan("Tidak bisa terhubung ke server.");\n    }\n  }\n\n  async function simpanGajiPokok(id) {',
+              '    } catch (err) {\n      console.error(err);\n      setPesan("Tidak bisa terhubung ke server.");\n    } finally {\n      setSedangSimpanPotongan(false);\n    }\n  }\n\n  async function simpanGajiPokok(id) {',
+              'Payroll settings save finally',
+          )
+          replace_once(
+              'src/pages/PengaturanGaji.jsx',
+              '  async function simpanGajiPokok(id) {\n    const nilai = inputGaji[id];',
+              '  async function simpanGajiPokok(id) {\n    if (sedangSimpanGajiId === id) return;\n    const nilai = inputGaji[id];',
+              'Payroll row save guard',
+          )
+          replace_once(
+              'src/pages/PengaturanGaji.jsx',
+              '    setPesan("");\n\n    try {\n      const res = await fetch(`${API_URL}/admin/gaji/${id}/atur`, {',
+              '    setPesan("");\n    setSedangSimpanGajiId(id);\n\n    try {\n      const res = await fetch(`${API_URL}/admin/gaji/${id}/atur`, {',
+              'Payroll row save state',
+          )
+          replace_once(
+              'src/pages/PengaturanGaji.jsx',
+              '    } catch (err) {\n      console.error(err);\n      setPesan("Tidak bisa terhubung ke server.");\n    }\n  }\n\n  async function muatLaporanBulanan() {',
+              '    } catch (err) {\n      console.error(err);\n      setPesan("Tidak bisa terhubung ke server.");\n    } finally {\n      setSedangSimpanGajiId(null);\n    }\n  }\n\n  async function muatLaporanBulanan() {',
+              'Payroll row save finally',
+          )
+          replace_once(
+              'src/pages/PengaturanGaji.jsx',
+              '            type="submit"\n            style={styles.tombolUtama}\n            className="gaji-button"\n          >\n            Simpan Pengaturan\n          </button>',
+              '            type="submit"\n            style={styles.tombolUtama}\n            className="gaji-button"\n            disabled={sedangSimpanPotongan}\n          >\n            {sedangSimpanPotongan ? "Menyimpan…" : "Simpan Pengaturan"}\n          </button>',
+              'Payroll settings button UX',
+          )
+
+          # 6) Remove the obsolete patch artifact from the repository later by direct delete.
+          print('Overall audited source fixes applied successfully.')
+          PY
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/App.jsx src/pages/DashboardAdmin.jsx src/pages/DashboardKaryawan.jsx src/pages/PengaturanGaji.jsx backend/src/controllers/absensiController.js backend/src/controllers/hitungGajiController.js
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "fix: harden audited system flows [overall-hardening-applied]"
+          git push origin main
