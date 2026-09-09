@@ -14,9 +14,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      // Update PWA tidak boleh memaksa reload pada perangkat karyawan.
-      // Service worker tetap memperbarui asset, tetapi halaman aktif tidak
-      // dipindahkan mendadak saat karyawan sedang membuka kamera/absensi.
+      // Service worker boleh mengambil versi baru segera.
+      // main.jsx tetap menahan penerapan halaman baru ketika kamera sedang
+      // aktif, jadi sesi absensi karyawan tidak diputus mendadak.
       registerType: "prompt",
       includeAssets: ["favicon.png", "favicon.svg"],
       manifest: {
@@ -48,6 +48,8 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         navigateFallbackDenylist: [/^\/api/, /^\/uploads/],
         cleanupOutdatedCaches: true,
+        skipWaiting: true,
+        clientsClaim: true,
         runtimeCaching: [],
       },
     }),
