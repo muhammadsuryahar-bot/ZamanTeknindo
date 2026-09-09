@@ -16,7 +16,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Apply audited fixes
+      - name: Apply proven audited fixes
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -29,7 +29,8 @@ jobs:
                   raise SystemExit(f'{label}: expected 1 match, got {n}')
               p.write_text(s.replace(old, new), encoding='utf-8')
 
-          # 1) Stop remounting the whole Admin dashboard for "Atur Status".
+          # A) "Atur Status" must refresh only the affected rekap data, never
+          # remount the complete DashboardAdmin tree.
           replace_once(
               'src/App.jsx',
               'function AdminContextBar({ tanggal, onTanggalChange }) {',
@@ -67,7 +68,8 @@ jobs:
               'AdminShell stable dashboard',
           )
 
-          # 2) Make selected date remain the date used by Admin polling and refreshes.
+          # B) Keep the selected date across Admin polling, including after
+          # changing historical dates.
           replace_once(
               'src/pages/DashboardAdmin.jsx',
               'export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap }) {',
@@ -78,90 +80,25 @@ jobs:
               'src/pages/DashboardAdmin.jsx',
               '  useEffect(() => {\n    muatData();\n    // eslint-disable-next-line react-hooks/exhaustive-deps\n  }, []);',
               '  useEffect(() => {\n    void muatData();\n    // eslint-disable-next-line react-hooks/exhaustive-deps\n  }, [tanggalRekap, rekapRefreshNonce]);',
-              'DashboardAdmin date refresh effect',
+              'DashboardAdmin data refresh effect',
           )
           replace_once(
               'src/pages/DashboardAdmin.jsx',
-              '    // eslint-disable-next-line react-hooks/exhaustive-deps\n  }, []);\n\n  useEffect(() => {\n    if (tab === "karyawan") {',
-              '    // eslint-disable-next-line react-hooks/exhaustive-deps\n  }, [tanggalRekap]);\n\n  useEffect(() => {\n    if (tab === "karyawan") {',
+              '  }, []);\n\n  useEffect(() => {\n    if (tab === "karyawan") {',
+              '  }, [tanggalRekap]);\n\n  useEffect(() => {\n    if (tab === "karyawan") {',
               'DashboardAdmin polling date dependency',
           )
+
+          # C) Reactivation must increase the active count and refresh the row,
+          # while deactivation removes the row and decreases the count.
           replace_once(
               'src/pages/DashboardAdmin.jsx',
               '      setKaryawan((lama) => lama.filter((item) => item.id !== id));\n      setJumlahKaryawanAktif((jumlah) => Math.max(0, jumlah - 1));\n      void muatNotifikasi();',
               '      if (statusBaru === "nonaktif") {\n        setKaryawan((lama) => lama.filter((item) => item.id !== id));\n        setJumlahKaryawanAktif((jumlah) => Math.max(0, jumlah - 1));\n      } else {\n        setJumlahKaryawanAktif((jumlah) => jumlah + 1);\n        void muatKaryawan(true, { silent: true });\n      }\n      void muatNotifikasi();',
-              'Karyawan status count logic',
-          )
-          replace_once(
-              'src/pages/DashboardAdmin.jsx',
-              '    const jamSekarang = new Date().toLocaleDateString("id-ID", {\n    weekday: "long",\n    day: "numeric",\n    month: "long",\n    year: "numeric",\n  });\n',
-              '    const jamSekarang = new Date().toLocaleDateString("id-ID", {\n    timeZone: "Asia/Jakarta",\n    weekday: "long",\n    day: "numeric",\n    month: "long",\n    year: "numeric",\n  });\n',
-              'Admin date timezone',
-          )
-          replace_once(
-              'src/pages/DashboardAdmin.jsx',
-              '  const jamSaatIni = new Date().getHours();',
-              '  const jamSaatIni = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jakarta", hour: "2-digit", hourCycle: "h23" }).format(new Date()));',
-              'Admin greeting timezone',
-          )
-          replace_once(
-              'src/pages/DashboardAdmin.jsx',
-              '    return new Date(tanggalIso).toLocaleTimeString("id-ID", {\n      hour: "2-digit",\n      minute: "2-digit",\n    });',
-              '    return new Date(tanggalIso).toLocaleTimeString("id-ID", {\n      timeZone: "Asia/Jakarta",\n      hour: "2-digit",\n      minute: "2-digit",\n    });',
-              'Admin attendance timezone',
+              'Karyawan reactivation logic',
           )
 
-          # 3) Expose the configured standard arrival time to employee UI.
-          replace_once(
-              'backend/src/controllers/absensiController.js',
-              '    const pengajuanDisetujui = await prisma.pengajuanIzin.findFirst({\n      where: { penggunaId, tanggal, status: "disetujui" },',
-              '    const pengaturan = await prisma.pengaturanPotongan.findUnique({\n      where: { id: 1 },\n      select: { jamMasukStandar: true },\n    });\n\n    const pengajuanDisetujui = await prisma.pengajuanIzin.findFirst({\n      where: { penggunaId, tanggal, status: "disetujui" },',
-              'Status endpoint standard arrival setting',
-          )
-          replace_once(
-              'backend/src/controllers/absensiController.js',
-              '        pengajuanIzin: pengajuanDisetujui,\n      });',
-              '        pengajuanIzin: pengajuanDisetujui,\n        jamMasukStandar: pengaturan?.jamMasukStandar || JAM_BATAS_TEPAT_WAKTU_DEFAULT,\n      });',
-              'Status endpoint leave response setting',
-          )
-          replace_once(
-              'backend/src/controllers/absensiController.js',
-              '    return res.json({ tahap, data: absensi, pengajuanIzin: null });',
-              '    return res.json({\n      tahap,\n      data: absensi,\n      pengajuanIzin: null,\n      jamMasukStandar: pengaturan?.jamMasukStandar || JAM_BATAS_TEPAT_WAKTU_DEFAULT,\n    });',
-              'Status endpoint normal response setting',
-          )
-          replace_once(
-              'src/pages/DashboardKaryawan.jsx',
-              'function DialJamKerja({ tahap }) {',
-              'function DialJamKerja({ tahap, jamMasukStandar = "08:10:00" }) {',
-              'Employee dial setting prop',
-          )
-          replace_once(
-              'src/pages/DashboardKaryawan.jsx',
-              'Senin–Jumat · 08:00–17:00 WIB · Tepat waktu sampai 08:10',
-              'Senin–Jumat · 08:00–17:00 WIB · Tepat waktu sampai ${jamMasukStandar.slice(0, 5)}',
-              'Employee dial dynamic threshold',
-          )
-          replace_once(
-              'src/pages/DashboardKaryawan.jsx',
-              '  const [pengajuanHariIni, setPengajuanHariIni] = useState(null);',
-              '  const [pengajuanHariIni, setPengajuanHariIni] = useState(null);\n  const [jamMasukStandar, setJamMasukStandar] = useState("08:10:00");',
-              'Employee standard time state',
-          )
-          replace_once(
-              'src/pages/DashboardKaryawan.jsx',
-              '      setTahap(data.tahap);\n      setPengajuanHariIni(data.pengajuanIzin || null);',
-              '      setTahap(data.tahap);\n      setPengajuanHariIni(data.pengajuanIzin || null);\n      setJamMasukStandar(data.jamMasukStandar || "08:10:00");',
-              'Employee standard time response',
-          )
-          replace_once(
-              'src/pages/DashboardKaryawan.jsx',
-              '<DialJamKerja tahap={tahap} />',
-              '<DialJamKerja tahap={tahap} jamMasukStandar={jamMasukStandar} />',
-              'Employee dial dynamic prop',
-          )
-
-          # 4) Prevent future payroll periods from being calculated.
+          # D) Do not allow future payroll periods to be calculated/saved.
           replace_once(
               'backend/src/controllers/hitungGajiController.js',
               '  if (!Number.isInteger(bulan) || bulan < 1 || bulan > 12) {\n    const error = new Error("Bulan tidak valid. Gunakan angka 1-12.");\n    error.code = "INPUT_INVALID";\n    throw error;\n  }\n\n  return { tahun, bulan };',
@@ -169,7 +106,7 @@ jobs:
               'Future payroll guard',
           )
 
-          # 5) Prevent duplicate payroll saves while one row is being written.
+          # E) Prevent duplicate clicks on salary-setting saves.
           replace_once(
               'src/pages/PengaturanGaji.jsx',
               '  const [pesan, setPesan] = useState("");\n',
@@ -213,15 +150,14 @@ jobs:
               'Payroll settings button UX',
           )
 
-          # 6) Remove the obsolete patch artifact from the repository later by direct delete.
-          print('Overall audited source fixes applied successfully.')
+          print('Proven audited fixes applied successfully.')
           PY
 
       - name: Commit changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/App.jsx src/pages/DashboardAdmin.jsx src/pages/DashboardKaryawan.jsx src/pages/PengaturanGaji.jsx backend/src/controllers/absensiController.js backend/src/controllers/hitungGajiController.js
+          git add src/App.jsx src/pages/DashboardAdmin.jsx src/pages/PengaturanGaji.jsx backend/src/controllers/hitungGajiController.js
           if git diff --cached --quiet; then
             echo "No changes to commit."
             exit 0
