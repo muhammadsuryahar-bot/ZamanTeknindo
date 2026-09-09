@@ -100,7 +100,7 @@ function RuteTerproteksi({ pengguna, peranDiizinkan, children }) {
   return children;
 }
 
-function AdminContextBar({ tanggal, onTanggalChange }) {
+function AdminContextBar({ tanggal, onTanggalChange, onRekapRefresh }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [tab, setTab] = useState(() => {
@@ -228,7 +228,7 @@ function AdminContextBar({ tanggal, onTanggalChange }) {
       setEditId(null);
       setCatatan("");
       setPesan("Status berhasil dicatat.");
-      onTanggalChange(tanggal, true);
+      onRekapRefresh();
     } catch (error) {
       setPesan(error?.message || "Gagal menyimpan status.");
     } finally {
@@ -326,7 +326,7 @@ function AdminShell({ pengguna, onLogout }) {
       return hariIni;
     }
   });
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [rekapRefreshNonce, setRekapRefreshNonce] = useState(0);
 
   useEffect(() => {
     if (typeof window !== "undefined") window.__adminTanggalRekap = tanggalRekap;
@@ -341,7 +341,7 @@ function AdminShell({ pengguna, onLogout }) {
     if (typeof window !== "undefined") window.__adminTanggalRekap = tanggalRekap;
   }, []);
 
-  function onTanggalChange(tanggalBaru, forceRefresh = false) {
+  function onTanggalChange(tanggalBaru) {
     const aman = tanggalBaru && tanggalBaru <= hariIni ? tanggalBaru : hariIni;
     if (typeof window !== "undefined") window.__adminTanggalRekap = aman;
     try {
@@ -350,17 +350,16 @@ function AdminShell({ pengguna, onLogout }) {
       // Abaikan storage yang tidak tersedia.
     }
     setTanggalRekap(aman);
-    setRefreshKey((nilai) => nilai + 1 + (forceRefresh ? 1 : 0));
   }
 
   return (
     <div style={styles.adminShell}>
-      {!arsipTerbuka && <AdminContextBar tanggal={tanggalRekap} onTanggalChange={onTanggalChange} />}
+      {!arsipTerbuka && <AdminContextBar tanggal={tanggalRekap} onTanggalChange={onTanggalChange} onRekapRefresh={() => setRekapRefreshNonce((nilai) => nilai + 1)} />}
       <DashboardAdmin
-        key={`${tanggalRekap}-${refreshKey}`}
         pengguna={pengguna}
         onLogout={onLogout}
         tanggalRekap={tanggalRekap}
+        rekapRefreshNonce={rekapRefreshNonce}
       />
       {arsipTerbuka && (
         <div className="admin-page-archive" style={styles.arsipOverlay} role="dialog" aria-modal="true" aria-label="Arsip dan Cleanup Absensi">

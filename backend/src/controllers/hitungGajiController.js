@@ -50,6 +50,12 @@ function validasiTahunBulan(req) {
     throw error;
   }
 
+  if (tahun > sekarangWIB.tahun || (tahun === sekarangWIB.tahun && bulan > sekarangWIB.bulan)) {
+    const error = new Error("Periode gaji mendatang belum dapat dihitung atau dibuat laporannya.");
+    error.code = "INPUT_INVALID";
+    throw error;
+  }
+
   return { tahun, bulan };
 }
 

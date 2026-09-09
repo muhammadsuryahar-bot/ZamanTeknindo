@@ -76,7 +76,7 @@ function SkeletonBaris({ jumlah = 4 }) {
   );
 }
 
-export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap }) {
+export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekapRefreshNonce }) {
   const navigate = useNavigate();
   const [tab, setTab] = useState(() => {
     const tabTersimpan = sessionStorage.getItem("admin-tab");
@@ -258,9 +258,9 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap }) {
   }, [tab]);
 
   useEffect(() => {
-    muatData();
+    void muatData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [tanggalRekap, rekapRefreshNonce]);
 
   // Sinkronisasi dashboard Admin berjalan otomatis saat tab sedang terlihat.
   // Refresh dibuat silent agar tabel tetap tampil tanpa skeleton/flicker.
@@ -306,7 +306,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap }) {
     };
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [tanggalRekap]);
 
   useEffect(() => {
     if (tab === "karyawan") {
@@ -704,8 +704,13 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap }) {
       setKonfirmasiStatusTerbuka(null);
 
       // Daftar Karyawan hanya berisi akun aktif, jadi hilangkan baris ini sekarang.
-      setKaryawan((lama) => lama.filter((item) => item.id !== id));
-      setJumlahKaryawanAktif((jumlah) => Math.max(0, jumlah - 1));
+      if (statusBaru === "nonaktif") {
+        setKaryawan((lama) => lama.filter((item) => item.id !== id));
+        setJumlahKaryawanAktif((jumlah) => Math.max(0, jumlah - 1));
+      } else {
+        setJumlahKaryawanAktif((jumlah) => jumlah + 1);
+        void muatKaryawan(true, { silent: true });
+      }
       void muatNotifikasi();
     } catch (err) {
       console.error(err);

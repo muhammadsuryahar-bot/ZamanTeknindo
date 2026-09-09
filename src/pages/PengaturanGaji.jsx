@@ -88,6 +88,8 @@ export default function PengaturanGaji() {
   const [inputGaji, setInputGaji] = useState({});
   const [loading, setLoading] = useState(true);
   const [pesan, setPesan] = useState("");
+  const [sedangSimpanPotongan, setSedangSimpanPotongan] = useState(false);
+  const [sedangSimpanGajiId, setSedangSimpanGajiId] = useState(null);
 
   // Tahun khusus laporan gaji.
   const [tahunPilih, setTahunPilih] = useState(sekarang.getFullYear());
@@ -379,7 +381,9 @@ export default function PengaturanGaji() {
 
   async function simpanPotongan(e) {
     e.preventDefault();
+    if (sedangSimpanPotongan) return;
     setPesan("");
+    setSedangSimpanPotongan(true);
 
     try {
       const res = await fetch(`${API_URL}/admin/pengaturan-potongan`, {
@@ -401,10 +405,13 @@ export default function PengaturanGaji() {
     } catch (err) {
       console.error(err);
       setPesan("Tidak bisa terhubung ke server.");
+    } finally {
+      setSedangSimpanPotongan(false);
     }
   }
 
   async function simpanGajiPokok(id) {
+    if (sedangSimpanGajiId === id) return;
     const nilai = inputGaji[id];
 
     if (nilai == null || nilai === "") {
@@ -420,6 +427,7 @@ export default function PengaturanGaji() {
     }
 
     setPesan("");
+    setSedangSimpanGajiId(id);
 
     try {
       const res = await fetch(`${API_URL}/admin/gaji/${id}/atur`, {
@@ -470,6 +478,8 @@ export default function PengaturanGaji() {
     } catch (err) {
       console.error(err);
       setPesan("Tidak bisa terhubung ke server.");
+    } finally {
+      setSedangSimpanGajiId(null);
     }
   }
 
@@ -665,8 +675,9 @@ export default function PengaturanGaji() {
             type="submit"
             style={styles.tombolUtama}
             className="gaji-button"
+            disabled={sedangSimpanPotongan}
           >
-            Simpan Pengaturan
+            {sedangSimpanPotongan ? "Menyimpan…" : "Simpan Pengaturan"}
           </button>
         </form>
       </div>
