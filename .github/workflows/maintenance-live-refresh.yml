@@ -1,0 +1,109 @@
+name: Maintenance live refresh
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  apply-live-refresh:
+    if: ${{ !contains(github.event.head_commit.message, '[live-refresh-applied]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Apply safe live refresh hardening
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/pages/DashboardAdmin.jsx')
+          text = path.read_text(encoding='utf-8')
+
+          old_effect = '''  useEffect(() => {\n    muatData();\n    // eslint-disable-next-line react-hooks/exhaustive-deps\n  }, []);'''
+          new_effect = '''  useEffect(() => {\n    muatData();\n    // eslint-disable-next-line react-hooks/exhaustive-deps\n  }, []);\n\n  // Sinkronisasi dashboard Admin berjalan otomatis saat tab sedang terlihat.\n  // Refresh dibuat silent agar tabel tetap tampil tanpa skeleton/flicker.\n  useEffect(() => {\n    let intervalId = null;\n\n    const refreshDashboard = () => {\n      if (document.visibilityState !== "visible") return;\n      void muatData({ silent: true });\n      void muatNotifikasi();\n    };\n\n    const mulai = () => {\n      if (intervalId !== null) return;\n      refreshDashboard();\n      intervalId = window.setInterval(refreshDashboard, 15000);\n    };\n\n    const berhenti = () => {\n      if (intervalId !== null) {\n        window.clearInterval(intervalId);\n        intervalId = null;\n      }\n    };\n\n    const ketikaVisibilityBerubah = () => {\n      if (document.visibilityState === "visible") {\n        refreshDashboard();\n        mulai();\n      } else {\n        berhenti();\n      }\n    };\n\n    mulai();\n    document.addEventListener("visibilitychange", ketikaVisibilityBerubah);\n\n    return () => {\n      berhenti();\n      document.removeEventListener("visibilitychange", ketikaVisibilityBerubah);\n    };\n\n    // eslint-disable-next-line react-hooks/exhaustive-deps\n  }, []);'''
+
+          if 'Sinkronisasi dashboard Admin berjalan otomatis saat tab sedang terlihat.' not in text:
+              if old_effect not in text:
+                  raise SystemExit('Target effect DashboardAdmin tidak ditemukan; batal agar tidak merusak file.')
+              text = text.replace(old_effect, new_effect, 1)
+
+          old_fn = '''  async function muatData() {\n    setLoading(true);\n    setPesan("");'''
+          new_fn = '''  async function muatData({ silent = false } = {}) {\n    if (!silent) {\n      setLoading(true);\n      setPesan("");\n    }'''
+          if old_fn not in text:
+              raise SystemExit('Target fungsi muatData tidak ditemukan; batal.')
+          text = text.replace(old_fn, new_fn, 1)
+
+          old_token_missing = '''    if (!token) {\n      setPesan("Sesi login tidak ditemukan. Silakan login kembali.");\n      setLoading(false);\n      return;\n    }'''
+          new_token_missing = '''    if (!token) {\n      if (!silent) setPesan("Sesi login tidak ditemukan. Silakan login kembali.");\n      if (!silent) setLoading(false);\n      return;\n    }'''
+          if old_token_missing not in text:
+              raise SystemExit('Target blok token DashboardAdmin tidak ditemukan; batal.')
+          text = text.replace(old_token_missing, new_token_missing, 1)
+
+          old_catch = '''    } catch (err) {\n      console.error("Gagal memuat data Dashboard Admin:", err);\n      setPesan(\n        err?.message || "Gagal memuat data dashboard. Cek koneksi ke server.",\n      );\n    } finally {\n      setLoading(false);\n    }'''
+          new_catch = '''    } catch (err) {\n      console.error("Gagal memuat data Dashboard Admin:", err);\n      if (!silent) {\n        setPesan(\n          err?.message || "Gagal memuat data dashboard. Cek koneksi ke server.",\n        );\n      }\n    } finally {\n      if (!silent) setLoading(false);\n    }'''
+          if old_catch not in text:
+              raise SystemExit('Target catch/finally DashboardAdmin tidak ditemukan; batal.')
+          text = text.replace(old_catch, new_catch, 1)
+
+          # Hapus polling notifikasi lama agar tidak ada dua request interval yang tumpang tindih.
+          old_notif_effect = '''  useEffect(() => {\n    muatNotifikasi();\n\n    const interval = setInterval(() => {\n      muatNotifikasi();\n    }, 15000);\n\n    return () => clearInterval(interval);\n\n    // eslint-disable-next-line react-hooks/exhaustive-deps\n  }, []);'''
+          if old_notif_effect in text:
+              text = text.replace(old_notif_effect, '', 1)
+
+          path.write_text(text, encoding='utf-8')
+          print('DashboardAdmin live refresh applied')
+          PY
+
+      - name: Apply employee history/leave auto refresh
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          targets = [
+              ('src/pages/AdminIzin.jsx', 'AdminIzin'),
+              ('src/pages/PengajuanIzin.jsx', 'PengajuanIzin'),
+              ('src/pages/RiwayatAbsensi.jsx', 'RiwayatAbsensi'),
+          ]
+
+          for filename, label in targets:
+              path = Path(filename)
+              text = path.read_text(encoding='utf-8')
+              marker = f'// AUTO_REFRESH_{label}_APPLIED'
+              if marker in text:
+                  continue
+
+              if label == 'AdminIzin':
+                  old = '''  useEffect(() => {\n    void ambilDaftar();\n    // eslint-disable-next-line react-hooks/exhaustive-deps\n  }, [filterStatus]);'''
+                  new = '''  useEffect(() => {\n    void ambilDaftar();\n    // eslint-disable-next-line react-hooks/exhaustive-deps\n  }, [filterStatus]);\n\n  // AUTO_REFRESH_AdminIzin_APPLIED\n  useEffect(() => {\n    const refresh = () => {\n      if (document.visibilityState === "visible") void ambilDaftar();\n    };\n    const id = window.setInterval(refresh, 15000);\n    document.addEventListener("visibilitychange", refresh);\n    return () => {\n      window.clearInterval(id);\n      document.removeEventListener("visibilitychange", refresh);\n    };\n    // eslint-disable-next-line react-hooks/exhaustive-deps\n  }, []);'''
+              elif label == 'PengajuanIzin':
+                  old = '''  useEffect(() => { void ambilRiwayat(); }, []);'''
+                  new = '''  useEffect(() => { void ambilRiwayat(); }, []);\n  // AUTO_REFRESH_PengajuanIzin_APPLIED\n  useEffect(() => {\n    const refresh = () => {\n      if (document.visibilityState === "visible") void ambilRiwayat();\n    };\n    const id = window.setInterval(refresh, 30000);\n    document.addEventListener("visibilitychange", refresh);\n    return () => {\n      window.clearInterval(id);\n      document.removeEventListener("visibilitychange", refresh);\n    };\n  }, []);'''
+              else:
+                  old = '''  useEffect(() => {\n    void muatRiwayat();\n  }, []);'''
+                  new = '''  useEffect(() => {\n    void muatRiwayat();\n  }, []);\n\n  // AUTO_REFRESH_RiwayatAbsensi_APPLIED\n  useEffect(() => {\n    const refresh = () => {\n      if (document.visibilityState === "visible") void muatRiwayat();\n    };\n    const id = window.setInterval(refresh, 30000);\n    document.addEventListener("visibilitychange", refresh);\n    return () => {\n      window.clearInterval(id);\n      document.removeEventListener("visibilitychange", refresh);\n    };\n    // eslint-disable-next-line react-hooks/exhaustive-deps\n  }, []);'''
+
+              if old not in text:
+                  raise SystemExit(f'Target effect {label} tidak ditemukan; batal.')
+              path.write_text(text.replace(old, new, 1), encoding='utf-8')
+              print(f'{filename} updated')
+          PY
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/DashboardAdmin.jsx src/pages/AdminIzin.jsx src/pages/PengajuanIzin.jsx src/pages/RiwayatAbsensi.jsx
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "fix: enable live dashboard refresh [live-refresh-applied]"
+            git push origin main
+          fi
