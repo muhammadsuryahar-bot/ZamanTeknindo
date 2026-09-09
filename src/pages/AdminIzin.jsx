@@ -15,10 +15,12 @@ export default function AdminIzin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterStatus]);
 
-  // AUTO_REFRESH_AdminIzin_APPLIED
+  // Background refresh tetap mempertahankan data yang sedang tampil sehingga tidak berkedip.
   useEffect(() => {
     const refresh = () => {
-      if (document.visibilityState === "visible") void ambilDaftar();
+      if (document.visibilityState === "visible" && prosesId === null) {
+        void ambilDaftar({ silent: true });
+      }
     };
     const id = window.setInterval(refresh, 15000);
     document.addEventListener("visibilitychange", refresh);
@@ -27,11 +29,13 @@ export default function AdminIzin() {
       document.removeEventListener("visibilitychange", refresh);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [filterStatus, prosesId]);
 
-  async function ambilDaftar() {
-    setLoading(true);
-    setPesan("");
+  async function ambilDaftar({ silent = false } = {}) {
+    if (!silent) {
+      setLoading(true);
+      setPesan("");
+    }
     try {
       const query = filterStatus ? `?status=${filterStatus}` : "";
       const res = await fetch(`${API_URL}/izin/semua${query}`, {
@@ -39,17 +43,21 @@ export default function AdminIzin() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setDaftar([]);
-        setPesan(data.pesan || "Gagal memuat daftar pengajuan.");
+        if (!silent) {
+          setDaftar([]);
+          setPesan(data.pesan || "Gagal memuat daftar pengajuan.");
+        }
         return;
       }
       setDaftar(Array.isArray(data.data) ? data.data : []);
     } catch (err) {
       console.error(err);
-      setDaftar([]);
-      setPesan("Gagal memuat daftar pengajuan.");
+      if (!silent) {
+        setDaftar([]);
+        setPesan("Gagal memuat daftar pengajuan.");
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
