@@ -36,9 +36,9 @@ export default function AdminGajiMassal() {
     }
   }
 
-  async function muatDaftarGaji() {
-    setLoading(true);
-    setPesan("");
+  async function muatDaftarGaji({ silent = false } = {}) {
+    if (!silent) setLoading(true);
+    if (!silent) setPesan("");
     try {
       const res = await fetch(`${API_URL}/admin/gaji`, {
         headers: { Authorization: `Bearer ${getToken()}` },
@@ -148,7 +148,7 @@ export default function AdminGajiMassal() {
       if (!res.ok) throw new Error(data.pesan || "Gagal menyimpan gaji massal.");
       setPesanSukses(data.pesan || "Semua gaji pokok berhasil disimpan.");
       setHasilPreview(null);
-      await muatDaftarGaji();
+      void muatDaftarGaji({ silent: true });
     } catch (err) {
       console.error(err);
       setPesan(err?.message || "Gagal menyimpan gaji massal.");
