@@ -76,7 +76,7 @@ function SkeletonBaris({ jumlah = 4 }) {
   );
 }
 
-export default function DashboardAdmin({ pengguna, onLogout }) {
+export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap }) {
   const navigate = useNavigate();
   const [tab, setTab] = useState(() => {
     const tabTersimpan = sessionStorage.getItem("admin-tab");
@@ -389,7 +389,12 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       // Initial load hanya mengambil data yang diperlukan untuk
       // dashboard/rekap dan badge Menunggu.
       const responses = await Promise.all([
-        fetch(`${API_URL}/admin/rekap-hari-ini`, { headers }),
+        fetch(
+          tanggalRekap
+            ? `${API_URL}/admin/rekap-tanggal?tanggal=${encodeURIComponent(tanggalRekap)}`
+            : `${API_URL}/admin/rekap-hari-ini`,
+          { headers },
+        ),
         fetch(`${API_URL}/admin/akun-menunggu`, { headers }),
       ]);
 

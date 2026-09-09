@@ -118,6 +118,7 @@ function AdminContextBar({ tanggal, onTanggalChange }) {
   const [catatan, setCatatan] = useState("");
   const [simpanId, setSimpanId] = useState(null);
   const [pesan, setPesan] = useState("");
+  const [rekapToolbarTerlihat, setRekapToolbarTerlihat] = useState(true);
 
   useEffect(() => {
     let mounted = true;
@@ -147,6 +148,26 @@ function AdminContextBar({ tanggal, onTanggalChange }) {
     setEditId(null);
     setPesan("");
   }, [tab, tanggal]);
+
+  // Toolbar tanggal hanya tampil di bagian atas halaman Rekap.
+  // Saat tabel discroll, toolbar disembunyikan agar tidak pernah menutupi
+  // baris absensi. Kembali ke atas => toolbar muncul lagi.
+  useEffect(() => {
+    if (tab !== "rekap") return;
+
+    const target = document.querySelector(".main-area-admin");
+    if (!target) return;
+
+    const ketikaScroll = () => {
+      const diAtas = target.scrollTop <= 80;
+      setRekapToolbarTerlihat(diAtas);
+      if (!diAtas) setPanelTerbuka(false);
+    };
+
+    ketikaScroll();
+    target.addEventListener("scroll", ketikaScroll, { passive: true });
+    return () => target.removeEventListener("scroll", ketikaScroll);
+  }, [tab]);
 
   useEffect(() => {
     if (tab !== "rekap") return;
@@ -218,7 +239,16 @@ function AdminContextBar({ tanggal, onTanggalChange }) {
   if (tab === "rekap") {
     return (
       <>
-        <div className="admin-rekap-toolbar" style={styles.adminRekapToolbar}>
+        <div
+          className="admin-rekap-toolbar"
+          style={{
+            ...styles.adminRekapToolbar,
+            opacity: rekapToolbarTerlihat ? 1 : 0,
+            visibility: rekapToolbarTerlihat ? "visible" : "hidden",
+            pointerEvents: rekapToolbarTerlihat ? "auto" : "none",
+            transform: rekapToolbarTerlihat ? "translateY(0)" : "translateY(-12px)",
+          }}
+        >
           <div style={styles.adminRekapDateCopy}>
             <span style={styles.adminRekapEyebrow}>TANGGAL REKAP</span>
             <strong style={styles.adminRekapDate}>{formatTanggalIndonesia(tanggal)}</strong>
@@ -326,7 +356,12 @@ function AdminShell({ pengguna, onLogout }) {
   return (
     <div style={styles.adminShell}>
       {!arsipTerbuka && <AdminContextBar tanggal={tanggalRekap} onTanggalChange={onTanggalChange} />}
-      <DashboardAdmin key={`${tanggalRekap}-${refreshKey}`} pengguna={pengguna} onLogout={onLogout} />
+      <DashboardAdmin
+        key={`${tanggalRekap}-${refreshKey}`}
+        pengguna={pengguna}
+        onLogout={onLogout}
+        tanggalRekap={tanggalRekap}
+      />
       {arsipTerbuka && (
         <div className="admin-page-archive" style={styles.arsipOverlay} role="dialog" aria-modal="true" aria-label="Arsip dan Cleanup Absensi">
           <div style={styles.arsipOverlayInner}><AdminArsip kembaliKeDashboard={() => navigate("/admin")} /></div>
@@ -359,7 +394,7 @@ const styles = {
   adminShell: { minHeight: "100svh", position: "relative" },
   adminContextBar: { position: "fixed", right: 28, bottom: 24, zIndex: 10001 },
   contextButton: { minHeight: 44, display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 14px", border: `1px solid ${warna.garis}`, borderRadius: 12, background: warna.panel, color: warna.tinta, boxShadow: "0 10px 28px rgba(22,35,61,0.12)", fontSize: 12, fontWeight: 750, cursor: "pointer" },
-  adminRekapToolbar: { position: "fixed", top: 88, left: "calc(232px + 28px)", right: 28, zIndex: 10002, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "7px 9px", border: `1px solid ${warna.garis}`, borderRadius: 12, background: "rgba(255,255,255,0.98)", boxShadow: "0 10px 28px rgba(22,35,61,0.10)", backdropFilter: "blur(12px)", boxSizing: "border-box" },
+  adminRekapToolbar: { position: "fixed", top: 88, left: "calc(232px + 28px)", right: 28, zIndex: 10002, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "7px 9px", border: `1px solid ${warna.garis}`, borderRadius: 12, background: "rgba(255,255,255,0.98)", boxShadow: "0 10px 28px rgba(22,35,61,0.10)", backdropFilter: "blur(12px)", boxSizing: "border-box", transition: "opacity 0.16s ease, transform 0.16s ease, visibility 0.16s ease" },
   adminRekapDateCopy: { minWidth: 0, display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" },
   adminRekapEyebrow: { color: warna.aksen, fontSize: 9.5, fontWeight: 800, letterSpacing: "0.08em" },
   adminRekapDate: { color: warna.tinta, fontSize: 12 },
