@@ -173,6 +173,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
 
   // Form edit status kehadiran manual yang lagi dibuka
   const [editStatusTerbuka, setEditStatusTerbuka] = useState(null); // id absensi atau null
+  const [sedangSimpanStatusId, setSedangSimpanStatusId] = useState(null);
   const [formEditStatus, setFormEditStatus] = useState({
     statusFinal: "",
     catatanAdmin: "",
@@ -192,6 +193,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
   });
   const [notifikasiTerbuka, setNotifikasiTerbuka] = useState(false);
   const notifikasiRef = useRef(null);
+  const tabRef = useRef(tab);
 
   // Tutup panel notifikasi kalau admin klik di luar area panel/tombolnya --
   // tanpa ini, panel cuma bisa ditutup dengan klik tombol X, yang terasa
@@ -252,6 +254,10 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
   }
 
   useEffect(() => {
+    tabRef.current = tab;
+  }, [tab]);
+
+  useEffect(() => {
     muatData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -265,8 +271,8 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       if (document.visibilityState !== "visible") return;
       void muatData({ silent: true });
       void muatNotifikasi();
-      if (tab === "karyawan") void muatKaryawan(true, { silent: true });
-      if (tab === "kantor") void muatKantor(true, { silent: true });
+      if (tabRef.current === "karyawan") void muatKaryawan(true, { silent: true });
+      if (tabRef.current === "kantor") void muatKantor(true, { silent: true });
     };
 
     const mulai = () => {
@@ -568,13 +574,15 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       setFormAktivasiTerbuka(null);
 
       // Rekap + jumlah karyawan aktif berubah setelah aktivasi.
-      await muatData();
+      // Aktivasi mengubah daftar Menunggu dan jumlah karyawan aktif.
+      setMenunggu((lama) => lama.filter((item) => item.id !== id));
+      setJumlahKaryawanAktif((jumlah) => jumlah + 1);
 
-      // Kalau daftar Karyawan sudah pernah dibuka, refresh juga.
+      // Kalau tab Karyawan sudah pernah dibuka, sinkronkan diam-diam di belakang.
       if (karyawanSudahDimuat) {
-        await muatKaryawan(true);
+        void muatKaryawan(true, { silent: true });
       }
-      await muatNotifikasi();
+      void muatNotifikasi();
     } catch (err) {
       console.error(err);
       setPesan("Tidak bisa terhubung ke server.");
@@ -690,12 +698,10 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       setPesanSukses(data.pesan);
       setKonfirmasiStatusTerbuka(null);
 
-      await muatData();
-
-      if (karyawanSudahDimuat) {
-        await muatKaryawan(true);
-      }
-      await muatNotifikasi();
+      // Daftar Karyawan hanya berisi akun aktif, jadi hilangkan baris ini sekarang.
+      setKaryawan((lama) => lama.filter((item) => item.id !== id));
+      setJumlahKaryawanAktif((jumlah) => Math.max(0, jumlah - 1));
+      void muatNotifikasi();
     } catch (err) {
       console.error(err);
       setPesan("Tidak bisa terhubung ke server.");
@@ -717,7 +723,12 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       );
       return;
     }
+
+    if (sedangSimpanStatusId === id) return;
+
     setPesan("");
+    setSedangSimpanStatusId(id);
+
     try {
       const res = await fetch(`${API_URL}/admin/absensi/${id}/edit-status`, {
         method: "PUT",
@@ -727,15 +738,39 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
         },
         body: JSON.stringify(formEditStatus),
       });
-      const data = await res.json();
-      if (!res.ok)
-        return setPesan(data.pesan || "Gagal mengubah status absensi.");
-      setPesanSukses(data.pesan);
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setPesan(data.pesan || "Gagal mengubah status absensi.");
+        return;
+      }
+
+      const absensiBaru = data?.data;
+      setRekap((lama) =>
+        lama.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                ...(absensiBaru || {}),
+                pengguna: item.pengguna,
+                statusFinal: absensiBaru?.statusFinal ?? formEditStatus.statusFinal,
+                statusEfektif: absensiBaru?.statusFinal ?? formEditStatus.statusFinal,
+                catatanAdmin: absensiBaru?.catatanAdmin ?? formEditStatus.catatanAdmin.trim(),
+              }
+            : item,
+        ),
+      );
+
       setEditStatusTerbuka(null);
-      muatData();
+      setPesanSukses(data.pesan || "Status absensi berhasil diperbarui.");
+
+      // Badge notifikasi adalah state terpisah. Refresh hanya badge-nya.
+      void muatNotifikasi();
     } catch (err) {
       console.error(err);
       setPesan("Tidak bisa terhubung ke server.");
+    } finally {
+      setSedangSimpanStatusId(null);
     }
   }
 
@@ -1635,7 +1670,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                                   <div style={styles.fotoAbsenRow}>
                                     {item.fotoMasuk && (
                                       <a
-                                        href={urlFoto(item.fotoMasuk)}
+                                        href={urlFoto(item.fotoMasuk, item.fotoMasukUrl)}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         title="Lihat foto absen masuk"
@@ -1652,7 +1687,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                                     )}
                                     {item.fotoPulang && (
                                       <a
-                                        href={urlFoto(item.fotoPulang)}
+                                        href={urlFoto(item.fotoPulang, item.fotoPulangUrl)}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         title="Lihat foto absen pulang"
@@ -1791,8 +1826,9 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
                                             simpanEditStatus(item.id)
                                           }
                                           style={styles.tombolAktifkan}
+                                          disabled={sedangSimpanStatusId === item.id}
                                         >
-                                          Simpan
+                                          {sedangSimpanStatusId === item.id ? "Menyimpan…" : "Simpan"}
                                         </button>
                                       </div>
                                     </div>

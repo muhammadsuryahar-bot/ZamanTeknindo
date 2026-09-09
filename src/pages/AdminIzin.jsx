@@ -76,7 +76,7 @@ export default function AdminIzin() {
         return;
       }
       setPesan(data.pesan || "Pengajuan berhasil diproses.");
-      await ambilDaftar();
+      setDaftar((lama) => lama.filter((item) => item.id !== id));
     } catch (err) {
       console.error(err);
       setPesan("Tidak bisa terhubung ke server.");

@@ -67,7 +67,7 @@ export default function PengajuanIzin({ kembali }) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setPesan(data.pesan || "Gagal mengirim pengajuan."); setPesanTipe("error"); return; }
       setPesan("Pengajuan berhasil dikirim, menunggu persetujuan Admin."); setPesanTipe("sukses");
-      setTanggal(""); setJenis("izin"); setKeterangan(""); setFotoSurat(null); await ambilRiwayat();
+      setTanggal(""); setJenis("izin"); setKeterangan(""); setFotoSurat(null); void ambilRiwayat({ silent: true });
     } catch (err) { console.error(err); setPesan("Tidak bisa terhubung ke server."); setPesanTipe("error"); }
     finally { setLoading(false); }
   }
