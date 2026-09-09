@@ -46,6 +46,20 @@ export default function RiwayatAbsensi({ kembali }) {
     void muatRiwayat();
   }, []);
 
+  // AUTO_REFRESH_RiwayatAbsensi_APPLIED
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === "visible") void muatRiwayat();
+    };
+    const id = window.setInterval(refresh, 30000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function formatTanggal(tanggalIso) {
     return new Date(tanggalIso).toLocaleDateString("id-ID", {
       timeZone: TIMEZONE_WIB,

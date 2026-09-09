@@ -15,6 +15,20 @@ export default function AdminIzin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterStatus]);
 
+  // AUTO_REFRESH_AdminIzin_APPLIED
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === "visible") void ambilDaftar();
+    };
+    const id = window.setInterval(refresh, 15000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function ambilDaftar() {
     setLoading(true);
     setPesan("");

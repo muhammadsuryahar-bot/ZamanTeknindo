@@ -19,6 +19,18 @@ export default function PengajuanIzin({ kembali }) {
   const [errorRiwayat, setErrorRiwayat] = useState("");
 
   useEffect(() => { void ambilRiwayat(); }, []);
+  // AUTO_REFRESH_PengajuanIzin_APPLIED
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === "visible") void ambilRiwayat();
+    };
+    const id = window.setInterval(refresh, 30000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, []);
   useEffect(() => { if (!pesan) return; const timer = setTimeout(() => setPesan(""), 5000); return () => clearTimeout(timer); }, [pesan]);
 
   async function ambilRiwayat() {

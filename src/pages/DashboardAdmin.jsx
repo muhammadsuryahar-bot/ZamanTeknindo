@@ -256,6 +256,50 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Sinkronisasi dashboard Admin berjalan otomatis saat tab sedang terlihat.
+  // Refresh dibuat silent agar tabel tetap tampil tanpa skeleton/flicker.
+  useEffect(() => {
+    let intervalId = null;
+
+    const refreshDashboard = () => {
+      if (document.visibilityState !== "visible") return;
+      void muatData({ silent: true });
+      void muatNotifikasi();
+    };
+
+    const mulai = () => {
+      if (intervalId !== null) return;
+      refreshDashboard();
+      intervalId = window.setInterval(refreshDashboard, 15000);
+    };
+
+    const berhenti = () => {
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    const ketikaVisibilityBerubah = () => {
+      if (document.visibilityState === "visible") {
+        refreshDashboard();
+        mulai();
+      } else {
+        berhenti();
+      }
+    };
+
+    mulai();
+    document.addEventListener("visibilitychange", ketikaVisibilityBerubah);
+
+    return () => {
+      berhenti();
+      document.removeEventListener("visibilitychange", ketikaVisibilityBerubah);
+    };
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (tab === "karyawan") {
       muatKaryawan();
@@ -285,17 +329,7 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
   // Notifikasi Admin dicek begitu dashboard dibuka, lalu diulang tiap 15
   // detik -- supaya admin tidak perlu refresh manual buat tahu ada
   // pengajuan izin/akun baru yang masuk.
-  useEffect(() => {
-    muatNotifikasi();
 
-    const interval = setInterval(() => {
-      muatNotifikasi();
-    }, 15000);
-
-    return () => clearInterval(interval);
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   async function muatNotifikasi() {
     const token = getToken();
@@ -325,15 +359,17 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
     }
   }
 
-  async function muatData() {
-    setLoading(true);
-    setPesan("");
+  async function muatData({ silent = false } = {}) {
+    if (!silent) {
+      setLoading(true);
+      setPesan("");
+    }
 
     const token = getToken();
 
     if (!token) {
-      setPesan("Sesi login tidak ditemukan. Silakan login kembali.");
-      setLoading(false);
+      if (!silent) setPesan("Sesi login tidak ditemukan. Silakan login kembali.");
+      if (!silent) setLoading(false);
       return;
     }
 
@@ -405,11 +441,13 @@ export default function DashboardAdmin({ pengguna, onLogout }) {
       setMenunggu(dataMenunggu.data);
     } catch (err) {
       console.error("Gagal memuat data Dashboard Admin:", err);
-      setPesan(
-        err?.message || "Gagal memuat data dashboard. Cek koneksi ke server.",
-      );
+      if (!silent) {
+        setPesan(
+          err?.message || "Gagal memuat data dashboard. Cek koneksi ke server.",
+        );
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
