@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   apply:
-    if: ${{ !contains(github.event.head_commit.message, '[ui-state-refresh-applied]') && !contains(github.event.head_commit.message, '[ui-state-refresh-cleanup]') }}
+    if: ${{ !contains(github.event.head_commit.message, '[ui-state-refresh-applied]') && !contains(github.event.head_commit.message, '[ui-state-refresh-cleanup]') && !contains(github.event.head_commit.message, '[ui-state-refresh-workflow]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,26 +17,26 @@ jobs:
           fetch-depth: 0
 
       - name: Apply focused interaction fixes
-        env:
-          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
           def replace_once(path, old, new, label):
               p = Path(path)
               s = p.read_text(encoding='utf-8')
               count = s.count(old)
               if count != 1:
-                  raise SystemExit(f'{label}: expected exactly 1 match, got {count}')
+                  raise SystemExit(f'{label}: expected exactly 1 exact match, got {count}')
               p.write_text(s.replace(old, new), encoding='utf-8')
 
-          # Dashboard Admin: background refresh must follow the active tab.
+          # 1) Dashboard Admin: the 15s interval must use the current tab, not
+          # the tab captured when the component first mounted.
           replace_once(
               'src/pages/DashboardAdmin.jsx',
               '  const notifikasiRef = useRef(null);\n',
               '  const notifikasiRef = useRef(null);\n  const tabRef = useRef(tab);\n',
-              'DashboardAdmin tabRef',
+              'DashboardAdmin tabRef declaration',
           )
           replace_once(
               'src/pages/DashboardAdmin.jsx',
@@ -51,62 +51,71 @@ jobs:
               'DashboardAdmin active tab polling',
           )
 
-          # Dashboard Admin: save attendance status locally; never re-enter the global loading state.
+          # 2) Attendance status save: replace the whole function instead of
+          # setting the global dashboard loading state. The API response is the
+          # source of truth for that one row, so update only that row and refresh
+          # the notification badge separately.
           replace_once(
               'src/pages/DashboardAdmin.jsx',
               '  const [editStatusTerbuka, setEditStatusTerbuka] = useState(null); // id absensi atau null\n',
               '  const [editStatusTerbuka, setEditStatusTerbuka] = useState(null); // id absensi atau null\n  const [sedangSimpanStatusId, setSedangSimpanStatusId] = useState(null);\n',
               'DashboardAdmin save state',
           )
-          old = '''  async function simpanEditStatus(id) {\n    if (!formEditStatus.catatanAdmin.trim()) {\n      setPesan("Catatan wajib diisi saat mengubah status absensi.");\n      return;\n    }\n\n    setPesan("");\n\n    try {\n      const res = await fetch(`${API_URL}/admin/absensi/${id}/edit-status`, {\n        method: "PUT",\n        headers: {\n          "Content-Type": "application/json",\n          Authorization: `Bearer ${getToken()}`,\n        },\n        body: JSON.stringify(formEditStatus),\n      });\n\n      const data = await res.json();\n\n      if (!res.ok) {\n        setPesan(data.pesan || "Gagal mengubah status absensi.");\n        return;\n      }\n\n      setPesanSukses(data.pesan || "Status absensi berhasil diperbarui.");\n      setEditStatusTerbuka(null);\n      muatData();\n    } catch (err) {\n      console.error(err);\n      setPesan("Tidak bisa terhubung ke server.");\n    }\n  }'''
-          new = '''  async function simpanEditStatus(id) {\n    if (!formEditStatus.catatanAdmin.trim()) {\n      setPesan("Catatan wajib diisi saat mengubah status absensi.");\n      return;\n    }\n\n    if (sedangSimpanStatusId === id) return;\n\n    setPesan("");\n    setSedangSimpanStatusId(id);\n\n    try {\n      const res = await fetch(`${API_URL}/admin/absensi/${id}/edit-status`, {\n        method: "PUT",\n        headers: {\n          "Content-Type": "application/json",\n          Authorization: `Bearer ${getToken()}`,\n        },\n        body: JSON.stringify(formEditStatus),\n      });\n\n      const data = await res.json().catch(() => ({}));\n\n      if (!res.ok) {\n        setPesan(data.pesan || "Gagal mengubah status absensi.");\n        return;\n      }\n\n      const absensiBaru = data?.data;\n      setRekap((lama) =>\n        lama.map((item) =>\n          item.id === id\n            ? {\n                ...item,\n                ...(absensiBaru || {}),\n                pengguna: item.pengguna,\n                statusFinal: absensiBaru?.statusFinal ?? formEditStatus.statusFinal,\n                statusEfektif: absensiBaru?.statusFinal ?? formEditStatus.statusFinal,\n                catatanAdmin: absensiBaru?.catatanAdmin ?? formEditStatus.catatanAdmin.trim(),\n              }\n            : item,\n        ),\n      );\n\n      setEditStatusTerbuka(null);\n      setPesanSukses(data.pesan || "Status absensi berhasil diperbarui.");\n\n      // Badge notifikasi adalah data terpisah; refresh cukup bagian itu saja.\n      void muatNotifikasi();\n    } catch (err) {\n      console.error(err);\n      setPesan("Tidak bisa terhubung ke server.");\n    } finally {\n      setSedangSimpanStatusId(null);\n    }\n  }'''
-          replace_once('src/pages/DashboardAdmin.jsx', old, new, 'DashboardAdmin simpanEditStatus')
+          p = Path('src/pages/DashboardAdmin.jsx')
+          s = p.read_text(encoding='utf-8')
+          pattern = re.compile(r'  async function simpanEditStatus\(id\) \{.*?\n  \}\n\n  // Bangun URL foto', re.S)
+          match = pattern.search(s)
+          if not match:
+              raise SystemExit('DashboardAdmin simpanEditStatus block not found')
+          new_func = '''  async function simpanEditStatus(id) {\n    if (!formEditStatus.catatanAdmin.trim()) {\n      setPesan(\n        "Catatan wajib diisi kalau mengubah status secara manual (buat jejak alasan perubahan).",\n      );\n      return;\n    }\n\n    if (sedangSimpanStatusId === id) return;\n\n    setPesan("");\n    setSedangSimpanStatusId(id);\n\n    try {\n      const res = await fetch(`${API_URL}/admin/absensi/${id}/edit-status`, {\n        method: "PUT",\n        headers: {\n          "Content-Type": "application/json",\n          Authorization: `Bearer ${getToken()}`,\n        },\n        body: JSON.stringify(formEditStatus),\n      });\n      const data = await res.json().catch(() => ({}));\n\n      if (!res.ok) {\n        setPesan(data.pesan || "Gagal mengubah status absensi.");\n        return;\n      }\n\n      const absensiBaru = data?.data;\n      setRekap((lama) =>\n        lama.map((item) =>\n          item.id === id\n            ? {\n                ...item,\n                ...(absensiBaru || {}),\n                pengguna: item.pengguna,\n                statusFinal: absensiBaru?.statusFinal ?? formEditStatus.statusFinal,\n                statusEfektif: absensiBaru?.statusFinal ?? formEditStatus.statusFinal,\n                catatanAdmin: absensiBaru?.catatanAdmin ?? formEditStatus.catatanAdmin.trim(),\n              }\n            : item,\n        ),\n      );\n\n      setEditStatusTerbuka(null);\n      setPesanSukses(data.pesan || "Status absensi berhasil diperbarui.");\n\n      // Badge notifikasi adalah state terpisah. Refresh hanya badge-nya.\n      void muatNotifikasi();\n    } catch (err) {\n      console.error(err);\n      setPesan("Tidak bisa terhubung ke server.");\n    } finally {\n      setSedangSimpanStatusId(null);\n    }\n  }\n\n  // Bangun URL foto'''
+          s = s[:match.start()] + new_func + s[match.end():]
+          p.write_text(s, encoding='utf-8')
 
-          # The photo itself may be represented by a signed URL; use the signed URL for the clickable link too.
           replace_once(
               'src/pages/DashboardAdmin.jsx',
               'href={urlFoto(item.fotoMasuk)}',
               'href={urlFoto(item.fotoMasuk, item.fotoMasukUrl)}',
-              'DashboardAdmin fotoMasuk link',
+              'DashboardAdmin clickable masuk photo',
           )
           replace_once(
               'src/pages/DashboardAdmin.jsx',
               'href={urlFoto(item.fotoPulang)}',
               'href={urlFoto(item.fotoPulang, item.fotoPulangUrl)}',
-              'DashboardAdmin fotoPulang link',
+              'DashboardAdmin clickable pulang photo',
           )
-
-          # Save button gets row-local progress only.
           replace_once(
               'src/pages/DashboardAdmin.jsx',
-              '                                          onClick={() =>\n                                            simpanEditStatus(item.id)\n                                          }\n                                          style={styles.tombolAktifkan}\n                                        >\n                                          Simpan',
-              '                                          onClick={() =>\n                                            simpanEditStatus(item.id)\n                                          }\n                                          style={styles.tombolAktifkan}\n                                          disabled={sedangSimpanStatusId === item.id}\n                                        >\n                                          {sedangSimpanStatusId === item.id ? "Menyimpan…" : "Simpan"}',
+              '                                          style={styles.tombolAktifkan}\n                                        >\n                                          Simpan\n                                        </button>',
+              '                                          style={styles.tombolAktifkan}\n                                          disabled={sedangSimpanStatusId === item.id}\n                                        >\n                                          {sedangSimpanStatusId === item.id ? "Menyimpan…" : "Simpan"}\n                                        </button>',
               'DashboardAdmin local save button',
           )
 
-          # Employee account actions: update only the affected list/item and notification badge.
+          # 3) Account activation/deactivation should change only the affected
+          # list. It must not trigger the dashboard-wide skeleton.
           replace_once(
               'src/pages/DashboardAdmin.jsx',
-              '      await muatData();\n      await muatKaryawan(true);\n      await muatNotifikasi();',
-              '      setKaryawan((lama) => lama.filter((item) => item.id !== id));\n      await muatNotifikasi();',
-              'DashboardAdmin employee status local update',
-          )
-          replace_once(
-              'src/pages/DashboardAdmin.jsx',
-              '      await muatData();\n      await muatNotifikasi();',
-              '      setMenunggu((lama) => lama.filter((item) => item.id !== id));\n      await muatNotifikasi();',
+              '      await muatData();\n\n      // Kalau daftar Karyawan sudah pernah dibuka, refresh juga.\n      if (karyawanSudahDimuat) {\n        await muatKaryawan(true);\n      }\n      await muatNotifikasi();',
+              '      // Aktivasi mengubah daftar Menunggu dan jumlah karyawan aktif.\n      setMenunggu((lama) => lama.filter((item) => item.id !== id));\n      setJumlahKaryawanAktif((jumlah) => jumlah + 1);\n\n      // Kalau tab Karyawan sudah pernah dibuka, sinkronkan diam-diam di belakang.\n      if (karyawanSudahDimuat) {\n        void muatKaryawan(true, { silent: true });\n      }\n      void muatNotifikasi();',
               'DashboardAdmin activation local update',
           )
+          replace_once(
+              'src/pages/DashboardAdmin.jsx',
+              '      await muatData();\n\n      if (karyawanSudahDimuat) {\n        await muatKaryawan(true);\n      }\n      await muatNotifikasi();',
+              '      // Daftar Karyawan hanya berisi akun aktif, jadi hilangkan baris ini sekarang.\n      setKaryawan((lama) => lama.filter((item) => item.id !== id));\n      setJumlahKaryawanAktif((jumlah) => Math.max(0, jumlah - 1));\n      void muatNotifikasi();',
+              'DashboardAdmin deactivation local update',
+          )
 
-          # Admin leave approvals: remove only the processed card, then refresh notification badge.
+          # 4) Approval izin: remove only the processed card; keep the rest of
+          # the tab rendered while the server request completes.
           replace_once(
               'src/pages/AdminIzin.jsx',
               '      setPesan(data.pesan || "Pengajuan berhasil diproses.");\n      await ambilDaftar();',
-              '      setPesan(data.pesan || "Pengajuan berhasil diproses.");\n      setDaftar((lama) => lama.filter((item) => item.id !== id));\n      // Daftar di tab saat ini berubah; badge notifikasi akan disegarkan oleh DashboardAdmin.\n',
+              '      setPesan(data.pesan || "Pengajuan berhasil diproses.");\n      setDaftar((lama) => lama.filter((item) => item.id !== id));',
               'AdminIzin local mutation',
           )
 
-          # Employee leave submission: do not replace the visible history with a loading state.
+          # 5) Employee leave submission: the already-visible history must not
+          # disappear/re-enter its skeleton after a successful POST.
           replace_once(
               'src/pages/PengajuanIzin.jsx',
               '      setTanggal(""); setJenis("izin"); setKeterangan(""); setFotoSurat(null); await ambilRiwayat();',
