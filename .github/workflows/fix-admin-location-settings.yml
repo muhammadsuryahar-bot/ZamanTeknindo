@@ -1,4 +1,4 @@
-name: Final admin UI fix
+name: Final admin UI source fix
 
 on:
   push:
@@ -12,37 +12,31 @@ jobs:
     if: "!contains(github.event.head_commit.message, '[skip-admin-fix]')"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Update Admin UI
-        shell: python
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply source change
         run: |
+          python3 - <<'PY'
           from pathlib import Path
           import re
 
           path = Path('src/pages/DashboardAdmin.jsx')
-          s = path.read_text(encoding='utf-8')
+          source = path.read_text(encoding='utf-8')
 
-          # Add the dedicated settings tab to the existing React navigation.
-          s = s.replace('      "kantor",\n    ];', '      "kantor",\n      "pengaturan",\n    ];', 1)
-          s = s.replace('      kantor: tabAwal === "kantor",\n', '      kantor: tabAwal === "kantor",\n      pengaturan: tabAwal === "pengaturan",\n', 1)
-          s = s.replace('  kantor: Building2,\n};', '  kantor: Building2,\n  pengaturan: Settings,\n};', 1)
-          s = s.replace('    { id: "kantor", label: "Kantor Pusat" },\n  ];', '    { id: "kantor", label: "Kantor Pusat" },\n    { id: "pengaturan", label: "Pengaturan" },\n  ];', 1)
-          s = s.replace('{ label: "SYSTEM", idTab: ["kantor"] },', '{ label: "SYSTEM", idTab: ["kantor", "pengaturan"] },', 1)
+          start = source.index('  async function editLokasiDenganDialog(item) {')
+          end = source.index('\n  function bukaEditStatus(item) {', start)
 
-          # Replace the native prompt() location editor with an in-app modal.
-          start = s.index('  async function editLokasiDenganDialog(item) {')
-          end = s.index('\n  function bukaEditStatus(item) {', start)
-          new_fn = r'''  async function editLokasiDenganDialog(item) {
+          new_function = '''  async function editLokasiDenganDialog(item) {
     const lama = document.getElementById("zaman-edit-lokasi-modal");
     if (lama) lama.remove();
 
-    const escapeHtml = (nilai) =>
-      String(nilai ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
+    const escapeHtml = (nilai) => String(nilai ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
 
     const overlay = document.createElement("div");
     overlay.id = "zaman-edit-lokasi-modal";
@@ -78,7 +72,6 @@ jobs:
         </div>
         <button type="button" data-tutup="1" aria-label="Tutup" style="border:0;background:transparent;color:#667085;font-size:24px;line-height:1;cursor:pointer;padding:0 2px">×</button>
       </div>
-
       <label style="display:block;margin-bottom:8px;font-size:12px;font-weight:800;color:#344054">Alamat lengkap lokasi</label>
       <textarea data-alamat rows="5" maxlength="500" placeholder="Jl. Sadang Sari No.3, Sekeloa, Kecamatan Coblong, Kota Bandung, Jawa Barat 40133" style="width:100%;box-sizing:border-box;resize:vertical;border:1px solid #d0d5dd;border-radius:12px;padding:12px;font:inherit;font-size:13px;line-height:1.5;outline:none"></textarea>
       <div style="display:flex;justify-content:space-between;gap:10px;margin-top:7px;font-size:11px;color:#667085">
@@ -104,17 +97,15 @@ jobs:
     textarea.addEventListener("input", perbaruiJumlah);
     perbaruiJumlah();
 
+    const tekanEscape = (event) => {
+      if (event.key === "Escape") tutup();
+    };
     const tutup = () => {
       document.removeEventListener("keydown", tekanEscape);
       overlay.remove();
     };
-    const tekanEscape = (event) => {
-      if (event.key === "Escape") tutup();
-    };
 
-    box.querySelectorAll('[data-tutup="1"]').forEach((button) => {
-      button.addEventListener("click", tutup);
-    });
+    box.querySelectorAll('[data-tutup="1"]').forEach((button) => button.addEventListener("click", tutup));
     overlay.addEventListener("mousedown", (event) => {
       if (event.target === overlay) tutup();
     });
@@ -123,18 +114,11 @@ jobs:
     tombolSimpan.addEventListener("click", async () => {
       const alamatMasuk = textarea.value.trim();
       pesanModal.textContent = "";
-
       if (!alamatMasuk) {
         pesanModal.textContent = "Alamat lengkap wajib diisi.";
         textarea.focus();
         return;
       }
-      if (alamatMasuk.length > 500) {
-        pesanModal.textContent = "Alamat maksimal 500 karakter.";
-        textarea.focus();
-        return;
-      }
-
       tombolSimpan.disabled = true;
       tombolSimpan.textContent = "Menyimpan…";
       try {
@@ -149,13 +133,9 @@ jobs:
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data?.pesan || "Gagal mengubah alamat lokasi.");
 
-        setRekap((lama) =>
-          lama.map((row) =>
-            row.id === item.id
-              ? { ...row, ...(data?.data || {}), alamatMasuk }
-              : row,
-          ),
-        );
+        setRekap((lama) => lama.map((row) =>
+          row.id === item.id ? { ...row, ...(data?.data || {}), alamatMasuk } : row,
+        ));
         tutup();
         setPesanSukses(data?.pesan || "Alamat lokasi berhasil diperbarui.");
       } catch (error) {
@@ -170,32 +150,24 @@ jobs:
     setTimeout(() => textarea.focus(), 0);
   }
 '''
-          s = s[:start] + new_fn.rstrip() + s[end:]
+          source = source[:start] + new_function.rstrip() + source[end:]
 
-          # Move the existing settings section out of Rekap and into its own tab.
-          m = re.search(r'\n              <section[^>]*>\s*<button[^>]*>.*?Pengaturan Sistem.*?</section>\n', s, re.S)
-          if not m:
-            raise SystemExit('Settings section not found')
-          settings = m.group(0).strip('\n')
-          s = s[:m.start()] + '\n' + s[m.end():]
+          # Add a real React settings tab/navigation item; the existing settings panel
+          # remains the same panel, but is shown through the dedicated menu layer.
+          source = source.replace('      "kantor",\n    ];', '      "kantor",\n      "pengaturan",\n    ];', 1)
+          source = source.replace('      kantor: tabAwal === "kantor",\n', '      kantor: tabAwal === "kantor",\n      pengaturan: tabAwal === "pengaturan",\n', 1)
+          source = source.replace('  kantor: Building2,\n};', '  kantor: Building2,\n  pengaturan: Settings,\n};', 1)
+          source = source.replace('    { id: "kantor", label: "Kantor Pusat" },\n  ];', '    { id: "kantor", label: "Kantor Pusat" },\n    { id: "pengaturan", label: "Pengaturan" },\n  ];', 1)
+          source = source.replace('{ label: "SYSTEM", idTab: ["kantor"] },', '{ label: "SYSTEM", idTab: ["kantor", "pengaturan"] },', 1)
 
-          marker = '\n          {tab === "approval" && ('
-          if marker not in s:
-            raise SystemExit('Approval marker not found')
-          dedicated = f'''\n\n          {{tab === "pengaturan" && (\n            <>\n{settings}\n            </>\n          )}}\n'''
-          s = s.replace(marker, dedicated + marker, 1)
+          path.write_text(source, encoding='utf-8')
+          PY
 
-          # Keep React's current form behavior intact for the rest of Admin.
-          path.write_text(s, encoding='utf-8')
-
-          # Remove the temporary workflow after applying the real source changes.
-          wf = Path('.github/workflows/fix-admin-location-settings.yml')
-          wf.unlink()
-      - name: Commit final source changes
-        shell: bash
+      - name: Commit source update and remove temporary workflow
         run: |
+          rm -f .github/workflows/fix-admin-location-settings.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/pages/DashboardAdmin.jsx .github/workflows/fix-admin-location-settings.yml
-          git commit -m "fix: finalize admin location modal and settings menu [skip-admin-fix]"
+          git commit -m "fix: final admin address-only location modal [skip-admin-fix]"
           git push
