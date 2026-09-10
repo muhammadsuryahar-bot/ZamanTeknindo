@@ -36,7 +36,7 @@ const TAHAP_VALID = new Set([
 const STATUS_CACHE_VERSION = 2;
 const STATUS_REQUEST_TIMEOUT_MS = 8000;
 const ABSENSI_REQUEST_TIMEOUT_MS = 15000;
-const LOKASI_REQUEST_TIMEOUT_MS = 20000;
+const LOKASI_REQUEST_TIMEOUT_MS = 35000;
 const MAX_UPLOAD_BYTES = 1.5 * 1024 * 1024;
 const MAX_UPLOAD_WIDTH = 1280;
 const MAX_UPLOAD_HEIGHT = 1280;
@@ -547,22 +547,12 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   }
 
   function jadwalkanLokasiSetelahKameraSiap(sesiKamera) {
-    const mulai = () => {
-      if (!mountedRef.current || !kameraAktif || kameraSesiRef.current !== sesiKamera || !kameraSiapRef.current) return;
-      window.setTimeout(() => {
-        if (mountedRef.current && kameraAktif && kameraSesiRef.current === sesiKamera && kameraSiapRef.current) {
-          ambilLokasi();
-        }
-      }, 180);
-    };
-
-    const video = videoRef.current;
-    if (video?.readyState >= 2) {
-      mulai();
-      return;
-    }
-    if (video) video.addEventListener("canplay", mulai, { once: true });
-    window.setTimeout(mulai, 1200);
+    // Mulai GPS segera setelah stream kamera tersedia; jangan menunggu
+    // preview kamera karena beberapa HP membutuhkan cold start GPS.
+    window.setTimeout(() => {
+      if (!mountedRef.current || kameraSesiRef.current !== sesiKamera || !streamRef.current) return;
+      ambilLokasi();
+    }, 80);
   }
 
   async function bukaKamera() {
@@ -708,6 +698,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   }
 
   function ambilLokasi() {
+    if (lokasiWatchRef.current !== null || lokasiTimerRef.current !== null) return;
     hentikanPelacakanLokasi();
     setStatusLokasi("mencari");
     if (!navigator.geolocation) { setStatusLokasi("gagal"); setPesan("Perangkat/browser ini tidak menyediakan layanan lokasi. Periksa izin lokasi di HP lalu coba lagi."); return; }
@@ -715,7 +706,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     const sesi = lokasiSesiRef.current;
     let posisiTerbaik = null;
     let sudahSelesai = false;
-    const sesiMasihAktif = () => mountedRef.current && sesi === lokasiSesiRef.current && kameraSiapRef.current;
+    const sesiMasihAktif = () => mountedRef.current && sesi === lokasiSesiRef.current && Boolean(streamRef.current);
 
     const selesaikan = async () => {
       if (sudahSelesai || !sesiMasihAktif()) return;
@@ -744,7 +735,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
           setLokasi((prev) => ({ latitude, longitude, akurasi, alamat: prev?.alamat || null }));
           setStatusLokasi("ditemukan");
         }
-        if (akurasi <= 20) void selesaikan();
+        if (akurasi <= 50) void selesaikan();
       },
       (error) => {
         if (!sesiMasihAktif() || sudahSelesai) return;

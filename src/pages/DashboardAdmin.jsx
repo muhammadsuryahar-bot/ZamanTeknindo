@@ -22,6 +22,9 @@ import {
   MapPin,
   Info,
   AlertTriangle,
+  Settings,
+  Save,
+  Navigation,
   FileText,
   UserX,
   Bell,
@@ -163,6 +166,14 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
   });
   const [kantorEditId, setKantorEditId] = useState(null); // id kantor yang lagi diedit, atau null = mode tambah baru
   const [sedangSimpanKantor, setSedangSimpanKantor] = useState(false);
+
+  // Pengaturan cepat yang dapat diubah langsung dari Rekap Hari Ini.
+  const [pengaturanTerbuka, setPengaturanTerbuka] = useState(false);
+  const [pengaturanJam, setPengaturanJam] = useState("08:10");
+  const [pengaturanPotongan, setPengaturanPotongan] = useState({ potonganTelat: 10000, potonganAlpha: 15000 });
+  const [pengaturanMemuat, setPengaturanMemuat] = useState(false);
+  const [pengaturanMenyimpanJam, setPengaturanMenyimpanJam] = useState(false);
+  const [pengaturanKantorId, setPengaturanKantorId] = useState("");
 
   // Konfirmasi ubah status karyawan yang lagi dibuka (ganti confirm() bawaan browser)
   const [konfirmasiStatusTerbuka, setKonfirmasiStatusTerbuka] = useState(null); // id karyawan atau null
@@ -543,6 +554,77 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
     }
 
     return [];
+  }
+
+  async function bukaPengaturanCepat() {
+    const akanDibuka = !pengaturanTerbuka;
+    setPengaturanTerbuka(akanDibuka);
+    if (!akanDibuka) return;
+    setPengaturanMemuat(true);
+    try {
+      const kantorData = kantorSudahDimuat ? daftarKantorState : await muatKantor();
+      const kantorPertama = kantorData?.[0] || null;
+      if (kantorPertama) {
+        setPengaturanKantorId(String(kantorPertama.id));
+        setKantorEditId(kantorPertama.id);
+        setFormKantor({ namaKantor: kantorPertama.namaKantor || "", alamat: kantorPertama.alamat || "", latitude: kantorPertama.latitude ?? "", longitude: kantorPertama.longitude ?? "" });
+      }
+      const res = await fetch(`${API_URL}/admin/pengaturan-potongan`, { headers: { Authorization: `Bearer ${getToken()}` } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.pesan || "Gagal memuat pengaturan.");
+      const jam = String(data?.data?.jamMasukStandar || "08:10:00");
+      setPengaturanJam(jam.slice(0, 5));
+      setPengaturanPotongan({ potonganTelat: Number(data?.data?.potonganTelat) || 0, potonganAlpha: Number(data?.data?.potonganAlpha) || 0 });
+    } catch (err) {
+      console.error("Gagal memuat pengaturan cepat:", err);
+      setPesan(err?.message || "Gagal memuat pengaturan.");
+    } finally {
+      setPengaturanMemuat(false);
+    }
+  }
+
+  function pilihKantorPengaturan(id) {
+    setPengaturanKantorId(String(id));
+    const kantor = daftarKantorState.find((item) => String(item.id) === String(id));
+    if (!kantor) return;
+    setKantorEditId(kantor.id);
+    setFormKantor({ namaKantor: kantor.namaKantor || "", alamat: kantor.alamat || "", latitude: kantor.latitude ?? "", longitude: kantor.longitude ?? "" });
+  }
+
+  function gunakanLokasiKantorSekarang() {
+    if (!navigator.geolocation) { setPesan("Browser/perangkat ini tidak menyediakan layanan lokasi."); return; }
+    setPesan("");
+    navigator.geolocation.getCurrentPosition(
+      (posisi) => {
+        const latitude = Number(posisi.coords.latitude);
+        const longitude = Number(posisi.coords.longitude);
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) { setPesan("Koordinat GPS tidak valid. Coba ambil lokasi lagi."); return; }
+        setFormKantor((lama) => ({ ...lama, latitude: latitude.toFixed(7), longitude: longitude.toFixed(7) }));
+        setPesanSukses("Lokasi perangkat sudah diambil. Tekan Simpan Lokasi untuk menerapkannya.");
+      },
+      (error) => { console.warn("GPS Admin gagal:", error); setPesan("Lokasi belum berhasil diperoleh. Pastikan GPS aktif dan izin lokasi dashboard Admin sudah diberikan."); },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
+    );
+  }
+
+  async function simpanJamMasukCepat() {
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(pengaturanJam)) { setPesan("Jam masuk harus menggunakan format HH:MM, contoh 08:10."); return; }
+    if (pengaturanMenyimpanJam) return;
+    setPengaturanMenyimpanJam(true);
+    setPesan("");
+    try {
+      const res = await fetch(`${API_URL}/admin/pengaturan-potongan`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ potonganTelat: Number(pengaturanPotongan.potonganTelat) || 0, potonganAlpha: Number(pengaturanPotongan.potonganAlpha) || 0, jamMasukStandar: pengaturanJam }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.pesan || "Gagal menyimpan jam masuk standar.");
+      setPesanSukses("Jam masuk standar berhasil diperbarui.");
+    } catch (err) {
+      console.error("Gagal menyimpan jam masuk standar:", err);
+      setPesan(err?.message || "Gagal menyimpan jam masuk standar.");
+    } finally { setPengaturanMenyimpanJam(false); }
   }
 
   async function bukaFormAktivasi(id) {
@@ -1856,6 +1938,49 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                   style={{ ...styles.tabelFade, opacity: rekapDiUjung ? 0 : 1 }}
                 />
               </div>
+
+              <section style={{ marginTop: 18, border: `1px solid ${warna.garis}`, borderRadius: 14, background: warna.panel, overflow: "hidden" }}>
+                <button type="button" onClick={() => void bukaPengaturanCepat()} style={{ width: "100%", border: 0, background: "transparent", padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, cursor: "pointer", color: warna.tinta, textAlign: "left" }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 800, fontSize: 13 }}><Settings size={16} style={{ color: warna.aksen }} />Pengaturan Sistem</span>
+                  <span style={{ color: warna.tintaSamar, fontSize: 12 }}>{pengaturanTerbuka ? "Tutup" : "Atur jam & lokasi"}</span>
+                </button>
+                {pengaturanTerbuka && (
+                  <div style={{ borderTop: `1px solid ${warna.garis}`, padding: 16 }}>
+                    {pengaturanMemuat ? <div style={{ fontSize: 12, color: warna.tintaSamar }}>Memuat pengaturan…</div> : (
+                      <div style={{ display: "grid", gap: 16 }}>
+                        <div>
+                          <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 800, color: warna.tintaSamar, letterSpacing: "0.06em", textTransform: "uppercase" }}>Jam Masuk Standar</p>
+                          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                            <input type="time" value={pengaturanJam} onChange={(e) => setPengaturanJam(e.target.value)} style={{ ...styles.inputForm, width: 150 }} />
+                            <button type="button" onClick={() => void simpanJamMasukCepat()} style={{ ...styles.tombolAktifkan, display: "inline-flex", alignItems: "center", gap: 6 }} disabled={pengaturanMenyimpanJam}><Save size={14} />{pengaturanMenyimpanJam ? "Menyimpan…" : "Simpan Jam"}</button>
+                          </div>
+                          <p style={{ margin: "7px 0 0", fontSize: 11, color: warna.tintaSamar }}>Digunakan sistem untuk menentukan tepat waktu atau telat.</p>
+                        </div>
+                        <div style={{ borderTop: `1px solid ${warna.garis}`, paddingTop: 16 }}>
+                          <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 800, color: warna.tintaSamar, letterSpacing: "0.06em", textTransform: "uppercase" }}>Lokasi Kantor / Acuan Absensi</p>
+                          <p style={{ margin: "0 0 10px", fontSize: 11, color: warna.tintaSamar }}>Koordinat ini menjadi titik acuan radius absensi karyawan yang terhubung ke kantor.</p>
+                          {daftarKantorState.length === 0 ? <div style={{ fontSize: 12, color: warna.peringatan }}>Belum ada data kantor. Buka menu Kantor Pusat.</div> : (
+                            <>
+                              <select value={pengaturanKantorId} onChange={(e) => pilihKantorPengaturan(e.target.value)} style={{ ...styles.selectForm, width: "100%", maxWidth: 420, marginBottom: 10 }}>
+                                {daftarKantorState.map((k) => <option key={k.id} value={k.id}>{k.namaKantor}</option>)}
+                              </select>
+                              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
+                                <div><label style={styles.labelForm}>Latitude</label><input value={formKantor.latitude} onChange={(e) => setFormKantor({ ...formKantor, latitude: e.target.value })} style={styles.inputForm} inputMode="decimal" /></div>
+                                <div><label style={styles.labelForm}>Longitude</label><input value={formKantor.longitude} onChange={(e) => setFormKantor({ ...formKantor, longitude: e.target.value })} style={styles.inputForm} inputMode="decimal" /></div>
+                              </div>
+                              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                                <button type="button" onClick={gunakanLokasiKantorSekarang} style={{ ...styles.tombolEditKecil, display: "inline-flex", alignItems: "center", gap: 6 }}><Navigation size={14} />Gunakan Lokasi Saat Ini</button>
+                                <button type="button" onClick={() => void simpanKantor()} style={{ ...styles.tombolAktifkan, display: "inline-flex", alignItems: "center", gap: 6 }} disabled={sedangSimpanKantor}><Save size={14} />{sedangSimpanKantor ? "Menyimpan…" : "Simpan Lokasi"}</button>
+                              </div>
+                              <div style={{ marginTop: 10, fontSize: 11, color: warna.tintaSamar }}>Pengaturan lengkap tersedia di menu <button type="button" onClick={() => pindahTab("kantor")} style={{ border: 0, background: "transparent", padding: 0, color: warna.aksen, fontWeight: 800, cursor: "pointer" }}>Kantor Pusat</button>.</div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
             </>
           )}
 
