@@ -1,0 +1,104 @@
+name: Apply GPS and Admin Settings Fix
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update source and verify build
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          
+          root = Path('.')
+          admin_path = root / 'src/pages/DashboardAdmin.jsx'
+          employee_path = root / 'src/pages/DashboardKaryawan.jsx'
+          admin = admin_path.read_text(encoding='utf-8')
+          employee = employee_path.read_text(encoding='utf-8')
+          
+          # GPS: give slow/cold-start devices more time and don't block on a 20m fix.
+          employee, n = re.subn(r'const LOKASI_REQUEST_TIMEOUT_MS = 20000;', 'const LOKASI_REQUEST_TIMEOUT_MS = 35000;', employee, count=1)
+          if n != 1:
+              raise SystemExit('GPS timeout target not found')
+          
+          old_sesi = 'const sesiMasihAktif = () => mountedRef.current && sesi === lokasiSesiRef.current && kameraSiapRef.current;'
+          new_sesi = 'const sesiMasihAktif = () => mountedRef.current && sesi === lokasiSesiRef.current && Boolean(streamRef.current);'
+          if old_sesi not in employee:
+              raise SystemExit('GPS session guard target not found')
+          employee = employee.replace(old_sesi, new_sesi, 1)
+          
+          old_threshold = 'if (akurasi <= 20) void selesaikan();'
+          if old_threshold not in employee:
+              raise SystemExit('GPS accuracy threshold target not found')
+          employee = employee.replace(old_threshold, 'if (akurasi <= 50) void selesaikan();', 1)
+          
+          # Replace the camera-ready gate with an immediate GPS starter.
+          pattern = r'function jadwalkanLokasiSetelahKameraSiap\(sesiKamera\) \{.*?\n  \}\n\n  async function bukaKamera\(\)'
+          replacement = '''function jadwalkanLokasiSetelahKameraSiap(sesiKamera) {\n    // Mulai GPS segera setelah stream kamera tersedia. Tidak perlu menunggu\n    // preview kamera karena GPS pada beberapa HP membutuhkan cold start.\n    window.setTimeout(() => {\n      if (!mountedRef.current || kameraSesiRef.current !== sesiKamera || !streamRef.current) return;\n      ambilLokasi();\n    }, 80);\n  }\n\n  async function bukaKamera()'''
+          employee, n = re.subn(pattern, replacement, employee, count=1, flags=re.S)
+          if n != 1:
+              raise SystemExit('GPS starter function target not found')
+          
+          # Do not restart the GPS watcher if camera lifecycle events schedule it twice.
+          old_start = '  function ambilLokasi() {\n    hentikanPelacakanLokasi();\n    setStatusLokasi("mencari");'
+          new_start = '  function ambilLokasi() {\n    if (lokasiWatchRef.current !== null || lokasiTimerRef.current !== null) return;\n    hentikanPelacakanLokasi();\n    setStatusLokasi("mencari");'
+          if old_start not in employee:
+              raise SystemExit('GPS duplicate-start guard target not found')
+          employee = employee.replace(old_start, new_start, 1)
+          
+          # Keep the existing camera lifecycle call; the new starter no longer waits for canplay.
+          # ---- Admin quick settings ----
+          old_import = '  MapPin,\n  Info,\n  AlertTriangle,'
+          new_import = '  MapPin,\n  Info,\n  AlertTriangle,\n  Settings,\n  Save,\n  Navigation,'
+          if old_import not in admin:
+              raise SystemExit('Admin icon import target not found')
+          admin = admin.replace(old_import, new_import, 1)
+          
+          old_state = '''  const [sedangSimpanKantor, setSedangSimpanKantor] = useState(false);\n\n  // Konfirmasi ubah status'''
+          new_state = '''  const [sedangSimpanKantor, setSedangSimpanKantor] = useState(false);\n\n  // Pengaturan cepat yang dapat diubah langsung dari Rekap Hari Ini.\n  const [pengaturanTerbuka, setPengaturanTerbuka] = useState(false);\n  const [pengaturanJam, setPengaturanJam] = useState("08:10");\n  const [pengaturanPotongan, setPengaturanPotongan] = useState({\n    potonganTelat: 10000,\n    potonganAlpha: 15000,\n  });\n  const [pengaturanMemuat, setPengaturanMemuat] = useState(false);\n  const [pengaturanMenyimpanJam, setPengaturanMenyimpanJam] = useState(false);\n  const [pengaturanKantorId, setPengaturanKantorId] = useState("");\n\n  // Konfirmasi ubah status'''
+          if old_state not in admin:
+              raise SystemExit('Admin settings state target not found')
+          admin = admin.replace(old_state, new_state, 1)
+          
+          anchor = '  async function bukaFormAktivasi(id) {'
+          new_functions = '''  async function bukaPengaturanCepat() {\n    const akanDibuka = !pengaturanTerbuka;\n    setPengaturanTerbuka(akanDibuka);\n    if (!akanDibuka) return;\n\n    setPengaturanMemuat(true);\n    try {\n      const kantorData = kantorSudahDimuat\n        ? daftarKantorState\n        : await muatKantor();\n      const kantorPertama = kantorData?.[0] || null;\n      if (kantorPertama) {\n        setPengaturanKantorId(String(kantorPertama.id));\n        setKantorEditId(kantorPertama.id);\n        setFormKantor({\n          namaKantor: kantorPertama.namaKantor || "",\n          alamat: kantorPertama.alamat || "",\n          latitude: kantorPertama.latitude ?? "",\n          longitude: kantorPertama.longitude ?? "",\n        });\n      }\n\n      const res = await fetch(`${API_URL}/admin/pengaturan-potongan`, {\n        headers: { Authorization: `Bearer ${getToken()}` },\n      });\n      const data = await res.json().catch(() => ({}));\n      if (!res.ok) throw new Error(data?.pesan || "Gagal memuat pengaturan.");\n      const jam = String(data?.data?.jamMasukStandar || "08:10:00");\n      setPengaturanJam(jam.slice(0, 5));\n      setPengaturanPotongan({\n        potonganTelat: Number(data?.data?.potonganTelat) || 0,\n        potonganAlpha: Number(data?.data?.potonganAlpha) || 0,\n      });\n    } catch (err) {\n      console.error("Gagal memuat pengaturan cepat:", err);\n      setPesan(err?.message || "Gagal memuat pengaturan.");\n    } finally {\n      setPengaturanMemuat(false);\n    }\n  }\n\n  function pilihKantorPengaturan(id) {\n    setPengaturanKantorId(String(id));\n    const kantor = daftarKantorState.find((item) => String(item.id) === String(id));\n    if (!kantor) return;\n    setKantorEditId(kantor.id);\n    setFormKantor({\n      namaKantor: kantor.namaKantor || "",\n      alamat: kantor.alamat || "",\n      latitude: kantor.latitude ?? "",\n      longitude: kantor.longitude ?? "",\n    });\n  }\n\n  function gunakanLokasiKantorSekarang() {\n    if (!navigator.geolocation) {\n      setPesan("Browser/perangkat ini tidak menyediakan layanan lokasi.");\n      return;\n    }\n    setPesan("");\n    navigator.geolocation.getCurrentPosition(\n      (posisi) => {\n        const latitude = Number(posisi.coords.latitude);\n        const longitude = Number(posisi.coords.longitude);\n        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {\n          setPesan("Koordinat GPS tidak valid. Coba ambil lokasi lagi.");\n          return;\n        }\n        setFormKantor((lama) => ({\n          ...lama,\n          latitude: latitude.toFixed(7),\n          longitude: longitude.toFixed(7),\n        }));\n        setPesanSukses("Lokasi perangkat sudah diambil. Tekan Simpan Lokasi untuk menerapkannya.");\n      },\n      (error) => {\n        console.warn("GPS Admin gagal:", error);\n        setPesan("Lokasi belum berhasil diperoleh. Pastikan GPS aktif dan izin lokasi dashboard Admin sudah diberikan.");\n      },\n      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },\n    );\n  }\n\n  async function simpanJamMasukCepat() {\n    if (!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(pengaturanJam)) {\n      setPesan("Jam masuk harus menggunakan format HH:MM, contoh 08:10.");\n      return;\n    }\n    if (pengaturanMenyimpanJam) return;\n\n    setPengaturanMenyimpanJam(true);\n    setPesan("");\n    try {\n      const res = await fetch(`${API_URL}/admin/pengaturan-potongan`, {\n        method: "PUT",\n        headers: {\n          "Content-Type": "application/json",\n          Authorization: `Bearer ${getToken()}`,\n        },\n        body: JSON.stringify({\n          potonganTelat: Number(pengaturanPotongan.potonganTelat) || 0,\n          potonganAlpha: Number(pengaturanPotongan.potonganAlpha) || 0,\n          jamMasukStandar: pengaturanJam,\n        }),\n      });\n      const data = await res.json().catch(() => ({}));\n      if (!res.ok) throw new Error(data?.pesan || "Gagal menyimpan jam masuk standar.");\n      setPesanSukses("Jam masuk standar berhasil diperbarui.");\n    } catch (err) {\n      console.error("Gagal menyimpan jam masuk standar:", err);\n      setPesan(err?.message || "Gagal menyimpan jam masuk standar.");\n    } finally {\n      setPengaturanMenyimpanJam(false);\n    }\n  }\n\n  async function bukaFormAktivasi(id) {'''
+          if anchor not in admin:
+              raise SystemExit('Admin function insertion anchor not found')
+          admin = admin.replace(anchor, new_functions, 1)
+          
+          anchor_panel = '''                <div\n                  className="tabel-fade-kanan"\n                  style={{ ...styles.tabelFade, opacity: rekapDiUjung ? 0 : 1 }}\n                />\n              </div>\n            </>\n          )}\n\n          {tab === "approval" && ('''
+          panel = '''                <div\n                  className="tabel-fade-kanan"\n                  style={{ ...styles.tabelFade, opacity: rekapDiUjung ? 0 : 1 }}\n                />\n              </div>\n\n              <section\n                style={{\n                  marginTop: 18,\n                  border: `1px solid ${warna.garis}`,\n                  borderRadius: 14,\n                  background: warna.panel,\n                  overflow: "hidden",\n                }}\n              >\n                <button\n                  type="button"\n                  onClick={() => void bukaPengaturanCepat()}\n                  style={{\n                    width: "100%",\n                    border: 0,\n                    background: "transparent",\n                    padding: "14px 16px",\n                    display: "flex",\n                    alignItems: "center",\n                    justifyContent: "space-between",\n                    gap: 12,\n                    cursor: "pointer",\n                    color: warna.tinta,\n                    textAlign: "left",\n                  }}\n                >\n                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 800, fontSize: 13 }}>\n                    <Settings size={16} style={{ color: warna.aksen }} />\n                    Pengaturan Sistem\n                  </span>\n                  <span style={{ color: warna.tintaSamar, fontSize: 12 }}>\n                    {pengaturanTerbuka ? "Tutup" : "Atur jam & lokasi"}\n                  </span>\n                </button>\n\n                {pengaturanTerbuka && (\n                  <div style={{ borderTop: `1px solid ${warna.garis}`, padding: 16 }}>\n                    {pengaturanMemuat ? (\n                      <div style={{ fontSize: 12, color: warna.tintaSamar }}>Memuat pengaturan…</div>\n                    ) : (\n                      <div style={{ display: "grid", gap: 16 }}>\n                        <div>\n                          <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 800, color: warna.tintaSamar, letterSpacing: "0.06em", textTransform: "uppercase" }}>Jam Masuk Standar</p>\n                          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>\n                            <input type="time" value={pengaturanJam} onChange={(e) => setPengaturanJam(e.target.value)} style={{ ...styles.inputForm, width: 150 }} />\n                            <button type="button" onClick={() => void simpanJamMasukCepat()} style={{ ...styles.tombolAktifkan, display: "inline-flex", alignItems: "center", gap: 6 }} disabled={pengaturanMenyimpanJam}>\n                              <Save size={14} />{pengaturanMenyimpanJam ? "Menyimpan…" : "Simpan Jam"}\n                            </button>\n                          </div>\n                          <p style={{ margin: "7px 0 0", fontSize: 11, color: warna.tintaSamar }}>Digunakan sistem untuk menentukan tepat waktu atau telat.</p>\n                        </div>\n\n                        <div style={{ borderTop: `1px solid ${warna.garis}`, paddingTop: 16 }}>\n                          <div style={{ marginBottom: 10 }}>\n                            <p style={{ margin: 0, fontSize: 11, fontWeight: 800, color: warna.tintaSamar, letterSpacing: "0.06em", textTransform: "uppercase" }}>Lokasi Kantor / Acuan Absensi</p>\n                            <p style={{ margin: "4px 0 0", fontSize: 11, color: warna.tintaSamar }}>Koordinat ini menjadi titik acuan radius absensi karyawan yang terhubung ke kantor.</p>\n                          </div>\n\n                          {daftarKantorState.length === 0 ? (\n                            <div style={{ fontSize: 12, color: warna.peringatan }}>Belum ada data kantor. Buka menu Kantor Pusat untuk membuatnya.</div>\n                          ) : (\n                            <>\n                              <select value={pengaturanKantorId} onChange={(e) => pilihKantorPengaturan(e.target.value)} style={{ ...styles.selectForm, width: "100%", maxWidth: 420, marginBottom: 10 }}>\n                                {daftarKantorState.map((k) => <option key={k.id} value={k.id}>{k.namaKantor}</option>)}\n                              </select>\n                              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>\n                                <div><label style={styles.labelForm}>Latitude</label><input value={formKantor.latitude} onChange={(e) => setFormKantor({ ...formKantor, latitude: e.target.value })} style={styles.inputForm} inputMode="decimal" /></div>\n                                <div><label style={styles.labelForm}>Longitude</label><input value={formKantor.longitude} onChange={(e) => setFormKantor({ ...formKantor, longitude: e.target.value })} style={styles.inputForm} inputMode="decimal" /></div>\n                              </div>\n                              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>\n                                <button type="button" onClick={gunakanLokasiKantorSekarang} style={{ ...styles.tombolEditKecil, display: "inline-flex", alignItems: "center", gap: 6 }}><Navigation size={14} />Gunakan Lokasi Saat Ini</button>\n                                <button type="button" onClick={() => void simpanKantor()} style={{ ...styles.tombolAktifkan, display: "inline-flex", alignItems: "center", gap: 6 }} disabled={sedangSimpanKantor}><Save size={14} />{sedangSimpanKantor ? "Menyimpan…" : "Simpan Lokasi"}</button>\n                              </div>\n                              <div style={{ marginTop: 10, fontSize: 11, color: warna.tintaSamar }}>Pengaturan nama/alamat kantor lengkap tersedia di menu <button type="button" onClick={() => pindahTab("kantor")} style={{ border: 0, background: "transparent", padding: 0, color: warna.aksen, fontWeight: 800, cursor: "pointer" }}>Kantor Pusat</button>.</div>\n                            </>\n                          )}\n                        </div>\n                      </div>\n                    )}\n                  </div>\n                )}\n              </section>\n            </>\n          )}\n\n          {tab === "approval" && ('''
+          if anchor_panel not in admin:
+              raise SystemExit('Admin settings panel anchor not found')
+          admin = admin.replace(anchor_panel, panel, 1)
+          
+          admin_path.write_text(admin, encoding='utf-8')
+          employee_path.write_text(employee, encoding='utf-8')
+          
+          # Remove leftover temporary files from failed attempts, if present.
+          for p in [root/'src/tempfix_location.txt', root/'src/tempfix_location2.txt']:
+              if p.exists(): p.unlink()
+          PY
+          
+          npm ci
+          npm run build
+          git status --short
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/pages/DashboardAdmin.jsx src/pages/DashboardKaryawan.jsx src/tempfix_location.txt src/tempfix_location2.txt
+          git commit -m 'fix: improve GPS reliability and add admin settings'
+          git rm .github/workflows/apply-gps-settings-fix.yml
+          git commit --amend --no-edit
+          git push origin main
