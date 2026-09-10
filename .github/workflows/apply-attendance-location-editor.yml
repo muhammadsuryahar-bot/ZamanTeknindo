@@ -1,3 +1,0 @@
-name: removed
-on:
-  workflow_dispatch:
