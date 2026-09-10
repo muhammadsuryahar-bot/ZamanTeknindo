@@ -30,8 +30,6 @@
 
           if (section !== sesiKameraTerlihat) {
             sesiKameraTerlihat = section;
-            // Setiap pembukaan kamera harus menunggu koordinat yang baru.
-            // Jangan memakai lokasi dari sesi kamera sebelumnya.
             window.__zamanLokasiSesiAktif = true;
             window.__zamanLokasiSudahDitemukan = false;
             window.__zamanLokasiTerakhir = null;
@@ -53,6 +51,251 @@
         window.setInterval(perbaruiStatusLokasiKamera, 250);
         window.addEventListener('pageshow', perbaruiStatusLokasiKamera);
         document.addEventListener('visibilitychange', perbaruiStatusLokasiKamera);
+      })();
+    </script>
+    <script>
+      (() => {
+        let apiBase = '';
+        let rekapTerkini = [];
+        let modePengaturan = false;
+        let observerJadwal = null;
+
+        const fetchAsli = window.fetch.bind(window);
+        window.fetch = async (...args) => {
+          const input = args[0];
+          const url = typeof input === 'string' ? input : input?.url || '';
+          if (!apiBase && url.includes('/api/')) {
+            apiBase = url.slice(0, url.indexOf('/api/')) + '/api';
+          }
+
+          const response = await fetchAsli(...args);
+          if (/\/api\/admin\/rekap-(hari-ini|tanggal)/.test(url)) {
+            try {
+              const salinan = response.clone();
+              const body = await salinan.json();
+              if (Array.isArray(body?.data)) rekapTerkini = body.data;
+            } catch {
+              // Abaikan response yang bukan JSON.
+            }
+          }
+          return response;
+        };
+
+        const gaya = (el, nilai) => Object.assign(el.style, nilai);
+
+        function formatJam(iso) {
+          if (!iso) return '';
+          const d = new Date(iso);
+          if (Number.isNaN(d.getTime())) return '';
+          return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function angkaJam(teks) {
+          return String(teks || '').replace(/[^0-9]/g, '').slice(0, 4);
+        }
+
+        function ambilSettingsSection() {
+          const semua = [...document.querySelectorAll('section')];
+          return semua.find((el) => /Pengaturan Sistem/i.test(el.textContent || '')) || null;
+        }
+
+        function tandaiPengaturan() {
+          const section = ambilSettingsSection();
+          if (!section) return null;
+          section.dataset.zamanSettingsSection = 'true';
+          return section;
+        }
+
+        function terapkanModePengaturan() {
+          const section = tandaiPengaturan();
+          if (!section) return false;
+          const parent = section.parentElement;
+          if (!parent) return false;
+
+          [...parent.children].forEach((anak) => {
+            if (anak === section) {
+              gaya(anak, { display: modePengaturan ? 'block' : 'none' });
+            } else if (modePengaturan) {
+              gaya(anak, { display: 'none' });
+            } else if (anak.dataset.zamanHiddenBySettings === 'true') {
+              gaya(anak, { display: '' });
+              delete anak.dataset.zamanHiddenBySettings;
+            }
+          });
+
+          if (modePengaturan) {
+            [...parent.children].forEach((anak) => {
+              if (anak !== section) anak.dataset.zamanHiddenBySettings = 'true';
+            });
+          }
+          return true;
+        }
+
+        function cariTombol(text) {
+          return [...document.querySelectorAll('button')].find((b) => (b.textContent || '').trim() === text);
+        }
+
+        function pasangMenuPengaturan() {
+          const kantor = cariTombol('Kantor Pusat');
+          if (!kantor || document.querySelector('[data-zaman-pengaturan-menu="true"]')) return;
+
+          const tombol = kantor.cloneNode(true);
+          tombol.dataset.zamanPengaturanMenu = 'true';
+          tombol.removeAttribute('disabled');
+          tombol.textContent = '⚙ Pengaturan';
+          tombol.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            modePengaturan = true;
+            document.querySelectorAll('[data-zaman-pengaturan-menu="true"]').forEach((el) => {
+              el.style.fontWeight = '800';
+              el.style.outline = '1px solid rgba(59,130,246,.45)';
+            });
+            terapkanModePengaturan();
+            const section = ambilSettingsSection();
+            section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+          kantor.parentElement?.appendChild(tombol);
+        }
+
+        function pasangKontrolKembali() {
+          if (!modePengaturan) return;
+          const utama = [...document.querySelectorAll('button')].find((b) => (b.textContent || '').trim() === 'Rekap Hari Ini');
+          const menu = document.querySelector('[data-zaman-pengaturan-menu="true"]');
+          if (!utama || !menu || menu.dataset.zamanBackReady) return;
+          menu.dataset.zamanBackReady = 'true';
+        }
+
+        function buatModal(item) {
+          const lama = document.getElementById('zaman-edit-lokasi-modal');
+          if (lama) lama.remove();
+
+          const overlay = document.createElement('div');
+          overlay.id = 'zaman-edit-lokasi-modal';
+          gaya(overlay, {
+            position: 'fixed', inset: '0', zIndex: '99999', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', padding: '16px',
+            background: 'rgba(15,23,42,.55)'
+          });
+
+          const box = document.createElement('div');
+          gaya(box, {
+            width: '100%', maxWidth: '560px', background: '#fff', borderRadius: '18px',
+            padding: '20px', boxShadow: '0 24px 70px rgba(0,0,0,.22)', boxSizing: 'border-box'
+          });
+          box.innerHTML = `
+            <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:16px">
+              <div>
+                <div style="font-size:17px;font-weight:800;color:#172033">Edit Lokasi Masuk</div>
+                <div style="margin-top:5px;font-size:12px;color:#667085">${item?.pengguna?.nama || 'Karyawan'}</div>
+              </div>
+              <button type="button" data-close="1" style="border:0;background:transparent;font-size:24px;line-height:1;cursor:pointer;color:#667085">×</button>
+            </div>
+            <label style="display:block;font-size:12px;font-weight:800;color:#344054;margin-bottom:8px">Alamat lengkap lokasi</label>
+            <textarea data-alamat rows="5" maxlength="500" placeholder="Jl. Sadang Sari No.3, Sekeloa, Kecamatan Coblong, Kota Bandung, Jawa Barat 40133" style="width:100%;box-sizing:border-box;resize:vertical;border:1px solid #d0d5dd;border-radius:12px;padding:12px;font:inherit;font-size:13px;outline:none">${String(item?.alamatMasuk || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
+            <div style="display:flex;justify-content:space-between;gap:10px;margin-top:7px;font-size:11px;color:#667085">
+              <span>Hanya alamat yang diubah. Koordinat GPS tetap tersimpan.</span>
+              <span data-count>0/500</span>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px">
+              <button type="button" data-close="1" style="border:1px solid #d0d5dd;background:#fff;color:#344054;padding:10px 14px;border-radius:10px;font-weight:700;cursor:pointer">Batal</button>
+              <button type="button" data-save style="border:0;background:#1d4ed8;color:#fff;padding:10px 14px;border-radius:10px;font-weight:800;cursor:pointer">Simpan Alamat</button>
+            </div>
+          `;
+
+          const textarea = box.querySelector('[data-alamat]');
+          const count = box.querySelector('[data-count]');
+          const updateCount = () => { count.textContent = `${textarea.value.length}/500`; };
+          textarea.addEventListener('input', updateCount);
+          updateCount();
+
+          const tutup = () => overlay.remove();
+          box.querySelectorAll('[data-close="1"]').forEach((b) => b.addEventListener('click', tutup));
+          overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) tutup(); });
+
+          box.querySelector('[data-save]').addEventListener('click', async () => {
+            const alamatMasuk = textarea.value.trim();
+            if (!alamatMasuk) { alert('Alamat lokasi wajib diisi.'); return; }
+            if (alamatMasuk.length > 500) { alert('Alamat lokasi maksimal 500 karakter.'); return; }
+
+            const tombol = box.querySelector('[data-save]');
+            tombol.disabled = true;
+            tombol.textContent = 'Menyimpan…';
+            try {
+              const token = localStorage.getItem('token');
+              const dasar = apiBase || '/api';
+              const response = await fetch(`${dasar}/admin/absensi/${item.id}/edit-lokasi`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ alamatMasuk })
+              });
+              const data = await response.json().catch(() => ({}));
+              if (!response.ok) throw new Error(data?.pesan || 'Gagal mengubah alamat lokasi.');
+              tutup();
+              window.location.reload();
+            } catch (error) {
+              tombol.disabled = false;
+              tombol.textContent = 'Simpan Alamat';
+              alert(error?.message || 'Tidak bisa terhubung ke server.');
+            }
+          });
+
+          overlay.appendChild(box);
+          document.body.appendChild(overlay);
+          setTimeout(() => textarea.focus(), 0);
+        }
+
+        document.addEventListener('click', (event) => {
+          const tombol = event.target.closest?.('button');
+          if (!tombol) return;
+          if ((tombol.textContent || '').trim() === 'Edit Lokasi') {
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+
+            const row = tombol.closest('tr');
+            const nama = row?.querySelector('td strong')?.textContent?.trim() || '';
+            const jam = row?.querySelectorAll('td')?.[3]?.textContent?.trim() || '';
+            const target = rekapTerkini.find((item) => {
+              return String(item?.pengguna?.nama || '').trim() === nama && angkaJam(formatJam(item.jamMasuk)) === angkaJam(jam);
+            }) || rekapTerkini.find((item) => String(item?.pengguna?.nama || '').trim() === nama);
+
+            if (!target) {
+              alert('Data absensi tidak ditemukan. Muat ulang halaman Admin lalu coba lagi.');
+              return;
+            }
+            buatModal(target);
+          }
+        }, true);
+
+        document.addEventListener('click', (event) => {
+          const tombol = event.target.closest?.('button');
+          if (!tombol) return;
+          if ((tombol.textContent || '').trim() === 'Rekap Hari Ini' && modePengaturan) {
+            modePengaturan = false;
+            terapkanModePengaturan();
+            const menu = document.querySelector('[data-zaman-pengaturan-menu="true"]');
+            if (menu) { menu.style.fontWeight = ''; menu.style.outline = ''; }
+          }
+        }, true);
+
+        const observer = new MutationObserver(() => {
+          pasangMenuPengaturan();
+          if (modePengaturan) terapkanModePengaturan();
+        });
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+        observerJadwal = observer;
+
+        setInterval(() => {
+          pasangMenuPengaturan();
+          tandaiPengaturan();
+          if (!modePengaturan) {
+            const section = ambilSettingsSection();
+            if (section) section.style.display = 'none';
+          } else {
+            terapkanModePengaturan();
+          }
+        }, 800);
       })();
     </script>
     <script type="module" src="/src/main.jsx"></script>
