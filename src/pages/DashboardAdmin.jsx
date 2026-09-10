@@ -800,6 +800,80 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
     }
   }
 
+  async function editLokasiDenganDialog(item) {
+    const latitudeSaatIni = item.latitudeMasuk ?? "";
+    const longitudeSaatIni = item.longitudeMasuk ?? "";
+    const alamatSaatIni = item.alamatMasuk || "";
+
+    const latitudeInput = window.prompt(
+      `Latitude lokasi MASUK untuk ${item.pengguna.nama}:`,
+      String(latitudeSaatIni),
+    );
+    if (latitudeInput === null) return;
+
+    const longitudeInput = window.prompt(
+      `Longitude lokasi MASUK untuk ${item.pengguna.nama}:`,
+      String(longitudeSaatIni),
+    );
+    if (longitudeInput === null) return;
+
+    const alamatInput = window.prompt(
+      `Alamat/keterangan lokasi untuk ${item.pengguna.nama}:`,
+      alamatSaatIni,
+    );
+    if (alamatInput === null) return;
+
+    const latitude = Number(latitudeInput.trim());
+    const longitude = Number(longitudeInput.trim());
+    const alamatMasuk = alamatInput.trim();
+
+    if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
+      setPesan("Latitude tidak valid. Gunakan angka antara -90 sampai 90.");
+      return;
+    }
+    if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+      setPesan("Longitude tidak valid. Gunakan angka antara -180 sampai 180.");
+      return;
+    }
+    if (!alamatMasuk) {
+      setPesan("Alamat/keterangan lokasi wajib diisi.");
+      return;
+    }
+    if (alamatMasuk.length > 500) {
+      setPesan("Alamat/keterangan lokasi maksimal 500 karakter.");
+      return;
+    }
+
+    setPesan("");
+    try {
+      const res = await fetch(`${API_URL}/admin/absensi/${item.id}/edit-lokasi`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({ latitudeMasuk: latitude, longitudeMasuk: longitude, alamatMasuk }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPesan(data?.pesan || "Gagal mengubah lokasi absensi.");
+        return;
+      }
+
+      setRekap((lama) =>
+        lama.map((row) =>
+          row.id === item.id
+            ? { ...row, ...(data?.data || {}), latitudeMasuk: latitude, longitudeMasuk: longitude, alamatMasuk }
+            : row,
+        ),
+      );
+      setPesanSukses(data?.pesan || "Lokasi absensi berhasil diperbarui.");
+    } catch (error) {
+      console.error("Gagal mengubah lokasi absensi:", error);
+      setPesan("Tidak bisa terhubung ke server.");
+    }
+  }
+
   function bukaEditStatus(item) {
     setEditStatusTerbuka(item.id);
     setFormEditStatus({
@@ -1836,16 +1910,26 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                                 <td
                                   style={{ ...styles.td, textAlign: "right" }}
                                 >
-                                  <button
-                                    onClick={() =>
-                                      sedangEdit
-                                        ? setEditStatusTerbuka(null)
-                                        : bukaEditStatus(item)
-                                    }
-                                    style={styles.tombolEditKecil}
-                                  >
-                                    {sedangEdit ? "Tutup" : "Ubah Status"}
-                                  </button>
+                                  <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => void editLokasiDenganDialog(item)}
+                                      style={styles.tombolEditKecil}
+                                    >
+                                      Edit Lokasi
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        sedangEdit
+                                          ? setEditStatusTerbuka(null)
+                                          : bukaEditStatus(item)
+                                      }
+                                      style={styles.tombolEditKecil}
+                                    >
+                                      {sedangEdit ? "Tutup" : "Ubah Status"}
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                               {item.catatanAdmin && !sedangEdit && (
