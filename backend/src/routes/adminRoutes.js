@@ -26,6 +26,7 @@ const {
   rekapHariIniFixed,
   ambilRekapTanggal,
   ubahStatusTanpaAbsensi,
+  ubahLokasiAbsensi,
 } = require("../controllers/rekapAbsensiFixedController");
 const { daftarKantorFixed, tambahKantorFixed, ubahKantorFixed } = require("../controllers/kantorControllerFixed");
 const { ubahProfilKaryawan } = require("../controllers/adminProfilKaryawanController");
@@ -161,6 +162,7 @@ router.put(
   validasiEditStatusAbsensi,
   ubahStatusTanpaAbsensi,
 );
+router.put("/absensi/:id/edit-lokasi", ubahLokasiAbsensi);
 router.get("/ringkasan", ringkasanDashboardFixed);
 router.put("/absensi/:id/edit-status", editStatusAbsensiFixed);
 
