@@ -72,7 +72,9 @@ function decodeBase64UrlJSON(value) {
   try {
     const normalized = String(value).replace(/-/g, "+").replace(/_/g, "/");
     const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
-    return JSON.parse(decodeURIComponent(atob(padded).split("").map((karakter) => `%${`00${karakter.charCodeAt(0).toString(16)}`.slice(-2)).join("")));
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes));
   } catch {
     return null;
   }
@@ -99,19 +101,14 @@ function tokenJWTValidBentuk(token) {
 function tokenSudahKedaluwarsa(token) {
   if (!token) return false;
 
-  try {
-    const bagian = String(token).split(".");
-    if (bagian.length !== 3) return false;
+  const bagian = String(token).split(".");
+  if (bagian.length !== 3) return false;
 
-    const payload = decodeBase64UrlJSON(bagian[1]);
-    return (
-      Number.isFinite(Number(payload?.exp)) &&
-      Number(payload.exp) <= Math.floor(Date.now() / 1000)
-    );
-  } catch {
-    // Token rusak sudah ditangani oleh tokenJWTValidBentuk().
-    return false;
-  }
+  const payload = decodeBase64UrlJSON(bagian[1]);
+  return (
+    Number.isFinite(Number(payload?.exp)) &&
+    Number(payload.exp) <= Math.floor(Date.now() / 1000)
+  );
 }
 
 function logoutKarenaTokenTidakValid(pesan) {
@@ -206,9 +203,6 @@ export function pasangPenerjemahSesiKedaluwarsa() {
     const iniPermintaanAuth = urlPermintaan.includes("/api/auth/");
     const token = getToken();
 
-    // Jangan kirim JWT yang bentuknya jelas rusak ke backend. Token yang hanya
-    // punya tiga bagian tetapi bukan JWT JSON yang valid akan dibersihkan di
-    // browser sehingga backend tidak terus menerima "jwt malformed".
     if (
       permintaanKeBackendKita &&
       !iniPermintaanAuth &&
@@ -222,13 +216,10 @@ export function pasangPenerjemahSesiKedaluwarsa() {
         window.location.href = "/login";
       }
 
-      return new Response(
-        JSON.stringify({ pesan, kode: "TOKEN_INVALID" }),
-        {
-          status: 401,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
+      return new Response(JSON.stringify({ pesan, kode: "TOKEN_INVALID" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     if (
@@ -267,10 +258,7 @@ export function pasangPenerjemahSesiKedaluwarsa() {
       for (const delay of RETRY_STATUS_DELAYS_MS) {
         try {
           await tunggu(delay);
-          respons = await fetchRetryDenganTimeout(
-            fetchAsli,
-            argumenDenganTanggal,
-          );
+          respons = await fetchRetryDenganTimeout(fetchAsli, argumenDenganTanggal);
           break;
         } catch (errorRetry) {
           errorTerakhir = errorRetry;
@@ -284,10 +272,7 @@ export function pasangPenerjemahSesiKedaluwarsa() {
       for (const delay of RETRY_STATUS_DELAYS_MS) {
         try {
           await tunggu(delay);
-          const retry = await fetchRetryDenganTimeout(
-            fetchAsli,
-            argumenDenganTanggal,
-          );
+          const retry = await fetchRetryDenganTimeout(fetchAsli, argumenDenganTanggal);
           responsTerakhir = retry;
           if (retry.status < 500) break;
         } catch (errorRetry) {
@@ -300,9 +285,6 @@ export function pasangPenerjemahSesiKedaluwarsa() {
     if (!permintaanKeBackendKita) return respons;
     if (iniPermintaanAuth) return respons;
 
-    // Request background seperti rekonsiliasi antrean atau registrasi push
-    // tidak boleh menghapus sesi dan memindahkan halaman karyawan hanya karena
-    // token kedaluwarsa. Request foreground tetap memakai perilaku lama.
     if (respons.status === 401) {
       if (iniBackground) return respons;
 
@@ -349,8 +331,7 @@ export function pasangPenerjemahSesiKedaluwarsa() {
           hapusSesiLogin();
           sessionStorage.setItem(
             "pesanSetelahLogout",
-            data?.pesan ||
-              "Akun Anda tidak dapat digunakan. Silakan hubungi Admin.",
+            data?.pesan || "Akun Anda tidak dapat digunakan. Silakan hubungi Admin.",
           );
           if (window.location.pathname !== "/login") {
             window.location.href = "/login";
