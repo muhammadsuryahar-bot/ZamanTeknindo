@@ -10,9 +10,19 @@
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <title>Absensi PT. Zaman Teknindo</title>
     <style>
-      /* Password Admin sudah tersedia di Pengaturan; jangan tampilkan shortcut duplikat di sidebar. */
       .admin-sidebar > div:last-child > div:last-child > button:first-child { display: none !important; }
       .admin-sidebar > div:last-child > div:last-child > button:last-child { grid-column: 1 / -1; width: 100%; }
+      .salaryRow { align-items: center !important; gap: 18px !important; }
+      .salaryRow > div:first-child { min-width: 220px; }
+      .salaryRow > div:first-child strong { display: block; color: #16233D; font-size: 13px; line-height: 1.35; }
+      .salaryRow .meta { margin-top: 4px !important; color: #6B7482 !important; font-size: 11.5px !important; }
+      .salaryAction { width: min(100%, 390px) !important; min-width: 300px; }
+      .salaryAction .rupiah { min-height: 40px !important; border: 1px solid #DADFE6 !important; border-radius: 9px !important; background: #fff !important; box-shadow: none !important; }
+      .salaryAction .rupiah > span { flex: 0 0 auto; padding: 0 9px; color: #5B6472; font-size: 12px; font-weight: 700; border-right: 1px solid #DADFE6; }
+      .salaryAction .rupiah input { width: 100% !important; min-width: 0 !important; height: 38px !important; padding: 0 10px !important; border: 0 !important; outline: 0 !important; box-shadow: none !important; background: transparent !important; color: #16233D !important; font-size: 12.5px !important; font-weight: 600 !important; }
+      .salaryAction > button { min-height: 40px !important; padding: 0 15px !important; border-radius: 9px !important; white-space: nowrap !important; }
+      @media (max-width: 760px) { .salaryRow { display: grid !important; grid-template-columns: 1fr !important; gap: 10px !important; } .salaryRow > div:first-child { min-width: 0 !important; } .salaryAction { width: 100% !important; min-width: 0 !important; } }
+      section:has(.optionRow) > .card:nth-of-type(3) { display: none !important; }
     </style>
   </head>
   <body>
