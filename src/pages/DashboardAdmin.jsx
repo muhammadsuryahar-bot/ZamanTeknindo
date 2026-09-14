@@ -1,5 +1,27 @@
-import { useState, useEffect, useRef, Fragment } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  AlertTriangle,
+  BarChart3,
+  Bell,
+  Building2,
+  CheckCircle2,
+  ChevronDown,
+  ClipboardList,
+  FileEdit,
+  FileText,
+  LogOut,
+  MapPin,
+  Navigation,
+  RefreshCcw,
+  Save,
+  Settings,
+  Shield,
+  UserPlus,
+  Users,
+  Wallet,
+  X,
+} from "lucide-react";
 import { API_URL, getToken } from "../utils/api";
 import { warna, font } from "../styles/theme";
 import logoHorizontal from "../assets/logo-horizontal.png";
@@ -8,636 +30,252 @@ import AdminIzin from "./AdminIzin";
 import PengaturanGaji from "./PengaturanGaji";
 import AdminGajiMassal from "./AdminGajiMassal";
 import { labelStatusKehadiran } from "../utils/statusKehadiran";
-import {
-  ClipboardList,
-  Clock,
-  Users,
-  FileEdit,
-  Wallet,
-  Building2,
-  BarChart3,
-  ThumbsUp,
-  ArrowRight,
-  CheckCircle2,
-  MapPin,
-  Info,
-  AlertTriangle,
-  Settings,
-  Save,
-  Navigation,
-  FileText,
-  UserX,
-  Bell,
-  UserPlus,
-  FileCheck2,
-  X,
-} from "lucide-react";
 
-const DAFTAR_STATUS = [
-  "tepat_waktu",
-  "telat",
-  "alpha",
-  "izin",
-  "sakit",
-  "cuti",
-  "urgent",
-];
+const TAB_VALID = ["rekap", "approval", "karyawan", "izin", "gaji", "gaji-massal", "kantor", "pengaturan"];
+const STATUS_VALID = ["tepat_waktu", "telat", "alpha", "izin", "sakit", "cuti", "urgent"];
+const JAM_DEFAULT = "08:10";
 
-// Ikon navigasi sidebar -- pakai komponen SVG (lucide-react), bukan emoji.
-// Emoji tampilannya beda-beda tergantung OS (Windows/Mac/Android beda gaya
-// gambarnya), jadi kesannya gak konsisten/kurang "produk jadi". Ikon SVG
-// gini tampilannya SAMA PERSIS di semua perangkat.
-const IKON_TAB = {
-  rekap: ClipboardList,
-  approval: Clock,
-  karyawan: Users,
-  izin: FileEdit,
-  gaji: Wallet,
-  "gaji-massal": Wallet,
-  kantor: Building2,
-};
+function getSavedTab() {
+  try {
+    const value = sessionStorage.getItem("admin-tab");
+    return TAB_VALID.includes(value) ? value : "rekap";
+  } catch {
+    return "rekap";
+  }
+}
 
-// Kartu abu-abu berkedip pelan, dipakai sebagai placeholder saat data masih dimuat
-function SkeletonBaris({ jumlah = 4 }) {
-  return (
-    <>
-      {Array.from({ length: jumlah }).map((_, i) => (
-        <tr key={i} className="skeleton-pulse">
-          <td colSpan={99} style={{ padding: "14px 16px" }}>
-            <div
-              style={{
-                height: 12,
-                width: `${40 + (i % 3) * 15}%`,
-                background: warna.panelAlt,
-                borderRadius: 6,
-              }}
-            />
-          </td>
-        </tr>
-      ))}
-    </>
-  );
+function formatTanggal(tanggal) {
+  if (!tanggal) return "–";
+  return new Date(tanggal).toLocaleDateString("id-ID", {
+    timeZone: "Asia/Jakarta",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function formatJam(tanggal) {
+  if (!tanggal) return "–";
+  return new Date(tanggal).toLocaleTimeString("id-ID", {
+    timeZone: "Asia/Jakarta",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function inisialNama(nama) {
+  if (!nama) return "?";
+  const bagian = String(nama).trim().split(/\s+/);
+  if (bagian.length === 1) return bagian[0].slice(0, 2).toUpperCase();
+  return `${bagian[0][0]}${bagian[bagian.length - 1][0]}`.toUpperCase();
 }
 
 export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekapRefreshNonce }) {
   const navigate = useNavigate();
-  const [tab, setTab] = useState(() => {
-    const tabTersimpan = sessionStorage.getItem("admin-tab");
+  const [tab, setTab] = useState(getSavedTab);
+  const [sidebarMobile, setSidebarMobile] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [pesan, setPesan] = useState("");
+  const [sukses, setSukses] = useState("");
 
-    const tabValid = [
-      "rekap",
-      "approval",
-      "karyawan",
-      "izin",
-      "gaji",
-      "gaji-massal",
-      "kantor",
-    ];
-
-    return tabValid.includes(tabTersimpan) ? tabTersimpan : "rekap";
-  });
   const [rekap, setRekap] = useState([]);
   const [belumAbsen, setBelumAbsen] = useState([]);
-  const [belumAbsenTerbuka, setBelumAbsenTerbuka] = useState(false);
+  const [jumlahAktif, setJumlahAktif] = useState(0);
   const [menunggu, setMenunggu] = useState([]);
-  const [karyawan, setKaryawan] = useState([]);
-  const [jumlahKaryawanAktif, setJumlahKaryawanAktif] = useState(0);
+  const [notifikasi, setNotifikasi] = useState({ akunBaru: 0, izinBaru: 0, total: 0 });
+  const [pencarian, setPencarian] = useState("");
+  const [belumAbsenBuka, setBelumAbsenBuka] = useState(false);
+  const [notifBuka, setNotifBuka] = useState(false);
 
-  // Loading dibuat per menu supaya perpindahan tab tidak menahan seluruh halaman.
-  const [loading, setLoading] = useState(true);
+  const [karyawan, setKaryawan] = useState([]);
+  const [kantor, setKantor] = useState([]);
   const [loadingKaryawan, setLoadingKaryawan] = useState(false);
   const [loadingKantor, setLoadingKantor] = useState(false);
 
-  // Cache sederhana: data hanya diambil sekali sampai diminta refresh.
-  const [karyawanSudahDimuat, setKaryawanSudahDimuat] = useState(false);
-  const [kantorSudahDimuat, setKantorSudahDimuat] = useState(false);
+  const [formAktivasiId, setFormAktivasiId] = useState(null);
+  const [formAktivasi, setFormAktivasi] = useState({ jabatan: "", divisi: "", kantorId: "" });
 
-  // Komponen Izin/Gaji tetap mounted setelah pertama kali dibuka.
-  // Gunakan key yang SAMA dengan id tab agar klik "gaji-massal" benar-benar
-  // menandai komponen sudah pernah dibuka. Bug lama memakai gajiMassal,
-  // sedangkan pindahTab menyimpan key "gaji-massal", sehingga klik pertama
-  // menghasilkan area kosong dan baru muncul setelah refresh.
-  const [tabPernahDibuka, setTabPernahDibuka] = useState(() => {
-    const tabAwal = [
-      "rekap",
-      "approval",
-      "karyawan",
-      "izin",
-      "gaji",
-      "gaji-massal",
-      "kantor",
-    ].includes(tab)
-      ? tab
-      : "rekap";
+  const [formEditKaryawanId, setFormEditKaryawanId] = useState(null);
+  const [formEditKaryawan, setFormEditKaryawan] = useState({ email: "", jabatan: "", divisi: "", kantorId: "" });
+  const [resetPassword, setResetPassword] = useState(null);
+  const [konfirmasiNonaktif, setKonfirmasiNonaktif] = useState(null);
 
-    return {
-      rekap: true,
-      approval: tabAwal === "approval",
-      karyawan: tabAwal === "karyawan",
-      izin: tabAwal === "izin",
-      gaji: tabAwal === "gaji",
-      "gaji-massal": tabAwal === "gaji-massal",
-      kantor: tabAwal === "kantor",
-    };
+  const [formKantor, setFormKantor] = useState({ namaKantor: "", alamat: "", latitude: "", longitude: "" });
+  const [kantorEditId, setKantorEditId] = useState(null);
+  const [simpanKantorLoading, setSimpanKantorLoading] = useState(false);
+
+  const [jamMasukStandar, setJamMasukStandar] = useState(JAM_DEFAULT);
+  const [potongan, setPotongan] = useState({ potonganTelat: 10000, potonganAlpha: 15000 });
+  const [simpanAturanLoading, setSimpanAturanLoading] = useState(false);
+  const [kepadatan, setKepadatan] = useState(() => {
+    try { return localStorage.getItem("zaman-admin-density") || "normal"; } catch { return "normal"; }
   });
-
-  const [pesan, setPesan] = useState("");
-  const [pesanSukses, setPesanSukses] = useState("");
-
-  // Kata kunci pencarian, terpisah untuk tiap tab supaya tidak saling ganggu
-  const [cariRekap, setCariRekap] = useState("");
-  const [cariKaryawan, setCariKaryawan] = useState("");
-
-  // Form aktivasi akun yang lagi dibuka (ganti prompt() bawaan browser)
-  const [formAktivasiTerbuka, setFormAktivasiTerbuka] = useState(null); // id akun atau null
-  const [formAktivasi, setFormAktivasi] = useState({
-    jabatan: "",
-    divisi: "",
-    kantorId: "",
+  const [tampilkanFoto, setTampilkanFoto] = useState(() => {
+    try { return localStorage.getItem("zaman-admin-show-photos") !== "false"; } catch { return true; }
   });
-
-  // Daftar kantor/cabang, dipakai di dropdown aktivasi & tab Kantor
-  const [daftarKantorState, setDaftarKantorState] = useState([]);
-  const [formKantor, setFormKantor] = useState({
-    namaKantor: "",
-    alamat: "",
-    latitude: "",
-    longitude: "",
-  });
-  const [kantorEditId, setKantorEditId] = useState(null); // id kantor yang lagi diedit, atau null = mode tambah baru
-  const [sedangSimpanKantor, setSedangSimpanKantor] = useState(false);
-
-  // Pengaturan cepat yang dapat diubah langsung dari Rekap Hari Ini.
-  const [pengaturanTerbuka, setPengaturanTerbuka] = useState(false);
-  const [pengaturanJam, setPengaturanJam] = useState("08:10");
-  const [pengaturanPotongan, setPengaturanPotongan] = useState({ potonganTelat: 10000, potonganAlpha: 15000 });
-  const [pengaturanMemuat, setPengaturanMemuat] = useState(false);
-  const [pengaturanMenyimpanJam, setPengaturanMenyimpanJam] = useState(false);
-  const [pengaturanKantorId, setPengaturanKantorId] = useState("");
-
-  // Konfirmasi ubah status karyawan yang lagi dibuka (ganti confirm() bawaan browser)
-  const [konfirmasiStatusTerbuka, setKonfirmasiStatusTerbuka] = useState(null); // id karyawan atau null
-
-  // Hasil reset password (password sementara) yang baru saja digenerate,
-  // ditampilkan sekali ke Admin supaya bisa disalin & disampaikan manual
-  const [resetPasswordHasil, setResetPasswordHasil] = useState(null); // { id, password } atau null
-
-  // Form edit status kehadiran manual yang lagi dibuka
-  const [editStatusTerbuka, setEditStatusTerbuka] = useState(null); // id absensi atau null
-  const [sedangSimpanStatusId, setSedangSimpanStatusId] = useState(null);
-  const [formEditStatus, setFormEditStatus] = useState({
-    statusFinal: "",
-    catatanAdmin: "",
-  });
-
-  // Sidebar mobile (dibuka lewat hamburger di topbar kecil)
-  const [sidebarMobileTerbuka, setSidebarMobileTerbuka] = useState(false);
-
-  // Notifikasi Admin -- jumlah dihitung dari akun baru + pengajuan izin
-  // yang masih menunggu diproses. Badge menunjukkan "hal yang masih perlu
-  // diproses", bukan "notif yang belum pernah dilihat", supaya tidak
-  // hilang begitu saja hanya karena admin sempat membuka panelnya.
-  const [notifikasi, setNotifikasi] = useState({
-    akunBaru: 0,
-    izinBaru: 0,
-    total: 0,
-  });
-  const [notifikasiTerbuka, setNotifikasiTerbuka] = useState(false);
-  const notifikasiRef = useRef(null);
-  const tabRef = useRef(tab);
-
-  // Tutup panel notifikasi kalau admin klik di luar area panel/tombolnya --
-  // tanpa ini, panel cuma bisa ditutup dengan klik tombol X, yang terasa
-  // aneh dibanding pola dropdown pada umumnya.
-  useEffect(() => {
-    if (!notifikasiTerbuka) return;
-
-    function tanganiKlikLuar(e) {
-      if (notifikasiRef.current && !notifikasiRef.current.contains(e.target)) {
-        setNotifikasiTerbuka(false);
-      }
-    }
-
-    document.addEventListener("mousedown", tanganiKlikLuar);
-    return () => document.removeEventListener("mousedown", tanganiKlikLuar);
-  }, [notifikasiTerbuka]);
-
-  // Penanda "tabel sudah digeser sampai ujung kanan" (khusus HP) — kalau
-  // sudah di ujung, gradient fade di tepi kanan disembunyikan karena tidak
-  // ada lagi yang perlu diisyaratkan ke pengguna
-  const [rekapDiUjung, setRekapDiUjung] = useState(false);
-
-  // Panel "Tren & Analisis" -- sengaja TIDAK ikut di-fetch bareng data utama
-  // (muatData), supaya buka dashboard tetap ringan/cepat setiap hari. Data ini
-  // baru diambil kalau admin sendiri yang membuka panelnya.
-  const [ringkasanTerbuka, setRingkasanTerbuka] = useState(false);
-  const [ringkasan, setRingkasan] = useState(null);
-  const [loadingRingkasan, setLoadingRingkasan] = useState(false);
-
-  async function bukaTutupRingkasan() {
-    const mauDibuka = !ringkasanTerbuka;
-    setRingkasanTerbuka(mauDibuka);
-    if (mauDibuka && !ringkasan) {
-      setLoadingRingkasan(true);
-      try {
-        const res = await fetch(`${API_URL}/admin/ringkasan`, {
-          headers: { Authorization: `Bearer ${getToken()}` },
-        });
-        const data = await res.json();
-        setRingkasan(data.data || null);
-      } catch (err) {
-        console.error(err);
-        setPesan("Gagal memuat tren & analisis.");
-      } finally {
-        setLoadingRingkasan(false);
-      }
-    }
-  }
-
-  function namaHariSingkat(tanggalISO) {
-    const hari = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
-    return hari[new Date(`${tanggalISO}T00:00:00.000Z`).getUTCDay()];
-  }
-  const [karyawanDiUjung, setKaryawanDiUjung] = useState(false);
-  function cekUjungScroll(e, setDiUjung) {
-    const el = e.target;
-    setDiUjung(el.scrollLeft + el.clientWidth >= el.scrollWidth - 4);
-  }
 
   useEffect(() => {
-    tabRef.current = tab;
+    try { sessionStorage.setItem("admin-tab", tab); } catch { /* abaikan */ }
+    setSidebarMobile(false);
+    setPesan("");
+    setSukses("");
   }, [tab]);
 
   useEffect(() => {
-    void muatData();
+    void muatDashboard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tanggalRekap, rekapRefreshNonce]);
 
-  // Sinkronisasi dashboard Admin berjalan otomatis saat tab sedang terlihat.
-  // Refresh dibuat silent agar tabel tetap tampil tanpa skeleton/flicker.
   useEffect(() => {
-    let intervalId = null;
-
-    const refreshDashboard = () => {
-      if (document.visibilityState !== "visible") return;
-      void muatData({ silent: true });
-      void muatNotifikasi();
-      if (tabRef.current === "karyawan") void muatKaryawan(true, { silent: true });
-      if (tabRef.current === "kantor") void muatKantor(true, { silent: true });
-    };
-
-    const mulai = () => {
-      if (intervalId !== null) return;
-      refreshDashboard();
-      intervalId = window.setInterval(refreshDashboard, 15000);
-    };
-
-    const berhenti = () => {
-      if (intervalId !== null) {
-        window.clearInterval(intervalId);
-        intervalId = null;
-      }
-    };
-
-    const ketikaVisibilityBerubah = () => {
-      if (document.visibilityState === "visible") {
-        refreshDashboard();
-        mulai();
-      } else {
-        berhenti();
-      }
-    };
-
-    mulai();
-    document.addEventListener("visibilitychange", ketikaVisibilityBerubah);
-
-    return () => {
-      berhenti();
-      document.removeEventListener("visibilitychange", ketikaVisibilityBerubah);
-    };
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tanggalRekap]);
-
-  useEffect(() => {
-    if (tab === "karyawan") {
-      muatKaryawan();
-    }
-
-    // Tab Kantor baru mengambil datanya saat benar-benar dibuka.
-    // Tab Menunggu tidak perlu data kantor sampai Admin menekan
-    // tombol "Aktifkan Akun".
-    if (tab === "kantor") {
-      muatKantor();
-    }
-
+    if (tab === "karyawan") void muatKaryawan();
+    if (tab === "kantor" || tab === "pengaturan") void muatKantor();
+    if (tab === "pengaturan") void muatAturan();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
   useEffect(() => {
-    if (!pesan && !pesanSukses) return;
+    const id = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      void muatNotifikasi();
+      if (tab === "rekap" || tab === "approval") void muatDashboard({ silent: true });
+      if (tab === "karyawan") void muatKaryawan({ silent: true, force: true });
+      if (tab === "kantor") void muatKantor({ silent: true });
+    }, 15000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, tanggalRekap]);
 
-    const timer = window.setTimeout(() => {
-      setPesan("");
-      setPesanSukses("");
-    }, 5000);
-
+  useEffect(() => {
+    if (!pesan && !sukses) return;
+    const timer = window.setTimeout(() => { setPesan(""); setSukses(""); }, 5000);
     return () => window.clearTimeout(timer);
-  }, [pesan, pesanSukses]);
+  }, [pesan, sukses]);
 
-  // Notifikasi Admin dicek begitu dashboard dibuka, lalu diulang tiap 15
-  // detik -- supaya admin tidak perlu refresh manual buat tahu ada
-  // pengajuan izin/akun baru yang masuk.
-
-
-  async function muatNotifikasi() {
-    const token = getToken();
-
-    if (!token) return;
-
-    try {
-      const res = await fetch(`${API_URL}/admin/notifikasi`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!res.ok) return;
-
-      const data = await res.json();
-
-      if (!data?.data) return;
-
-      setNotifikasi({
-        akunBaru: Number(data.data.akunBaru) || 0,
-        izinBaru: Number(data.data.izinBaru) || 0,
-        total: Number(data.data.total) || 0,
-      });
-    } catch (error) {
-      // Notifikasi bukan bagian yang boleh membuat seluruh dashboard
-      // ikut gagal kalau gagal dimuat -- cukup dicatat di console.
-      console.error("Gagal memuat notifikasi Admin:", error);
-    }
+  async function fetchJson(path, options = {}) {
+    const response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${getToken()}`,
+        ...(options.headers || {}),
+      },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data?.pesan || "Permintaan gagal diproses.");
+    return data;
   }
 
-  async function muatData({ silent = false } = {}) {
-    if (!silent) {
-      setLoading(true);
-      setPesan("");
-    }
-
-    const token = getToken();
-
-    if (!token) {
-      if (!silent) setPesan("Sesi login tidak ditemukan. Silakan login kembali.");
-      if (!silent) setLoading(false);
-      return;
-    }
-
-    const headers = {
-      Authorization: `Bearer ${token}`,
-    };
-
+  async function muatDashboard({ silent = false } = {}) {
+    if (!silent) setLoading(true);
     try {
-      // Initial load hanya mengambil data yang diperlukan untuk
-      // dashboard/rekap dan badge Menunggu.
-      const responses = await Promise.all([
-        fetch(
-          tanggalRekap
-            ? `${API_URL}/admin/rekap-tanggal?tanggal=${encodeURIComponent(tanggalRekap)}`
-            : `${API_URL}/admin/rekap-hari-ini`,
-          { headers },
-        ),
-        fetch(`${API_URL}/admin/akun-menunggu`, { headers }),
-      ]);
-
-      const [resRekap, resMenunggu] = responses;
-
-      const daftarResponse = [
-        { response: resRekap, nama: "rekap absensi" },
-        { response: resMenunggu, nama: "akun menunggu" },
-      ];
-
-      for (const item of daftarResponse) {
-        if (!item.response.ok) {
-          let dataError = {};
-
-          try {
-            dataError = await item.response.json();
-          } catch {
-            // Response bukan JSON; gunakan pesan umum di bawah.
-          }
-
-          if (item.response.status === 401 || item.response.status === 403) {
-            throw new Error(
-              dataError?.pesan ||
-                "Sesi login tidak valid atau Anda tidak memiliki akses.",
-            );
-          }
-
-          throw new Error(dataError?.pesan || `Gagal memuat ${item.nama}.`);
-        }
-      }
-
+      const rekapPath = tanggalRekap
+        ? `/admin/rekap-tanggal?tanggal=${encodeURIComponent(tanggalRekap)}`
+        : "/admin/rekap-hari-ini";
       const [dataRekap, dataMenunggu] = await Promise.all([
-        resRekap.json(),
-        resMenunggu.json(),
+        fetchJson(rekapPath),
+        fetchJson("/admin/akun-menunggu"),
       ]);
-
-      if (!Array.isArray(dataRekap.data)) {
-        throw new Error("Format data rekap absensi dari server tidak valid.");
-      }
-
-      if (
-        dataRekap.belumAbsen !== undefined &&
-        !Array.isArray(dataRekap.belumAbsen)
-      ) {
-        throw new Error(
-          "Format data karyawan yang belum absen dari server tidak valid.",
-        );
-      }
-
-      if (!Array.isArray(dataMenunggu.data)) {
-        throw new Error("Format data akun menunggu dari server tidak valid.");
-      }
-
+      if (!Array.isArray(dataRekap.data) || !Array.isArray(dataMenunggu.data)) throw new Error("Format data dashboard tidak valid.");
       setRekap(dataRekap.data);
-      setBelumAbsen(dataRekap.belumAbsen || []);
-      setJumlahKaryawanAktif(dataRekap.jumlahKaryawanAktif || 0);
+      setBelumAbsen(Array.isArray(dataRekap.belumAbsen) ? dataRekap.belumAbsen : []);
+      setJumlahAktif(Number(dataRekap.jumlahKaryawanAktif) || 0);
       setMenunggu(dataMenunggu.data);
-    } catch (err) {
-      console.error("Gagal memuat data Dashboard Admin:", err);
-      if (!silent) {
-        setPesan(
-          err?.message || "Gagal memuat data dashboard. Cek koneksi ke server.",
-        );
-      }
+      void muatNotifikasi();
+    } catch (error) {
+      console.error("Gagal memuat dashboard Admin:", error);
+      if (!silent) setPesan(error?.message || "Gagal memuat dashboard.");
     } finally {
       if (!silent) setLoading(false);
     }
   }
 
-  async function muatKaryawan(force = false, { silent = false } = {}) {
-    if (karyawanSudahDimuat && !force) return;
-
-    const token = getToken();
-
-    if (!token) {
-      setPesan("Sesi login tidak ditemukan. Silakan login kembali.");
-      return;
-    }
-
-    if (!silent) setLoadingKaryawan(true);
-
+  async function muatNotifikasi() {
     try {
-      const res = await fetch(`${API_URL}/admin/karyawan`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data?.pesan || "Gagal memuat daftar karyawan.");
+      const data = await fetchJson("/admin/notifikasi");
+      if (data?.data) {
+        setNotifikasi({
+          akunBaru: Number(data.data.akunBaru) || 0,
+          izinBaru: Number(data.data.izinBaru) || 0,
+          total: Number(data.data.total) || 0,
+        });
       }
+    } catch (error) {
+      console.warn("Notifikasi Admin gagal dimuat:", error);
+    }
+  }
 
-      if (!Array.isArray(data.data)) {
-        throw new Error("Format data karyawan dari server tidak valid.");
-      }
-
-      setKaryawan(data.data);
-      setKaryawanSudahDimuat(true);
-    } catch (err) {
-      console.error("Gagal memuat karyawan:", err);
-      if (!silent) setPesan(err?.message || "Gagal memuat data karyawan.");
+  async function muatKaryawan({ silent = false, force = false } = {}) {
+    if (!force && karyawan.length > 0) return;
+    if (!silent) setLoadingKaryawan(true);
+    try {
+      const data = await fetchJson("/admin/karyawan");
+      setKaryawan(Array.isArray(data.data) ? data.data : []);
+    } catch (error) {
+      console.error(error);
+      if (!silent) setPesan(error?.message || "Gagal memuat karyawan.");
     } finally {
       if (!silent) setLoadingKaryawan(false);
     }
   }
 
-  async function muatKantor(force = false, { silent = false } = {}) {
-    if (kantorSudahDimuat && !force) return;
-
-    const token = getToken();
-
-    if (!token) {
-      setPesan("Sesi login tidak ditemukan. Silakan login kembali.");
-      return;
-    }
-
+  async function muatKantor({ silent = false } = {}) {
     if (!silent) setLoadingKantor(true);
-
     try {
-      const res = await fetch(`${API_URL}/admin/kantor`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data?.pesan || "Gagal memuat data kantor.");
-      }
-
-      if (!Array.isArray(data.data)) {
-        throw new Error("Format data kantor dari server tidak valid.");
-      }
-
-      setDaftarKantorState(data.data);
-      setKantorSudahDimuat(true);
-      return data.data;
-    } catch (err) {
-      console.error("Gagal memuat kantor:", err);
-      if (!silent) setPesan(err?.message || "Gagal memuat data kantor.");
+      const data = await fetchJson("/admin/kantor");
+      setKantor(Array.isArray(data.data) ? data.data : []);
+    } catch (error) {
+      console.error(error);
+      if (!silent) setPesan(error?.message || "Gagal memuat data kantor.");
     } finally {
       if (!silent) setLoadingKantor(false);
     }
-
-    return [];
   }
 
-  async function bukaPengaturanCepat() {
-    const akanDibuka = !pengaturanTerbuka;
-    setPengaturanTerbuka(akanDibuka);
-    if (!akanDibuka) return;
-    setPengaturanMemuat(true);
+  async function muatAturan() {
     try {
-      const kantorData = kantorSudahDimuat ? daftarKantorState : await muatKantor();
-      const kantorPertama = kantorData?.[0] || null;
-      if (kantorPertama) {
-        setPengaturanKantorId(String(kantorPertama.id));
-        setKantorEditId(kantorPertama.id);
-        setFormKantor({ namaKantor: kantorPertama.namaKantor || "", alamat: kantorPertama.alamat || "", latitude: kantorPertama.latitude ?? "", longitude: kantorPertama.longitude ?? "" });
-      }
-      const res = await fetch(`${API_URL}/admin/pengaturan-potongan`, { headers: { Authorization: `Bearer ${getToken()}` } });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.pesan || "Gagal memuat pengaturan.");
-      const jam = String(data?.data?.jamMasukStandar || "08:10:00");
-      setPengaturanJam(jam.slice(0, 5));
-      setPengaturanPotongan({ potonganTelat: Number(data?.data?.potonganTelat) || 0, potonganAlpha: Number(data?.data?.potonganAlpha) || 0 });
-    } catch (err) {
-      console.error("Gagal memuat pengaturan cepat:", err);
-      setPesan(err?.message || "Gagal memuat pengaturan.");
-    } finally {
-      setPengaturanMemuat(false);
+      const data = await fetchJson("/admin/pengaturan-potongan");
+      const jam = String(data?.data?.jamMasukStandar || JAM_DEFAULT);
+      setJamMasukStandar(jam.slice(0, 5));
+      setPotongan({
+        potonganTelat: Number(data?.data?.potonganTelat) || 0,
+        potonganAlpha: Number(data?.data?.potonganAlpha) || 0,
+      });
+    } catch (error) {
+      console.error(error);
+      setPesan(error?.message || "Gagal memuat aturan absensi.");
     }
   }
 
-  function pilihKantorPengaturan(id) {
-    setPengaturanKantorId(String(id));
-    const kantor = daftarKantorState.find((item) => String(item.id) === String(id));
-    if (!kantor) return;
-    setKantorEditId(kantor.id);
-    setFormKantor({ namaKantor: kantor.namaKantor || "", alamat: kantor.alamat || "", latitude: kantor.latitude ?? "", longitude: kantor.longitude ?? "" });
-  }
-
-  function gunakanLokasiKantorSekarang() {
-    if (!navigator.geolocation) { setPesan("Browser/perangkat ini tidak menyediakan layanan lokasi."); return; }
-    setPesan("");
-    navigator.geolocation.getCurrentPosition(
-      (posisi) => {
-        const latitude = Number(posisi.coords.latitude);
-        const longitude = Number(posisi.coords.longitude);
-        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) { setPesan("Koordinat GPS tidak valid. Coba ambil lokasi lagi."); return; }
-        setFormKantor((lama) => ({ ...lama, latitude: latitude.toFixed(7), longitude: longitude.toFixed(7) }));
-        setPesanSukses("Lokasi perangkat sudah diambil. Tekan Simpan Lokasi untuk menerapkannya.");
-      },
-      (error) => { console.warn("GPS Admin gagal:", error); setPesan("Lokasi belum berhasil diperoleh. Pastikan GPS aktif dan izin lokasi dashboard Admin sudah diberikan."); },
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
-    );
-  }
-
-  async function simpanJamMasukCepat() {
-    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(pengaturanJam)) { setPesan("Jam masuk harus menggunakan format HH:MM, contoh 08:10."); return; }
-    if (pengaturanMenyimpanJam) return;
-    setPengaturanMenyimpanJam(true);
-    setPesan("");
+  async function simpanAturan() {
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(jamMasukStandar)) {
+      setPesan("Jam masuk standar harus dalam format HH:MM.");
+      return;
+    }
+    setSimpanAturanLoading(true);
     try {
-      const res = await fetch(`${API_URL}/admin/pengaturan-potongan`, {
+      const data = await fetchJson("/admin/pengaturan-potongan", {
         method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ potonganTelat: Number(pengaturanPotongan.potonganTelat) || 0, potonganAlpha: Number(pengaturanPotongan.potonganAlpha) || 0, jamMasukStandar: pengaturanJam }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jamMasukStandar,
+          potonganTelat: Number(potongan.potonganTelat) || 0,
+          potonganAlpha: Number(potongan.potonganAlpha) || 0,
+        }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.pesan || "Gagal menyimpan jam masuk standar.");
-      setPesanSukses("Jam masuk standar berhasil diperbarui.");
-    } catch (err) {
-      console.error("Gagal menyimpan jam masuk standar:", err);
-      setPesan(err?.message || "Gagal menyimpan jam masuk standar.");
-    } finally { setPengaturanMenyimpanJam(false); }
+      const jam = String(data?.data?.jamMasukStandar || jamMasukStandar);
+      setJamMasukStandar(jam.slice(0, 5));
+      setSukses(data?.pesan || "Aturan absensi berhasil disimpan.");
+    } catch (error) {
+      console.error(error);
+      setPesan(error?.message || "Gagal menyimpan aturan absensi.");
+    } finally {
+      setSimpanAturanLoading(false);
+    }
   }
 
-  async function bukaFormAktivasi(id) {
-    const kantorData = kantorSudahDimuat
-      ? daftarKantorState
-      : await muatKantor();
-
-    setFormAktivasiTerbuka(id);
-    setFormAktivasi({
-      jabatan: "",
-      divisi: "",
-      kantorId: kantorData?.[0]?.id ? String(kantorData[0].id) : "",
-    });
+  async function bukaFormAktivasi(item) {
+    await muatKantor({ silent: true });
+    setFormAktivasiId(item.id);
+    setFormAktivasi({ jabatan: "", divisi: "", kantorId: "" });
   }
 
   async function kirimAktivasi(id) {
@@ -645,34 +283,84 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
       setPesan("Jabatan dan divisi wajib diisi.");
       return;
     }
-    setPesan("");
+    if (!formAktivasi.kantorId) {
+      setPesan("Homebase karyawan wajib dipilih. Sistem tidak akan memilih kantor secara otomatis.");
+      return;
+    }
     try {
-      const res = await fetch(`${API_URL}/admin/akun/${id}/aktifkan`, {
+      const data = await fetchJson(`/admin/akun/${id}/aktifkan`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getToken()}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formAktivasi),
       });
-      const data = await res.json();
-      if (!res.ok) return setPesan(data.pesan || "Gagal mengaktifkan akun.");
-      setPesanSukses(data.pesan);
-      setFormAktivasiTerbuka(null);
-
-      // Rekap + jumlah karyawan aktif berubah setelah aktivasi.
-      // Aktivasi mengubah daftar Menunggu dan jumlah karyawan aktif.
-      setMenunggu((lama) => lama.filter((item) => item.id !== id));
-      setJumlahKaryawanAktif((jumlah) => jumlah + 1);
-
-      // Kalau tab Karyawan sudah pernah dibuka, sinkronkan diam-diam di belakang.
-      if (karyawanSudahDimuat) {
-        void muatKaryawan(true, { silent: true });
-      }
+      setSukses(data?.pesan || "Akun berhasil diaktifkan.");
+      setFormAktivasiId(null);
+      setMenunggu((items) => items.filter((item) => item.id !== id));
+      setJumlahAktif((value) => value + 1);
       void muatNotifikasi();
-    } catch (err) {
-      console.error(err);
-      setPesan("Tidak bisa terhubung ke server.");
+      void muatKaryawan({ force: true, silent: true });
+    } catch (error) {
+      console.error(error);
+      setPesan(error?.message || "Gagal mengaktifkan akun.");
+    }
+  }
+
+  function bukaEditKaryawan(item) {
+    setFormEditKaryawanId(item.id);
+    setFormEditKaryawan({
+      email: item.email || "",
+      jabatan: item.jabatan || "",
+      divisi: item.divisi || "",
+      kantorId: item.kantorId ? String(item.kantorId) : "",
+    });
+  }
+
+  async function simpanEditKaryawan() {
+    if (!formEditKaryawan.jabatan.trim()) {
+      setPesan("Jabatan wajib diisi.");
+      return;
+    }
+    try {
+      const data = await fetchJson(`/admin/karyawan/${formEditKaryawanId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formEditKaryawan),
+      });
+      setSukses(data?.pesan || "Data karyawan berhasil diperbarui.");
+      setFormEditKaryawanId(null);
+      await muatKaryawan({ force: true, silent: true });
+      await muatDashboard({ silent: true });
+    } catch (error) {
+      console.error(error);
+      setPesan(error?.message || "Gagal memperbarui data karyawan.");
+    }
+  }
+
+  async function ubahStatusKaryawan(id, statusAkun) {
+    try {
+      const data = await fetchJson(`/admin/karyawan/${id}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ statusAkun }),
+      });
+      setSukses(data?.pesan || "Status karyawan diperbarui.");
+      setKonfirmasiNonaktif(null);
+      await muatKaryawan({ force: true, silent: true });
+      await muatDashboard({ silent: true });
+    } catch (error) {
+      console.error(error);
+      setPesan(error?.message || "Gagal mengubah status karyawan.");
+    }
+  }
+
+  async function resetPasswordKaryawan(id) {
+    try {
+      const data = await fetchJson(`/admin/karyawan/${id}/reset-password`, { method: "PUT" });
+      setResetPassword({ id, password: data.passwordSementara });
+      setSukses("Password sementara berhasil dibuat. Password hanya ditampilkan sekali.");
+    } catch (error) {
+      console.error(error);
+      setPesan(error?.message || "Gagal mereset password.");
     }
   }
 
@@ -681,14 +369,36 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
     setFormKantor({ namaKantor: "", alamat: "", latitude: "", longitude: "" });
   }
 
-  function bukaFormEditKantor(k) {
-    setKantorEditId(k.id);
+  function bukaFormEditKantor(item) {
+    setKantorEditId(item.id);
     setFormKantor({
-      namaKantor: k.namaKantor || "",
-      alamat: k.alamat || "",
-      latitude: k.latitude ?? "",
-      longitude: k.longitude ?? "",
+      namaKantor: item.namaKantor || "",
+      alamat: item.alamat || "",
+      latitude: item.latitude ?? "",
+      longitude: item.longitude ?? "",
     });
+  }
+
+  async function gunakanLokasiSekarang() {
+    if (!navigator.geolocation) {
+      setPesan("Perangkat/browser ini tidak menyediakan GPS.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (posisi) => {
+        setFormKantor((lama) => ({
+          ...lama,
+          latitude: Number(posisi.coords.latitude).toFixed(7),
+          longitude: Number(posisi.coords.longitude).toFixed(7),
+        }));
+        setSukses("Koordinat lokasi saat ini berhasil diambil. Tekan Simpan.");
+      },
+      (error) => {
+        console.warn("GPS Admin gagal:", error);
+        setPesan("Lokasi belum berhasil diperoleh. Pastikan GPS dan izin lokasi aktif.");
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
+    );
   }
 
   async function simpanKantor() {
@@ -696,3168 +406,249 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
       setPesan("Nama kantor wajib diisi.");
       return;
     }
-    // Validasi latitude/longitude harus berupa angka KALAU diisi (boleh kosong).
-    // Sebelumnya kalau salah ketik (misal kepencet huruf), errornya baru
-    // ketahuan di backend dan muncul sebagai pesan generik yang membingungkan.
-    const latDiisi = formKantor.latitude.trim() !== "";
-    const lngDiisi = formKantor.longitude.trim() !== "";
-    if (latDiisi && isNaN(Number(formKantor.latitude))) {
-      setPesan(
-        "Latitude harus berupa angka (contoh: 0.5071). Kosongkan saja kalau tidak yakin.",
-      );
+    const latDiisi = String(formKantor.latitude).trim() !== "";
+    const lngDiisi = String(formKantor.longitude).trim() !== "";
+    if ((latDiisi && !Number.isFinite(Number(formKantor.latitude))) || (lngDiisi && !Number.isFinite(Number(formKantor.longitude)))) {
+      setPesan("Latitude dan longitude harus berupa angka.");
       return;
     }
-    if (lngDiisi && isNaN(Number(formKantor.longitude))) {
-      setPesan(
-        "Longitude harus berupa angka (contoh: 101.4478). Kosongkan saja kalau tidak yakin.",
-      );
+    if ((latDiisi && !lngDiisi) || (!latDiisi && lngDiisi)) {
+      setPesan("Latitude dan longitude harus diisi berpasangan.");
       return;
     }
-    setPesan("");
-    setSedangSimpanKantor(true);
+    setSimpanKantorLoading(true);
     try {
-      const sedangEdit = kantorEditId !== null;
-      const url = sedangEdit
-        ? `${API_URL}/admin/kantor/${kantorEditId}`
-        : `${API_URL}/admin/kantor`;
-      const res = await fetch(url, {
-        method: sedangEdit ? "PUT" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getToken()}`,
-        },
+      const url = kantorEditId ? `/admin/kantor/${kantorEditId}` : "/admin/kantor";
+      const data = await fetchJson(url, {
+        method: kantorEditId ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formKantor),
       });
-      const data = await res.json();
-      if (!res.ok) return setPesan(data.pesan || "Gagal menyimpan kantor.");
-      setPesanSukses(data.pesan);
-      setKantorEditId(null);
-      setFormKantor({
-        namaKantor: "",
-        alamat: "",
-        latitude: "",
-        longitude: "",
-      });
-      await muatKantor(true);
-    } catch (err) {
-      console.error(err);
-      setPesan("Tidak bisa terhubung ke server.");
-    } finally {
-      setSedangSimpanKantor(false);
-    }
-  }
-
-  async function bukaResetPassword(id) {
-    if (resetPasswordHasil?.id === id) {
-      setResetPasswordHasil(null);
-      return;
-    }
-    setPesan("");
-    try {
-      const res = await fetch(
-        `${API_URL}/admin/karyawan/${id}/reset-password`,
-        {
-          method: "PUT",
-          headers: { Authorization: `Bearer ${getToken()}` },
-        },
-      );
-      const data = await res.json();
-      if (!res.ok) return setPesan(data.pesan || "Gagal mereset password.");
-      setResetPasswordHasil({ id, password: data.passwordSementara });
-    } catch (err) {
-      console.error(err);
-      setPesan("Tidak bisa terhubung ke server.");
-    }
-  }
-
-  async function ubahStatusKaryawan(id, statusBaru) {
-    try {
-      const res = await fetch(`${API_URL}/admin/karyawan/${id}/status`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getToken()}`,
-        },
-        body: JSON.stringify({ statusAkun: statusBaru }),
-      });
-      const data = await res.json();
-      if (!res.ok) return setPesan(data.pesan || "Gagal mengubah status.");
-      setPesanSukses(data.pesan);
-      setKonfirmasiStatusTerbuka(null);
-
-      // Daftar Karyawan hanya berisi akun aktif, jadi hilangkan baris ini sekarang.
-      if (statusBaru === "nonaktif") {
-        setKaryawan((lama) => lama.filter((item) => item.id !== id));
-        setJumlahKaryawanAktif((jumlah) => Math.max(0, jumlah - 1));
-      } else {
-        setJumlahKaryawanAktif((jumlah) => jumlah + 1);
-        void muatKaryawan(true, { silent: true });
-      }
-      void muatNotifikasi();
-    } catch (err) {
-      console.error(err);
-      setPesan("Tidak bisa terhubung ke server.");
-    }
-  }
-
-  async function editLokasiDenganDialog(item) {
-    const latitudeSaatIni = item.latitudeMasuk ?? "";
-    const longitudeSaatIni = item.longitudeMasuk ?? "";
-    const alamatSaatIni = item.alamatMasuk || "";
-
-    const latitudeInput = window.prompt(
-      `Latitude lokasi MASUK untuk ${item.pengguna.nama}:`,
-      String(latitudeSaatIni),
-    );
-    if (latitudeInput === null) return;
-
-    const longitudeInput = window.prompt(
-      `Longitude lokasi MASUK untuk ${item.pengguna.nama}:`,
-      String(longitudeSaatIni),
-    );
-    if (longitudeInput === null) return;
-
-    const alamatInput = window.prompt(
-      `Alamat/keterangan lokasi untuk ${item.pengguna.nama}:`,
-      alamatSaatIni,
-    );
-    if (alamatInput === null) return;
-
-    const latitude = Number(latitudeInput.trim());
-    const longitude = Number(longitudeInput.trim());
-    const alamatMasuk = alamatInput.trim();
-
-    if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
-      setPesan("Latitude tidak valid. Gunakan angka antara -90 sampai 90.");
-      return;
-    }
-    if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
-      setPesan("Longitude tidak valid. Gunakan angka antara -180 sampai 180.");
-      return;
-    }
-    if (!alamatMasuk) {
-      setPesan("Alamat/keterangan lokasi wajib diisi.");
-      return;
-    }
-    if (alamatMasuk.length > 500) {
-      setPesan("Alamat/keterangan lokasi maksimal 500 karakter.");
-      return;
-    }
-
-    setPesan("");
-    try {
-      const res = await fetch(`${API_URL}/admin/absensi/${item.id}/edit-lokasi`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getToken()}`,
-        },
-        body: JSON.stringify({ latitudeMasuk: latitude, longitudeMasuk: longitude, alamatMasuk }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setPesan(data?.pesan || "Gagal mengubah lokasi absensi.");
-        return;
-      }
-
-      setRekap((lama) =>
-        lama.map((row) =>
-          row.id === item.id
-            ? { ...row, ...(data?.data || {}), latitudeMasuk: latitude, longitudeMasuk: longitude, alamatMasuk }
-            : row,
-        ),
-      );
-      setPesanSukses(data?.pesan || "Lokasi absensi berhasil diperbarui.");
+      setSukses(data?.pesan || "Data kantor berhasil disimpan.");
+      bukaFormTambahKantor();
+      await muatKantor({ silent: true });
+      await muatKaryawan({ force: true, silent: true });
     } catch (error) {
-      console.error("Gagal mengubah lokasi absensi:", error);
-      setPesan("Tidak bisa terhubung ke server.");
-    }
-  }
-
-  function bukaEditStatus(item) {
-    setEditStatusTerbuka(item.id);
-    setFormEditStatus({
-      statusFinal: item.statusFinal || item.statusOtomatis || "tepat_waktu",
-      catatanAdmin: item.catatanAdmin || "",
-    });
-  }
-
-  async function simpanEditStatus(id) {
-    if (!formEditStatus.catatanAdmin.trim()) {
-      setPesan(
-        "Catatan wajib diisi kalau mengubah status secara manual (buat jejak alasan perubahan).",
-      );
-      return;
-    }
-
-    if (sedangSimpanStatusId === id) return;
-
-    setPesan("");
-    setSedangSimpanStatusId(id);
-
-    try {
-      const res = await fetch(`${API_URL}/admin/absensi/${id}/edit-status`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getToken()}`,
-        },
-        body: JSON.stringify(formEditStatus),
-      });
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        setPesan(data.pesan || "Gagal mengubah status absensi.");
-        return;
-      }
-
-      const absensiBaru = data?.data;
-      setRekap((lama) =>
-        lama.map((item) =>
-          item.id === id
-            ? {
-                ...item,
-                ...(absensiBaru || {}),
-                pengguna: item.pengguna,
-                statusFinal: absensiBaru?.statusFinal ?? formEditStatus.statusFinal,
-                statusEfektif: absensiBaru?.statusFinal ?? formEditStatus.statusFinal,
-                catatanAdmin: absensiBaru?.catatanAdmin ?? formEditStatus.catatanAdmin.trim(),
-              }
-            : item,
-        ),
-      );
-
-      setEditStatusTerbuka(null);
-      setPesanSukses(data.pesan || "Status absensi berhasil diperbarui.");
-
-      // Badge notifikasi adalah state terpisah. Refresh hanya badge-nya.
-      void muatNotifikasi();
-    } catch (err) {
-      console.error(err);
-      setPesan("Tidak bisa terhubung ke server.");
+      console.error(error);
+      setPesan(error?.message || "Gagal menyimpan data kantor.");
     } finally {
-      setSedangSimpanStatusId(null);
+      setSimpanKantorLoading(false);
     }
   }
 
-  // Bangun URL foto dengan aman -- data lama ada yang tersimpan SUDAH
-  // pakai awalan "/uploads/" (bug lama, sudah diperbaiki di backend),
-  // ada yang cuma nama file polos. Fungsi ini menangani DUA KEMUNGKINAN
-  // itu, supaya foto lama yang sempat tersimpan salah juga ikut normal
-  // tampil lagi tanpa perlu karyawan absen ulang.
-  function urlFoto(namaFile, urlSigned = null) {
-    if (urlSigned) return urlSigned;
-    if (!namaFile) return null;
+  const rekapTersaring = useMemo(() => {
+    const q = pencarian.trim().toLowerCase();
+    if (!q) return rekap;
+    return rekap.filter((item) => `${item.pengguna?.nama || ""} ${item.pengguna?.jabatan || ""} ${item.pengguna?.divisi || ""}`.toLowerCase().includes(q));
+  }, [rekap, pencarian]);
 
-    // Untuk data lama yang masih memakai path /uploads/
-    if (namaFile.startsWith("/uploads/")) {
-      return namaFile;
-    }
+  const karyawanTersaring = useMemo(() => {
+    const q = pencarian.trim().toLowerCase();
+    if (!q) return karyawan;
+    return karyawan.filter((item) => `${item.nama || ""} ${item.email || ""} ${item.jabatan || ""} ${item.divisi || ""} ${item.kantor?.namaKantor || ""}`.toLowerCase().includes(q));
+  }, [karyawan, pencarian]);
 
-    return null;
-  }
-
-  function formatJam(tanggalIso) {
-    if (!tanggalIso) return "–";
-    return new Date(tanggalIso).toLocaleTimeString("id-ID", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  }
-
-  function cocokKataKunci(teksTarget, kataKunci) {
-    if (!kataKunci.trim()) return true;
-    return teksTarget.toLowerCase().includes(kataKunci.trim().toLowerCase());
-  }
-
-  const rekapTersaring = rekap.filter((item) =>
-    cocokKataKunci(
-      `${item.pengguna.nama} ${item.pengguna.jabatan || ""} ${item.pengguna.divisi || ""}`,
-      cariRekap,
-    ),
-  );
-
-  const karyawanTersaring = karyawan.filter((item) =>
-    cocokKataKunci(
-      `${item.nama} ${item.email} ${item.jabatan || ""} ${item.divisi || ""}`,
-      cariKaryawan,
-    ),
-  );
-
-  const karyawanAktifCount = jumlahKaryawanAktif;
-  const jumlahTepatWaktu = rekap.filter(
-    (r) => (r.statusFinal || r.statusOtomatis) === "tepat_waktu",
-  ).length;
-  const jumlahTelat = rekap.filter(
-    (r) => (r.statusFinal || r.statusOtomatis) === "telat",
-  ).length;
-  const jumlahIzinSakitDll = rekap.filter((r) =>
-    ["izin", "sakit", "cuti", "urgent"].includes(
-      r.statusFinal || r.statusOtomatis,
-    ),
-  ).length;
-  const jumlahBelumAbsen = belumAbsen.length;
-
-  const jamSekarang = new Date().toLocaleDateString("id-ID", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-
-  // Sapaan berdasarkan jam saat ini -- cuma dipakai di tab "rekap" (halaman
-  // utama admin), supaya kesan pertama masuk lebih terasa personal ("Command
-  // Center"), bukan cuma judul tab yang datar seperti tab-tab lain.
-  const jamSaatIni = new Date().getHours();
-  const sapaan =
-    jamSaatIni < 11
-      ? "Selamat pagi"
-      : jamSaatIni < 15
-        ? "Selamat siang"
-        : jamSaatIni < 19
-          ? "Selamat sore"
-          : "Selamat malam";
-  const namaDepanAdmin = (pengguna?.nama || "Admin").trim().split(" ")[0];
-
-  function inisialNama(nama) {
-    if (!nama) return "?";
-    const bagian = nama.trim().split(" ");
-    if (bagian.length === 1) return bagian[0].slice(0, 2).toUpperCase();
-    return (bagian[0][0] + bagian[bagian.length - 1][0]).toUpperCase();
-  }
+  const jumlahTepatWaktu = rekap.filter((item) => (item.statusFinal || item.statusOtomatis) === "tepat_waktu").length;
+  const jumlahTelat = rekap.filter((item) => (item.statusFinal || item.statusOtomatis) === "telat").length;
+  const jumlahIzin = rekap.filter((item) => ["izin", "sakit", "cuti", "urgent"].includes(item.statusFinal || item.statusOtomatis)).length;
 
   const tabs = [
-    { id: "rekap", label: "Rekap Hari Ini" },
-    { id: "approval", label: "Menunggu", badge: menunggu.length || null },
-    {
-      id: "karyawan",
-      label: "Karyawan",
-    },
-    { id: "izin", label: "Izin", badge: notifikasi.izinBaru || null },
-    { id: "gaji", label: "Gaji" },
-    { id: "gaji-massal", label: "Gaji Massal" },
-    { id: "kantor", label: "Kantor Pusat" },
+    ["rekap", "Rekap Hari Ini", ClipboardList],
+    ["approval", "Menunggu", UserPlus],
+    ["karyawan", "Karyawan", Users],
+    ["izin", "Izin", FileEdit],
+    ["gaji", "Gaji", Wallet],
+    ["gaji-massal", "Gaji Massal", Wallet],
+    ["kantor", "Kantor & Homebase", Building2],
+    ["pengaturan", "Pengaturan", Settings],
   ];
 
-  // Pengelompokan tab sidebar jadi beberapa seksi (WORKSPACE/PEOPLE/dst) --
-  // murni untuk tampilan nav, tidak mengubah daftar `tabs` di atas sama
-  // sekali (itu masih dipakai apa adanya untuk judul halaman & badge).
-  const grupSidebar = [
-    { label: "WORKSPACE", idTab: ["rekap", "approval"] },
-    { label: "PEOPLE", idTab: ["karyawan", "izin"] },
-    { label: "FINANCE", idTab: ["gaji", "gaji-massal"] },
-    { label: "SYSTEM", idTab: ["kantor"] },
+  const groups = [
+    ["WORKSPACE", ["rekap", "approval"]],
+    ["PEOPLE", ["karyawan", "izin"]],
+    ["FINANCE", ["gaji", "gaji-massal"]],
+    ["SYSTEM", ["kantor", "pengaturan"]],
   ];
 
-  const judulTab = tabs.find((t) => t.id === tab)?.label || "";
-
-  function pindahTab(idTab) {
-    setTab(idTab);
-    sessionStorage.setItem("admin-tab", idTab);
-
-    setTabPernahDibuka((sebelumnya) => ({
-      ...sebelumnya,
-      [idTab]: true,
-    }));
-
-    // Bersihkan pesan saat berpindah menu
-    setPesan("");
-    setPesanSukses("");
-
-    // Tutup form/panel yang masih terbuka
-    setFormAktivasiTerbuka(null);
-    setKonfirmasiStatusTerbuka(null);
-    setEditStatusTerbuka(null);
-    setResetPasswordHasil(null);
-
-    setSidebarMobileTerbuka(false);
+  function judulTab() {
+    const found = tabs.find(([id]) => id === tab);
+    return found?.[1] || "Dashboard Admin";
   }
 
-  const adaPesan = Boolean(pesan || pesanSukses);
-  const pesanAdalahError = Boolean(pesan);
-  const teksPesan = pesan || pesanSukses;
+  function pilihTab(id) {
+    setTab(id);
+    setPencarian("");
+    setNotifBuka(false);
+  }
+
+  const kepadatanPadding = kepadatan === "ringkas" ? "7px 10px" : kepadatan === "lega" ? "15px 10px" : "11px 10px";
 
   return (
     <div style={styles.shell}>
-      {/* ============ SIDEBAR (tampil di desktop, tersembunyi & jadi drawer di mobile) ============ */}
-      <aside
-        className={
-          sidebarMobileTerbuka
-            ? "admin-sidebar sidebar-mobile-terbuka"
-            : "admin-sidebar"
-        }
-        style={styles.sidebar}
-      >
-        <div style={styles.sidebarAtas}>
-          <img
-            src={logoHorizontal}
-            alt="Logo PT. Zaman Teknindo"
-            style={styles.logoSidebar}
-          />
-        </div>
-
-        <nav style={styles.navSidebar}>
-          {grupSidebar.map((grup) => (
-            <div key={grup.label} style={styles.navGrup}>
-              <p style={styles.navGrupLabel}>{grup.label}</p>
-              {grup.idTab.map((id) => {
-                const t = tabs.find((x) => x.id === id);
-                if (!t) return null;
-                const Ikon = IKON_TAB[t.id];
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => pindahTab(t.id)}
-                    style={tab === t.id ? styles.navItemAktif : styles.navItem}
-                    className="nav-item-hover"
-                  >
-                    <Ikon size={17} strokeWidth={2} style={styles.navIkon} />
-                    <span style={{ flex: 1, textAlign: "left" }}>
-                      {t.label}
-                    </span>
-                    {t.badge ? (
-                      <span style={styles.navBadge}>{t.badge}</span>
-                    ) : null}
-                  </button>
-                );
+      <aside style={styles.sidebar} className={sidebarMobile ? "admin-sidebar sidebar-mobile-terbuka" : "admin-sidebar"}>
+        <div style={styles.logoWrap}><img src={logoHorizontal} alt="PT. Zaman Teknindo" style={styles.logo} /></div>
+        <nav style={styles.nav}>
+          {groups.map(([group, ids]) => (
+            <div key={group}>
+              <div style={styles.groupTitle}>{group}</div>
+              {ids.map((id) => {
+                const item = tabs.find(([x]) => x === id);
+                if (!item) return null;
+                const Icon = item[2];
+                const badge = id === "approval" ? menunggu.length : id === "izin" ? notifikasi.izinBaru : 0;
+                return <button key={id} type="button" onClick={() => pilihTab(id)} style={tab === id ? styles.navActive : styles.navItem}><Icon size={17} /><span style={{ flex: 1, textAlign: "left" }}>{item[1]}</span>{badge > 0 && <span style={styles.badge}>{badge > 99 ? "99+" : badge}</span>}</button>;
               })}
             </div>
           ))}
         </nav>
-
-        <div style={styles.sidebarBawah}>
-          <div style={styles.profilSidebar}>
-            <div style={styles.avatarLingkaran}>
-              {inisialNama(pengguna.nama)}
-            </div>
-            <div style={{ overflow: "hidden" }}>
-              <p style={styles.namaProfil}>{pengguna.nama}</p>
-              <p style={styles.perananProfil}>Admin</p>
-            </div>
-          </div>
-          <div style={styles.aksiSidebarRow}>
-            <button
-              onClick={() => navigate("/ganti-password")}
-              style={styles.tombolAksiSidebar}
-              className="tombol-aksi-sidebar"
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 16 16"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <rect
-                  x="3.5"
-                  y="7"
-                  width="9"
-                  height="6.5"
-                  rx="1.5"
-                  stroke={warna.tintaLembut}
-                  strokeWidth="1.4"
-                />
-                <path
-                  d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"
-                  stroke={warna.tintaLembut}
-                  strokeWidth="1.4"
-                  strokeLinecap="round"
-                />
-              </svg>
-              Password
-            </button>
-            <button
-              onClick={onLogout}
-              style={{
-                ...styles.tombolAksiSidebar,
-                ...styles.tombolAksiSidebarBahaya,
-              }}
-              className="tombol-aksi-sidebar-bahaya"
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 16 16"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M6 3.5H4a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h2M10.5 11l3-3-3-3M13.5 8H6"
-                  stroke={warna.bahaya}
-                  strokeWidth="1.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              Keluar
-            </button>
+        <div style={styles.sidebarBottom}>
+          <div style={styles.profileRow}><div style={styles.avatar}>{inisialNama(pengguna?.nama)}</div><div style={{ minWidth: 0 }}><strong style={styles.profileName}>{pengguna?.nama || "Admin"}</strong><span style={styles.profileRole}>Admin</span></div></div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <button type="button" onClick={() => navigate("/ganti-password")} style={styles.smallButton}>Password</button>
+            <button type="button" onClick={onLogout} style={{ ...styles.smallButton, color: warna.bahaya }}> <LogOut size={13} /> Keluar</button>
           </div>
         </div>
       </aside>
+      {sidebarMobile && <div style={styles.mobileOverlay} onClick={() => setSidebarMobile(false)} />}
 
-      {/* Overlay gelap saat sidebar mobile terbuka, klik buat nutup */}
-      {sidebarMobileTerbuka && (
-        <div
-          className="overlay-mobile"
-          onClick={() => setSidebarMobileTerbuka(false)}
-        />
-      )}
-
-      {/* ============ AREA KONTEN UTAMA ============ */}
-      <div style={styles.mainArea} className="main-area-admin">
-        <div style={styles.topbarMobile} className="topbar-mobile">
-          <button
-            onClick={() => setSidebarMobileTerbuka(true)}
-            style={styles.tombolHamburger}
-            aria-label="Buka menu navigasi"
-          >
-            {/* Ikon garis tiga (hamburger) — dulu pakai logo perusahaan di sini,
-                orang tidak akan mengira logo itu bisa diklik untuk buka menu */}
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 20 20"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M3 5.5H17M3 10H17M3 14.5H17"
-                stroke={warna.tinta}
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-          <img
-            src={logo}
-            alt="PT. Zaman Teknindo"
-            style={styles.topbarLogoKecil}
-          />
-          <div style={{ width: 32 }} />
+      <main style={styles.main}>
+        <div style={styles.mobileBar}>
+          <button type="button" onClick={() => setSidebarMobile(true)} style={styles.iconButton} aria-label="Buka menu"><BarChart3 size={18} /></button>
+          <img src={logo} alt="PT. Zaman Teknindo" style={{ height: 28 }} />
+          <div style={{ width: 36 }} />
         </div>
 
-        <div style={styles.headerAtas}>
+        <header style={styles.header}>
           <div>
-            <h1 style={styles.judulHalaman}>
-              {tab === "rekap" ? `${sapaan}, ${namaDepanAdmin}` : judulTab}
-            </h1>
-            <p style={styles.subJudulHalaman}>{jamSekarang}</p>
+            <h1 style={styles.title}>{judulTab()}</h1>
+            <p style={styles.subtitle}>{formatTanggal(tanggalRekap || new Date())}</p>
           </div>
-
-          <div
-            style={styles.notifikasiWrapper}
-            className="notifikasi-wrapper"
-            ref={notifikasiRef}
-          >
-            <button
-              type="button"
-              onClick={() => setNotifikasiTerbuka((v) => !v)}
-              style={styles.notifikasiButton}
-              aria-label="Buka notifikasi"
-              aria-expanded={notifikasiTerbuka}
-            >
-              <Bell size={18} strokeWidth={2} />
-              {notifikasi.total > 0 && (
-                <span style={styles.notifikasiCount}>
-                  {notifikasi.total > 99 ? "99+" : notifikasi.total}
-                </span>
-              )}
-            </button>
-
-            {notifikasiTerbuka && (
-              <div style={styles.notifikasiPanel} className="notifikasi-panel">
-                <div style={styles.notifikasiPanelHeader}>
-                  <div>
-                    <p style={styles.notifikasiPanelTitle}>Notifikasi</p>
-                    <p style={styles.notifikasiPanelSubTitle}>
-                      Hal yang perlu diperiksa Admin
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setNotifikasiTerbuka(false)}
-                    style={styles.notifikasiCloseButton}
-                    aria-label="Tutup notifikasi"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-
-                {notifikasi.total === 0 ? (
-                  <div style={styles.notifikasiKosong}>
-                    <CheckCircle2 size={25} strokeWidth={1.7} />
-                    <strong>Tidak ada notifikasi baru</strong>
-                    <span>Semua pengajuan dan akun sudah diperiksa.</span>
-                  </div>
-                ) : (
-                  <div style={styles.notifikasiList}>
-                    {notifikasi.akunBaru > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setNotifikasiTerbuka(false);
-                          pindahTab("approval");
-                        }}
-                        style={styles.notifikasiItem}
-                      >
-                        <div
-                          style={{
-                            ...styles.notifikasiItemIcon,
-                            color: warna.aksen,
-                            background: warna.aksenLembut,
-                          }}
-                        >
-                          <UserPlus size={17} />
-                        </div>
-                        <div style={styles.notifikasiItemContent}>
-                          <strong style={styles.notifikasiItemJudul}>
-                            {notifikasi.akunBaru} akun karyawan baru
-                          </strong>
-                          <span style={styles.notifikasiItemSub}>
-                            Menunggu aktivasi oleh Admin.
-                          </span>
-                        </div>
-                        <ArrowRight size={15} style={styles.notifikasiArrow} />
-                      </button>
-                    )}
-
-                    {notifikasi.izinBaru > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setNotifikasiTerbuka(false);
-                          pindahTab("izin");
-                        }}
-                        style={styles.notifikasiItem}
-                      >
-                        <div
-                          style={{
-                            ...styles.notifikasiItemIcon,
-                            color: warna.aksen,
-                            background: warna.aksenLembut,
-                          }}
-                        >
-                          <FileCheck2 size={17} />
-                        </div>
-                        <div style={styles.notifikasiItemContent}>
-                          <strong style={styles.notifikasiItemJudul}>
-                            {notifikasi.izinBaru} pengajuan izin baru
-                          </strong>
-                          <span style={styles.notifikasiItemSub}>
-                            Menunggu persetujuan Admin.
-                          </span>
-                        </div>
-                        <ArrowRight size={15} style={styles.notifikasiArrow} />
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                <div style={styles.notifikasiFooter}>
-                  Pemeriksaan otomatis setiap 15 detik
-                </div>
-              </div>
-            )}
+          <div style={{ position: "relative" }}>
+            <button type="button" onClick={() => setNotifBuka((v) => !v)} style={styles.iconButton} aria-label="Notifikasi"><Bell size={18} />{notifikasi.total > 0 && <span style={styles.notifDot}>{notifikasi.total > 99 ? "99+" : notifikasi.total}</span>}</button>
+            {notifBuka && <div style={styles.notifPanel}><div style={styles.notifHeader}><strong>Notifikasi</strong><button type="button" onClick={() => setNotifBuka(false)} style={styles.iconButton}><X size={15} /></button></div>{notifikasi.total === 0 ? <div style={styles.empty}>Tidak ada notifikasi yang perlu diperiksa.</div> : <>{notifikasi.akunBaru > 0 && <button type="button" onClick={() => { setNotifBuka(false); pilihTab("approval"); }} style={styles.notifItem}><UserPlus size={16} />{notifikasi.akunBaru} akun menunggu aktivasi</button>}{notifikasi.izinBaru > 0 && <button type="button" onClick={() => { setNotifBuka(false); pilihTab("izin"); }} style={styles.notifItem}><FileText size={16} />{notifikasi.izinBaru} pengajuan izin menunggu</button>}</>}<div style={styles.notifFooter}>Pembaruan otomatis setiap 15 detik</div></div>}
           </div>
-        </div>
+        </header>
 
-        <div style={styles.content}>
-          {adaPesan && (
-            <div
-              role={pesanAdalahError ? "alert" : "status"}
-              aria-live="polite"
-              style={pesanAdalahError ? styles.toastError : styles.toastSukses}
-            >
-              <span
-                style={
-                  pesanAdalahError
-                    ? styles.toastIconError
-                    : styles.toastIconSukses
-                }
-              >
-                {pesanAdalahError ? "!" : "✓"}
-              </span>
-              <span style={styles.toastText}>{teksPesan}</span>
-            </div>
-          )}
+        {(pesan || sukses) && <div style={pesan ? styles.toastError : styles.toastSuccess}><strong>{pesan ? "Perhatian" : "Berhasil"}</strong><span>{pesan || sukses}</span></div>}
 
-          {tab === "rekap" && (
-            <>
-              <div style={styles.statGrid}>
-                <div
-                  style={{
-                    ...styles.statCard,
-                    borderLeft: `3px solid ${warna.aksen}`,
-                  }}
-                >
-                  <div
-                    style={{
-                      ...styles.statIconWrap,
-                      color: warna.aksen,
-                      background: warna.aksenLembut,
-                    }}
-                  >
-                    <Users size={17} strokeWidth={2} />
-                  </div>
-                  <span style={styles.statAngka}>{karyawanAktifCount}</span>
-                  <span style={styles.statLabel}>Karyawan Aktif</span>
-                </div>
-                <div
-                  style={{
-                    ...styles.statCard,
-                    borderLeft: `3px solid ${warna.sukses}`,
-                  }}
-                >
-                  <div
-                    style={{
-                      ...styles.statIconWrap,
-                      color: warna.sukses,
-                      background: warna.suksesLembut,
-                    }}
-                  >
-                    <CheckCircle2 size={17} strokeWidth={2} />
-                  </div>
-                  <span style={{ ...styles.statAngka, color: warna.sukses }}>
-                    {jumlahTepatWaktu}
-                  </span>
-                  <span style={styles.statLabel}>Tepat Waktu</span>
-                </div>
-                <div
-                  style={{
-                    ...styles.statCard,
-                    borderLeft: `3px solid ${warna.peringatan}`,
-                  }}
-                >
-                  <div
-                    style={{
-                      ...styles.statIconWrap,
-                      color: warna.peringatan,
-                      background: warna.peringatanLembut,
-                    }}
-                  >
-                    <AlertTriangle size={17} strokeWidth={2} />
-                  </div>
-                  <span
-                    style={{ ...styles.statAngka, color: warna.peringatan }}
-                  >
-                    {jumlahTelat}
-                  </span>
-                  <span style={styles.statLabel}>Telat</span>
-                </div>
-                <div
-                  style={{
-                    ...styles.statCard,
-                    borderLeft: `3px solid ${warna.aksen}`,
-                  }}
-                >
-                  <div
-                    style={{
-                      ...styles.statIconWrap,
-                      color: warna.aksen,
-                      background: warna.aksenLembut,
-                    }}
-                  >
-                    <FileText size={17} strokeWidth={2} />
-                  </div>
-                  <span style={{ ...styles.statAngka, color: warna.aksen }}>
-                    {jumlahIzinSakitDll}
-                  </span>
-                  <span style={styles.statLabel}>Izin/Sakit/Cuti</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setBelumAbsenTerbuka((v) => !v)}
-                  style={{
-                    ...styles.statCard,
-                    borderLeft: `3px solid ${warna.tintaSamar}`,
-                    cursor: "pointer",
-                    textAlign: "left",
-                    width: "100%",
-                  }}
-                  className="stat-card-belum-absen"
-                  aria-expanded={belumAbsenTerbuka}
-                >
-                  <div
-                    style={{
-                      ...styles.statIconWrap,
-                      color: warna.tintaLembut,
-                      background: warna.panelAlt,
-                    }}
-                  >
-                    <UserX size={17} strokeWidth={2} />
-                  </div>
-                  <span
-                    style={{ ...styles.statAngka, color: warna.tintaSamar }}
-                  >
-                    {jumlahBelumAbsen}
-                  </span>
-                  <span style={styles.statLabel}>Belum Absen</span>
-                  <span style={styles.statHint}>
-                    Klik untuk lihat siapa yang belum absen
-                  </span>
-                </button>
-              </div>
+        {tab === "rekap" && <section>
+          <div style={styles.statGrid}>
+            <StatCard label="Karyawan Aktif" value={jumlahAktif} icon={Users} />
+            <StatCard label="Tepat Waktu" value={jumlahTepatWaktu} icon={CheckCircle2} tone="sukses" />
+            <StatCard label="Telat" value={jumlahTelat} icon={AlertTriangle} tone="peringatan" />
+            <StatCard label="Izin/Sakit/Cuti" value={jumlahIzin} icon={FileText} />
+            <button type="button" onClick={() => setBelumAbsenBuka((v) => !v)} style={styles.statButton}><Users size={18} /><strong>{belumAbsen.length}</strong><span>Belum Absen</span></button>
+          </div>
+          {belumAbsenBuka && <div style={styles.panel}><div style={styles.panelTitleRow}><div><strong>Karyawan Belum Absen</strong><p style={styles.muted}>Karyawan aktif yang belum memiliki absensi pada tanggal rekap.</p></div><button type="button" onClick={() => setBelumAbsenBuka(false)} style={styles.smallButton}>Tutup</button></div>{belumAbsen.length === 0 ? <div style={styles.empty}>Semua karyawan aktif sudah memiliki absensi atau pengajuan yang disetujui.</div> : <div style={styles.listGrid}>{belumAbsen.map((item) => <div key={item.id} style={styles.listItem}><div style={styles.avatar}>{inisialNama(item.nama)}</div><div><strong>{item.nama}</strong><p style={styles.muted}>{item.jabatan || "-"} · {item.divisi || "-"}</p></div></div>)}</div>}</div>}
+          <input value={pencarian} onChange={(e) => setPencarian(e.target.value)} placeholder="Cari nama, jabatan, atau divisi…" style={styles.search} />
+          <div style={styles.tableHint}>Geser tabel ke kanan di HP untuk melihat semua kolom.</div>
+          <div style={styles.tableWrap}><table style={styles.table}><thead><tr><th style={styles.stickyHead}>Karyawan</th>{tampilkanFoto && <th>Foto</th>}<th>Status</th><th>Masuk</th><th>Pulang</th><th>Lokasi Masuk</th></tr></thead><tbody>{loading ? <Skeleton rows={4} cols={tampilkanFoto ? 6 : 5} /> : rekapTersaring.length === 0 ? <tr><td colSpan={tampilkanFoto ? 6 : 5} style={styles.emptyCell}>Tidak ada data rekap.</td></tr> : rekapTersaring.map((item) => { const status = labelStatusKehadiran(item.statusFinal || item.statusOtomatis); return <tr key={item.id}><td style={{ ...styles.td, ...styles.stickyCell }}><div style={{ display: "flex", gap: 8, alignItems: "center" }}><div style={styles.avatarSmall}>{inisialNama(item.pengguna?.nama)}</div><div><strong>{item.pengguna?.nama || "-"}</strong><div style={styles.muted}>{item.pengguna?.jabatan || "-"} · {item.pengguna?.divisi || "-"}</div></div></div></td>{tampilkanFoto && <td style={styles.td}><div style={{ display: "flex", gap: 6 }}>{item.fotoMasukUrl ? <a href={item.fotoMasukUrl} target="_blank" rel="noopener noreferrer"><img src={item.fotoMasukUrl} alt="Masuk" style={styles.thumb} /></a> : null}{item.fotoPulangUrl ? <a href={item.fotoPulangUrl} target="_blank" rel="noopener noreferrer"><img src={item.fotoPulangUrl} alt="Pulang" style={styles.thumb} /></a> : null}</div></td>}<td style={styles.td}><span style={{ ...styles.statusBadge, color: status.warna, background: status.latar }}>{status.teks}</span></td><td style={{ ...styles.td, fontFamily: font.mono }}>{formatJam(item.jamMasuk)}</td><td style={{ ...styles.td, fontFamily: font.mono }}>{formatJam(item.jamPulang)}</td><td style={styles.td}><div>{item.alamatMasuk || "Lokasi GPS belum tersedia"}</div><div style={styles.muted}>{item.latitudeMasuk != null && item.longitudeMasuk != null ? `${item.latitudeMasuk}, ${item.longitudeMasuk}` : ""}</div></td></tr>; })}</tbody></table></div>
+        </section>}
 
-              {belumAbsenTerbuka && (
-                <div style={styles.panelBelumAbsen}>
-                  <div style={styles.panelBelumAbsenHeader}>
-                    <div>
-                      <p style={styles.panelBelumAbsenJudul}>
-                        Karyawan Belum Absen ({jumlahBelumAbsen})
-                      </p>
-                      <p style={styles.panelBelumAbsenSub}>
-                        Karyawan aktif yang belum memiliki record absensi untuk
-                        hari ini.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setBelumAbsenTerbuka(false)}
-                      style={styles.tombolTutupPanel}
-                    >
-                      Tutup
-                    </button>
-                  </div>
+        {tab === "approval" && <section><div style={styles.sectionHeader}><div><h2 style={styles.sectionTitle}>Akun Menunggu Aktivasi</h2><p style={styles.muted}>Pilih Homebase karyawan secara eksplisit saat akun diaktifkan.</p></div><button type="button" onClick={() => void muatDashboard()} style={styles.smallButton}><RefreshCcw size={14} /> Refresh</button></div>{menunggu.length === 0 ? <div style={styles.emptyBox}><CheckCircle2 size={30} /><p>Tidak ada akun menunggu.</p></div> : <div style={styles.cardGrid}>{menunggu.map((item) => <div key={item.id} style={styles.card}><div style={styles.cardHead}><div style={styles.avatar}>{inisialNama(item.nama)}</div><div style={{ minWidth: 0, flex: 1 }}><strong>{item.nama}</strong><div style={styles.muted}>{item.email}</div></div></div>{formAktivasiId === item.id ? <div style={styles.formBox}><Field label="Jabatan"><input value={formAktivasi.jabatan} onChange={(e) => setFormAktivasi({ ...formAktivasi, jabatan: e.target.value })} style={styles.input} placeholder="Contoh: Teknisi" /></Field><Field label="Divisi"><input value={formAktivasi.divisi} onChange={(e) => setFormAktivasi({ ...formAktivasi, divisi: e.target.value })} style={styles.input} placeholder="Contoh: Operasional" /></Field><Field label="Homebase Karyawan"><select value={formAktivasi.kantorId} onChange={(e) => setFormAktivasi({ ...formAktivasi, kantorId: e.target.value })} style={styles.input}><option value="">Pilih homebase…</option>{kantor.map((k) => <option key={k.id} value={k.id}>{k.namaKantor}{k.alamat ? ` — ${k.alamat}` : ""}</option>)}</select><span style={styles.help}>Homebase adalah kantor organisasi karyawan dan tidak berubah hanya karena karyawan sedang bekerja di kota lain.</span></Field><div style={styles.formActions}><button type="button" onClick={() => setFormAktivasiId(null)} style={styles.smallButton}>Batal</button><button type="button" onClick={() => void kirimAktivasi(item.id)} style={styles.primaryButton}>Simpan & Aktifkan</button></div></div> : <button type="button" onClick={() => void bukaFormAktivasi(item)} style={styles.primaryButton}>Aktifkan Akun</button>}</div>)}</div>}</section>}
 
-                  {belumAbsen.length === 0 ? (
-                    <div style={styles.belumAbsenKosong}>
-                      <CheckCircle2
-                        size={18}
-                        strokeWidth={1.8}
-                        style={{ color: warna.sukses }}
-                      />
-                      <span>
-                        Semua karyawan aktif sudah memiliki absensi hari ini.
-                      </span>
-                    </div>
-                  ) : (
-                    <div style={styles.belumAbsenGrid}>
-                      {belumAbsen.map((item) => (
-                        <div key={item.id} style={styles.belumAbsenItem}>
-                          <div style={styles.avatarMini}>
-                            {inisialNama(item.nama)}
-                          </div>
-                          <div style={{ minWidth: 0 }}>
-                            <strong style={styles.belumAbsenNama}>
-                              {item.nama}
-                            </strong>
-                            <p style={styles.belumAbsenSubItem}>
-                              {item.jabatan || "-"} · {item.divisi || "-"}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+        {tab === "karyawan" && <section><div style={styles.sectionHeader}><div><h2 style={styles.sectionTitle}>Karyawan</h2><p style={styles.muted}>Kelola profil, Homebase, password, dan status akun.</p></div><button type="button" onClick={() => void muatKaryawan({ force: true })} style={styles.smallButton}><RefreshCcw size={14} /> Refresh</button></div><input value={pencarian} onChange={(e) => setPencarian(e.target.value)} placeholder="Cari nama, email, jabatan, divisi, atau homebase…" style={styles.search} /><div style={styles.tableWrap}><table style={styles.table}><thead><tr><th style={styles.stickyHead}>Nama</th><th>Email</th><th>Jabatan / Divisi</th><th>Homebase</th><th>Status</th><th></th></tr></thead><tbody>{loadingKaryawan ? <Skeleton rows={5} cols={6} /> : karyawanTersaring.length === 0 ? <tr><td colSpan={6} style={styles.emptyCell}>Belum ada data karyawan.</td></tr> : karyawanTersaring.map((item) => <tr key={item.id}><td style={{ ...styles.td, ...styles.stickyCell }}><div style={{ display: "flex", gap: 8, alignItems: "center" }}><div style={styles.avatarSmall}>{inisialNama(item.nama)}</div><strong>{item.nama}</strong></div></td><td style={styles.td}>{item.email}</td><td style={styles.td}>{item.jabatan || "-"}<div style={styles.muted}>{item.divisi || "-"}</div></td><td style={styles.td}>{item.kantor?.namaKantor || <span style={{ color: warna.bahaya }}>Belum ditentukan</span>}</td><td style={styles.td}><span style={{ ...styles.statusBadge, color: item.statusAkun === "aktif" ? warna.sukses : warna.tintaSamar, background: item.statusAkun === "aktif" ? warna.suksesLembut : warna.panelAlt }}>{item.statusAkun === "aktif" ? "Aktif" : "Nonaktif"}</span></td><td style={{ ...styles.td, textAlign: "right" }}><div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}><button type="button" onClick={() => bukaEditKaryawan(item)} style={styles.smallButton}>Edit</button><button type="button" onClick={() => void resetPasswordKaryawan(item.id)} style={styles.smallButton}>Reset Password</button>{item.statusAkun === "aktif" ? <button type="button" onClick={() => setKonfirmasiNonaktif(item.id)} style={{ ...styles.smallButton, color: warna.bahaya }}>Nonaktifkan</button> : <button type="button" onClick={() => void ubahStatusKaryawan(item.id, "aktif")} style={styles.smallButton}>Aktifkan</button>}</div></td></tr>)} </tbody></table></div>{formEditKaryawanId != null && <Modal title="Edit Data Karyawan" onClose={() => setFormEditKaryawanId(null)}><Field label="Email"><input value={formEditKaryawan.email} onChange={(e) => setFormEditKaryawan({ ...formEditKaryawan, email: e.target.value })} style={styles.input} type="email" /></Field><Field label="Jabatan"><input value={formEditKaryawan.jabatan} onChange={(e) => setFormEditKaryawan({ ...formEditKaryawan, jabatan: e.target.value })} style={styles.input} /></Field><Field label="Divisi"><input value={formEditKaryawan.divisi} onChange={(e) => setFormEditKaryawan({ ...formEditKaryawan, divisi: e.target.value })} style={styles.input} /></Field><Field label="Homebase"><select value={formEditKaryawan.kantorId} onChange={(e) => setFormEditKaryawan({ ...formEditKaryawan, kantorId: e.target.value })} style={styles.input}><option value="">Tanpa homebase</option>{kantor.map((k) => <option key={k.id} value={k.id}>{k.namaKantor}</option>)}</select></Field><div style={styles.formActions}><button type="button" onClick={() => setFormEditKaryawanId(null)} style={styles.smallButton}>Batal</button><button type="button" onClick={() => void simpanEditKaryawan()} style={styles.primaryButton}>Simpan Perubahan</button></div></Modal>}{konfirmasiNonaktif != null && <Modal title="Nonaktifkan Karyawan" onClose={() => setKonfirmasiNonaktif(null)}><p style={styles.muted}>Akun ini tidak dapat login sampai diaktifkan kembali.</p><div style={styles.formActions}><button type="button" onClick={() => setKonfirmasiNonaktif(null)} style={styles.smallButton}>Batal</button><button type="button" onClick={() => void ubahStatusKaryawan(konfirmasiNonaktif, "nonaktif")} style={{ ...styles.primaryButton, background: warna.bahaya }}>Ya, Nonaktifkan</button></div></Modal>}{resetPassword && <Modal title="Password Sementara" onClose={() => setResetPassword(null)}><p style={styles.muted}>Password ini hanya ditampilkan sekali. Sampaikan kepada karyawan melalui saluran yang aman dan minta segera menggantinya.</p><div style={styles.passwordBox}>{resetPassword.password}</div><button type="button" onClick={() => setResetPassword(null)} style={styles.primaryButton}>Tutup</button></Modal>}</section>}
 
-              <button
-                onClick={bukaTutupRingkasan}
-                style={styles.tombolTogglePanel}
-                className="tombol-toggle-panel"
-              >
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 7,
-                  }}
-                >
-                  <BarChart3 size={15} strokeWidth={2} />
-                  Tren & Analisis (7 hari terakhir)
-                </span>
-                <span
-                  style={{
-                    transform: ringkasanTerbuka ? "rotate(180deg)" : "none",
-                    display: "inline-block",
-                    transition: "transform 0.15s ease",
-                  }}
-                >
-                  ▾
-                </span>
-              </button>
+        {tab === "izin" && <AdminIzin />}
+        {tab === "gaji" && <PengaturanGaji />}
+        {tab === "gaji-massal" && <AdminGajiMassal />}
 
-              {ringkasanTerbuka && (
-                <div style={styles.panelRingkasan}>
-                  {loadingRingkasan && <p style={styles.kosong}>Memuat…</p>}
+        {tab === "kantor" && <section><div style={styles.sectionHeader}><div><h2 style={styles.sectionTitle}>Kantor & Homebase</h2><p style={styles.muted}>Kelola master kantor. GPS absensi mencatat lokasi aktual karyawan; data kantor hanya menentukan Homebase organisasi.</p></div><button type="button" onClick={() => void muatKantor()} style={styles.smallButton}><RefreshCcw size={14} /> Refresh</button></div><div style={styles.card}><h3 style={styles.cardTitle}>{kantorEditId ? "Edit Data Kantor" : "Tambah Kantor"}</h3><div style={styles.formGrid}><Field label="Nama Kantor"><input value={formKantor.namaKantor} onChange={(e) => setFormKantor({ ...formKantor, namaKantor: e.target.value })} style={styles.input} placeholder="Contoh: Homebase Bandung" /></Field><Field label="Alamat"><input value={formKantor.alamat} onChange={(e) => setFormKantor({ ...formKantor, alamat: e.target.value })} style={styles.input} placeholder="Alamat kantor" /></Field><Field label="Latitude (opsional)"><input value={formKantor.latitude} onChange={(e) => setFormKantor({ ...formKantor, latitude: e.target.value })} style={styles.input} inputMode="decimal" /></Field><Field label="Longitude (opsional)"><input value={formKantor.longitude} onChange={(e) => setFormKantor({ ...formKantor, longitude: e.target.value })} style={styles.input} inputMode="decimal" /></Field></div><div style={styles.formActions}><button type="button" onClick={() => void gunakanLokasiSekarang()} style={styles.smallButton}><Navigation size={14} /> Gunakan Lokasi Saat Ini</button><button type="button" onClick={() => bukaFormTambahKantor()} style={styles.smallButton}>Reset Form</button><button type="button" onClick={() => void simpanKantor()} style={styles.primaryButton} disabled={simpanKantorLoading}><Save size={14} /> {simpanKantorLoading ? "Menyimpan…" : "Simpan"}</button></div></div><div style={styles.cardGrid}>{loadingKantor ? <SkeletonCards /> : kantor.map((item) => <div key={item.id} style={styles.card}><div style={styles.cardHead}><div style={styles.avatar}><Building2 size={17} /></div><div style={{ minWidth: 0, flex: 1 }}><strong>{item.namaKantor}</strong><div style={styles.muted}>{item.alamat || "Alamat belum diisi"}</div></div><span style={styles.statusBadge}>{item._count?.pengguna ?? 0} karyawan</span></div><div style={styles.metaGrid}><div><span style={styles.muted}>Koordinat</span><strong>{item.latitude != null && item.longitude != null ? "Tersedia" : "Belum diisi"}</strong></div><div><span style={styles.muted}>Homebase</span><strong>Siap dipilih saat aktivasi/edit</strong></div></div><button type="button" onClick={() => bukaFormEditKantor(item)} style={styles.smallButton}>Edit Data</button></div>)}{!loadingKantor && kantor.length === 0 && <div style={styles.emptyBox}><Building2 size={28} /><p>Belum ada data kantor.</p><button type="button" onClick={() => bukaFormTambahKantor()} style={styles.primaryButton}>Tambah Kantor Pertama</button></div>}</div></section>}
 
-                  {!loadingRingkasan && ringkasan && (
-                    <div
-                      style={styles.ringkasanGrid}
-                      className="ringkasan-grid"
-                    >
-                      <div style={styles.ringkasanKotak}>
-                        <p style={styles.ringkasanJudul}>Tren Kehadiran</p>
-                        <div style={styles.legendaChart}>
-                          <span style={styles.legendaItem}>
-                            <span
-                              style={{
-                                ...styles.legendaDot,
-                                background: warna.sukses,
-                              }}
-                            />
-                            Tepat waktu
-                          </span>
-                          <span style={styles.legendaItem}>
-                            <span
-                              style={{
-                                ...styles.legendaDot,
-                                background: warna.peringatan,
-                              }}
-                            />
-                            Telat
-                          </span>
-                          <span style={styles.legendaItem}>
-                            <span
-                              style={{
-                                ...styles.legendaDot,
-                                background: warna.aksen,
-                              }}
-                            />
-                            Izin/Cuti
-                          </span>
-                          <span style={styles.legendaItem}>
-                            <span
-                              style={{
-                                ...styles.legendaDot,
-                                background: warna.bahaya,
-                              }}
-                            />
-                            Alpha
-                          </span>
-                        </div>
-                        <div style={styles.chartBarGroup}>
-                          {ringkasan.tren7Hari.map((h) => {
-                            const total =
-                              h.tepatWaktu + h.telat + h.alpha + h.izinDll;
-                            const tinggiMax = 56;
-                            return (
-                              <div key={h.tanggal} style={styles.chartKolom}>
-                                <div style={styles.chartBatangWrapper}>
-                                  {total === 0 ? (
-                                    <div style={styles.chartBatangKosong} />
-                                  ) : (
-                                    <>
-                                      {h.tepatWaktu > 0 && (
-                                        <div
-                                          style={{
-                                            ...styles.chartSegmen,
-                                            height:
-                                              (h.tepatWaktu / total) *
-                                              tinggiMax,
-                                            background: warna.sukses,
-                                          }}
-                                          title={`Tepat waktu: ${h.tepatWaktu}`}
-                                        />
-                                      )}
-                                      {h.telat > 0 && (
-                                        <div
-                                          style={{
-                                            ...styles.chartSegmen,
-                                            height:
-                                              (h.telat / total) * tinggiMax,
-                                            background: warna.peringatan,
-                                          }}
-                                          title={`Telat: ${h.telat}`}
-                                        />
-                                      )}
-                                      {h.izinDll > 0 && (
-                                        <div
-                                          style={{
-                                            ...styles.chartSegmen,
-                                            height:
-                                              (h.izinDll / total) * tinggiMax,
-                                            background: warna.aksen,
-                                          }}
-                                          title={`Izin/Sakit/Cuti: ${h.izinDll}`}
-                                        />
-                                      )}
-                                      {h.alpha > 0 && (
-                                        <div
-                                          style={{
-                                            ...styles.chartSegmen,
-                                            height:
-                                              (h.alpha / total) * tinggiMax,
-                                            background: warna.bahaya,
-                                          }}
-                                          title={`Alpha: ${h.alpha}`}
-                                        />
-                                      )}
-                                    </>
-                                  )}
-                                </div>
-                                <span style={styles.chartLabelHari}>
-                                  {namaHariSingkat(h.tanggal)}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      <div style={styles.ringkasanKotak}>
-                        <p style={styles.ringkasanJudul}>
-                          Perlu Perhatian (30 hari)
-                        </p>
-                        {ringkasan.sorotanKaryawan.length === 0 && (
-                          <p style={styles.kosong}>
-                            <ThumbsUp
-                              size={14}
-                              strokeWidth={2}
-                              style={{ verticalAlign: "-2px", marginRight: 5 }}
-                            />
-                            Tidak ada yang perlu disorot.
-                          </p>
-                        )}
-                        {ringkasan.sorotanKaryawan.map((k, idx) => (
-                          <div key={k.id} style={styles.sorotanBaris}>
-                            <span style={styles.sorotanNamaWrap}>
-                              <span style={styles.sorotanPeringkat}>
-                                {idx + 1}
-                              </span>
-                              <span style={styles.sorotanNama}>{k.nama}</span>
-                            </span>
-                            <span style={styles.sorotanAngka}>
-                              {k.telat > 0 && (
-                                <span style={{ color: warna.peringatan }}>
-                                  {k.telat}× telat
-                                </span>
-                              )}
-                              {k.telat > 0 && k.alpha > 0 && (
-                                <span style={{ margin: "0 4px" }}>·</span>
-                              )}
-                              {k.alpha > 0 && (
-                                <span style={{ color: warna.bahaya }}>
-                                  {k.alpha}× alpha
-                                </span>
-                              )}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {rekap.length > 0 && (
-                <input
-                  type="text"
-                  value={cariRekap}
-                  onChange={(e) => setCariRekap(e.target.value)}
-                  placeholder="Cari nama, jabatan, atau divisi…"
-                  style={styles.kotakCari}
-                  className="input-fokus"
-                />
-              )}
-
-              <p style={styles.hintGeser} className="hint-geser">
-                <ArrowRight
-                  size={13}
-                  strokeWidth={2}
-                  style={{ verticalAlign: "-2px", marginRight: 4 }}
-                />
-                Geser tabel ke kanan untuk lihat jam pulang & lokasi
-              </p>
-              <div style={styles.tabelWrapperLuar}>
-                <div
-                  style={styles.tabelWrapper}
-                  className="tabel-scroll"
-                  onScroll={(e) => cekUjungScroll(e, setRekapDiUjung)}
-                >
-                  <table style={styles.tabel}>
-                    <thead>
-                      <tr>
-                        <th style={{ ...styles.th, ...styles.thSticky }}>
-                          Karyawan
-                        </th>
-                        <th style={styles.th}>Foto</th>
-                        <th style={styles.th}>Status</th>
-                        <th style={styles.th}>Masuk</th>
-                        <th style={styles.th}>Pulang</th>
-                        <th style={styles.th}>Lokasi</th>
-                        <th style={styles.th}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {loading && <SkeletonBaris jumlah={4} />}
-
-                      {!loading && rekap.length === 0 && (
-                        <tr>
-                          <td colSpan={7} style={styles.tdKosong}>
-                            Belum ada karyawan yang absen hari ini.
-                          </td>
-                        </tr>
-                      )}
-                      {!loading &&
-                        rekap.length > 0 &&
-                        rekapTersaring.length === 0 && (
-                          <tr>
-                            <td colSpan={7} style={styles.tdKosong}>
-                              Tidak ada hasil untuk "{cariRekap}".
-                            </td>
-                          </tr>
-                        )}
-
-                      {!loading &&
-                        rekapTersaring.map((item) => {
-                          const status = labelStatusKehadiran(
-                            item.statusFinal || item.statusOtomatis,
-                          );
-                          const sedangEdit = editStatusTerbuka === item.id;
-                          return (
-                            <Fragment key={item.id}>
-                              <tr className="baris-hover">
-                                <td
-                                  style={{ ...styles.td, ...styles.tdSticky }}
-                                >
-                                  <div style={styles.tdNamaWrap}>
-                                    <div style={styles.avatarTabelMini}>
-                                      {inisialNama(item.pengguna.nama)}
-                                    </div>
-                                    <div style={{ minWidth: 0 }}>
-                                      <strong
-                                        style={{
-                                          color: warna.tinta,
-                                          fontSize: 13.5,
-                                        }}
-                                      >
-                                        {item.pengguna.nama}
-                                      </strong>
-                                      <div style={styles.tdSub}>
-                                        {item.pengguna.jabatan || "-"} ·{" "}
-                                        {item.pengguna.divisi || "-"}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </td>
-                                <td style={styles.td}>
-                                  <div style={styles.fotoAbsenRow}>
-                                    {item.fotoMasuk && (
-                                      <a
-                                        href={urlFoto(item.fotoMasuk, item.fotoMasukUrl)}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        title="Lihat foto absen masuk"
-                                      >
-                                        <img
-                                          src={urlFoto(
-                                            item.fotoMasuk,
-                                            item.fotoMasukUrl,
-                                          )}
-                                          alt="Foto absen masuk"
-                                          style={styles.fotoAbsenThumb}
-                                        />
-                                      </a>
-                                    )}
-                                    {item.fotoPulang && (
-                                      <a
-                                        href={urlFoto(item.fotoPulang, item.fotoPulangUrl)}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        title="Lihat foto absen pulang"
-                                      >
-                                        <img
-                                          src={urlFoto(
-                                            item.fotoPulang,
-                                            item.fotoPulangUrl,
-                                          )}
-                                          alt="Foto absen pulang"
-                                          style={styles.fotoAbsenThumb}
-                                        />
-                                      </a>
-                                    )}
-                                    {!item.fotoMasuk && !item.fotoPulang && (
-                                      <span
-                                        style={{
-                                          fontSize: 11,
-                                          color: warna.tintaSamar,
-                                        }}
-                                      >
-                                        –
-                                      </span>
-                                    )}
-                                  </div>
-                                </td>
-                                <td style={styles.td}>
-                                  <span
-                                    style={{
-                                      ...styles.badge,
-                                      color: status.warna,
-                                      background: status.latar,
-                                    }}
-                                  >
-                                    {status.teks}
-                                  </span>
-                                </td>
-                                <td style={{ ...styles.td, ...styles.mono }}>
-                                  {formatJam(item.jamMasuk)}
-                                </td>
-                                <td style={{ ...styles.td, ...styles.mono }}>
-                                  {formatJam(item.jamPulang)}
-                                </td>
-                                <td
-                                  style={{
-                                    ...styles.td,
-                                    fontSize: 12,
-                                    color: warna.tintaSamar,
-                                    maxWidth: 200,
-                                  }}
-                                >
-                                  {item.alamatMasuk || "–"}
-                                </td>
-                                <td
-                                  style={{ ...styles.td, textAlign: "right" }}
-                                >
-                                  <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                                    <button
-                                      type="button"
-                                      onClick={() => void editLokasiDenganDialog(item)}
-                                      style={styles.tombolEditKecil}
-                                    >
-                                      Edit Lokasi
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        sedangEdit
-                                          ? setEditStatusTerbuka(null)
-                                          : bukaEditStatus(item)
-                                      }
-                                      style={styles.tombolEditKecil}
-                                    >
-                                      {sedangEdit ? "Tutup" : "Ubah Status"}
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                              {item.catatanAdmin && !sedangEdit && (
-                                <tr>
-                                  <td
-                                    colSpan={7}
-                                    style={{ padding: "0 16px 10px 16px" }}
-                                  >
-                                    <p style={styles.catatanAdmin}>
-                                      Catatan Admin: {item.catatanAdmin}
-                                    </p>
-                                  </td>
-                                </tr>
-                              )}
-                              {sedangEdit && (
-                                <tr>
-                                  <td
-                                    colSpan={7}
-                                    style={{
-                                      padding: "0 16px 16px 16px",
-                                      background: warna.panelAlt,
-                                    }}
-                                  >
-                                    <div style={styles.formInline}>
-                                      <label style={styles.labelForm}>
-                                        Status baru
-                                      </label>
-                                      <select
-                                        value={formEditStatus.statusFinal}
-                                        onChange={(e) =>
-                                          setFormEditStatus({
-                                            ...formEditStatus,
-                                            statusFinal: e.target.value,
-                                          })
-                                        }
-                                        style={styles.selectForm}
-                                      >
-                                        {DAFTAR_STATUS.map((s) => (
-                                          <option key={s} value={s}>
-                                            {labelStatusKehadiran(s).teks}
-                                          </option>
-                                        ))}
-                                      </select>
-                                      <label style={styles.labelForm}>
-                                        Catatan (wajib diisi, jadi jejak alasan
-                                        perubahan)
-                                      </label>
-                                      <textarea
-                                        value={formEditStatus.catatanAdmin}
-                                        onChange={(e) =>
-                                          setFormEditStatus({
-                                            ...formEditStatus,
-                                            catatanAdmin: e.target.value,
-                                          })
-                                        }
-                                        placeholder="Contoh: Telat karena tugas luar kota, dikonfirmasi lewat WA."
-                                        style={styles.textareaForm}
-                                      />
-                                      <div style={styles.formTombolGroup}>
-                                        <button
-                                          onClick={() =>
-                                            setEditStatusTerbuka(null)
-                                          }
-                                          style={styles.tombolBatal}
-                                        >
-                                          Batal
-                                        </button>
-                                        <button
-                                          onClick={() =>
-                                            simpanEditStatus(item.id)
-                                          }
-                                          style={styles.tombolAktifkan}
-                                          disabled={sedangSimpanStatusId === item.id}
-                                        >
-                                          {sedangSimpanStatusId === item.id ? "Menyimpan…" : "Simpan"}
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </td>
-                                </tr>
-                              )}
-                            </Fragment>
-                          );
-                        })}
-                    </tbody>
-                  </table>
-                </div>
-                <div
-                  className="tabel-fade-kanan"
-                  style={{ ...styles.tabelFade, opacity: rekapDiUjung ? 0 : 1 }}
-                />
-              </div>
-
-              <section style={{ marginTop: 18, border: `1px solid ${warna.garis}`, borderRadius: 14, background: warna.panel, overflow: "hidden" }}>
-                <button type="button" onClick={() => void bukaPengaturanCepat()} style={{ width: "100%", border: 0, background: "transparent", padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, cursor: "pointer", color: warna.tinta, textAlign: "left" }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 800, fontSize: 13 }}><Settings size={16} style={{ color: warna.aksen }} />Pengaturan Sistem</span>
-                  <span style={{ color: warna.tintaSamar, fontSize: 12 }}>{pengaturanTerbuka ? "Tutup" : "Atur jam & lokasi"}</span>
-                </button>
-                {pengaturanTerbuka && (
-                  <div style={{ borderTop: `1px solid ${warna.garis}`, padding: 16 }}>
-                    {pengaturanMemuat ? <div style={{ fontSize: 12, color: warna.tintaSamar }}>Memuat pengaturan…</div> : (
-                      <div style={{ display: "grid", gap: 16 }}>
-                        <div>
-                          <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 800, color: warna.tintaSamar, letterSpacing: "0.06em", textTransform: "uppercase" }}>Jam Masuk Standar</p>
-                          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                            <input type="time" value={pengaturanJam} onChange={(e) => setPengaturanJam(e.target.value)} style={{ ...styles.inputForm, width: 150 }} />
-                            <button type="button" onClick={() => void simpanJamMasukCepat()} style={{ ...styles.tombolAktifkan, display: "inline-flex", alignItems: "center", gap: 6 }} disabled={pengaturanMenyimpanJam}><Save size={14} />{pengaturanMenyimpanJam ? "Menyimpan…" : "Simpan Jam"}</button>
-                          </div>
-                          <p style={{ margin: "7px 0 0", fontSize: 11, color: warna.tintaSamar }}>Digunakan sistem untuk menentukan tepat waktu atau telat.</p>
-                        </div>
-                        <div style={{ borderTop: `1px solid ${warna.garis}`, paddingTop: 16 }}>
-                          <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 800, color: warna.tintaSamar, letterSpacing: "0.06em", textTransform: "uppercase" }}>Lokasi Kantor / Acuan Absensi</p>
-                          <p style={{ margin: "0 0 10px", fontSize: 11, color: warna.tintaSamar }}>Koordinat ini menjadi titik acuan radius absensi karyawan yang terhubung ke kantor.</p>
-                          {daftarKantorState.length === 0 ? <div style={{ fontSize: 12, color: warna.peringatan }}>Belum ada data kantor. Buka menu Kantor Pusat.</div> : (
-                            <>
-                              <select value={pengaturanKantorId} onChange={(e) => pilihKantorPengaturan(e.target.value)} style={{ ...styles.selectForm, width: "100%", maxWidth: 420, marginBottom: 10 }}>
-                                {daftarKantorState.map((k) => <option key={k.id} value={k.id}>{k.namaKantor}</option>)}
-                              </select>
-                              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
-                                <div><label style={styles.labelForm}>Latitude</label><input value={formKantor.latitude} onChange={(e) => setFormKantor({ ...formKantor, latitude: e.target.value })} style={styles.inputForm} inputMode="decimal" /></div>
-                                <div><label style={styles.labelForm}>Longitude</label><input value={formKantor.longitude} onChange={(e) => setFormKantor({ ...formKantor, longitude: e.target.value })} style={styles.inputForm} inputMode="decimal" /></div>
-                              </div>
-                              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-                                <button type="button" onClick={gunakanLokasiKantorSekarang} style={{ ...styles.tombolEditKecil, display: "inline-flex", alignItems: "center", gap: 6 }}><Navigation size={14} />Gunakan Lokasi Saat Ini</button>
-                                <button type="button" onClick={() => void simpanKantor()} style={{ ...styles.tombolAktifkan, display: "inline-flex", alignItems: "center", gap: 6 }} disabled={sedangSimpanKantor}><Save size={14} />{sedangSimpanKantor ? "Menyimpan…" : "Simpan Lokasi"}</button>
-                              </div>
-                              <div style={{ marginTop: 10, fontSize: 11, color: warna.tintaSamar }}>Pengaturan lengkap tersedia di menu <button type="button" onClick={() => pindahTab("kantor")} style={{ border: 0, background: "transparent", padding: 0, color: warna.aksen, fontWeight: 800, cursor: "pointer" }}>Kantor Pusat</button>.</div>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </section>
-            </>
-          )}
-
-          {tab === "approval" && (
-            <>
-              {menunggu.length === 0 && (
-                <div style={styles.kosongBox}>
-                  <CheckCircle2
-                    size={28}
-                    strokeWidth={1.6}
-                    style={{ ...styles.kosongIkon, color: warna.sukses }}
-                  />
-                  <p style={styles.kosong}>
-                    Tidak ada akun yang menunggu konfirmasi.
-                  </p>
-                </div>
-              )}
-              <div style={styles.kartuGrid}>
-                {menunggu.map((item) => (
-                  <div
-                    key={item.id}
-                    style={styles.itemCard}
-                    className="kartu-hover"
-                  >
-                    <div style={styles.itemCardHeader}>
-                      <div style={styles.avatarMini}>
-                        {inisialNama(item.nama)}
-                      </div>
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <strong style={styles.itemNama}>{item.nama}</strong>
-                        <p style={styles.itemSub}>{item.email}</p>
-                      </div>
-                      <span style={styles.badgeMenunggu}>Menunggu</span>
-                    </div>
-
-                    {item.dibuatPada && (
-                      <p style={styles.itemMetaDaftar}>
-                        <Clock size={11} strokeWidth={2} />
-                        Mendaftar{" "}
-                        {new Date(item.dibuatPada).toLocaleDateString("id-ID", {
-                          day: "numeric",
-                          month: "long",
-                          year: "numeric",
-                        })}
-                      </p>
-                    )}
-
-                    {formAktivasiTerbuka !== item.id ? (
-                      <button
-                        onClick={() => bukaFormAktivasi(item.id)}
-                        style={styles.tombolAktifkan}
-                      >
-                        Aktifkan Akun
-                      </button>
-                    ) : (
-                      <div style={styles.formInline}>
-                        <label style={styles.labelForm}>Jabatan</label>
-                        <input
-                          value={formAktivasi.jabatan}
-                          onChange={(e) =>
-                            setFormAktivasi({
-                              ...formAktivasi,
-                              jabatan: e.target.value,
-                            })
-                          }
-                          placeholder="Contoh: Teknisi"
-                          style={styles.inputForm}
-                        />
-                        <label style={styles.labelForm}>Divisi</label>
-                        <input
-                          value={formAktivasi.divisi}
-                          onChange={(e) =>
-                            setFormAktivasi({
-                              ...formAktivasi,
-                              divisi: e.target.value,
-                            })
-                          }
-                          placeholder="Contoh: Operasional"
-                          style={styles.inputForm}
-                        />
-                        {daftarKantorState.length > 0 && (
-                          <>
-                            <label style={styles.labelForm}>
-                              Kantor / Lokasi Kerja
-                            </label>
-                            <select
-                              value={formAktivasi.kantorId}
-                              onChange={(e) =>
-                                setFormAktivasi({
-                                  ...formAktivasi,
-                                  kantorId: e.target.value,
-                                })
-                              }
-                              style={styles.inputForm}
-                            >
-                              {daftarKantorState.map((k) => (
-                                <option key={k.id} value={k.id}>
-                                  {k.namaKantor}
-                                </option>
-                              ))}
-                            </select>
-                          </>
-                        )}
-                        <div style={styles.formTombolGroup}>
-                          <button
-                            onClick={() => setFormAktivasiTerbuka(null)}
-                            style={styles.tombolBatal}
-                          >
-                            Batal
-                          </button>
-                          <button
-                            onClick={() => kirimAktivasi(item.id)}
-                            style={styles.tombolAktifkan}
-                          >
-                            Simpan & Aktifkan
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          {tab === "karyawan" && (
-            <>
-              {!loadingKaryawan && karyawan.length > 0 && (
-                <input
-                  type="text"
-                  value={cariKaryawan}
-                  onChange={(e) => setCariKaryawan(e.target.value)}
-                  placeholder="Cari nama, email, jabatan, atau divisi…"
-                  style={styles.kotakCari}
-                  className="input-fokus"
-                />
-              )}
-
-              <p style={styles.hintGeser} className="hint-geser">
-                <ArrowRight
-                  size={13}
-                  strokeWidth={2}
-                  style={{ verticalAlign: "-2px", marginRight: 4 }}
-                />
-                Geser tabel ke kanan untuk lihat status
-              </p>
-              <div style={styles.tabelWrapperLuar}>
-                <div
-                  style={styles.tabelWrapper}
-                  className="tabel-scroll"
-                  onScroll={(e) => cekUjungScroll(e, setKaryawanDiUjung)}
-                >
-                  <table style={styles.tabel}>
-                    <thead>
-                      <tr>
-                        <th style={{ ...styles.th, ...styles.thSticky }}>
-                          Nama
-                        </th>
-                        <th style={styles.th}>Email</th>
-                        <th style={styles.th}>Jabatan / Divisi</th>
-                        <th style={styles.th}>Status</th>
-                        <th style={styles.th}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {loadingKaryawan && <SkeletonBaris jumlah={6} />}
-
-                      {!loadingKaryawan && karyawan.length === 0 && (
-                        <tr>
-                          <td colSpan={5} style={styles.tdKosong}>
-                            Belum ada karyawan aktif.
-                          </td>
-                        </tr>
-                      )}
-                      {!loading &&
-                        karyawan.length > 0 &&
-                        karyawanTersaring.length === 0 && (
-                          <tr>
-                            <td colSpan={5} style={styles.tdKosong}>
-                              Tidak ada hasil untuk "{cariKaryawan}".
-                            </td>
-                          </tr>
-                        )}
-
-                      {!loading &&
-                        karyawanTersaring.map((item) => (
-                          <Fragment key={item.id}>
-                            <tr className="baris-hover">
-                              <td style={{ ...styles.td, ...styles.tdSticky }}>
-                                <div style={styles.tdNamaWrap}>
-                                  <div style={styles.avatarTabelMini}>
-                                    {inisialNama(item.nama)}
-                                  </div>
-                                  <strong
-                                    style={{
-                                      color: warna.tinta,
-                                      fontSize: 13.5,
-                                    }}
-                                  >
-                                    {item.nama}
-                                  </strong>
-                                </div>
-                              </td>
-                              <td
-                                style={{
-                                  ...styles.td,
-                                  color: warna.tintaLembut,
-                                  fontSize: 12.5,
-                                }}
-                              >
-                                {item.email}
-                              </td>
-                              <td style={styles.td}>
-                                {item.jabatan || "-"} · {item.divisi || "-"}
-                                {item.kantor?.namaKantor ? (
-                                  <div style={styles.tdSub}>
-                                    {item.kantor.namaKantor}
-                                  </div>
-                                ) : null}
-                              </td>
-                              <td style={styles.td}>
-                                <span
-                                  style={{
-                                    ...styles.badge,
-                                    color:
-                                      item.statusAkun === "aktif"
-                                        ? warna.sukses
-                                        : warna.tintaSamar,
-                                    background:
-                                      item.statusAkun === "aktif"
-                                        ? warna.suksesLembut
-                                        : warna.panelAlt,
-                                  }}
-                                >
-                                  {item.statusAkun === "aktif"
-                                    ? "Aktif"
-                                    : "Nonaktif"}
-                                </span>
-                              </td>
-                              <td style={{ ...styles.td, textAlign: "right" }}>
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    gap: 6,
-                                    justifyContent: "flex-end",
-                                    flexWrap: "wrap",
-                                  }}
-                                >
-                                  <button
-                                    onClick={() => bukaResetPassword(item.id)}
-                                    style={styles.tombolEditKecil}
-                                  >
-                                    Reset Password
-                                  </button>
-                                  {item.statusAkun === "aktif" ? (
-                                    <button
-                                      onClick={() =>
-                                        setKonfirmasiStatusTerbuka(
-                                          konfirmasiStatusTerbuka === item.id
-                                            ? null
-                                            : item.id,
-                                        )
-                                      }
-                                      style={styles.tombolNonaktifkanKecil}
-                                    >
-                                      {konfirmasiStatusTerbuka === item.id
-                                        ? "Tutup"
-                                        : "Nonaktifkan"}
-                                    </button>
-                                  ) : (
-                                    <button
-                                      onClick={() =>
-                                        ubahStatusKaryawan(item.id, "aktif")
-                                      }
-                                      style={styles.tombolEditKecil}
-                                    >
-                                      Aktifkan Kembali
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                            {resetPasswordHasil?.id === item.id && (
-                              <tr>
-                                <td
-                                  colSpan={5}
-                                  style={{
-                                    padding: "0 16px 16px 16px",
-                                    background: warna.panelAlt,
-                                  }}
-                                >
-                                  <div style={styles.hasilResetBox}>
-                                    <p style={styles.hasilResetTeks}>
-                                      Password sementara untuk{" "}
-                                      <strong>{item.nama}</strong>:
-                                    </p>
-                                    <div style={styles.hasilResetKode}>
-                                      {resetPasswordHasil.password}
-                                    </div>
-                                    <p style={styles.hasilResetCatatan}>
-                                      Sampaikan ini secara manual (WA/telepon)
-                                      ke karyawan, lalu minta segera diganti
-                                      lewat menu "Ganti Password".
-                                    </p>
-                                    <button
-                                      onClick={() =>
-                                        setResetPasswordHasil(null)
-                                      }
-                                      style={styles.tombolBatal}
-                                    >
-                                      Tutup
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                            {konfirmasiStatusTerbuka === item.id && (
-                              <tr>
-                                <td
-                                  colSpan={5}
-                                  style={{
-                                    padding: "0 16px 16px 16px",
-                                    background: warna.panelAlt,
-                                  }}
-                                >
-                                  <div style={styles.konfirmasiInline}>
-                                    <span style={styles.konfirmasiTeks}>
-                                      Yakin nonaktifkan {item.nama}?
-                                    </span>
-                                    <div style={styles.formTombolGroup}>
-                                      <button
-                                        onClick={() =>
-                                          setKonfirmasiStatusTerbuka(null)
-                                        }
-                                        style={styles.tombolBatal}
-                                      >
-                                        Batal
-                                      </button>
-                                      <button
-                                        onClick={() =>
-                                          ubahStatusKaryawan(
-                                            item.id,
-                                            "nonaktif",
-                                          )
-                                        }
-                                        style={styles.tombolNonaktifkan}
-                                      >
-                                        Ya, Nonaktifkan
-                                      </button>
-                                    </div>
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </Fragment>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div
-                  className="tabel-fade-kanan"
-                  style={{
-                    ...styles.tabelFade,
-                    opacity: karyawanDiUjung ? 0 : 1,
-                  }}
-                />
-              </div>
-            </>
-          )}
-
-          {tabPernahDibuka.izin && (
-            <div style={{ display: tab === "izin" ? "block" : "none" }}>
-              <AdminIzin />
-            </div>
-          )}
-
-          {tabPernahDibuka.gaji && (
-            <div style={{ display: tab === "gaji" ? "block" : "none" }}>
-              <PengaturanGaji />
-            </div>
-          )}
-
-          {tabPernahDibuka["gaji-massal"] && (
-            <div style={{ display: tab === "gaji-massal" ? "block" : "none" }}>
-              <AdminGajiMassal />
-            </div>
-          )}
-
-          {tab === "kantor" && (
-            <>
-              <div style={styles.kantorInfoBanner}>
-                <div style={styles.kantorInfoIcon}>
-                  <Building2 size={18} strokeWidth={2} />
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <p style={styles.kantorInfoTitle}>
-                    Kantor Pusat PT. Zaman Teknindo
-                  </p>
-                  <p style={styles.kantorInfoText}>
-                    Kantor perusahaan berada di Pekanbaru. Karyawan dapat
-                    bekerja atau bertugas di berbagai wilayah Indonesia,
-                    sehingga data kantor ini digunakan sebagai referensi
-                    organisasi, sedangkan lokasi absensi mengikuti lokasi aktual
-                    karyawan.
-                  </p>
-                </div>
-              </div>
-
-              <div style={styles.kartuFormKantor}>
-                <div style={styles.headerFormKantor}>
-                  <div>
-                    <p style={styles.judulFormKantor}>
-                      {kantorEditId !== null
-                        ? "Edit Data Kantor Pusat"
-                        : "Data Kantor Pusat"}
-                    </p>
-                    <p style={styles.subJudulFormKantor}>
-                      Isi alamat dan koordinat resmi kantor. Koordinat boleh
-                      dikosongkan sampai data lokasi resmi tersedia.
-                    </p>
-                  </div>
-                  {kantorEditId !== null && (
-                    <span style={styles.badgeKantorEdit}>Mode Edit</span>
-                  )}
-                </div>
-
-                <div style={styles.formGridKantor}>
-                  <div style={styles.fieldKantor}>
-                    <label style={styles.labelForm}>Nama Kantor</label>
-                    <input
-                      value={formKantor.namaKantor}
-                      onChange={(e) =>
-                        setFormKantor({
-                          ...formKantor,
-                          namaKantor: e.target.value,
-                        })
-                      }
-                      placeholder="Contoh: Kantor Pusat PT. Zaman Teknindo"
-                      style={styles.inputFormKantor}
-                    />
-                  </div>
-
-                  <div style={styles.fieldKantor}>
-                    <label style={styles.labelForm}>Alamat Kantor</label>
-                    <input
-                      value={formKantor.alamat}
-                      onChange={(e) =>
-                        setFormKantor({ ...formKantor, alamat: e.target.value })
-                      }
-                      placeholder="Alamat resmi kantor di Pekanbaru"
-                      style={styles.inputFormKantor}
-                    />
-                  </div>
-
-                  <div style={styles.fieldKantor}>
-                    <label style={styles.labelForm}>
-                      <span style={styles.labelDenganIkon}>
-                        <MapPin size={13} />
-                        Latitude
-                      </span>
-                      <span style={styles.labelOpsional}>(opsional)</span>
-                    </label>
-                    <input
-                      value={formKantor.latitude}
-                      onChange={(e) =>
-                        setFormKantor({
-                          ...formKantor,
-                          latitude: e.target.value,
-                        })
-                      }
-                      placeholder="Masukkan latitude resmi"
-                      style={styles.inputFormKantor}
-                      inputMode="decimal"
-                    />
-                  </div>
-
-                  <div style={styles.fieldKantor}>
-                    <label style={styles.labelForm}>
-                      <span style={styles.labelDenganIkon}>
-                        <MapPin size={13} />
-                        Longitude
-                      </span>
-                      <span style={styles.labelOpsional}>(opsional)</span>
-                    </label>
-                    <input
-                      value={formKantor.longitude}
-                      onChange={(e) =>
-                        setFormKantor({
-                          ...formKantor,
-                          longitude: e.target.value,
-                        })
-                      }
-                      placeholder="Masukkan longitude resmi"
-                      style={styles.inputFormKantor}
-                      inputMode="decimal"
-                    />
-                  </div>
-                </div>
-
-                <div style={styles.kantorActionRow}>
-                  {kantorEditId !== null && (
-                    <button
-                      onClick={bukaFormTambahKantor}
-                      style={styles.tombolBatal}
-                    >
-                      Batal Edit
-                    </button>
-                  )}
-                  <button
-                    onClick={simpanKantor}
-                    style={styles.tombolAktifkan}
-                    disabled={sedangSimpanKantor}
-                  >
-                    {sedangSimpanKantor
-                      ? "Menyimpan…"
-                      : kantorEditId !== null
-                        ? "Simpan Perubahan"
-                        : "Simpan Kantor Pusat"}
-                  </button>
-                </div>
-              </div>
-
-              <div style={styles.kantorListHeader}>
-                <div>
-                  <h2 style={styles.kantorListTitle}>Data Kantor Tersimpan</h2>
-                  <p style={styles.kantorListSubTitle}>
-                    Saat ini cukup gunakan satu data kantor pusat sesuai kondisi
-                    perusahaan.
-                  </p>
-                </div>
-                <span style={styles.kantorCountBadge}>
-                  {loadingKantor
-                    ? "Memuat…"
-                    : `${daftarKantorState.length} data`}
-                </span>
-              </div>
-
-              <div style={styles.kartuGrid}>
-                {loadingKantor ? (
-                  <div style={{ width: "100%" }}>
-                    <table style={styles.tabel}>
-                      <tbody>
-                        <SkeletonBaris jumlah={4} />
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  daftarKantorState.map((k) => (
-                    <div
-                      key={k.id}
-                      style={styles.kantorCard}
-                      className="kartu-hover"
-                    >
-                      <div style={styles.kantorCardTop}>
-                        <div style={styles.kantorCardIcon}>
-                          <Building2 size={18} />
-                        </div>
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <strong style={styles.itemNama}>
-                            {k.namaKantor}
-                          </strong>
-                          <p style={styles.itemSub}>
-                            {k.alamat || "Alamat belum diisi"}
-                          </p>
-                        </div>
-                        <span style={styles.badgeKantorAktif}>
-                          Kantor Pusat
-                        </span>
-                      </div>
-
-                      <div style={styles.kantorMetaGrid}>
-                        <div style={styles.kantorMetaItem}>
-                          <span style={styles.kantorMetaLabel}>Karyawan</span>
-                          <strong style={styles.kantorMetaValue}>
-                            {k._count?.pengguna ?? 0}
-                          </strong>
-                        </div>
-                        <div style={styles.kantorMetaItem}>
-                          <span style={styles.kantorMetaLabel}>Koordinat</span>
-                          <strong style={styles.kantorMetaValue}>
-                            {k.latitude != null && k.longitude != null
-                              ? "Tersedia"
-                              : "Belum diisi"}
-                          </strong>
-                        </div>
-                      </div>
-
-                      <div style={styles.kantorCardFooter}>
-                        <span style={styles.kantorHint}>
-                          <Info size={13} />
-                          Lokasi absensi mengikuti lokasi aktual karyawan.
-                        </span>
-                        <button
-                          onClick={() => bukaFormEditKantor(k)}
-                          style={styles.tombolEditKantor}
-                        >
-                          Edit Data
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-
-                {!loadingKantor && daftarKantorState.length === 0 && (
-                  <div style={styles.kantorEmptyBox}>
-                    <Building2 size={28} strokeWidth={1.6} />
-                    <p style={styles.kantorEmptyTitle}>
-                      Data kantor pusat belum tersimpan
-                    </p>
-                    <p style={styles.kantorEmptyText}>
-                      Isi form di atas menggunakan alamat kantor resmi PT. Zaman
-                      Teknindo di Pekanbaru.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
+        {tab === "pengaturan" && <section><div style={styles.sectionHeader}><div><h2 style={styles.sectionTitle}>Pengaturan Sistem</h2><p style={styles.muted}>Pengaturan global yang benar-benar memengaruhi perilaku sistem.</p></div></div><div style={styles.card}><div style={styles.cardHead}><div style={styles.settingIcon}><Shield size={18} /></div><div><strong>Aturan Jam Kerja & Potongan</strong><p style={styles.muted}>Jam standar dipakai server untuk menentukan tepat waktu atau telat. Semua tampilan Admin menggunakan WIB.</p></div></div><div style={styles.formGrid}><Field label="Jam Masuk Standar"><input type="time" value={jamMasukStandar} onChange={(e) => setJamMasukStandar(e.target.value)} style={styles.input} /></Field><Field label="Potongan Telat (Rp)"><input type="number" min="0" value={potongan.potonganTelat} onChange={(e) => setPotongan({ ...potongan, potonganTelat: e.target.value })} style={styles.input} /></Field><Field label="Potongan Alpha (Rp)"><input type="number" min="0" value={potongan.potonganAlpha} onChange={(e) => setPotongan({ ...potongan, potonganAlpha: e.target.value })} style={styles.input} /></Field></div><div style={styles.formActions}><button type="button" onClick={() => void simpanAturan()} style={styles.primaryButton} disabled={simpanAturanLoading}><Save size={14} /> {simpanAturanLoading ? "Menyimpan…" : "Simpan Aturan"}</button></div></div><div style={styles.card}><div style={styles.cardHead}><div style={styles.settingIcon}><BarChart3 size={18} /></div><div><strong>Tampilan Rekap</strong><p style={styles.muted}>Preferensi hanya berlaku pada perangkat Admin ini dan tidak mengubah data bisnis.</p></div></div><div style={styles.optionRow}>{["ringkas", "normal", "lega"].map((mode) => <button type="button" key={mode} onClick={() => { setKepadatan(mode); try { localStorage.setItem("zaman-admin-density", mode); } catch {} }} style={kepadatan === mode ? styles.optionActive : styles.option}>{mode[0].toUpperCase() + mode.slice(1)}</button>)}<label style={styles.checkbox}><input type="checkbox" checked={tampilkanFoto} onChange={(e) => { setTampilkanFoto(e.target.checked); try { localStorage.setItem("zaman-admin-show-photos", String(e.target.checked)); } catch {} }} /> Tampilkan foto absensi</label></div></div><div style={styles.card}><div style={styles.cardHead}><div style={styles.settingIcon}><Building2 size={18} /></div><div><strong>Homebase & Lokasi</strong><p style={styles.muted}>Radius absensi tidak digunakan untuk memblokir absen. GPS tetap disimpan sebagai lokasi aktual.</p></div></div><button type="button" onClick={() => pilihTab("kantor")} style={styles.primaryButton}>Kelola Kantor & Homebase</button></div><div style={styles.card}><div style={styles.cardHead}><div style={styles.settingIcon}><Settings size={18} /></div><div><strong>Pengguna & Keamanan</strong><p style={styles.muted}>Password Admin dikelola dari halaman keamanan. Reset password karyawan tersedia di menu Karyawan.</p></div></div><button type="button" onClick={() => navigate("/ganti-password")} style={styles.smallButton}>Ganti Password Admin</button></div></section>}
+      </main>
     </div>
   );
 }
 
+function StatCard({ label, value, icon: Icon, tone }) {
+  const color = tone === "sukses" ? warna.sukses : tone === "peringatan" ? warna.peringatan : warna.aksen;
+  const bg = tone === "sukses" ? warna.suksesLembut : tone === "peringatan" ? warna.peringatanLembut : warna.aksenLembut;
+  return <div style={{ ...styles.statCard, borderLeft: `3px solid ${color}` }}><div style={{ ...styles.statIcon, color, background: bg }}><Icon size={17} /></div><strong style={{ ...styles.statValue, color }}>{value}</strong><span style={styles.statLabel}>{label}</span></div>;
+}
+
+function Field({ label, children }) { return <label style={styles.field}><span style={styles.fieldLabel}>{label}</span>{children}</label>; }
+
+function Modal({ title, onClose, children }) { return <div style={styles.modalBackdrop}><div style={styles.modal}><div style={styles.modalHeader}><strong>{title}</strong><button type="button" onClick={onClose} style={styles.iconButton}><X size={16} /></button></div>{children}</div></div>; }
+
+function Skeleton({ rows = 4, cols = 5 }) { return Array.from({ length: rows }).map((_, row) => <tr key={row}><td colSpan={cols} style={{ padding: 14 }}><div style={{ height: 12, width: `${45 + (row % 3) * 15}%`, background: warna.panelAlt, borderRadius: 6 }} /></td></tr>); }
+function SkeletonCards() { return Array.from({ length: 3 }).map((_, i) => <div key={i} style={styles.card}><div style={{ height: 12, width: "50%", background: warna.panelAlt, borderRadius: 6, marginBottom: 10 }} /><div style={{ height: 10, width: "75%", background: warna.panelAlt, borderRadius: 6 }} /></div>); }
+
 const styles = {
-  // Dulu "minHeight: 100vh" tanpa batas overflow -- akibatnya kalau konten
-  // sebuah tab panjang (misal halaman Gaji), SELURUH halaman ikut discroll
-  // termasuk sidebar-nya, jadi sidebar kelihatan "ikut kabur" ke atas.
-  // Sekarang shell dikunci setinggi layar (height, bukan minHeight) + overflow
-  // hidden, supaya sidebar & konten masing-masing scroll sendiri-sendiri --
-  // pola "app shell" standar: sidebar diam, cuma konten kanan yang jalan.
-  shell: {
-    display: "flex",
-    height: "100svh",
-    overflow: "hidden",
-    background: warna.latar,
-    fontFamily: font.display,
-  },
-
-  // ---------- SIDEBAR ----------
-  sidebar: {
-    width: 232,
-    background: warna.panel,
-    borderRight: `1px solid ${warna.garis}`,
-    display: "flex",
-    flexDirection: "column",
-    padding: "22px 14px",
-    flexShrink: 0,
-    overflowY: "auto",
-  },
-  sidebarAtas: { padding: "0 8px", marginBottom: 26 },
-  logoSidebar: {
-    height: 42,
-    maxWidth: "100%",
-    width: "auto",
-    objectFit: "contain",
-    objectPosition: "left center",
-    display: "block",
-  },
-  navSidebar: { display: "flex", flexDirection: "column", gap: 4, flex: 1 },
-  navGrup: { display: "flex", flexDirection: "column", gap: 2 },
-  navGrupLabel: {
-    margin: "12px 10px 4px",
-    fontSize: 10,
-    fontWeight: 700,
-    letterSpacing: "0.08em",
-    color: warna.tintaSamar,
-  },
-  navItem: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "10px 12px",
-    background: "none",
-    border: "none",
-    borderRadius: 8,
-    fontSize: 13.5,
-    color: warna.tintaLembut,
-    cursor: "pointer",
-    fontWeight: 500,
-    textAlign: "left",
-  },
-  navItemAktif: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "10px 12px",
-    background: warna.aksenLembut,
-    border: "none",
-    borderRadius: 8,
-    fontSize: 13.5,
-    color: warna.aksen,
-    cursor: "pointer",
-    fontWeight: 700,
-    textAlign: "left",
-  },
-  navIkon: { flexShrink: 0 },
-  navBadge: {
-    background: warna.bahaya,
-    color: "#fff",
-    fontSize: 10.5,
-    fontWeight: 700,
-    borderRadius: 20,
-    padding: "1px 7px",
-  },
-  sidebarBawah: {
-    borderTop: `1px solid ${warna.garis}`,
-    paddingTop: 14,
-    marginTop: 10,
-  },
-  profilSidebar: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "0 8px",
-    marginBottom: 10,
-  },
-  avatarLingkaran: {
-    width: 36,
-    height: 36,
-    borderRadius: "50%",
-    background: warna.tinta,
-    color: "#fff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 13,
-    fontWeight: 700,
-    flexShrink: 0,
-  },
-  namaProfil: {
-    margin: 0,
-    fontSize: 13,
-    color: warna.tinta,
-    fontWeight: 600,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  perananProfil: { margin: 0, fontSize: 11, color: warna.tintaSamar },
-  // Dua tombol aksi (Ganti Password & Keluar) berdampingan sebagai kartu
-  // kecil bertepi, bukan lagi teks polos tanpa bingkai
-  aksiSidebarRow: { display: "flex", gap: 6 },
-  tombolAksiSidebar: {
-    flex: 1,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-    background: warna.panelAlt,
-    border: `1px solid ${warna.garis}`,
-    borderRadius: 8,
-    padding: "8px 6px",
-    fontSize: 11.5,
-    fontWeight: 600,
-    color: warna.tintaLembut,
-    cursor: "pointer",
-  },
-  tombolAksiSidebarBahaya: { color: warna.bahaya },
-
-  // ---------- MAIN AREA ----------
-  mainArea: {
-    flex: 1,
-    minWidth: 0,
-    padding: "26px 32px",
-    overflowY: "auto",
-    height: "100%",
-  },
-  topbarMobile: {
-    display: "none",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 14,
-    position: "sticky",
-    top: 0,
-    zIndex: 10,
-    background: warna.latar,
-    padding: "4px 0",
-  },
-  tombolHamburger: {
-    background: warna.panel,
-    border: `1px solid ${warna.garis}`,
-    borderRadius: 8,
-    padding: 8,
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    width: 36,
-    height: 36,
-  },
-  topbarLogoKecil: { height: 28, objectFit: "contain" },
-  topbarJudul: { fontSize: 15, fontWeight: 700, color: warna.tinta },
-  headerAtas: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 22,
-  },
-  judulHalaman: {
-    margin: 0,
-    fontSize: 24,
-    fontWeight: 700,
-    color: warna.tinta,
-  },
-  subJudulHalaman: {
-    margin: "4px 0 0 0",
-    fontSize: 13,
-    color: warna.tintaLembut,
-  },
-
-  notifikasiWrapper: { position: "relative", flexShrink: 0 },
-  notifikasiButton: {
-    position: "relative",
-    width: 40,
-    height: 40,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 10,
-    border: `1px solid ${warna.garis}`,
-    background: warna.panel,
-    color: warna.tinta,
-    cursor: "pointer",
-  },
-  notifikasiCount: {
-    position: "absolute",
-    top: -5,
-    right: -5,
-    minWidth: 18,
-    height: 18,
-    padding: "0 5px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 999,
-    background: warna.bahaya,
-    color: "#fff",
-    border: "2px solid #fff",
-    fontSize: 9,
-    fontWeight: 800,
-    lineHeight: 1,
-  },
-  notifikasiPanel: {
-    position: "absolute",
-    top: 48,
-    right: 0,
-    width: 340,
-    maxWidth: "calc(100vw - 32px)",
-    background: warna.panel,
-    border: `1px solid ${warna.garis}`,
-    borderRadius: 14,
-    boxShadow: "0 16px 40px rgba(22,35,61,0.14)",
-    overflow: "hidden",
-    zIndex: 30,
-  },
-  notifikasiPanelHeader: {
-    display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 12,
-    padding: "14px 14px 12px",
-    borderBottom: `1px solid ${warna.garis}`,
-  },
-  notifikasiPanelTitle: {
-    margin: 0,
-    fontSize: 14,
-    fontWeight: 750,
-    color: warna.tinta,
-  },
-  notifikasiPanelSubTitle: {
-    margin: "3px 0 0",
-    fontSize: 10.5,
-    color: warna.tintaSamar,
-  },
-  notifikasiCloseButton: {
-    width: 28,
-    height: 28,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    border: "none",
-    borderRadius: 8,
-    background: warna.panelAlt,
-    color: warna.tintaLembut,
-    cursor: "pointer",
-    flexShrink: 0,
-  },
-  notifikasiList: { display: "flex", flexDirection: "column" },
-  notifikasiItem: {
-    width: "100%",
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "12px 14px",
-    border: "none",
-    borderBottom: `1px solid ${warna.garis}`,
-    background: "transparent",
-    textAlign: "left",
-    cursor: "pointer",
-  },
-  notifikasiItemIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  notifikasiItemContent: {
-    minWidth: 0,
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    gap: 3,
-  },
-  notifikasiItemJudul: { fontSize: 12, fontWeight: 700, color: warna.tinta },
-  notifikasiItemSub: { fontSize: 11, color: warna.tintaLembut },
-  notifikasiArrow: { color: warna.tintaSamar, flexShrink: 0 },
-  notifikasiKosong: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    padding: "28px 18px",
-    color: warna.tintaSamar,
-    textAlign: "center",
-  },
-  notifikasiFooter: {
-    padding: "9px 14px",
-    background: warna.panelAlt,
-    color: warna.tintaSamar,
-    fontSize: 9.5,
-    textAlign: "center",
-  },
-
-  content: { maxWidth: 1040 },
-
-  toastBase: {
-    position: "fixed",
-    top: 20,
-    right: 20,
-    zIndex: 9999,
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    width: "min(380px, calc(100vw - 40px))",
-    boxSizing: "border-box",
-    padding: "12px 15px",
-    borderRadius: 12,
-    background: warna.panel,
-    fontFamily: font.display,
-    fontSize: 13,
-    fontWeight: 600,
-    lineHeight: 1.45,
-    boxShadow: "0 12px 30px rgba(22, 35, 61, 0.14)",
-  },
-  toastSukses: {
-    position: "fixed",
-    top: 20,
-    right: 20,
-    zIndex: 9999,
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    width: "min(380px, calc(100vw - 40px))",
-    boxSizing: "border-box",
-    padding: "12px 15px",
-    borderRadius: 12,
-    border: `1px solid ${warna.aksenLembut}`,
-    background: warna.panel,
-    color: warna.tinta,
-    fontFamily: font.display,
-    fontSize: 13,
-    fontWeight: 600,
-    lineHeight: 1.45,
-    boxShadow: "0 12px 30px rgba(22, 35, 61, 0.14)",
-  },
-  toastError: {
-    position: "fixed",
-    top: 20,
-    right: 20,
-    zIndex: 9999,
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    width: "min(380px, calc(100vw - 40px))",
-    boxSizing: "border-box",
-    padding: "12px 15px",
-    borderRadius: 12,
-    border: `1px solid ${warna.bahayaLembut}`,
-    background: warna.panel,
-    color: warna.bahaya,
-    fontFamily: font.display,
-    fontSize: 13,
-    fontWeight: 600,
-    lineHeight: 1.45,
-    boxShadow: "0 12px 30px rgba(22, 35, 61, 0.14)",
-  },
-  toastIconSukses: {
-    width: 24,
-    height: 24,
-    flexShrink: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: "50%",
-    background: warna.aksenLembut,
-    color: warna.aksen,
-    fontSize: 13,
-    fontWeight: 800,
-  },
-  toastIconError: {
-    width: 24,
-    height: 24,
-    flexShrink: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: "50%",
-    background: warna.bahayaLembut,
-    color: warna.bahaya,
-    fontSize: 13,
-    fontWeight: 800,
-  },
-  toastText: {
-    flex: 1,
-    minWidth: 0,
-  },
-
-  statGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-    gap: 10,
-    marginBottom: 18,
-  },
-
-  // ---------- Panel Tren & Analisis (collapsible) ----------
-  tombolTogglePanel: {
-    width: "100%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    background: warna.panel,
-    border: `1px solid ${warna.garis}`,
-    borderRadius: 10,
-    padding: "12px 16px",
-    fontSize: 13,
-    fontWeight: 600,
-    color: warna.tinta,
-    cursor: "pointer",
-    marginBottom: 12,
-  },
-  panelRingkasan: { marginBottom: 18 },
-  ringkasanGrid: { display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 12 },
-  ringkasanKotak: {
-    background: warna.panel,
-    border: `1px solid ${warna.garis}`,
-    borderRadius: 10,
-    padding: "14px 16px",
-  },
-  ringkasanJudul: {
-    fontSize: 12.5,
-    fontWeight: 600,
-    color: warna.tintaLembut,
-    margin: "0 0 12px 0",
-  },
-  chartBarGroup: {
-    display: "flex",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-    gap: 6,
-    height: 76,
-  },
-  chartKolom: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 5,
-    flex: 1,
-  },
-  chartBatangWrapper: {
-    display: "flex",
-    flexDirection: "column-reverse",
-    alignItems: "center",
-    width: "100%",
-    maxWidth: 26,
-  },
-  chartSegmen: { width: "100%", borderRadius: 2 },
-  chartBatangKosong: {
-    width: "100%",
-    height: 3,
-    borderRadius: 2,
-    background: warna.panelAlt,
-  },
-  chartLabelHari: { fontSize: 10.5, color: warna.tintaSamar },
-  sorotanBaris: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "7px 0",
-    borderBottom: `1px solid ${warna.garis}`,
-    fontSize: 12.5,
-  },
-  sorotanNama: { color: warna.tinta },
-  sorotanNamaWrap: { display: "flex", alignItems: "center", gap: 8 },
-  sorotanPeringkat: {
-    width: 18,
-    height: 18,
-    borderRadius: "50%",
-    background: warna.panelAlt,
-    color: warna.tintaSamar,
-    fontSize: 10,
-    fontWeight: 700,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  legendaChart: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "6px 12px",
-    margin: "-6px 0 12px",
-  },
-  legendaItem: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 5,
-    fontSize: 10.5,
-    color: warna.tintaLembut,
-  },
-  legendaDot: { width: 6, height: 6, borderRadius: "50%", flexShrink: 0 },
-  sorotanAngka: {
-    fontSize: 11.5,
-    color: warna.tintaLembut,
-    fontWeight: 600,
-    fontFamily: font.mono,
-  },
-  statCard: {
-    background: warna.panel,
-    borderRadius: 10,
-    padding: "16px 18px",
-    border: `1px solid ${warna.garis}`,
-    borderLeft: `3px solid ${warna.tinta}`,
-    display: "flex",
-    flexDirection: "column",
-    gap: 4,
-  },
-  statIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 9,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 4,
-  },
-  statAngka: {
-    fontSize: 26,
-    fontWeight: 700,
-    color: warna.tinta,
-    fontFamily: font.mono,
-    lineHeight: 1,
-  },
-  statLabel: { fontSize: 12, color: warna.tintaLembut, fontWeight: 500 },
-  statHint: { fontSize: 10.5, color: warna.tintaSamar, marginTop: 1 },
-  panelBelumAbsen: {
-    background: warna.panel,
-    border: `1px solid ${warna.garis}`,
-    borderRadius: 10,
-    padding: "14px 16px",
-    marginBottom: 12,
-  },
-  panelBelumAbsenHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 12,
-    marginBottom: 12,
-  },
-  panelBelumAbsenJudul: {
-    margin: 0,
-    fontSize: 13,
-    fontWeight: 700,
-    color: warna.tinta,
-  },
-  panelBelumAbsenSub: {
-    margin: "3px 0 0",
-    fontSize: 11.5,
-    color: warna.tintaSamar,
-  },
-  tombolTutupPanel: {
-    background: "transparent",
-    border: `1px solid ${warna.garis}`,
-    color: warna.tintaLembut,
-    borderRadius: 7,
-    padding: "6px 9px",
-    fontSize: 11.5,
-    cursor: "pointer",
-    flexShrink: 0,
-  },
-  belumAbsenGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))",
-    gap: 8,
-  },
-  belumAbsenItem: {
-    display: "flex",
-    alignItems: "center",
-    gap: 9,
-    padding: "9px 10px",
-    background: warna.panelAlt,
-    border: `1px solid ${warna.garis}`,
-    borderRadius: 8,
-    minWidth: 0,
-  },
-  avatarMini: {
-    width: 32,
-    height: 32,
-    borderRadius: "50%",
-    background: warna.aksen,
-    color: "#fff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 10.5,
-    fontWeight: 700,
-    flexShrink: 0,
-  },
-  tdNamaWrap: { display: "flex", alignItems: "center", gap: 9 },
-  avatarTabelMini: {
-    width: 26,
-    height: 26,
-    borderRadius: "50%",
-    background: warna.aksenLembut,
-    color: warna.aksen,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 9.5,
-    fontWeight: 700,
-    flexShrink: 0,
-  },
-  belumAbsenNama: {
-    display: "block",
-    fontSize: 12.5,
-    color: warna.tinta,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  belumAbsenSubItem: {
-    margin: "2px 0 0",
-    fontSize: 10.5,
-    color: warna.tintaSamar,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  belumAbsenKosong: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    padding: "10px 12px",
-    borderRadius: 8,
-    background: warna.panelAlt,
-    color: warna.tintaLembut,
-    fontSize: 12,
-  },
-
-  kotakCari: {
-    width: "100%",
-    maxWidth: 360,
-    padding: "10px 14px",
-    marginBottom: 14,
-    borderRadius: 10,
-    border: `1px solid ${warna.garis}`,
-    fontSize: 13.5,
-    color: warna.tinta,
-    background: warna.panel,
-    boxSizing: "border-box",
-    fontFamily: font.display,
-  },
-
-  // ---------- TABEL ----------
-  // Wrapper diberi position:relative supaya bisa ditumpuki gradient fade
-  // (lihat "tabelFade") sebagai penanda "masih ada kolom di sebelah kanan, geser dong"
-  tabelWrapperLuar: { position: "relative" },
-  tabelWrapper: {
-    background: warna.panel,
-    border: `1px solid ${warna.garis}`,
-    borderRadius: 12,
-    overflow: "auto",
-    maxWidth: "100%",
-    WebkitOverflowScrolling: "touch",
-  },
-  // Gradient tipis di tepi kanan tabel, HANYA terlihat kalau tabelnya memang
-  // lebih lebar dari kontainer (lihat className "tabel-fade" + CSS di index.css)
-  tabelFade: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    bottom: 0,
-    width: 28,
-    background: `linear-gradient(to right, transparent, ${warna.panel})`,
-    pointerEvents: "none",
-    borderRadius: "0 12px 12px 0",
-  },
-  tabel: { width: "100%", borderCollapse: "collapse", minWidth: 640 },
-  th: {
-    textAlign: "left",
-    fontSize: 11,
-    fontWeight: 700,
-    color: warna.tintaSamar,
-    textTransform: "uppercase",
-    letterSpacing: "0.04em",
-    padding: "12px 16px",
-    borderBottom: `1px solid ${warna.garis}`,
-    background: warna.panelAlt,
-  },
-  // Kolom pertama (nama karyawan) dibuat "lengket" ke kiri saat tabel digeser
-  // ke samping di HP, supaya orang tetap tahu baris ini punya siapa
-  thSticky: { position: "sticky", left: 0, zIndex: 1 },
-  td: {
-    padding: "13px 16px",
-    borderBottom: `1px solid ${warna.garis}`,
-    fontSize: 13,
-    color: warna.tinta,
-    verticalAlign: "top",
-  },
-  tdSticky: {
-    position: "sticky",
-    left: 0,
-    background: warna.panel,
-    zIndex: 1,
-    boxShadow: `1px 0 0 ${warna.garis}`,
-  },
-  tdSub: { fontSize: 11.5, color: warna.tintaLembut, marginTop: 2 },
-  tdKosong: {
-    textAlign: "center",
-    padding: "40px 16px",
-    color: warna.tintaSamar,
-    fontSize: 13.5,
-  },
-  mono: { fontFamily: font.mono, fontWeight: 600 },
-  hintGeser: {
-    alignItems: "center",
-    gap: 6,
-    fontSize: 11.5,
-    color: warna.tintaSamar,
-    margin: "0 0 8px 2px",
-  },
-
-  badge: {
-    fontSize: 11,
-    fontWeight: 600,
-    padding: "3px 10px",
-    borderRadius: 10,
-    whiteSpace: "nowrap",
-  },
-
-  // ---------- KARTU (dipakai buat tab Menunggu) ----------
-  kartuGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-    gap: 10,
-  },
-  itemCard: {
-    background: warna.panel,
-    borderRadius: 10,
-    padding: 16,
-    border: `1px solid ${warna.garis}`,
-    borderLeft: `3px solid ${warna.peringatan}`,
-    transition:
-      "border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease",
-  },
-  itemCardHeader: {
-    display: "flex",
-    alignItems: "flex-start",
-    gap: 10,
-    marginBottom: 12,
-  },
-  badgeMenunggu: {
-    flexShrink: 0,
-    fontSize: 10.5,
-    fontWeight: 700,
-    color: warna.peringatan,
-    background: warna.peringatanLembut,
-    padding: "3px 8px",
-    borderRadius: 999,
-  },
-  itemMetaDaftar: {
-    display: "flex",
-    alignItems: "center",
-    gap: 5,
-    fontSize: 11,
-    color: warna.tintaSamar,
-    margin: "-4px 0 12px",
-  },
-  itemNama: { fontSize: 14.5, color: warna.tinta },
-  itemSub: { fontSize: 12.5, color: warna.tintaLembut, margin: "3px 0 0 0" },
-
-  kosongBox: {
-    textAlign: "center",
-    padding: "48px 24px",
-    background: warna.panel,
-    borderRadius: 10,
-    border: `1px dashed ${warna.garis}`,
-  },
-  kosongIkon: {
-    display: "block",
-    marginBottom: 8,
-    marginLeft: "auto",
-    marginRight: "auto",
-  },
-  kosong: {
-    textAlign: "center",
-    color: warna.tintaSamar,
-    fontSize: 13.5,
-    margin: 0,
-  },
-
-  catatanAdmin: {
-    fontSize: 11.5,
-    color: warna.tintaLembut,
-    background: "#fff",
-    borderLeft: `3px solid ${warna.aksen}`,
-    padding: "8px 10px",
-    borderRadius: 8,
-    margin: 0,
-  },
-  tombolEditKecil: {
-    padding: "7px 12px",
-    background: "none",
-    color: warna.tinta,
-    border: `1px solid ${warna.garis}`,
-    borderRadius: 8,
-    fontSize: 11.5,
-    cursor: "pointer",
-    fontWeight: 600,
-    whiteSpace: "nowrap",
-  },
-  formInline: {
-    paddingTop: 12,
-    display: "flex",
-    flexDirection: "column",
-    gap: 4,
-    maxWidth: 420,
-  },
-  labelForm: {
-    fontSize: 11,
-    color: warna.tintaLembut,
-    fontWeight: 600,
-    marginTop: 6,
-  },
-  inputForm: {
-    padding: "8px 10px",
-    border: `1px solid ${warna.garis}`,
-    borderRadius: 8,
-    fontSize: 13,
-    color: warna.tinta,
-    fontFamily: font.display,
-  },
-  selectForm: {
-    padding: "8px 10px",
-    border: `1px solid ${warna.garis}`,
-    borderRadius: 8,
-    fontSize: 13,
-    color: warna.tinta,
-    fontFamily: font.display,
-    background: "#fff",
-  },
-  textareaForm: {
-    padding: "8px 10px",
-    border: `1px solid ${warna.garis}`,
-    borderRadius: 8,
-    fontSize: 13,
-    color: warna.tinta,
-    fontFamily: font.display,
-    minHeight: 56,
-    resize: "vertical",
-  },
-  formTombolGroup: { display: "flex", gap: 8, marginTop: 8 },
-  tombolBatal: {
-    flex: 1,
-    padding: "9px 14px",
-    background: "none",
-    color: warna.tintaLembut,
-    border: `1px solid ${warna.garis}`,
-    borderRadius: 8,
-    fontSize: 12.5,
-    cursor: "pointer",
-    fontWeight: 600,
-  },
-  konfirmasiInline: { paddingTop: 12 },
-  konfirmasiTeks: { fontSize: 12.5, color: warna.tinta, fontWeight: 500 },
-  hasilResetBox: { paddingTop: 12, maxWidth: 420 },
-  hasilResetTeks: { fontSize: 12.5, color: warna.tinta, margin: "0 0 8px 0" },
-  hasilResetKode: {
-    fontFamily: font.mono,
-    fontSize: 18,
-    fontWeight: 700,
-    letterSpacing: "0.06em",
-    color: warna.aksen,
-    background: "#fff",
-    border: `1.5px dashed ${warna.aksen}`,
-    borderRadius: 8,
-    padding: "10px 14px",
-    textAlign: "center",
-    marginBottom: 8,
-    userSelect: "all",
-  },
-  hasilResetCatatan: {
-    fontSize: 11.5,
-    color: warna.tintaLembut,
-    margin: "0 0 10px 0",
-    lineHeight: 1.5,
-  },
-  tombolAktifkan: {
-    padding: "9px 16px",
-    background: warna.aksen,
-    color: "#fff",
-    border: "none",
-    borderRadius: 8,
-    fontSize: 12.5,
-    cursor: "pointer",
-    fontWeight: 600,
-  },
-  tombolNonaktifkan: {
-    padding: "9px 16px",
-    background: "#fff",
-    color: warna.bahaya,
-    border: `1px solid ${warna.bahaya}`,
-    borderRadius: 8,
-    fontSize: 12.5,
-    cursor: "pointer",
-    fontWeight: 600,
-  },
-  tombolNonaktifkanKecil: {
-    padding: "7px 12px",
-    background: "none",
-    color: warna.bahaya,
-    border: `1px solid ${warna.bahaya}`,
-    borderRadius: 8,
-    fontSize: 11.5,
-    cursor: "pointer",
-    fontWeight: 600,
-    whiteSpace: "nowrap",
-  },
-
-  kantorInfoBanner: {
-    display: "flex",
-    alignItems: "flex-start",
-    gap: 12,
-    background: warna.aksenLembut,
-    border: `1px solid ${warna.garis}`,
-    borderRadius: 12,
-    padding: "14px 16px",
-    marginBottom: 14,
-  },
-  kantorInfoIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 9,
-    flexShrink: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: warna.panel,
-    color: warna.aksen,
-    border: `1px solid ${warna.garis}`,
-  },
-  kantorInfoTitle: {
-    margin: 0,
-    fontSize: 13.5,
-    fontWeight: 700,
-    color: warna.tinta,
-  },
-  kantorInfoText: {
-    margin: "4px 0 0",
-    fontSize: 11.5,
-    lineHeight: 1.6,
-    color: warna.tintaLembut,
-  },
-  kartuFormKantor: {
-    background: warna.panel,
-    borderRadius: 12,
-    padding: 20,
-    border: `1px solid ${warna.garis}`,
-    marginBottom: 18,
-  },
-  headerFormKantor: {
-    display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 12,
-    marginBottom: 16,
-  },
-  judulFormKantor: {
-    fontSize: 15,
-    fontWeight: 700,
-    color: warna.tinta,
-    margin: 0,
-  },
-  subJudulFormKantor: {
-    fontSize: 11.5,
-    color: warna.tintaLembut,
-    margin: "4px 0 0",
-    lineHeight: 1.55,
-    maxWidth: 680,
-  },
-  badgeKantorEdit: {
-    flexShrink: 0,
-    padding: "4px 9px",
-    borderRadius: 999,
-    background: warna.peringatanLembut,
-    color: warna.peringatan,
-    fontSize: 10.5,
-    fontWeight: 700,
-  },
-  formGridKantor: {
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: 14,
-    marginTop: 4,
-  },
-  fieldKantor: { minWidth: 0 },
-  labelDenganIkon: { display: "inline-flex", alignItems: "center", gap: 5 },
-  labelOpsional: { color: warna.tintaSamar, marginLeft: 4, fontWeight: 500 },
-  inputFormKantor: {
-    width: "100%",
-    boxSizing: "border-box",
-    padding: "10px 12px",
-    border: `1px solid ${warna.garis}`,
-    borderRadius: 9,
-    fontSize: 13,
-    color: warna.tinta,
-    fontFamily: font.display,
-    background: "#fff",
-    outline: "none",
-  },
-  kantorActionRow: {
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: 8,
-    marginTop: 16,
-  },
-  kantorListHeader: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    marginBottom: 10,
-  },
-  kantorListTitle: {
-    margin: 0,
-    fontSize: 14.5,
-    fontWeight: 700,
-    color: warna.tinta,
-  },
-  kantorListSubTitle: {
-    margin: "3px 0 0",
-    fontSize: 11.5,
-    color: warna.tintaSamar,
-  },
-  kantorCountBadge: {
-    flexShrink: 0,
-    padding: "5px 9px",
-    borderRadius: 999,
-    background: warna.panelAlt,
-    color: warna.tintaLembut,
-    border: `1px solid ${warna.garis}`,
-    fontSize: 10.5,
-    fontWeight: 600,
-  },
-  kantorCard: {
-    background: warna.panel,
-    borderRadius: 12,
-    padding: 16,
-    border: `1px solid ${warna.garis}`,
-    transition:
-      "border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease",
-  },
-  kantorCardTop: { display: "flex", alignItems: "flex-start", gap: 10 },
-  kantorCardIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    flexShrink: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: warna.aksenLembut,
-    color: warna.aksen,
-  },
-  badgeKantorAktif: {
-    flexShrink: 0,
-    padding: "4px 8px",
-    borderRadius: 999,
-    background: warna.suksesLembut,
-    color: warna.sukses,
-    fontSize: 10,
-    fontWeight: 700,
-  },
-  kantorMetaGrid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 8,
-    marginTop: 14,
-  },
-  kantorMetaItem: {
-    background: warna.panelAlt,
-    border: `1px solid ${warna.garis}`,
-    borderRadius: 9,
-    padding: "9px 10px",
-  },
-  kantorMetaLabel: {
-    display: "block",
-    fontSize: 10.5,
-    color: warna.tintaSamar,
-    marginBottom: 3,
-  },
-  kantorMetaValue: { fontSize: 12.5, color: warna.tinta },
-  kantorCardFooter: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-    marginTop: 12,
-    paddingTop: 11,
-    borderTop: `1px solid ${warna.garis}`,
-  },
-  kantorHint: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 5,
-    minWidth: 0,
-    fontSize: 10.5,
-    color: warna.tintaSamar,
-    lineHeight: 1.4,
-  },
-  tombolEditKantor: {
-    flexShrink: 0,
-    padding: "7px 12px",
-    background: "none",
-    color: warna.tinta,
-    border: `1px solid ${warna.garis}`,
-    borderRadius: 8,
-    fontSize: 11.5,
-    cursor: "pointer",
-    fontWeight: 600,
-  },
-  kantorEmptyBox: {
-    gridColumn: "1 / -1",
-    textAlign: "center",
-    padding: "42px 24px",
-    background: warna.panel,
-    borderRadius: 12,
-    border: `1px dashed ${warna.garis}`,
-    color: warna.tintaSamar,
-  },
-  kantorEmptyTitle: {
-    margin: "8px 0 4px",
-    color: warna.tinta,
-    fontSize: 13.5,
-    fontWeight: 600,
-  },
-  kantorEmptyText: {
-    margin: 0,
-    maxWidth: 520,
-    marginInline: "auto",
-    fontSize: 11.5,
-    lineHeight: 1.6,
-    color: warna.tintaSamar,
-  },
-  infoKosong: { color: warna.tintaSamar, fontSize: 13.5, gridColumn: "1 / -1" },
-
-  fotoAbsenRow: { display: "flex", gap: 8, marginTop: 10 },
-  fotoAbsenThumb: {
-    width: 56,
-    height: 56,
-    borderRadius: 8,
-    objectFit: "cover",
-    border: `1px solid ${warna.garis}`,
-    cursor: "pointer",
-  },
-  fotoAbsenLabel: {
-    fontSize: 10,
-    color: warna.tintaSamar,
-    textAlign: "center",
-    marginTop: 3,
-  },
+  shell: { display: "flex", height: "100svh", overflow: "hidden", background: warna.latar, fontFamily: font.display, color: warna.tinta },
+  sidebar: { width: 240, flexShrink: 0, display: "flex", flexDirection: "column", background: warna.panel, borderRight: `1px solid ${warna.garis}`, padding: "20px 14px", overflowY: "auto", zIndex: 50 },
+  logoWrap: { padding: "4px 8px 22px" },
+  logo: { width: "100%", maxWidth: 190, height: "auto" },
+  nav: { flex: 1, display: "grid", alignContent: "start", gap: 4 },
+  groupTitle: { margin: "12px 10px 5px", fontSize: 9.5, fontWeight: 800, letterSpacing: "0.09em", color: warna.tintaSamar },
+  navItem: { width: "100%", border: 0, background: "transparent", borderRadius: 9, padding: "10px 11px", display: "flex", alignItems: "center", gap: 9, color: warna.tintaLembut, cursor: "pointer", fontSize: 13, fontWeight: 600 },
+  navActive: { width: "100%", border: 0, background: warna.aksenLembut, borderRadius: 9, padding: "10px 11px", display: "flex", alignItems: "center", gap: 9, color: warna.aksen, cursor: "pointer", fontSize: 13, fontWeight: 750 },
+  badge: { background: warna.bahaya, color: "#fff", minWidth: 18, height: 18, padding: "0 5px", borderRadius: 999, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800 },
+  sidebarBottom: { borderTop: `1px solid ${warna.garis}`, paddingTop: 13, marginTop: 12 },
+  profileRow: { display: "flex", alignItems: "center", gap: 9, marginBottom: 10 },
+  profileName: { display: "block", fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+  profileRole: { display: "block", fontSize: 10.5, color: warna.tintaSamar },
+  avatar: { width: 34, height: 34, borderRadius: "50%", flexShrink: 0, background: warna.tinta, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10.5, fontWeight: 800 },
+  avatarSmall: { width: 28, height: 28, borderRadius: "50%", flexShrink: 0, background: warna.aksenLembut, color: warna.aksen, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800 },
+  smallButton: { minHeight: 36, padding: "7px 10px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 8, border: `1px solid ${warna.garis}`, background: warna.panel, color: warna.tintaLembut, fontSize: 11.5, fontWeight: 700, cursor: "pointer" },
+  primaryButton: { minHeight: 38, padding: "8px 12px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 8, border: 0, background: warna.aksen, color: "#fff", fontSize: 11.5, fontWeight: 750, cursor: "pointer" },
+  main: { flex: 1, minWidth: 0, overflowY: "auto", padding: "25px 30px" },
+  mobileBar: { display: "none", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+  header: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, marginBottom: 20 },
+  title: { margin: 0, fontSize: 24, fontWeight: 800 },
+  subtitle: { margin: "4px 0 0", fontSize: 12, color: warna.tintaSamar },
+  iconButton: { position: "relative", width: 38, height: 38, borderRadius: 9, border: `1px solid ${warna.garis}`, background: warna.panel, color: warna.tinta, display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" },
+  notifDot: { position: "absolute", top: -5, right: -5, minWidth: 18, height: 18, padding: "0 5px", borderRadius: 999, background: warna.bahaya, color: "#fff", border: "2px solid #fff", fontSize: 9, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" },
+  notifPanel: { position: "absolute", right: 0, top: 44, width: 320, maxWidth: "calc(100vw - 28px)", background: warna.panel, border: `1px solid ${warna.garis}`, borderRadius: 12, boxShadow: "0 18px 40px rgba(22,35,61,.14)", overflow: "hidden", zIndex: 100 },
+  notifHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", borderBottom: `1px solid ${warna.garis}` },
+  notifItem: { width: "100%", border: 0, borderBottom: `1px solid ${warna.garis}`, background: "transparent", padding: "12px 14px", display: "flex", alignItems: "center", gap: 8, textAlign: "left", cursor: "pointer", color: warna.tinta, fontSize: 11.5, fontWeight: 700 },
+  notifFooter: { padding: 9, fontSize: 9.5, color: warna.tintaSamar, textAlign: "center", background: warna.panelAlt },
+  statGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: 10, marginBottom: 18 },
+  statCard: { background: warna.panel, border: `1px solid ${warna.garis}`, borderRadius: 10, padding: 14, display: "flex", flexDirection: "column", gap: 4 },
+  statIcon: { width: 30, height: 30, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 5 },
+  statValue: { fontFamily: font.mono, fontSize: 24 },
+  statLabel: { fontSize: 11.5, color: warna.tintaLembut },
+  statButton: { border: `1px solid ${warna.garis}`, background: warna.panel, borderRadius: 10, padding: 14, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4, cursor: "pointer", color: warna.tinta },
+  panel: { background: warna.panel, border: `1px solid ${warna.garis}`, borderRadius: 11, padding: 14, marginBottom: 14 },
+  panelTitleRow: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 },
+  listGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 8 },
+  listItem: { display: "flex", alignItems: "center", gap: 8, padding: 9, borderRadius: 8, background: warna.panelAlt },
+  search: { width: "100%", maxWidth: 420, minHeight: 40, padding: "8px 11px", borderRadius: 9, border: `1px solid ${warna.garis}`, background: warna.panel, color: warna.tinta, fontSize: 12, marginBottom: 9, boxSizing: "border-box" },
+  tableHint: { fontSize: 10.5, color: warna.tintaSamar, marginBottom: 6 },
+  tableWrap: { overflow: "auto", borderRadius: 11, border: `1px solid ${warna.garis}`, background: warna.panel },
+  table: { width: "100%", minWidth: 760, borderCollapse: "collapse", fontSize: 12 },
+  stickyHead: { position: "sticky", left: 0, zIndex: 2, background: warna.panelAlt },
+  stickyCell: { position: "sticky", left: 0, zIndex: 1, background: warna.panel, boxShadow: `1px 0 0 ${warna.garis}` },
+  td: { padding: "11px 10px", borderBottom: `1px solid ${warna.garis}`, verticalAlign: "top" },
+  emptyCell: { padding: 35, textAlign: "center", color: warna.tintaSamar },
+  thumb: { width: 46, height: 46, objectFit: "cover", borderRadius: 7, border: `1px solid ${warna.garis}` },
+  statusBadge: { display: "inline-flex", alignItems: "center", padding: "4px 8px", borderRadius: 999, fontSize: 9.5, fontWeight: 750, whiteSpace: "nowrap" },
+  muted: { margin: "2px 0 0", fontSize: 10.5, lineHeight: 1.45, color: warna.tintaSamar },
+  sectionHeader: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 },
+  sectionTitle: { margin: 0, fontSize: 18, fontWeight: 800 },
+  cardGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(270px,1fr))", gap: 10 },
+  card: { background: warna.panel, border: `1px solid ${warna.garis}`, borderRadius: 11, padding: 14 },
+  cardHead: { display: "flex", alignItems: "flex-start", gap: 9, marginBottom: 12 },
+  cardTitle: { margin: "0 0 14px", fontSize: 14, fontWeight: 800 },
+  formBox: { display: "grid", gap: 9 },
+  field: { display: "grid", gap: 5 },
+  fieldLabel: { fontSize: 10.5, color: warna.tintaLembut, fontWeight: 700 },
+  input: { width: "100%", minHeight: 40, padding: "8px 10px", borderRadius: 8, border: `1px solid ${warna.garis}`, background: "#fff", color: warna.tinta, fontSize: 12, boxSizing: "border-box", fontFamily: font.display },
+  help: { fontSize: 10, color: warna.tintaSamar, lineHeight: 1.45 },
+  formActions: { display: "flex", gap: 7, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 4 },
+  passwordBox: { fontFamily: font.mono, fontSize: 18, fontWeight: 800, letterSpacing: "0.08em", padding: 13, borderRadius: 9, border: `1px dashed ${warna.aksen}`, background: warna.aksenLembut, color: warna.aksen, textAlign: "center", margin: "12px 0" },
+  formGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 },
+  metaGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 11 },
+  settingIcon: { width: 36, height: 36, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", background: warna.aksenLembut, color: warna.aksen, flexShrink: 0 },
+  optionRow: { display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap" },
+  option: { padding: "8px 10px", border: `1px solid ${warna.garis}`, background: warna.panel, borderRadius: 8, fontSize: 11.5, cursor: "pointer" },
+  optionActive: { padding: "8px 10px", border: `1px solid ${warna.aksen}", background: warna.aksenLembut, color: warna.aksen, borderRadius: 8, fontSize: 11.5, cursor: "pointer", fontWeight: 750 }`,
+  checkbox: { display: "inline-flex", alignItems: "center", gap: 7, fontSize: 11.5, color: warna.tintaLembut },
+  emptyBox: { display: "grid", placeItems: "center", gap: 8, minHeight: 180, padding: 20, border: `1px dashed ${warna.garis}`, borderRadius: 11, color: warna.tintaSamar, textAlign: "center" },
+  toastError: { position: "fixed", top: 18, right: 18, zIndex: 200, width: "min(400px, calc(100vw - 36px))", display: "flex", gap: 10, alignItems: "flex-start", padding: "12px 14px", borderRadius: 10, background: warna.panel, color: warna.bahaya, border: `1px solid ${warna.bahayaLembut}`, boxShadow: "0 16px 35px rgba(22,35,61,.12)", fontSize: 12 },
+  toastSuccess: { position: "fixed", top: 18, right: 18, zIndex: 200, width: "min(400px, calc(100vw - 36px))", display: "flex", gap: 10, alignItems: "flex-start", padding: "12px 14px", borderRadius: 10, background: warna.panel, color: warna.sukses, border: `1px solid ${warna.suksesLembut}`, boxShadow: "0 16px 35px rgba(22,35,61,.12)", fontSize: 12 },
+  modalBackdrop: { position: "fixed", inset: 0, zIndex: 300, background: "rgba(15,23,42,.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 },
+  modal: { width: "min(520px,100%)", maxHeight: "90svh", overflowY: "auto", background: warna.panel, borderRadius: 14, padding: 16, boxShadow: "0 25px 70px rgba(15,23,42,.25)" },
+  modalHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12, fontSize: 14 },
+  mobileOverlay: { position: "fixed", inset: 0, background: "rgba(15,23,42,.35)", zIndex: 40 },
 };
