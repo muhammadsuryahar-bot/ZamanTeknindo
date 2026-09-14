@@ -12,7 +12,6 @@ const JAM_BATAS_TEPAT_WAKTU_DEFAULT = "08:10:00";
 const HEADER_OFFLINE_SYNC = "X-Zaman-Background";
 const OFFLINE_SYNC_HEADER_VALUE = "offline-sync";
 const MAX_OFFLINE_CLOCK_DRIFT_MS = 24 * 60 * 60 * 1000;
-const RADIUS_ABSENSI_METER = Number(process.env.ABSENSI_RADIUS_METER || 1500);
 
 function tanggalHariIni() {
   return tanggalHariIniWIB();
@@ -51,111 +50,20 @@ function koordinatDariRequest(latitude, longitude) {
   return { latitude: lat, longitude: lng };
 }
 
-function hitungJarakMeter(latitude, longitude, targetLatitude, targetLongitude) {
-  const lat = Number(latitude);
-  const lng = Number(longitude);
-  const tLat = Number(targetLatitude);
-  const tLng = Number(targetLongitude);
-
-  if (![lat, lng, tLat, tLng].every(Number.isFinite)) return null;
-
-  const toRad = (nilai) => (nilai * Math.PI) / 180;
-  const bumiMeter = 6_371_000;
-  const dLat = toRad(tLat - lat);
-  const dLng = toRad(tLng - lng);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat)) *
-      Math.cos(toRad(tLat)) *
-      Math.sin(dLng / 2) ** 2;
-
-  return (
-    2 *
-    bumiMeter *
-    Math.atan2(Math.sqrt(a), Math.sqrt(Math.max(0, 1 - a)))
-  );
-}
-
-async function validasiLokasiAbsensi(penggunaId, koordinat) {
-  const pengguna = await prisma.pengguna.findUnique({
-    where: { id: penggunaId },
-    select: {
-      kantor: {
-        select: {
-          id: true,
-          namaKantor: true,
-          latitude: true,
-          longitude: true,
-        },
-      },
-    },
-  });
-
-  const kantor = pengguna?.kantor;
-  if (!kantor) {
+// Tidak ada geofencing/radius kantor pada sistem absensi.
+// GPS tetap WAJIB dikirim dan disimpan agar lokasi aktual ketika absen
+// tercatat di database, tetapi karyawan lapangan/luar kota tetap dapat absen.
+function validasiLokasiAbsensi(koordinat) {
+  if (!koordinat) {
     return {
       ok: false,
-      status: 409,
+      status: 400,
       pesan:
-        "Kantor Anda belum ditentukan oleh Admin. Absensi belum dapat dilakukan. Hubungi Admin.",
+        "Lokasi GPS wajib tersedia sebelum absensi. Aktifkan lokasi HP dan izinkan lokasi untuk situs ini, lalu ambil foto lagi.",
     };
   }
 
-  if (
-    !Number.isFinite(Number(kantor.latitude)) ||
-    !Number.isFinite(Number(kantor.longitude))
-  ) {
-    return {
-      ok: false,
-      status: 409,
-      pesan: `Koordinat kantor ${kantor.namaKantor} belum dikonfigurasi oleh Admin. Absensi belum dapat dilakukan.`,
-    };
-  }
-
-  if (!Number.isFinite(RADIUS_ABSENSI_METER) || RADIUS_ABSENSI_METER <= 0) {
-    console.error("ABSENSI_RADIUS_METER tidak valid:", process.env.ABSENSI_RADIUS_METER);
-    return {
-      ok: false,
-      status: 500,
-      pesan: "Konfigurasi radius absensi pada server tidak valid.",
-    };
-  }
-
-  const jarakMeter = hitungJarakMeter(
-    koordinat.latitude,
-    koordinat.longitude,
-    kantor.latitude,
-    kantor.longitude,
-  );
-
-  if (!Number.isFinite(jarakMeter)) {
-    return {
-      ok: false,
-      status: 400,
-      pesan: "Lokasi GPS tidak valid. Silakan ambil lokasi kembali.",
-    };
-  }
-
-  if (jarakMeter > RADIUS_ABSENSI_METER) {
-    return {
-      ok: false,
-      status: 400,
-      pesan: `Anda berada sekitar ${Math.round(
-        jarakMeter,
-      )} meter dari ${kantor.namaKantor}. Absensi hanya dapat dilakukan dalam radius ${Math.round(
-        RADIUS_ABSENSI_METER,
-      )} meter dari kantor.`,
-      jarakMeter: Math.round(jarakMeter),
-      radiusMeter: Math.round(RADIUS_ABSENSI_METER),
-    };
-  }
-
-  return {
-    ok: true,
-    kantor,
-    jarakMeter: Math.round(jarakMeter),
-    radiusMeter: Math.round(RADIUS_ABSENSI_METER),
-  };
+  return { ok: true };
 }
 
 // Online: gunakan waktu server sebagai sumber kebenaran.
@@ -226,21 +134,10 @@ async function absenMasuk(req, res) {
     const batasTepatWaktu = await ambilBatasTepatWaktu();
     const koordinat = koordinatDariRequest(latitude, longitude);
 
-    if (!koordinat) {
-      await hapusFotoJikaPerlu();
-      return res.status(400).json({
-        pesan: "Lokasi GPS wajib tersedia sebelum absen masuk. Aktifkan lokasi HP dan izinkan lokasi untuk situs ini, lalu ambil foto lagi.",
-      });
-    }
-
-    const validasiLokasi = await validasiLokasiAbsensi(penggunaId, koordinat);
+    const validasiLokasi = validasiLokasiAbsensi(koordinat);
     if (!validasiLokasi.ok) {
       await hapusFotoJikaPerlu();
-      return res.status(validasiLokasi.status).json({
-        pesan: validasiLokasi.pesan,
-        jarakMeter: validasiLokasi.jarakMeter,
-        radiusMeter: validasiLokasi.radiusMeter,
-      });
+      return res.status(validasiLokasi.status).json({ pesan: validasiLokasi.pesan });
     }
 
     // Aturan berbasis MENIT: seluruh rentang 08:10:00-08:10:59
@@ -339,21 +236,10 @@ async function absenPulang(req, res) {
     }
 
     const koordinat = koordinatDariRequest(latitude, longitude);
-    if (!koordinat) {
-      await hapusFotoJikaPerlu();
-      return res.status(400).json({
-        pesan: "Lokasi GPS wajib tersedia sebelum absen pulang. Aktifkan lokasi HP dan izinkan lokasi untuk situs ini, lalu ambil foto lagi.",
-      });
-    }
-
-    const validasiLokasi = await validasiLokasiAbsensi(penggunaId, koordinat);
+    const validasiLokasi = validasiLokasiAbsensi(koordinat);
     if (!validasiLokasi.ok) {
       await hapusFotoJikaPerlu();
-      return res.status(validasiLokasi.status).json({
-        pesan: validasiLokasi.pesan,
-        jarakMeter: validasiLokasi.jarakMeter,
-        radiusMeter: validasiLokasi.radiusMeter,
-      });
+      return res.status(validasiLokasi.status).json({ pesan: validasiLokasi.pesan });
     }
 
     const hasilUpdate = await prisma.absensi.updateMany({
