@@ -182,7 +182,7 @@
         }
 
         function tambahPengaturanTambahan(section) {
-          if (!section || extraSettingsSiap || section.querySelector('[data-zaman-extra-settings="true"]')) return;
+          if (!section || section.querySelector('[data-zaman-extra-settings="true"]')) return;
           const container = document.createElement('div');
           container.dataset.zamanExtraSettings = 'true';
           gaya(container, { borderTop: '1px solid #e4e7ec', padding: '16px', display: 'grid', gap: '12px' });
@@ -277,7 +277,7 @@
           tombol.addEventListener('click', (event) => {
             event.preventDefault(); event.stopPropagation();
             modePengaturan = true;
-            terapkanModePengaturan?.();
+            tampilkanSectionNormal();
             const section = tandaiPengaturan();
             tambahPengaturanTambahan(section);
             tampilkanSectionNormal();
