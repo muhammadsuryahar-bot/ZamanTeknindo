@@ -66,9 +66,34 @@ function permintaanBackground(argumen) {
   return Boolean(nilaiHeader(argumen, HEADER_BACKGROUND));
 }
 
+function decodeBase64UrlJSON(value) {
+  if (!value) return null;
+
+  try {
+    const normalized = String(value).replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    return JSON.parse(decodeURIComponent(atob(padded).split("").map((karakter) => `%${`00${karakter.charCodeAt(0).toString(16)}`.slice(-2)).join("")));
+  } catch {
+    return null;
+  }
+}
+
 function tokenJWTValidBentuk(token) {
-  if (!token) return false;
-  return String(token).split(".").length === 3;
+  if (!token || typeof token !== "string") return false;
+
+  const bagian = token.split(".");
+  if (bagian.length !== 3 || bagian.some((item) => !item)) return false;
+
+  const header = decodeBase64UrlJSON(bagian[0]);
+  const payload = decodeBase64UrlJSON(bagian[1]);
+
+  return Boolean(
+    header &&
+      typeof header === "object" &&
+      typeof header.alg === "string" &&
+      payload &&
+      typeof payload === "object",
+  );
 }
 
 function tokenSudahKedaluwarsa(token) {
@@ -78,26 +103,13 @@ function tokenSudahKedaluwarsa(token) {
     const bagian = String(token).split(".");
     if (bagian.length !== 3) return false;
 
-    const payload = JSON.parse(
-      decodeURIComponent(
-        atob(bagian[1].replace(/-/g, "+").replace(/_/g, "/"))
-          .split("")
-          .map(
-            (karakter) =>
-              `%${`00${karakter.charCodeAt(0).toString(16)}`.slice(-2)}`,
-          )
-          .join(""),
-      ),
-    );
-
+    const payload = decodeBase64UrlJSON(bagian[1]);
     return (
       Number.isFinite(Number(payload?.exp)) &&
       Number(payload.exp) <= Math.floor(Date.now() / 1000)
     );
   } catch {
-    // Token rusak tetap ditangani sebagai token invalid. Fungsi ini hanya
-    // mendeteksi expiry sehingga parser payload yang gagal tidak dianggap
-    // sebagai token kedaluwarsa.
+    // Token rusak sudah ditangani oleh tokenJWTValidBentuk().
     return false;
   }
 }
@@ -194,9 +206,9 @@ export function pasangPenerjemahSesiKedaluwarsa() {
     const iniPermintaanAuth = urlPermintaan.includes("/api/auth/");
     const token = getToken();
 
-    // Jangan kirim JWT yang jelas-jelas rusak atau sudah kedaluwarsa ke API.
-    // Sesi lokal dibersihkan lebih awal agar backend tidak menerima request
-    // 401 berulang dari token yang tidak mungkin berhasil.
+    // Jangan kirim JWT yang bentuknya jelas rusak ke backend. Token yang hanya
+    // punya tiga bagian tetapi bukan JWT JSON yang valid akan dibersihkan di
+    // browser sehingga backend tidak terus menerima "jwt malformed".
     if (
       permintaanKeBackendKita &&
       !iniPermintaanAuth &&
