@@ -9,6 +9,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <title>Absensi PT. Zaman Teknindo</title>
+    <style>
+      /* Password Admin sudah tersedia di Pengaturan; jangan tampilkan shortcut duplikat di sidebar. */
+      .admin-sidebar > div:last-child > div:last-child > button:first-child { display: none !important; }
+      .admin-sidebar > div:last-child > div:last-child > button:last-child { grid-column: 1 / -1; width: 100%; }
+    </style>
   </head>
   <body>
     <div id="root"></div>
