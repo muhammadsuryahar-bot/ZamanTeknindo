@@ -15,7 +15,6 @@ export default function AdminIzin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterStatus]);
 
-  // Background refresh tetap mempertahankan data yang sedang tampil sehingga tidak berkedip.
   useEffect(() => {
     const refresh = () => {
       if (document.visibilityState === "visible" && prosesId === null) {
@@ -88,11 +87,13 @@ export default function AdminIzin() {
   function labelJenis(jenis) {
     return ({ izin: "Izin", sakit: "Sakit", cuti: "Cuti", urgent: "Urgent" })[jenis] || jenis;
   }
+
   function labelStatus(status) {
     if (status === "disetujui") return { teks: "Disetujui", warna: warna.sukses, latar: warna.suksesLembut };
     if (status === "ditolak") return { teks: "Ditolak", warna: warna.bahaya, latar: warna.bahayaLembut };
     return { teks: "Menunggu", warna: warna.peringatan, latar: warna.peringatanLembut };
   }
+
   const filters = [
     { key: "menunggu", label: "Menunggu" },
     { key: "disetujui", label: "Disetujui" },
@@ -104,7 +105,7 @@ export default function AdminIzin() {
     <div>
       <div style={styles.filterGroup}>
         {filters.map((f) => (
-          <button key={f.key || "semua"} onClick={() => setFilterStatus(f.key)} style={filterStatus === f.key ? styles.filterAktif : styles.filter}>
+          <button key={f.key || "semua"} type="button" onClick={() => setFilterStatus(f.key)} style={filterStatus === f.key ? styles.filterAktif : styles.filter}>
             {f.label}
           </button>
         ))}
@@ -141,8 +142,8 @@ export default function AdminIzin() {
             )}
             {item.status === "menunggu" && (
               <div style={styles.tombolGroup}>
-                <button onClick={() => prosesIzin(item.id, "setujui")} style={styles.tombolSetujui} disabled={prosesId === item.id}>{prosesId === item.id ? "…" : "Setujui"}</button>
-                <button onClick={() => prosesIzin(item.id, "tolak")} style={styles.tombolTolak} disabled={prosesId === item.id}>{prosesId === item.id ? "…" : "Tolak"}</button>
+                <button type="button" onClick={() => prosesIzin(item.id, "setujui")} style={styles.tombolSetujui} disabled={prosesId === item.id}>{prosesId === item.id ? "…" : "Setujui"}</button>
+                <button type="button" onClick={() => prosesIzin(item.id, "tolak")} style={styles.tombolTolak} disabled={prosesId === item.id}>{prosesId === item.id ? "…" : "Tolak"}</button>
               </div>
             )}
             {item.catatanAdmin && <p style={styles.catatan}>Catatan: {item.catatanAdmin}</p>}
@@ -154,21 +155,24 @@ export default function AdminIzin() {
 }
 
 const styles = {
-  filterGroup:{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"},
-  filter:{padding:"8px 14px",background:warna.panel,color:warna.tintaLembut,border:`1px solid ${warna.garis}`,borderRadius:10,fontSize:12.5,fontWeight:500,cursor:"pointer"},
-  filterAktif:{padding:"8px 14px",background:warna.tinta,color:"#fff",border:`1px solid ${warna.tinta}`,borderRadius:10,fontSize:12.5,fontWeight:600,cursor:"pointer"},
-  kosong:{textAlign:"center",color:warna.tintaSamar,padding:24,fontSize:13.5},
-  kosongBox:{textAlign:"center",padding:"24px 12px"},
-  kosongIkon:{display:"block",marginBottom:6,marginLeft:"auto",marginRight:"auto",color:warna.tintaSamar},
-  pesanError:{color:warna.bahaya,textAlign:"center",fontSize:13,marginBottom:12},
-  itemCard:{background:warna.panel,borderRadius:10,padding:16,marginBottom:8,border:`1px solid ${warna.garis}`},
-  itemHeader:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8},
-  itemNama:{fontSize:14.5,color:warna.tinta}, itemSub:{fontSize:12.5,color:warna.tintaLembut,margin:"3px 0 0"},
-  itemDetail:{fontSize:12.5,color:warna.tinta,margin:"10px 0 2px",fontWeight:600}, itemKeterangan:{fontSize:12.5,color:warna.tintaLembut,margin:"2px 0 0",lineHeight:1.5},
-  pemisah:{color:warna.garis}, badge:{fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:10,whiteSpace:"nowrap"},
-  linkFoto:{display:"inline-flex",alignItems:"center",gap:6,marginTop:10,fontSize:12,color:warna.aksen,textDecoration:"none",fontWeight:700},
-  tombolGroup:{display:"flex",gap:8,marginTop:12},
-  tombolSetujui:{flex:1,padding:"8px",background:warna.tinta,color:"#fff",border:"none",borderRadius:10,fontSize:12.5,fontWeight:600,cursor:"pointer"},
-  tombolTolak:{flex:1,padding:"8px",background:"#fff",color:warna.bahaya,border:`1px solid ${warna.bahaya}`,borderRadius:10,fontSize:12.5,fontWeight:600,cursor:"pointer"},
-  catatan:{fontSize:11.5,color:warna.tinta,background:warna.panelAlt,padding:"6px 10px",borderRadius:10,marginTop:8,borderLeft:`3px solid ${warna.aksen}`},
+  filterGroup: { display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" },
+  filter: { minHeight: 38, padding: "8px 14px", background: warna.panel, color: warna.tintaLembut, border: `1px solid ${warna.garis}`, borderRadius: 9, fontSize: 12, fontWeight: 650, cursor: "pointer" },
+  filterAktif: { minHeight: 38, padding: "8px 14px", background: warna.aksenLembut, color: warna.aksen, border: `1px solid ${warna.aksen}`, borderRadius: 9, fontSize: 12, fontWeight: 750, cursor: "pointer" },
+  kosong: { textAlign: "center", color: warna.tintaSamar, padding: 24, fontSize: 13 },
+  kosongBox: { textAlign: "center", padding: "28px 12px", background: warna.panel, border: `1px dashed ${warna.garis}`, borderRadius: 11 },
+  kosongIkon: { display: "block", marginBottom: 6, marginLeft: "auto", marginRight: "auto", color: warna.tintaSamar },
+  pesanError: { color: warna.bahaya, textAlign: "center", fontSize: 12, marginBottom: 12 },
+  itemCard: { background: warna.panel, borderRadius: 11, padding: 16, marginBottom: 10, border: `1px solid ${warna.garis}` },
+  itemHeader: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 },
+  itemNama: { fontSize: 14, color: warna.tinta },
+  itemSub: { fontSize: 11.5, color: warna.tintaLembut, margin: "4px 0 0" },
+  itemDetail: { fontSize: 12, color: warna.tinta, margin: "10px 0 3px", fontWeight: 700 },
+  itemKeterangan: { fontSize: 12, color: warna.tintaLembut, margin: "3px 0 0", lineHeight: 1.55 },
+  pemisah: { color: warna.garis },
+  badge: { fontSize: 10.5, fontWeight: 750, padding: "4px 9px", borderRadius: 999, whiteSpace: "nowrap" },
+  linkFoto: { display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, fontSize: 11.5, color: warna.aksen, textDecoration: "none", fontWeight: 750 },
+  tombolGroup: { display: "flex", gap: 8, marginTop: 13 },
+  tombolSetujui: { flex: 1, minHeight: 38, padding: "8px 12px", background: warna.aksen, color: "#fff", border: `1px solid ${warna.aksen}`, borderRadius: 9, fontSize: 12, fontWeight: 750, cursor: "pointer" },
+  tombolTolak: { flex: 1, minHeight: 38, padding: "8px 12px", background: warna.panel, color: warna.bahaya, border: `1px solid ${warna.bahaya}`, borderRadius: 9, fontSize: 12, fontWeight: 750, cursor: "pointer" },
+  catatan: { fontSize: 11.5, color: warna.tinta, background: warna.panelAlt, padding: "8px 10px", borderRadius: 9, marginTop: 9, borderLeft: `3px solid ${warna.aksen}` },
 };
