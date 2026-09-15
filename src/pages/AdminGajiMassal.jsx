@@ -3,6 +3,9 @@ import { API_URL, getToken } from "../utils/api";
 import { warna, font } from "../styles/theme";
 import { Wallet, Download, Upload, CheckCircle2, AlertTriangle, XCircle, Save, RefreshCw } from "lucide-react";
 
+const MAX_IMPORT_FILE_BYTES = 2 * 1024 * 1024;
+const MAX_GAJI = 999999999999;
+
 function formatRupiah(value) {
   const n = Number(value) || 0;
   return `Rp ${n.toLocaleString("id-ID")}`;
@@ -13,6 +16,28 @@ function formatAngka(value) {
   return digits ? Number(digits).toLocaleString("id-ID") : "";
 }
 
+function parseNominalInput(value) {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  if (!digits) return null;
+  const number = Number(digits);
+  return Number.isSafeInteger(number) && number <= MAX_GAJI ? number : null;
+}
+
+function normalisasiPreview(data) {
+  const rows = Array.isArray(data?.rows) ? data.rows : [];
+  return {
+    ...data,
+    total: Number(data?.total) || rows.length,
+    rows: rows.map((row) => {
+      const pesan = String(row?.pesan || "");
+      return {
+        ...row,
+        _masalahIdentitas: !row?.email || /email\s+(kosong|duplikat|tidak ditemukan)/i.test(pesan),
+      };
+    }),
+  };
+}
+
 export default function AdminGajiMassal() {
   const inputFileRef = useRef(null);
   const [loading, setLoading] = useState(true);
@@ -20,19 +45,22 @@ export default function AdminGajiMassal() {
   const [sedangSimpan, setSedangSimpan] = useState(false);
   const [pesan, setPesan] = useState("");
   const [pesanSukses, setPesanSukses] = useState("");
+  const [namaFile, setNamaFile] = useState("");
   const [daftarGaji, setDaftarGaji] = useState([]);
   const [hasilPreview, setHasilPreview] = useState(null);
   const [cari, setCari] = useState("");
 
   useEffect(() => {
-    muatDaftarGaji();
+    void muatDaftarGaji();
   }, []);
 
   async function bacaJson(res) {
+    const text = await res.text().catch(() => "");
+    if (!text) return {};
     try {
-      return await res.json();
+      return JSON.parse(text);
     } catch {
-      return {};
+      return { pesan: text.slice(0, 300) };
     }
   }
 
@@ -56,6 +84,7 @@ export default function AdminGajiMassal() {
 
   async function unduhTemplate() {
     setPesan("");
+    setPesanSukses("");
     try {
       const res = await fetch(`${API_URL}/admin/gaji/template-massal`, {
         headers: { Authorization: `Bearer ${getToken()}` },
@@ -84,46 +113,105 @@ export default function AdminGajiMassal() {
     e.target.value = "";
     if (!file) return;
 
-    setSedangImport(true);
     setPesan("");
     setPesanSukses("");
     setHasilPreview(null);
+    setNamaFile("");
+
+    const nama = String(file.name || "").toLowerCase();
+    const mime = String(file.type || "").toLowerCase();
+
+    if (!nama.endsWith(".xlsx")) {
+      setPesan("File harus berformat Excel .xlsx. Gunakan template yang disediakan sistem.");
+      return;
+    }
+
+    if (file.size > MAX_IMPORT_FILE_BYTES) {
+      setPesan("Ukuran file maksimal 2 MB.");
+      return;
+    }
+
+    if (mime && mime !== "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") {
+      setPesan("Jenis file Excel tidak dikenali browser. Simpan ulang sebagai .xlsx lalu coba lagi.");
+      return;
+    }
+
+    setNamaFile(file.name);
+    setSedangImport(true);
 
     try {
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", file, file.name);
       const res = await fetch(`${API_URL}/admin/gaji/import-preview`, {
         method: "POST",
         headers: { Authorization: `Bearer ${getToken()}` },
         body: formData,
       });
       const data = await bacaJson(res);
-      if (!res.ok) throw new Error(data.pesan || "Gagal memproses Excel.");
-      setHasilPreview(data);
+      if (!res.ok) throw new Error(data.pesan || `Gagal memproses Excel (HTTP ${res.status}).`);
+      if (!Array.isArray(data?.rows)) throw new Error("Respons preview Excel tidak valid. Coba muat ulang halaman lalu impor kembali.");
+      setHasilPreview(normalisasiPreview(data));
     } catch (err) {
       console.error(err);
-      setPesan(err?.message || "Gagal memproses Excel.");
+      setPesan(err?.message || "Gagal memproses Excel. Pastikan backend dapat diakses.");
     } finally {
       setSedangImport(false);
     }
   }
 
   function ubahNominal(index, value) {
-    setHasilPreview((prev) => ({
-      ...prev,
-      rows: prev.rows.map((row, i) =>
-        i === index
-          ? { ...row, gajiPokok: String(value).replace(/\D/g, ""), status: "siap", pesan: "" }
-          : row,
-      ),
-    }));
+    setHasilPreview((prev) => {
+      if (!prev?.rows) return prev;
+
+      return {
+        ...prev,
+        rows: prev.rows.map((row, i) => {
+          if (i !== index) return row;
+
+          const nominal = parseNominalInput(value);
+          const nilaiTampil = String(value ?? "").replace(/\D/g, "");
+
+          if (nominal === null) {
+            return {
+              ...row,
+              gajiPokok: nilaiTampil,
+              status: "error",
+              pesan: nilaiTampil ? `Nominal gaji maksimal Rp ${MAX_GAJI.toLocaleString("id-ID")}.` : "Gaji pokok wajib diisi.",
+            };
+          }
+
+          if (row._masalahIdentitas) {
+            return {
+              ...row,
+              gajiPokok: String(nominal),
+              status: "error",
+              pesan: row.email ? row.pesan || "Perbaiki email/identitas karyawan pada Excel." : "Email wajib diisi.",
+            };
+          }
+
+          return {
+            ...row,
+            gajiPokok: String(nominal),
+            status: "siap",
+            pesan: "Siap",
+          };
+        }),
+      };
+    });
   }
 
   async function simpanSemua() {
     if (!hasilPreview?.rows?.length) return;
-    const siap = hasilPreview.rows.filter((row) => row.email && Number(row.gajiPokok) >= 0 && row.status !== "error");
-    if (siap.length !== hasilPreview.rows.length) {
-      setPesan("Masih ada baris yang bermasalah. Perbaiki atau hapus dari Excel, lalu impor kembali.");
+
+    const rows = hasilPreview.rows;
+    const siap = rows.filter((row) => {
+      if (row.status === "error" || !row.email) return false;
+      const nominal = Number(row.gajiPokok);
+      return row.gajiPokok !== "" && Number.isSafeInteger(nominal) && nominal >= 0 && nominal <= MAX_GAJI;
+    });
+
+    if (siap.length !== rows.length) {
+      setPesan("Masih ada baris yang bermasalah. Perbaiki baris merah terlebih dahulu sebelum menyimpan.");
       return;
     }
 
@@ -145,9 +233,10 @@ export default function AdminGajiMassal() {
         }),
       });
       const data = await bacaJson(res);
-      if (!res.ok) throw new Error(data.pesan || "Gagal menyimpan gaji massal.");
+      if (!res.ok) throw new Error(data.pesan || `Gagal menyimpan gaji massal (HTTP ${res.status}).`);
       setPesanSukses(data.pesan || "Semua gaji pokok berhasil disimpan.");
       setHasilPreview(null);
+      setNamaFile("");
       void muatDaftarGaji({ silent: true });
     } catch (err) {
       console.error(err);
@@ -186,15 +275,17 @@ export default function AdminGajiMassal() {
       </div>
 
       <div style={styles.actionBar}>
-        <button type="button" onClick={unduhTemplate} style={styles.btnSecondary}>
+        <button type="button" onClick={unduhTemplate} style={styles.btnSecondary} disabled={sedangImport || sedangSimpan}>
           <Download size={16} /> Download Template Excel
         </button>
-        <button type="button" onClick={() => inputFileRef.current?.click()} style={styles.btnPrimary} disabled={sedangImport}>
+        <button type="button" onClick={() => inputFileRef.current?.click()} style={styles.btnPrimary} disabled={sedangImport || sedangSimpan}>
           <Upload size={16} /> {sedangImport ? "Memproses Excel…" : "Import Excel"}
         </button>
         <input ref={inputFileRef} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={pilihFile} style={{ display: "none" }} />
+        {namaFile && <span style={styles.fileName} title={namaFile}>File: {namaFile}</span>}
       </div>
 
+      {sedangImport && <div style={styles.progressBox}><span style={styles.progressDot} /> Memvalidasi file Excel dan mencocokkan email karyawan…</div>}
       {pesan && <div style={styles.alertError}><AlertTriangle size={17} /><span>{pesan}</span></div>}
       {pesanSukses && <div style={styles.alertSuccess}><CheckCircle2 size={17} /><span>{pesanSukses}</span></div>}
 
@@ -205,7 +296,7 @@ export default function AdminGajiMassal() {
               <h3 style={styles.sectionTitle}>Preview Import</h3>
               <p style={styles.sectionSub}>{hasilPreview.total || hasilPreview.rows?.length || 0} baris · {previewSiap} siap · {previewError} bermasalah</p>
             </div>
-            <button type="button" onClick={() => setHasilPreview(null)} style={styles.btnTiny}><XCircle size={15} /> Tutup</button>
+            <button type="button" onClick={() => { setHasilPreview(null); setNamaFile(""); }} style={styles.btnTiny}><XCircle size={15} /> Tutup</button>
           </div>
 
           {previewError > 0 && <div style={styles.warningBox}><AlertTriangle size={16} /><span>Perbaiki baris merah sebelum menyimpan. Sistem tidak akan menyimpan sebagian data.</span></div>}
@@ -215,7 +306,7 @@ export default function AdminGajiMassal() {
               <thead><tr><th>No</th><th>Email</th><th>Nama</th><th>Gaji Pokok</th><th>Status</th></tr></thead>
               <tbody>
                 {(hasilPreview.rows || []).map((row, i) => (
-                  <tr key={`${row.email}-${i}`} style={row.status === "error" ? styles.rowError : undefined}>
+                  <tr key={`${row.email || "kosong"}-${i}`} style={row.status === "error" ? styles.rowError : undefined}>
                     <td>{i + 1}</td>
                     <td>{row.email || "-"}</td>
                     <td>{row.nama || "-"}</td>
@@ -225,6 +316,8 @@ export default function AdminGajiMassal() {
                         onChange={(e) => ubahNominal(i, e.target.value)}
                         style={styles.moneyInput}
                         inputMode="numeric"
+                        disabled={sedangSimpan}
+                        aria-label={`Gaji pokok baris ${i + 1}`}
                       />
                     </td>
                     <td>{row.status === "error" ? <span style={styles.statusError}><XCircle size={14} /> {row.pesan || "Tidak valid"}</span> : <span style={styles.statusOk}><CheckCircle2 size={14} /> {row.pesan || "Siap"}</span>}</td>
@@ -235,7 +328,7 @@ export default function AdminGajiMassal() {
           </div>
           <div style={styles.saveRow}>
             <span style={styles.note}>Database belum berubah sampai tombol simpan ditekan.</span>
-            <button type="button" onClick={simpanSemua} style={styles.btnPrimary} disabled={sedangSimpan || previewError > 0}>
+            <button type="button" onClick={simpanSemua} style={styles.btnPrimary} disabled={sedangSimpan || sedangImport || previewError > 0}>
               <Save size={16} /> {sedangSimpan ? "Menyimpan…" : `Simpan ${previewSiap} Data`}
             </button>
           </div>
@@ -245,7 +338,7 @@ export default function AdminGajiMassal() {
       <div style={styles.listCard}>
         <div style={styles.listHeader}>
           <div><h3 style={styles.sectionTitle}>Gaji Pokok Saat Ini</h3><p style={styles.sectionSub}>Data karyawan aktif yang tersimpan di sistem.</p></div>
-          <button type="button" onClick={() => muatDaftarGaji()} style={styles.btnTiny}><RefreshCw size={14} /> Muat Ulang</button>
+          <button type="button" onClick={() => void muatDaftarGaji()} style={styles.btnTiny}><RefreshCw size={14} /> Muat Ulang</button>
         </div>
         <input value={cari} onChange={(e) => setCari(e.target.value)} placeholder="Cari nama atau email…" style={styles.search} />
         <div style={styles.tableWrap}>
@@ -270,10 +363,13 @@ const styles = {
   iconBox: { width: 42, height: 42, borderRadius: 10, background: warna.aksenLembut, color: warna.aksen, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   stepGrid: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 10 },
   stepCard: { background: warna.panel, border: `1px solid ${warna.garis}`, borderRadius: 10, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 4 },
-  actionBar: { background: warna.panel, border: `1px solid ${warna.garis}`, borderRadius: 12, padding: 12, display: "flex", gap: 8, flexWrap: "wrap" },
+  actionBar: { background: warna.panel, border: `1px solid ${warna.garis}`, borderRadius: 12, padding: 12, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" },
   btnPrimary: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px 14px", background: warna.aksen, color: "#fff", border: "none", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer" },
   btnSecondary: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px 14px", background: warna.panelAlt, color: warna.tinta, border: `1px solid ${warna.garis}`, borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer" },
   btnTiny: { display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 10px", background: "transparent", color: warna.tintaLembut, border: `1px solid ${warna.garis}`, borderRadius: 8, fontSize: 11.5, fontWeight: 600, cursor: "pointer" },
+  fileName: { minWidth: 0, maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", padding: "8px 10px", borderRadius: 8, background: warna.panelAlt, color: warna.tintaLembut, fontSize: 11.5 },
+  progressBox: { display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: warna.panelAlt, color: warna.tintaLembut, borderRadius: 9, border: `1px solid ${warna.garis}`, fontSize: 12 },
+  progressDot: { width: 9, height: 9, borderRadius: "50%", background: warna.aksen, boxShadow: `0 0 0 4px ${warna.aksenLembut}`, flexShrink: 0 },
   alertSuccess: { display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: warna.suksesLembut, color: warna.sukses, borderRadius: 9, fontSize: 12 },
   alertError: { display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: warna.bahayaLembut, color: warna.bahaya, borderRadius: 9, fontSize: 12 },
   warningBox: { display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: warna.peringatanLembut, color: warna.peringatan, borderRadius: 9, fontSize: 12, marginBottom: 10 },
