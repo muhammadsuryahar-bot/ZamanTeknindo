@@ -6,7 +6,6 @@
     <meta name="theme-color" content="#1d4ed8" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <title>Absensi PT. Zaman Teknindo</title>
     <style>
@@ -14,7 +13,7 @@
       .admin-sidebar > div:last-child > div:last-child > button:first-child { display: none !important; }
       .admin-sidebar > div:last-child > div:last-child > button:last-child { grid-column: 1 / -1; width: 100%; }
 
-      /* ===== Gaji: field nominal, prefix Rp, dan tombol dibuat konsisten ===== */
+      /* ===== Gaji ===== */
       .salaryRow { align-items: center !important; gap: 20px !important; padding: 14px 0 !important; }
       .salaryRow > div:first-child { min-width: 230px !important; flex: 1 1 auto !important; }
       .salaryRow .meta { margin-top: 4px !important; color: #6B7482 !important; font-size: 11.5px !important; }
@@ -24,14 +23,12 @@
       .salaryAction .rupiah input { width: 100% !important; min-width: 0 !important; height: 38px !important; padding: 0 11px !important; border: 0 !important; outline: 0 !important; box-shadow: none !important; background: transparent !important; color: #16233D !important; font-size: 12.5px !important; font-weight: 600 !important; }
       .salaryAction > button { min-height: 40px !important; padding: 0 15px !important; border-radius: 9px !important; white-space: nowrap !important; }
 
-      /* ===== Rekap: toolbar tanggal stabil dan tidak menutupi isi tabel ===== */
+      /* ===== Toolbar Rekap ===== */
       .admin-rekap-toolbar { top: 78px !important; left: calc(240px + 24px) !important; right: 24px !important; min-height: 64px !important; padding: 10px 12px !important; gap: 18px !important; border: 1px solid #DADFE6 !important; border-radius: 14px !important; background: rgba(255,255,255,0.98) !important; box-shadow: 0 8px 24px rgba(22,35,61,0.08) !important; backdrop-filter: blur(14px) !important; }
       .admin-rekap-toolbar .admin-rekap-date-copy { min-width: 210px !important; display: grid !important; gap: 2px !important; align-content: center !important; }
       .admin-rekap-toolbar .admin-rekap-eyebrow { color: #0B6E45 !important; font-size: 9.5px !important; font-weight: 800 !important; letter-spacing: .08em !important; }
       .admin-rekap-toolbar .admin-rekap-date { color: #16233D !important; font-size: 13px !important; font-weight: 750 !important; line-height: 1.35 !important; }
       .admin-rekap-toolbar .admin-rekap-controls { display: flex !important; align-items: flex-end !important; gap: 7px !important; flex-wrap: wrap !important; }
-      .admin-rekap-toolbar .admin-rekap-date-field { display: grid !important; gap: 3px !important; }
-      .admin-rekap-toolbar .admin-rekap-date-label { color: #8A93A3 !important; font-size: 9.5px !important; font-weight: 700 !important; }
       .admin-rekap-toolbar .admin-rekap-input { min-height: 36px !important; min-width: 148px !important; padding: 6px 9px !important; border: 1px solid #DADFE6 !important; border-radius: 9px !important; background: #fff !important; color: #16233D !important; font-size: 11.5px !important; font-weight: 650 !important; box-shadow: none !important; }
       .admin-rekap-toolbar .admin-rekap-button,
       .admin-rekap-toolbar .admin-rekap-today { min-height: 36px !important; padding: 7px 11px !important; border-radius: 9px !important; font-size: 10.8px !important; font-weight: 750 !important; white-space: nowrap !important; }
@@ -40,43 +37,42 @@
       .admin-belum-panel { top: 150px !important; right: 24px !important; width: min(560px, calc(100vw - 48px)) !important; border-radius: 14px !important; }
       section:has(.optionRow) > .card:nth-of-type(3) { display: none !important; }
 
-      /* ===== Tabel Rekap & Karyawan ===== */
+      /* ===== Tabel ===== */
       .main-area-admin .tableWrap { overflow: auto !important; -webkit-overflow-scrolling: touch !important; border-radius: 12px !important; }
-      .main-area-admin .tableWrap table { table-layout: fixed !important; border-collapse: separate !important; border-spacing: 0 !important; }
-      .main-area-admin .tableWrap th { height: 42px !important; padding: 10px 12px !important; white-space: nowrap !important; vertical-align: middle !important; border-bottom: 1px solid #DADFE6 !important; }
+      .main-area-admin .tableWrap table { border-collapse: separate !important; border-spacing: 0 !important; }
+      .main-area-admin .tableWrap th { height: 42px !important; padding: 10px 12px !important; white-space: nowrap !important; vertical-align: middle !important; text-align: left !important; border-bottom: 1px solid #DADFE6 !important; background: #F8F9FB !important; }
       .main-area-admin .tableWrap td { padding: 11px 12px !important; vertical-align: middle !important; border-bottom: 1px solid #E5E8ED !important; }
       .main-area-admin .tableWrap tbody tr:last-child td { border-bottom: 0 !important; }
       .main-area-admin .tableWrap tbody tr:hover td { background: #F8FAF9 !important; }
 
-      /* Rekap dengan foto: proporsi tetap supaya kolom lokasi tidak memakan semua ruang. */
-      .main-area-admin .tableWrap table:has(thead th:nth-child(6)):not(:has(tbody td:last-child button)) th:nth-child(1) { width: 270px !important; }
-      .main-area-admin .tableWrap table:has(thead th:nth-child(6)):not(:has(tbody td:last-child button)) th:nth-child(2) { width: 88px !important; }
-      .main-area-admin .tableWrap table:has(thead th:nth-child(6)):not(:has(tbody td:last-child button)) th:nth-child(3) { width: 120px !important; }
-      .main-area-admin .tableWrap table:has(thead th:nth-child(6)):not(:has(tbody td:last-child button)) th:nth-child(4),
-      .main-area-admin .tableWrap table:has(thead th:nth-child(6)):not(:has(tbody td:last-child button)) th:nth-child(5) { width: 90px !important; }
-      .main-area-admin .tableWrap table:has(thead th:nth-child(6)):not(:has(tbody td:last-child button)) th:nth-child(6) { width: auto !important; }
+      /* Rekap: lebar kolom dibuat eksplisit agar kolom lokasi tidak terjepit. */
+      .main-area-admin .tableWrap table.zaman-rekap-table { min-width: 1350px !important; table-layout: fixed !important; }
+      .main-area-admin .tableWrap table.zaman-rekap-table th:nth-child(1) { width: 270px !important; }
+      .main-area-admin .tableWrap table.zaman-rekap-table th:nth-child(2) { width: 92px !important; text-align: center !important; }
+      .main-area-admin .tableWrap table.zaman-rekap-table th:nth-child(3) { width: 110px !important; }
+      .main-area-admin .tableWrap table.zaman-rekap-table th:nth-child(4),
+      .main-area-admin .tableWrap table.zaman-rekap-table th:nth-child(5) { width: 92px !important; text-align: center !important; }
+      .main-area-admin .tableWrap table.zaman-rekap-table th:nth-child(6) { width: 480px !important; }
+      .main-area-admin .tableWrap table.zaman-rekap-table th:nth-child(7) { width: 130px !important; text-align: center !important; }
+      .main-area-admin .tableWrap table.zaman-rekap-table td:nth-child(2),
+      .main-area-admin .tableWrap table.zaman-rekap-table td:nth-child(3),
+      .main-area-admin .tableWrap table.zaman-rekap-table td:nth-child(4),
+      .main-area-admin .tableWrap table.zaman-rekap-table td:nth-child(5),
+      .main-area-admin .tableWrap table.zaman-rekap-table td:nth-child(7) { text-align: center !important; }
+      .main-area-admin .tableWrap table.zaman-rekap-table td:nth-child(6) { white-space: normal !important; overflow-wrap: anywhere !important; word-break: break-word !important; }
+      .main-area-admin .tableWrap table.zaman-rekap-table td:nth-child(6) > div:first-child { line-height: 1.45 !important; }
+      .main-area-admin .tableWrap table.zaman-rekap-table td:nth-child(6) .muted { margin-top: 4px !important; font-family: 'IBM Plex Mono', monospace !important; font-size: 10px !important; }
+      .main-area-admin .tableWrap table.zaman-rekap-table .zaman-lokasi-action { min-height: 34px !important; padding: 7px 9px !important; border: 1px solid #DADFE6 !important; border-radius: 9px !important; background: #fff !important; color: #0B6E45 !important; font-size: 11px !important; font-weight: 750 !important; cursor: pointer !important; white-space: nowrap !important; }
+      .main-area-admin .tableWrap table.zaman-rekap-table .zaman-lokasi-action:hover { background: #E1F0E8 !important; border-color: #0B6E45 !important; }
 
-      /* Rekap tanpa foto. */
-      .main-area-admin .tableWrap table:has(thead th:nth-child(5)):not(:has(tbody td:last-child button)) th:nth-child(1) { width: 300px !important; }
-      .main-area-admin .tableWrap table:has(thead th:nth-child(5)):not(:has(tbody td:last-child button)) th:nth-child(2) { width: 120px !important; }
-      .main-area-admin .tableWrap table:has(thead th:nth-child(5)):not(:has(tbody td:last-child button)) th:nth-child(3),
-      .main-area-admin .tableWrap table:has(thead th:nth-child(5)):not(:has(tbody td:last-child button)) th:nth-child(4) { width: 90px !important; }
-      .main-area-admin .tableWrap table:has(thead th:nth-child(5)):not(:has(tbody td:last-child button)) th:nth-child(5) { width: auto !important; }
-
-      /* Kolom lokasi: alamat tetap terbaca dan tidak membuat baris melebar liar. */
-      .main-area-admin .tableWrap table:not(:has(tbody td:last-child button)) td:last-child { white-space: normal !important; overflow-wrap: anywhere !important; word-break: break-word !important; }
-      .main-area-admin .tableWrap table:not(:has(tbody td:last-child button)) td:last-child > div:first-child { line-height: 1.45 !important; }
-      .main-area-admin .tableWrap table:not(:has(tbody td:last-child button)) td:last-child .muted { margin-top: 3px !important; font-family: 'IBM Plex Mono', monospace !important; }
-
-      /* Tabel Karyawan: kolom aksi lebar dan tetap nyaman dibaca. */
+      /* Karyawan */
       .main-area-admin .tableWrap table:has(tbody td:last-child button) { min-width: 980px !important; }
-      .main-area-admin .tableWrap table:has(tbody td:last-child button) th:last-child { width: 250px !important; }
-      .main-area-admin .tableWrap table:has(tbody td:last-child button) th:nth-child(1) { width: 220px !important; }
-      .main-area-admin .tableWrap table:has(tbody td:last-child button) th:nth-child(2) { width: 245px !important; }
-      .main-area-admin .tableWrap table:has(tbody td:last-child button) th:nth-child(3) { width: 180px !important; }
-      .main-area-admin .tableWrap table:has(tbody td:last-child button) th:nth-child(4) { width: 170px !important; }
-      .main-area-admin .tableWrap table:has(tbody td:last-child button) th:nth-child(5) { width: 100px !important; }
-      .main-area-admin .tableWrap table:has(tbody td:last-child button) td:last-child { white-space: normal !important; }
+      .main-area-admin .tableWrap table:has(tbody td:last-child button):not(.zaman-rekap-table) th:last-child { width: 250px !important; }
+      .main-area-admin .tableWrap table:has(tbody td:last-child button):not(.zaman-rekap-table) th:nth-child(1) { width: 220px !important; }
+      .main-area-admin .tableWrap table:has(tbody td:last-child button):not(.zaman-rekap-table) th:nth-child(2) { width: 245px !important; }
+      .main-area-admin .tableWrap table:has(tbody td:last-child button):not(.zaman-rekap-table) th:nth-child(3) { width: 180px !important; }
+      .main-area-admin .tableWrap table:has(tbody td:last-child button):not(.zaman-rekap-table) th:nth-child(4) { width: 170px !important; }
+      .main-area-admin .tableWrap table:has(tbody td:last-child button):not(.zaman-rekap-table) th:nth-child(5) { width: 100px !important; }
 
       @media (max-width: 760px) {
         .salaryRow { display: grid !important; grid-template-columns: 1fr !important; gap: 10px !important; }
@@ -87,7 +83,7 @@
         .admin-rekap-toolbar .admin-rekap-controls { display: grid !important; grid-template-columns: minmax(0, 1fr) auto auto !important; align-items: end !important; }
         .admin-rekap-toolbar .admin-rekap-input { min-width: 0 !important; width: 100% !important; }
         .admin-belum-panel { top: 170px !important; right: 12px !important; width: calc(100vw - 24px) !important; max-height: 66dvh !important; }
-        .main-area-admin .tableWrap table { min-width: 860px !important; }
+        .main-area-admin .tableWrap table.zaman-rekap-table { min-width: 1120px !important; }
       }
 
       @media (max-width: 430px) {
@@ -98,10 +94,156 @@
         .admin-rekap-toolbar .admin-rekap-today,
         .admin-rekap-toolbar .admin-rekap-button { width: 100% !important; }
       }
+
+      /* Modal Edit Lokasi */
+      #zaman-edit-lokasi-modal { position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15,23,42,.55); box-sizing: border-box; }
+      #zaman-edit-lokasi-modal .zaman-edit-lokasi-box { width: min(560px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; box-sizing: border-box; background: #fff; border-radius: 18px; padding: 20px; box-shadow: 0 24px 70px rgba(0,0,0,.24); }
+      #zaman-edit-lokasi-modal textarea { width: 100%; box-sizing: border-box; resize: vertical; border: 1px solid #D0D5DD; border-radius: 12px; padding: 12px; font: inherit; font-size: 13px; line-height: 1.5; outline: none; }
     </style>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <script>
+      (() => {
+        const originalFetch = window.fetch.bind(window);
+        let apiBase = '';
+        let rekapData = [];
+
+        window.fetch = async (...args) => {
+          const input = args[0];
+          const url = typeof input === 'string' ? input : input?.url || '';
+          if (!apiBase && url.includes('/api/')) apiBase = url.slice(0, url.indexOf('/api/')) + '/api';
+          const response = await originalFetch(...args);
+          if (/\/api\/admin\/rekap-(hari-ini|tanggal)/.test(url)) {
+            try {
+              const body = await response.clone().json();
+              if (Array.isArray(body?.data)) rekapData = body.data;
+            } catch {}
+          }
+          return response;
+        };
+
+        function normalisasiJam(teks) {
+          return String(teks || '').replace(/[^0-9]/g, '').slice(0, 4);
+        }
+
+        function ambilItemDariBaris(row) {
+          const cells = row.querySelectorAll('td');
+          if (!cells.length) return null;
+          const nama = cells[0]?.textContent?.trim() || '';
+          const jamMasuk = cells[3]?.textContent?.trim() || '';
+          return rekapData.find((item) => String(item?.pengguna?.nama || '').trim() === nama && normalisasiJam(new Date(item?.jamMasuk).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })) === normalisasiJam(jamMasuk))
+            || rekapData.find((item) => String(item?.pengguna?.nama || '').trim() === nama)
+            || null;
+        }
+
+        async function bukaModal(item) {
+          const lama = document.getElementById('zaman-edit-lokasi-modal');
+          if (lama) lama.remove();
+          const overlay = document.createElement('div');
+          overlay.id = 'zaman-edit-lokasi-modal';
+          const box = document.createElement('div');
+          box.className = 'zaman-edit-lokasi-box';
+          box.innerHTML = `
+            <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:16px">
+              <div><div style="font-size:17px;font-weight:800;color:#172033">Edit Lokasi Masuk</div><div style="margin-top:5px;font-size:12px;color:#667085">${String(item?.pengguna?.nama || 'Karyawan').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div></div>
+              <button type="button" data-close aria-label="Tutup" style="border:0;background:transparent;color:#667085;font-size:24px;line-height:1;cursor:pointer">×</button>
+            </div>
+            <label style="display:block;margin-bottom:8px;font-size:12px;font-weight:800;color:#344054">Alamat lengkap lokasi</label>
+            <textarea data-alamat rows="5" maxlength="500" placeholder="Alamat lokasi absensi">${String(item?.alamatMasuk || '').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
+            <div style="display:flex;justify-content:space-between;gap:10px;margin-top:7px;font-size:11px;color:#667085"><span>Hanya alamat yang diubah. Koordinat GPS tetap tersimpan.</span><span data-count></span></div>
+            <div data-error style="min-height:18px;margin-top:8px;font-size:12px;color:#B42318"></div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px"><button type="button" data-close style="border:1px solid #D0D5DD;background:#fff;color:#344054;padding:10px 14px;border-radius:10px;font-weight:700;cursor:pointer">Batal</button><button type="button" data-save style="border:0;background:#0B6E45;color:#fff;padding:10px 14px;border-radius:10px;font-weight:800;cursor:pointer">Simpan Alamat</button></div>
+          `;
+          overlay.appendChild(box);
+          document.body.appendChild(overlay);
+          const textarea = box.querySelector('[data-alamat]');
+          const count = box.querySelector('[data-count]');
+          const error = box.querySelector('[data-error]');
+          const updateCount = () => { count.textContent = `${textarea.value.length}/500`; };
+          updateCount();
+          textarea.addEventListener('input', updateCount);
+          const close = () => overlay.remove();
+          box.querySelectorAll('[data-close]').forEach((button) => button.addEventListener('click', close));
+          overlay.addEventListener('mousedown', (event) => { if (event.target === overlay) close(); });
+          box.querySelector('[data-save]').addEventListener('click', async () => {
+            const alamatMasuk = textarea.value.trim();
+            error.textContent = '';
+            if (!alamatMasuk) { error.textContent = 'Alamat lokasi wajib diisi.'; textarea.focus(); return; }
+            if (alamatMasuk.length > 500) { error.textContent = 'Alamat maksimal 500 karakter.'; textarea.focus(); return; }
+            const save = box.querySelector('[data-save]');
+            save.disabled = true;
+            save.textContent = 'Menyimpan…';
+            try {
+              const response = await originalFetch(`${apiBase || '/api'}/admin/absensi/${item.id}/edit-lokasi`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token') || ''}` },
+                body: JSON.stringify({ alamatMasuk }),
+              });
+              const data = await response.json().catch(() => ({}));
+              if (!response.ok) throw new Error(data?.pesan || 'Gagal mengubah alamat lokasi.');
+              close();
+              window.location.reload();
+            } catch (errorSave) {
+              save.disabled = false;
+              save.textContent = 'Simpan Alamat';
+              error.textContent = errorSave?.message || 'Tidak bisa terhubung ke server.';
+            }
+          });
+        }
+
+        function tandaiTabelRekap() {
+          document.querySelectorAll('.main-area-admin table').forEach((table) => {
+            if (table.dataset.zamanRekapReady === 'true') return;
+            const header = [...table.querySelectorAll('thead th')].map((th) => (th.textContent || '').trim().toLowerCase());
+            if (!header.includes('karyawan') || !header.includes('lokasi masuk')) return;
+            table.dataset.zamanRekapReady = 'true';
+            table.classList.add('zaman-rekap-table');
+            const theadRow = table.querySelector('thead tr');
+            if (theadRow && !theadRow.querySelector('[data-zaman-action-head]')) {
+              const th = document.createElement('th');
+              th.dataset.zamanActionHead = 'true';
+              th.textContent = 'Aksi';
+              theadRow.appendChild(th);
+            }
+            table.querySelectorAll('tbody tr').forEach((row) => tambahAksi(row));
+          });
+        }
+
+        function tambahAksi(row) {
+          if (!row || !row.querySelector('td')) return;
+          if (row.querySelector('[data-zaman-location-action]')) return;
+          const cells = row.querySelectorAll('td');
+          const empty = cells[0]?.textContent?.trim() === '';
+          if (empty) return;
+          const cell = document.createElement('td');
+          cell.style.textAlign = 'center';
+          cell.style.verticalAlign = 'middle';
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'zaman-lokasi-action';
+          button.dataset.zamanLocationAction = 'true';
+          button.textContent = 'Edit Lokasi';
+          button.addEventListener('click', async () => {
+            const item = ambilItemDariBaris(row);
+            if (!item) { window.alert('Data absensi tidak ditemukan. Muat ulang halaman Admin lalu coba lagi.'); return; }
+            await bukaModal(item);
+          });
+          cell.appendChild(button);
+          row.appendChild(cell);
+        }
+
+        function jalankan() {
+          tandaiTabelRekap();
+          document.querySelectorAll('.main-area-admin table.zaman-rekap-table tbody tr').forEach(tambahAksi);
+        }
+
+        const observer = new MutationObserver(jalankan);
+        observer.observe(document.body, { childList: true, subtree: true });
+        window.setInterval(jalankan, 1000);
+        window.addEventListener('load', () => window.setTimeout(jalankan, 500));
+      })();
+    </script>
   </body>
 </html>
