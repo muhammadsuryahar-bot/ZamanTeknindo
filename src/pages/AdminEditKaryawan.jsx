@@ -104,7 +104,7 @@ export default function AdminEditKaryawan() {
   };
 
   return (
-    <div style={styles.page}>
+    <div className="admin-page-edit-karyawan" style={styles.page}>
       <div style={styles.header}>
         <button type="button" onClick={() => navigate("/admin")} style={styles.back}><ArrowLeft size={17} /> Kembali ke Dashboard</button>
         <div><h1 style={styles.title}>Edit Data Karyawan</h1><p style={styles.subtitle}>Perbarui email, jabatan, divisi, dan kantor kerja tanpa mengubah password karyawan.</p></div>

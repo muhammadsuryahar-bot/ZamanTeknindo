@@ -348,7 +348,7 @@ export default function AdminArsip({ kembaliKeDashboard }) {
   }
 
   return (
-    <div
+    <div className="admin-page-archive"
       style={{
         fontFamily: font.display,
         color: warna.tinta,
