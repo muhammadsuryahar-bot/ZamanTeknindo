@@ -1,0 +1,124 @@
+name: Apply fast GPS and office geocoding repair
+
+on:
+  push:
+    paths:
+      - ".github/apply-location-fix.trigger"
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply location repair
+        shell: python
+        run: |
+          from pathlib import Path
+
+          # 1) DashboardKaryawan: fast-first GPS, best-accuracy preservation,
+          # shorter timeout, and a hard quality gate before sending attendance.
+          p = Path("src/pages/DashboardKaryawan.jsx")
+          s = p.read_text(encoding="utf-8")
+          original = s
+
+          s = s.replace(
+              'const LOKASI_REQUEST_TIMEOUT_MS = 35000;',
+              'const LOKASI_REQUEST_TIMEOUT_MS = 12000;',
+          )
+          s = s.replace(
+              'if (akurasi <= 50) void selesaikan();',
+              'if (akurasi <= 75) void selesaikan();',
+          )
+          s = s.replace(
+              'if (!Number.isFinite(Number(lokasi?.latitude)) || !Number.isFinite(Number(lokasi?.longitude)) || !Number.isFinite(Number(lokasi?.akurasi))) { setPesan("Lokasi belum berhasil diperoleh. Tunggu sampai lokasi ditemukan lalu coba lagi."); return; }',
+              'if (!Number.isFinite(Number(lokasi?.latitude)) || !Number.isFinite(Number(lokasi?.longitude)) || !Number.isFinite(Number(lokasi?.akurasi))) { setPesan("Lokasi belum berhasil diperoleh. Tunggu sampai lokasi ditemukan lalu coba lagi."); return; }\n    if (Number(lokasi.akurasi) > 75) { setPesan("Lokasi belum cukup akurat. Tunggu beberapa detik sampai akurasi lokasi membaik, lalu kirim lagi."); return; }',
+          )
+          s = s.replace(
+              'lokasi?.akurasi <= 50 ? "Akurat" : lokasi?.akurasi <= 100 ? "Cukup" : "Kurang presisi"',
+              'lokasi?.akurasi <= 30 ? "Akurat" : lokasi?.akurasi <= 75 ? "Cukup" : "Kurang presisi"',
+          )
+          s = s.replace(
+              'lokasi?.akurasi <= 50 ? styles.locationAccuracyGood : lokasi?.akurasi <= 100 ? styles.locationAccuracyMedium : styles.locationAccuracyWeak',
+              'lokasi?.akurasi <= 30 ? styles.locationAccuracyGood : lokasi?.akurasi <= 75 ? styles.locationAccuracyMedium : styles.locationAccuracyWeak',
+          )
+
+          # 2) DashboardAdmin: Admin hanya mengisi alamat. Sistem mencari koordinat
+          # kantor otomatis dengan geocoding saat menyimpan.
+          admin = Path("src/pages/DashboardAdmin.jsx")
+          a = admin.read_text(encoding="utf-8")
+          original_admin = a
+
+          anchor = '''  async function gunakanLokasiSekarang() {\n    if (!navigator.geolocation) { setPesan("Perangkat/browser ini tidak menyediakan GPS."); return; }\n    navigator.geolocation.getCurrentPosition(\n      (posisi) => {\n        setFormKantor((lama) => ({ ...lama, latitude: Number(posisi.coords.latitude).toFixed(7), longitude: Number(posisi.coords.longitude).toFixed(7) }));\n        setSukses("Koordinat lokasi saat ini berhasil diambil. Tekan Simpan.");\n      },\n      (error) => { console.warn("GPS Admin gagal:", error); setPesan("Lokasi belum berhasil diperoleh. Pastikan GPS dan izin lokasi aktif."); },\n      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },\n    );\n  }\n'''
+
+          helper = '''  async function geocodeAlamatKantor(alamat) {\n    const teks = String(alamat || "").trim();\n    if (!teks) throw new Error("Alamat kantor wajib diisi agar koordinat kantor dapat ditentukan otomatis.");\n    const controller = new AbortController();\n    const timeoutId = setTimeout(() => controller.abort(), 7000);\n    try {\n      const query = encodeURIComponent(`${teks}, Indonesia`);\n      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=id&q=${query}`, {\n        signal: controller.signal,\n        headers: { Accept: "application/json" },\n      });\n      if (!res.ok) throw new Error(`Geocoding alamat gagal (HTTP ${res.status}).`);\n      const data = await res.json();\n      const hasil = Array.isArray(data) ? data[0] : null;\n      const latitude = Number(hasil?.lat);\n      const longitude = Number(hasil?.lon);\n      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {\n        throw new Error("Alamat kantor tidak berhasil ditemukan. Periksa penulisan alamat.");\n      }\n      return { latitude: latitude.toFixed(7), longitude: longitude.toFixed(7) };\n    } finally {\n      clearTimeout(timeoutId);\n    }\n  }\n\n'''
+
+          if anchor in a and 'async function geocodeAlamatKantor' not in a:
+              a = a.replace(anchor, anchor + '\n' + helper, 1)
+
+          old_save = '''  async function simpanKantor() {\n    if (!formKantor.namaKantor.trim()) { setPesan("Nama kantor wajib diisi."); return; }\n    const latDiisi = String(formKantor.latitude).trim() !== "";\n    const lngDiisi = String(formKantor.longitude).trim() !== "";\n    if ((latDiisi && !Number.isFinite(Number(formKantor.latitude))) || (lngDiisi && !Number.isFinite(Number(formKantor.longitude)))) { setPesan("Latitude dan longitude harus berupa angka."); return; }\n    if ((latDiisi && !lngDiisi) || (!latDiisi && lngDiisi)) { setPesan("Latitude dan longitude harus diisi berpasangan."); return; }\n    setSimpanKantorLoading(true);\n'''
+
+          new_save = '''  async function simpanKantor() {\n    if (!formKantor.namaKantor.trim()) { setPesan("Nama kantor wajib diisi."); return; }\n    if (!formKantor.alamat.trim()) { setPesan("Alamat kantor wajib diisi."); return; }\n    setSimpanKantorLoading(true);\n    setPesan("");\n    try {\n      const koordinatOtomatis = await geocodeAlamatKantor(formKantor.alamat);\n      setFormKantor((lama) => ({ ...lama, ...koordinatOtomatis }));\n'''
+
+          if old_save in a:
+              a = a.replace(old_save, new_save, 1)
+
+          # Replace the form fields so latitude/longitude are no longer visible to Admin.
+          old_form = '<Field label="Latitude (opsional)"><input value={formKantor.latitude} onChange={(e) => setFormKantor({ ...formKantor, latitude: e.target.value })} style={styles.input} inputMode="decimal" /></Field><Field label="Longitude (opsional)"><input value={formKantor.longitude} onChange={(e) => setFormKantor({ ...formKantor, longitude: e.target.value })} style={styles.input} inputMode="decimal" /></Field>'
+          if old_form in a:
+              a = a.replace(old_form, '<p style={styles.muted}>Koordinat lokasi akan ditentukan otomatis dari alamat kantor saat disimpan. Admin tidak perlu mengisi latitude/longitude.</p>', 1)
+
+          # Remove the old admin manual-GPS button from the action row.
+          a = a.replace('<button type="button" onClick={() => void gunakanLokasiSekarang()} style={styles.smallButton}><Navigation size={14} /> Gunakan Lokasi Saat Ini</button>', '', 1)
+
+          # Update card copy so Admin sees the actual behavior.
+          a = a.replace('GPS absensi mencatat lokasi aktual karyawan; data kantor hanya menentukan Homebase organisasi.', 'Alamat kantor digunakan sistem untuk menentukan koordinat Homebase secara otomatis. GPS absensi tetap mencatat lokasi aktual karyawan.', 1)
+          a = a.replace('Gunakan Lokasi Saat Ini', 'Tentukan Koordinat Otomatis dari Alamat', 1)
+
+          # 3) Global geolocation shim: never let a poorer fallback replace a better fix.
+          main = Path("src/main.jsx")
+          m = main.read_text(encoding="utf-8")
+          original_main = m
+          old = '''        window.__zamanLokasiTerakhir = {\n          latitude: Number(position?.coords?.latitude),\n          longitude: Number(position?.coords?.longitude),\n          accuracy: Number(position?.coords?.accuracy),\n          pada: Date.now(),\n        }\n        success?.(position)'''
+          new = '''        const candidate = {\n          latitude: Number(position?.coords?.latitude),\n          longitude: Number(position?.coords?.longitude),\n          accuracy: Number(position?.coords?.accuracy),\n          pada: Date.now(),\n        }\n        const previous = window.__zamanLokasiTerakhir\n        const candidateValid =\n          Number.isFinite(candidate.latitude) &&\n          Number.isFinite(candidate.longitude) &&\n          Number.isFinite(candidate.accuracy) &&\n          candidate.accuracy > 0\n        const previousValid =\n          previous &&\n          Number.isFinite(previous.latitude) &&\n          Number.isFinite(previous.longitude) &&\n          Number.isFinite(previous.accuracy) &&\n          previous.accuracy > 0\n        if (candidateValid && (!previousValid || candidate.accuracy < previous.accuracy)) {\n          window.__zamanLokasiTerakhir = candidate\n        }\n        success?.(position)'''
+          if old in m:
+              m = m.replace(old, new, 1)
+
+          # The global button guard must follow the current best result continuously,
+          # and only consider <=75m as ready for photo capture.
+          old_guard = '''    const lokasiTerakhir = window.__zamanLokasiTerakhir\n    const lokasiMasihFresh =\n      lokasiTerakhir &&\n      Number.isFinite(lokasiTerakhir.latitude) &&\n      Number.isFinite(lokasiTerakhir.longitude) &&\n      Number.isFinite(lokasiTerakhir.accuracy) &&\n      Date.now() - lokasiTerakhir.pada <= 120000\n\n    if (!window.__zamanLokasiSesiAktif) {\n      window.__zamanLokasiSesiAktif = true\n      window.__zamanLokasiSudahDitemukan = Boolean(lokasiMasihFresh)\n    }'''
+          new_guard = '''    const lokasiTerakhir = window.__zamanLokasiTerakhir\n    const lokasiMasihLayak =\n      lokasiTerakhir &&\n      Number.isFinite(lokasiTerakhir.latitude) &&\n      Number.isFinite(lokasiTerakhir.longitude) &&\n      Number.isFinite(lokasiTerakhir.accuracy) &&\n      lokasiTerakhir.accuracy <= 75 &&\n      Date.now() - lokasiTerakhir.pada <= 120000\n\n    if (!window.__zamanLokasiSesiAktif) {\n      window.__zamanLokasiSesiAktif = true\n    }\n    window.__zamanLokasiSudahDitemukan = Boolean(lokasiMasihLayak)'''
+          if old_guard in m:
+              m = m.replace(old_guard, new_guard, 1)
+          m = m.replace("? 'Menunggu lokasi perangkat ditemukan...'", "? 'Menunggu lokasi cukup akurat...'", 1)
+
+          if s == original:
+              raise SystemExit("DashboardKaryawan patch did not match expected source.")
+          if a == original_admin:
+              raise SystemExit("DashboardAdmin patch did not match expected source.")
+          if m == original_main:
+              raise SystemExit("main.jsx patch did not match expected source.")
+
+          p.write_text(s, encoding="utf-8")
+          admin.write_text(a, encoding="utf-8")
+          main.write_text(m, encoding="utf-8")
+
+      - name: Commit repaired files
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/DashboardKaryawan.jsx src/pages/DashboardAdmin.jsx src/main.jsx
+          git commit -m "fix: make GPS fast and geocode office address automatically"
+          git push
+
+      - name: Remove temporary repair files
+        shell: bash
+        run: |
+          git rm -f .github/apply-location-fix.trigger .github/workflows/apply-location-fix.yml
+          git commit -m "chore: remove temporary location repair workflow"
+          git push
