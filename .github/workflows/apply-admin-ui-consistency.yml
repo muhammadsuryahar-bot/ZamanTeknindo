@@ -1,0 +1,348 @@
+name: Apply Global Admin UI Consistency
+
+on:
+  push:
+    paths:
+      - ".github/apply-admin-ui.trigger"
+
+permissions:
+  contents: write
+
+jobs:
+  style:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply scoped Admin UI system
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          css_path = Path("src/index.css")
+          css = css_path.read_text(encoding="utf-8")
+          marker = "/* ===== ZAMAN ADMIN UI SYSTEM v2 ===== */"
+
+          admin_css = r'''
+
+          /* ===== ZAMAN ADMIN UI SYSTEM v2 ===== */
+          /*
+           * Layer visual global yang TERISOLASI hanya untuk area Admin.
+           * Tidak mengubah endpoint, state, database, validasi, atau aturan bisnis.
+           * Semua override sengaja memakai namespace agar halaman lain tidak ikut berubah.
+           */
+          .main-area-admin,
+          .admin-page-edit-karyawan,
+          .admin-page-archive {
+            --admin-green: #0B6E45;
+            --admin-green-dark: #08402A;
+            --admin-green-soft: #E1F0E8;
+            --admin-bg: #F4F5F7;
+            --admin-panel: #FFFFFF;
+            --admin-muted-panel: #F7F8FA;
+            --admin-border: #DADFE6;
+            --admin-border-soft: #E7EAEE;
+            --admin-text: #16233D;
+            --admin-muted: #5B6472;
+            --admin-soft: #8A93A3;
+            --admin-danger: #C0392B;
+            --admin-warning: #C77800;
+            --admin-shadow: 0 1px 2px rgba(22,35,61,.04), 0 8px 24px rgba(22,35,61,.06);
+          }
+
+          .main-area-admin {
+            min-width: 0 !important;
+            color: var(--admin-text) !important;
+            font-family: var(--ui-font), system-ui, sans-serif !important;
+          }
+
+          .main-area-admin h1,
+          .main-area-admin h2,
+          .main-area-admin h3,
+          .main-area-admin h4 {
+            color: var(--admin-text) !important;
+            letter-spacing: -.02em !important;
+          }
+
+          .main-area-admin h2 { font-size: 24px !important; line-height: 1.2 !important; font-weight: 750 !important; }
+          .main-area-admin h3 { font-size: 16px !important; line-height: 1.3 !important; font-weight: 700 !important; }
+          .main-area-admin p { line-height: 1.5 !important; }
+
+          .main-area-admin .card,
+          .main-area-admin .previewCard,
+          .main-area-admin .listCard,
+          .main-area-admin .stepCard,
+          .main-area-admin .itemCard {
+            border: 1px solid var(--admin-border) !important;
+            border-radius: 14px !important;
+            background: var(--admin-panel) !important;
+            box-shadow: none !important;
+          }
+
+          .main-area-admin .cardHead,
+          .main-area-admin .previewHeader,
+          .main-area-admin .listHeader,
+          .main-area-admin .headerRow,
+          .main-area-admin .actionBar,
+          .main-area-admin .saveRow {
+            min-width: 0 !important;
+          }
+
+          .main-area-admin input:not([type="checkbox"]):not([type="radio"]),
+          .main-area-admin select,
+          .main-area-admin textarea {
+            min-height: 40px !important;
+            box-sizing: border-box !important;
+            border: 1px solid var(--admin-border) !important;
+            border-radius: 10px !important;
+            background: #fff !important;
+            color: var(--admin-text) !important;
+            font: 500 13px/1.4 var(--ui-font), system-ui, sans-serif !important;
+            box-shadow: none !important;
+          }
+
+          .main-area-admin textarea { min-height: 92px !important; }
+
+          .main-area-admin input:not([type="checkbox"]):not([type="radio"]):focus,
+          .main-area-admin select:focus,
+          .main-area-admin textarea:focus {
+            border-color: var(--admin-green) !important;
+            box-shadow: 0 0 0 3px rgba(11,110,69,.12) !important;
+            outline: none !important;
+          }
+
+          .main-area-admin button {
+            font-family: var(--ui-font), system-ui, sans-serif !important;
+            line-height: 1.2 !important;
+          }
+
+          .main-area-admin table {
+            border-collapse: separate !important;
+            border-spacing: 0 !important;
+          }
+
+          .main-area-admin .tableWrap {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow-x: auto !important;
+            overflow-y: hidden !important;
+            border: 1px solid var(--admin-border) !important;
+            border-radius: 12px !important;
+            background: #fff !important;
+            -webkit-overflow-scrolling: touch !important;
+          }
+
+          .main-area-admin .tableWrap th {
+            min-height: 42px !important;
+            padding: 11px 13px !important;
+            border-bottom: 1px solid var(--admin-border) !important;
+            background: var(--admin-muted-panel) !important;
+            color: var(--admin-muted) !important;
+            font-size: 11px !important;
+            line-height: 1.35 !important;
+            font-weight: 750 !important;
+            white-space: nowrap !important;
+            vertical-align: middle !important;
+          }
+
+          .main-area-admin .tableWrap td {
+            padding: 12px 13px !important;
+            border-bottom: 1px solid var(--admin-border-soft) !important;
+            background: #fff !important;
+            color: var(--admin-text) !important;
+            font-size: 13px !important;
+            line-height: 1.45 !important;
+            vertical-align: middle !important;
+          }
+
+          .main-area-admin .tableWrap tbody tr:last-child td { border-bottom: 0 !important; }
+          .main-area-admin .tableWrap tbody tr:hover td { background: #F8FAF9 !important; }
+
+          /* Rekap: lebar tetap dan isi tidak pecah sembarangan. */
+          .main-area-admin table.zaman-rekap-table {
+            min-width: 1350px !important;
+            table-layout: fixed !important;
+          }
+          .main-area-admin table.zaman-rekap-table th:nth-child(1) { width: 270px !important; }
+          .main-area-admin table.zaman-rekap-table th:nth-child(2) { width: 92px !important; text-align: center !important; }
+          .main-area-admin table.zaman-rekap-table th:nth-child(3) { width: 110px !important; text-align: center !important; }
+          .main-area-admin table.zaman-rekap-table th:nth-child(4),
+          .main-area-admin table.zaman-rekap-table th:nth-child(5) { width: 92px !important; text-align: center !important; }
+          .main-area-admin table.zaman-rekap-table th:nth-child(6) { width: 480px !important; }
+          .main-area-admin table.zaman-rekap-table th:nth-child(7) { width: 130px !important; text-align: center !important; }
+          .main-area-admin table.zaman-rekap-table td:nth-child(2),
+          .main-area-admin table.zaman-rekap-table td:nth-child(3),
+          .main-area-admin table.zaman-rekap-table td:nth-child(4),
+          .main-area-admin table.zaman-rekap-table td:nth-child(5),
+          .main-area-admin table.zaman-rekap-table td:nth-child(7) { text-align: center !important; }
+          .main-area-admin table.zaman-rekap-table td:nth-child(6) {
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
+            word-break: break-word !important;
+          }
+
+          /* Statistik: satu tinggi card dan satu ritme jarak. */
+          .main-area-admin .statGrid {
+            gap: 12px !important;
+          }
+          .main-area-admin .statGrid > div {
+            min-width: 0 !important;
+            border-radius: 14px !important;
+            border: 1px solid var(--admin-border) !important;
+            background: #fff !important;
+            box-shadow: none !important;
+          }
+
+          /* Izin / approval: card konsisten dan tombol seragam. */
+          .main-area-admin .kartu-hover,
+          .main-area-admin [class*="itemCard"] {
+            border-radius: 12px !important;
+          }
+          .main-area-admin [class*="tombolGroup"] button,
+          .main-area-admin .kartu-hover button {
+            min-height: 38px !important;
+            border-radius: 9px !important;
+            font-size: 12px !important;
+          }
+
+          /* Gaji & Gaji Massal: input, toolbar, tabel, dan aksi punya skala sama. */
+          .main-area-admin .salaryRow {
+            gap: 16px !important;
+            padding: 14px 0 !important;
+          }
+          .main-area-admin .salaryAction { width: min(100%, 410px) !important; min-width: 0 !important; }
+          .main-area-admin .salaryAction > button,
+          .main-area-admin .actionBar button,
+          .main-area-admin .saveRow button {
+            min-height: 40px !important;
+            border-radius: 10px !important;
+            font-size: 12px !important;
+            font-weight: 700 !important;
+          }
+          .main-area-admin .previewCard,
+          .main-area-admin .listCard { padding: 18px !important; }
+          .main-area-admin .stepGrid { gap: 12px !important; }
+          .main-area-admin .stepCard { min-height: 86px !important; padding: 14px !important; }
+
+          /* Kantor & Homebase. */
+          .main-area-admin .cardGrid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 14px !important;
+            align-items: stretch !important;
+          }
+          .main-area-admin .cardGrid > .card { min-width: 0 !important; height: 100% !important; }
+          .main-area-admin .metaGrid { gap: 16px !important; }
+          .main-area-admin .metaGrid > div { min-width: 0 !important; }
+
+          /* Pengaturan: blok form tidak melebar aneh dan label konsisten. */
+          .main-area-admin .formGrid { gap: 12px !important; }
+          .main-area-admin label { color: var(--admin-muted) !important; font-size: 11px !important; font-weight: 700 !important; }
+
+          /* Halaman standalone Admin: Edit Karyawan & Arsip. */
+          .admin-page-edit-karyawan,
+          .admin-page-archive {
+            min-height: 100svh !important;
+            background: var(--admin-bg, #F4F5F7) !important;
+            color: var(--admin-text, #16233D) !important;
+          }
+          .admin-page-edit-karyawan > div,
+          .admin-page-archive > div {
+            max-width: 1440px !important;
+            margin: 0 auto !important;
+          }
+          .admin-page-edit-karyawan .card,
+          .admin-page-archive .card {
+            border: 1px solid var(--admin-border, #DADFE6) !important;
+            border-radius: 14px !important;
+            box-shadow: none !important;
+          }
+          .admin-page-edit-karyawan table,
+          .admin-page-archive table { border-collapse: separate !important; border-spacing: 0 !important; }
+          .admin-page-edit-karyawan th,
+          .admin-page-archive th {
+            background: var(--admin-muted-panel, #F7F8FA) !important;
+            color: var(--admin-muted, #5B6472) !important;
+            border-bottom: 1px solid var(--admin-border, #DADFE6) !important;
+            font-size: 11px !important;
+            font-weight: 750 !important;
+          }
+          .admin-page-edit-karyawan td,
+          .admin-page-archive td {
+            background: #fff !important;
+            color: var(--admin-text, #16233D) !important;
+            border-bottom: 1px solid var(--admin-border-soft, #E7EAEE) !important;
+            vertical-align: middle !important;
+          }
+
+          @media (max-width: 899px) {
+            .main-area-admin .cardGrid { grid-template-columns: 1fr !important; }
+            .main-area-admin .stepGrid { grid-template-columns: 1fr !important; }
+            .main-area-admin .salaryRow { display: grid !important; grid-template-columns: 1fr !important; }
+            .main-area-admin .salaryAction { width: 100% !important; max-width: none !important; }
+            .main-area-admin .previewCard,
+            .main-area-admin .listCard { padding: 14px !important; }
+          }
+
+          @media (max-width: 640px) {
+            .main-area-admin .tableWrap { border-radius: 10px !important; }
+            .main-area-admin .tableWrap th { padding: 10px 11px !important; }
+            .main-area-admin .tableWrap td { padding: 11px !important; }
+            .main-area-admin .statGrid { grid-template-columns: 1fr !important; }
+            .main-area-admin h2 { font-size: 21px !important; }
+            .main-area-admin h3 { font-size: 15px !important; }
+          }
+          '''
+
+          if marker not in css:
+              css += admin_css
+              css_path.write_text(css, encoding="utf-8")
+
+          # Tambahkan namespace ke dua halaman Admin yang berdiri sendiri.
+          arsip = Path("src/pages/AdminArsip.jsx")
+          arsip_text = arsip.read_text(encoding="utf-8")
+          if "className=\"admin-page-archive\"" not in arsip_text:
+              target = '    <div\n      style={{\n        fontFamily: font.display,'
+              replacement = '    <div className="admin-page-archive"\n      style={{\n        fontFamily: font.display,'
+              if target not in arsip_text:
+                  raise SystemExit("AdminArsip root pattern tidak ditemukan; hentikan agar file tidak rusak.")
+              arsip_text = arsip_text.replace(target, replacement, 1)
+              arsip.write_text(arsip_text, encoding="utf-8")
+
+          edit = Path("src/pages/AdminEditKaryawan.jsx")
+          edit_text = edit.read_text(encoding="utf-8")
+          if "className={\"admin-page-edit-karyawan\"}" not in edit_text and 'className="admin-page-edit-karyawan"' not in edit_text:
+              target = '    <div style={styles.page}>'
+              replacement = '    <div className="admin-page-edit-karyawan" style={styles.page}>'
+              if target not in edit_text:
+                  raise SystemExit("AdminEditKaryawan root pattern tidak ditemukan; hentikan agar file tidak rusak.")
+              edit_text = edit_text.replace(target, replacement, 1)
+              edit.write_text(edit_text, encoding="utf-8")
+
+          print("Global Admin UI consistency applied safely.")
+
+      - name: Commit changes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/index.css src/pages/AdminArsip.jsx src/pages/AdminEditKaryawan.jsx
+          if git diff --cached --quiet; then
+            echo "No UI changes needed."
+            exit 0
+          fi
+          git commit -m "fix: standardize Admin UI across pages"
+          git push
+
+      - name: Remove temporary repair files
+        shell: bash
+        run: |
+          git rm -f .github/apply-admin-ui.trigger .github/workflows/apply-admin-ui-consistency.yml || true
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: remove temporary admin ui repair workflow"
+          git push
