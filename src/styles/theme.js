@@ -1,3 +1,5 @@
+import "./adminFixes.js";
+
 // Token desain dipakai bersama di semua halaman, supaya konsisten
 // dan gampang diubah dari satu tempat kalau nanti mau reskin.
 //
