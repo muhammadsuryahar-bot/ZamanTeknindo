@@ -789,11 +789,6 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     }
 
     sesiKirimRef.current = true;
-    if (!statusTerverifikasi) { setPesan("Status absensi belum diverifikasi oleh server. Tunggu sampai verifikasi selesai, lalu coba lagi."); return; }
-    if (!TAHAP_VALID.has(tahap) || tahap === "selesai") { setPesan("Status absensi belum siap untuk dikirim. Muat ulang status absensi."); return; }
-    if (!Number.isFinite(Number(lokasi?.latitude)) || !Number.isFinite(Number(lokasi?.longitude)) || !Number.isFinite(Number(lokasi?.akurasi))) { setPesan("Lokasi belum berhasil diperoleh. Tunggu sampai lokasi ditemukan lalu coba lagi."); return; }
-
-    sesiKirimRef.current = true;
     setLoading(true);
     setPesan("");
     const waktuAsli = new Date().toISOString();
