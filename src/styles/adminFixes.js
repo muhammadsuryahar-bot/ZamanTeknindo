@@ -30,35 +30,51 @@ if (typeof document !== "undefined" && !document.getElementById("zaman-admin-fix
       right: 0 !important;
     }
 
-    /* Rekap: satu vertical scroll saja di halaman. Tabel hanya horizontal-scroll.
-       Sebelumnya main + shell bisa membentuk nested vertical scrolling. */
-    .main-area-admin:has(.tableHint) {
-      overflow-y: visible !important;
+    /* REKAP: satu vertical scroll saja di document. Main dan tabel tidak boleh
+       menjadi scroll container vertikal kedua. */
+    #root > div:has(.main-area-admin:has(.tableHint)) {
+      height: auto !important;
       min-height: 100svh !important;
-      height: auto !important;
-    }
-    .main-area-admin:has(.tableHint) .tableWrap {
-      overflow-x: auto !important;
-      overflow-y: hidden !important;
-      max-height: none !important;
-      height: auto !important;
-    }
-    .main-area-admin:has(.tableHint) .tableWrap table {
-      height: auto !important;
-    }
-    .main-area-admin:has(.tableHint) ~ * {
       overflow: visible !important;
+      align-items: flex-start !important;
     }
-    .main-area-admin:has(.tableHint) {
-      scrollbar-width: auto;
+    #root > div:has(.main-area-admin:has(.tableHint)) .main-area-admin {
+      height: auto !important;
+      min-height: 100svh !important;
+      overflow: visible !important;
+      overflow-y: visible !important;
+      overflow-x: hidden !important;
     }
-
+    #root > div:has(.main-area-admin:has(.tableHint)) .main-area-admin .tableWrap {
+      height: auto !important;
+      max-height: none !important;
+      overflow-x: auto !important;
+      overflow-y: visible !important;
+    }
+    #root > div:has(.main-area-admin:has(.tableHint)) .main-area-admin .tableWrap table {
+      height: auto !important;
+    }
     @media (min-width: 861px) {
-      /* Shell Rekap mengikuti tinggi konten agar scrollbar vertikal tidak dobel. */
-      .admin-sidebar:has(+ .main-area-admin:has(.tableHint)) {
-        align-self: flex-start !important;
-        min-height: 100svh !important;
+      #root > div:has(.main-area-admin:has(.tableHint)) .admin-sidebar {
+        position: sticky !important;
+        top: 0 !important;
         height: 100svh !important;
+        max-height: 100svh !important;
+        overflow-y: auto !important;
+        align-self: flex-start !important;
+      }
+    }
+    @media (max-width: 860px) {
+      #root > div:has(.main-area-admin:has(.tableHint)) .main-area-admin {
+        min-height: 100svh !important;
+      }
+      #root > div:has(.main-area-admin:has(.tableHint)) .admin-sidebar {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        height: 100dvh !important;
+        max-height: 100dvh !important;
+        overflow-y: auto !important;
       }
     }
 
