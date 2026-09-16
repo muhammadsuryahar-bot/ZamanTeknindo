@@ -1,98 +1,19 @@
-/* Perbaikan UI Admin yang terisolasi. Tidak mengubah komponen/logic halaman lain. */
+/* Perbaikan UI Admin yang benar-benar diperlukan. Logic halaman lain tidak diubah. */
 if (typeof document !== "undefined" && !document.getElementById("zaman-admin-fixes-style")) {
   const style = document.createElement("style");
   style.id = "zaman-admin-fixes-style";
   style.textContent = `
-    /* Rekap: toolbar tanggal harus ikut layout, bukan menimpa statistik. */
-    .admin-rekap-toolbar {
-      position: relative !important;
-      top: auto !important;
-      left: auto !important;
-      right: auto !important;
-      width: 100% !important;
-      min-height: 64px !important;
-      margin: 0 0 14px !important;
-      padding: 10px 12px !important;
-      box-sizing: border-box !important;
-      z-index: 5 !important;
-      transform: none !important;
-    }
-    .main-area-admin:has(.statGrid) .statGrid {
-      padding-top: 0 !important;
-    }
-    .admin-rekap-toolbar + .main-area-admin {
-      min-height: calc(100svh - 96px) !important;
-      height: auto !important;
-    }
-    .admin-belum-panel {
-      position: absolute !important;
-      top: 78px !important;
-      right: 0 !important;
-    }
-
-    /* REKAP: satu vertical scroll saja di document. Main dan tabel tidak boleh
-       menjadi scroll container vertikal kedua. */
-    #root > div:has(.main-area-admin:has(.tableHint)) {
-      height: auto !important;
-      min-height: 100svh !important;
-      overflow: visible !important;
-      align-items: flex-start !important;
-    }
-    #root > div:has(.main-area-admin:has(.tableHint)) .main-area-admin {
-      height: auto !important;
-      min-height: 100svh !important;
-      overflow: visible !important;
-      overflow-y: visible !important;
-      overflow-x: hidden !important;
-    }
-    #root > div:has(.main-area-admin:has(.tableHint)) .main-area-admin .tableWrap {
-      height: auto !important;
-      max-height: none !important;
+    /* Rekap memakai .main-area-admin sebagai SATU-SATUNYA vertical scroll owner.
+       Tabel Rekap hanya boleh horizontal scroll. */
+    .main-area-admin:has(.tableHint) .tableWrap {
       overflow-x: auto !important;
-      overflow-y: visible !important;
-    }
-    #root > div:has(.main-area-admin:has(.tableHint)) .main-area-admin .tableWrap table {
+      overflow-y: hidden !important;
+      max-height: none !important;
       height: auto !important;
+      -webkit-overflow-scrolling: touch;
     }
-    @media (min-width: 861px) {
-      #root > div:has(.main-area-admin:has(.tableHint)) .admin-sidebar {
-        position: sticky !important;
-        top: 0 !important;
-        height: 100svh !important;
-        max-height: 100svh !important;
-        overflow-y: auto !important;
-        align-self: flex-start !important;
-      }
-    }
-    @media (max-width: 860px) {
-      #root > div:has(.main-area-admin:has(.tableHint)) .main-area-admin {
-        min-height: 100svh !important;
-      }
-      #root > div:has(.main-area-admin:has(.tableHint)) .admin-sidebar {
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        height: 100dvh !important;
-        max-height: 100dvh !important;
-        overflow-y: auto !important;
-      }
-    }
-
-    @media (max-width: 760px) {
-      .admin-rekap-toolbar {
-        min-height: 96px !important;
-        margin-bottom: 12px !important;
-        padding: 9px 10px !important;
-      }
-      .admin-rekap-toolbar + .main-area-admin {
-        min-height: calc(100svh - 112px) !important;
-      }
-      .admin-belum-panel {
-        top: 102px !important;
-        right: 10px !important;
-        left: 10px !important;
-        width: auto !important;
-      }
+    .main-area-admin:has(.tableHint) .tableWrap table {
+      height: auto !important;
     }
 
     /* Kantor & Homebase: Admin cukup mengisi nama + alamat. */
