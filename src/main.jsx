@@ -213,11 +213,26 @@ if (typeof window !== 'undefined' && !window.__zamanGeolocationFallbackTerpasang
 
       const kirimSuccess = (position) => {
         if (!record.aktif) return
-        window.__zamanLokasiTerakhir = {
+        const candidate = {
           latitude: Number(position?.coords?.latitude),
           longitude: Number(position?.coords?.longitude),
           accuracy: Number(position?.coords?.accuracy),
           pada: Date.now(),
+        }
+        const previous = window.__zamanLokasiTerakhir
+        const candidateValid =
+          Number.isFinite(candidate.latitude) &&
+          Number.isFinite(candidate.longitude) &&
+          Number.isFinite(candidate.accuracy) &&
+          candidate.accuracy > 0
+        const previousValid =
+          previous &&
+          Number.isFinite(previous.latitude) &&
+          Number.isFinite(previous.longitude) &&
+          Number.isFinite(previous.accuracy) &&
+          previous.accuracy > 0
+        if (candidateValid && (!previousValid || candidate.accuracy < previous.accuracy)) {
+          window.__zamanLokasiTerakhir = candidate
         }
         success?.(position)
       }
@@ -313,17 +328,18 @@ if (typeof window !== 'undefined' && !window.__kameraAmbilFotoGuardTerpasang) {
     }
 
     const lokasiTerakhir = window.__zamanLokasiTerakhir
-    const lokasiMasihFresh =
+    const lokasiMasihLayak =
       lokasiTerakhir &&
       Number.isFinite(lokasiTerakhir.latitude) &&
       Number.isFinite(lokasiTerakhir.longitude) &&
       Number.isFinite(lokasiTerakhir.accuracy) &&
+      lokasiTerakhir.accuracy <= 75 &&
       Date.now() - lokasiTerakhir.pada <= 120000
 
     if (!window.__zamanLokasiSesiAktif) {
       window.__zamanLokasiSesiAktif = true
-      window.__zamanLokasiSudahDitemukan = Boolean(lokasiMasihFresh)
     }
+    window.__zamanLokasiSudahDitemukan = Boolean(lokasiMasihLayak)
 
     for (const section of cameraSections) {
       const video = section.querySelector('video')
@@ -344,7 +360,7 @@ if (typeof window !== 'undefined' && !window.__kameraAmbilFotoGuardTerpasang) {
         !videoSiap
           ? 'Menyiapkan kamera...'
           : !lokasiSiap
-            ? 'Menunggu lokasi perangkat ditemukan...'
+            ? 'Menunggu lokasi cukup akurat...'
             : ''
     }
   }
