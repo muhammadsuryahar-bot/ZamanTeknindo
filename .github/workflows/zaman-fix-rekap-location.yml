@@ -1,0 +1,114 @@
+name: Zaman Fix Rekap Location
+
+on:
+  push:
+    paths:
+      - ".github/fix-rekap-location.trigger"
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply focused fixes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path_text, old, new, label):
+              path = Path(path_text)
+              text = path.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected exactly 1 match, found {count}")
+              path.write_text(text.replace(old, new), encoding="utf-8")
+
+          # 1) Restore the scoped Admin shell class expected by the existing
+          #    Rekap-only location action code.
+          replace_once(
+              "src/pages/DashboardAdmin.jsx",
+              '<main style={styles.main}>',
+              '<main style={styles.main} className="main-area-admin">',
+              "DashboardAdmin main shell",
+          )
+
+          # 2) Make reverse-geocoding survive camera/location cleanup after
+          #    the employee captures the photo. The old session guard was
+          #    invalidated by hentikanKamera(), so successful address lookups
+          #    were discarded even though GPS coordinates were already valid.
+          replace_once(
+              "src/pages/DashboardKaryawan.jsx",
+              '  const sesiKirimRef = useRef(false);\n',
+              '  const sesiKirimRef = useRef(false);\n  const alamatLookupRef = useRef(0);\n',
+              "DashboardKaryawan address lookup ref",
+          )
+
+          replace_once(
+              "src/pages/DashboardKaryawan.jsx",
+              '    setFotoTerambil(null);\n    setLokasi(null);\n',
+              '    alamatLookupRef.current += 1;\n    setFotoTerambil(null);\n    setLokasi(null);\n',
+              "DashboardKaryawan cancel stale lookup",
+          )
+
+          replace_once(
+              "src/pages/DashboardKaryawan.jsx",
+              '      setLokasi({ latitude, longitude, akurasi, alamat: null });\n      setStatusLokasi("ditemukan");\n      void ambilAlamatDariKoordinat(latitude, longitude).then((alamatLengkap) => {\n        if (!mountedRef.current || !sesiMasihAktif()) return;\n        setLokasi((prev) => prev ? { ...prev, alamat: alamatLengkap } : prev);\n      }).catch((err) => console.error("Reverse geocoding gagal:", err));\n',
+              '      setLokasi({ latitude, longitude, akurasi, alamat: null });\n      setStatusLokasi("ditemukan");\n      const alamatLookupId = ++alamatLookupRef.current;\n      void ambilAlamatDariKoordinat(latitude, longitude).then((alamatLengkap) => {\n        if (!mountedRef.current || alamatLookupId !== alamatLookupRef.current) return;\n        setLokasi((prev) => prev ? { ...prev, alamat: alamatLengkap } : prev);\n      }).catch((err) => console.error("Reverse geocoding gagal:", err));\n',
+              "DashboardKaryawan reverse geocoding callback",
+          )
+
+          # 3) Make the legacy Rekap action bridge resilient and actually edit
+          #    the full location payload expected by the backend.
+          replace_once(
+              "index.html",
+              '          const cells = row.querySelectorAll(\'td\');\n          if (!cells.length) return null;\n          const nama = cells[0]?.textContent?.trim() || \'\';\n          const jamMasuk = cells[3]?.textContent?.trim() || \'\';\n',
+              '          const cells = row.querySelectorAll(\'td\');\n          if (!cells.length) return null;\n          const nama = cells[0]?.textContent?.trim() || \'\';\n          const headerCells = row.closest(\'table\')?.querySelectorAll(\'thead th\') || [];\n          const headers = [...headerCells].map((th) => (th.textContent || \'\').trim().toLowerCase());\n          const jamIndex = headers.indexOf(\'masuk\');\n          const jamMasuk = cells[jamIndex >= 0 ? jamIndex : 3]?.textContent?.trim() || \'\';\n',
+              "index Rekap row mapping",
+          )
+
+          replace_once(
+              "index.html",
+              '            <label style="display:block;margin-bottom:8px;font-size:12px;font-weight:800;color:#344054">Alamat lengkap lokasi</label>\n            <textarea data-alamat rows="5" maxlength="500" placeholder="Alamat lokasi absensi">${String(item?.alamatMasuk || \'\').replace(/</g,\'&lt;\').replace(/>/g,\'&gt;')}</textarea>\n            <div style="display:flex;justify-content:space-between;gap:10px;margin-top:7px;font-size:11px;color:#667085"><span>Hanya alamat yang diubah. Koordinat GPS tetap tersimpan.</span><span data-count></span></div>\n',
+              '            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">\n              <div><label style="display:block;margin-bottom:6px;font-size:12px;font-weight:800;color:#344054">Latitude</label><input data-lat type="number" step="any" min="-90" max="90" value="${item?.latitudeMasuk ?? \'\'}" style="width:100%;box-sizing:border-box;border:1px solid #D0D5DD;border-radius:12px;padding:10px;font:inherit" /></div>\n              <div><label style="display:block;margin-bottom:6px;font-size:12px;font-weight:800;color:#344054">Longitude</label><input data-lng type="number" step="any" min="-180" max="180" value="${item?.longitudeMasuk ?? \'\'}" style="width:100%;box-sizing:border-box;border:1px solid #D0D5DD;border-radius:12px;padding:10px;font:inherit" /></div>\n            </div>\n            <label style="display:block;margin-bottom:8px;font-size:12px;font-weight:800;color:#344054">Alamat lengkap lokasi</label>\n            <textarea data-alamat rows="5" maxlength="500" placeholder="Alamat lokasi absensi">${String(item?.alamatMasuk || \'\').replace(/</g,\'&lt;\').replace(/>/g,\'&gt;')}</textarea>\n            <div style="display:flex;justify-content:space-between;gap:10px;margin-top:7px;font-size:11px;color:#667085"><span>Koordinat dan alamat disimpan sebagai satu data lokasi absensi.</span><span data-count></span></div>\n',
+              "index Edit Lokasi form",
+          )
+
+          replace_once(
+              "index.html",
+              "          const textarea = box.querySelector('[data-alamat]');\n          const count = box.querySelector('[data-count]');\n          const error = box.querySelector('[data-error]');\n",
+              "          const latitudeInput = box.querySelector('[data-lat]');\n          const longitudeInput = box.querySelector('[data-lng]');\n          const textarea = box.querySelector('[data-alamat]');\n          const count = box.querySelector('[data-count]');\n          const error = box.querySelector('[data-error]');\n",
+              "index Edit Lokasi refs",
+          )
+
+          replace_once(
+              "index.html",
+              "            const alamatMasuk = textarea.value.trim();\n            error.textContent = '';\n            if (!alamatMasuk) { error.textContent = 'Alamat lokasi wajib diisi.'; textarea.focus(); return; }\n            if (alamatMasuk.length > 500) { error.textContent = 'Alamat maksimal 500 karakter.'; textarea.focus(); return; }\n",
+              "            const alamatMasuk = textarea.value.trim();\n            const latitudeMasuk = Number(latitudeInput.value);\n            const longitudeMasuk = Number(longitudeInput.value);\n            error.textContent = '';\n            if (!Number.isFinite(latitudeMasuk) || latitudeMasuk < -90 || latitudeMasuk > 90) { error.textContent = 'Latitude harus berada antara -90 dan 90.'; latitudeInput.focus(); return; }\n            if (!Number.isFinite(longitudeMasuk) || longitudeMasuk < -180 || longitudeMasuk > 180) { error.textContent = 'Longitude harus berada antara -180 dan 180.'; longitudeInput.focus(); return; }\n            if (!alamatMasuk) { error.textContent = 'Alamat lokasi wajib diisi.'; textarea.focus(); return; }\n            if (alamatMasuk.length > 500) { error.textContent = 'Alamat maksimal 500 karakter.'; textarea.focus(); return; }\n",
+              "index Edit Lokasi validation",
+          )
+
+          replace_once(
+              "index.html",
+              "                body: JSON.stringify({ alamatMasuk }),\n",
+              "                body: JSON.stringify({ latitudeMasuk, longitudeMasuk, alamatMasuk }),\n",
+              "index Edit Lokasi payload",
+          )
+
+          # The class on DashboardAdmin is the deliberate scope boundary. No
+          # global table mutation should run on other pages.
+          Path(".github/fix-rekap-location.trigger").unlink(missing_ok=True)
+
+      - name: Commit repaired files
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/DashboardAdmin.jsx src/pages/DashboardKaryawan.jsx index.html
+          git diff --cached --quiet && exit 1 || true
+          git commit -m "fix: restore rekap edit lokasi and address geocoding"
+          git push
