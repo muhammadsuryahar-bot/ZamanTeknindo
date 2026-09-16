@@ -49,3 +49,14 @@ jobs:
 
           path.write_text(text, encoding="utf-8")
           print("Rekap Edit Lokasi binding and alignment fixed.")
+
+      - name: Commit repaired file and remove temporary repair files
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git rm -f .github/workflows/fix-rekap-edit-action.yml .github/fix-rekap-edit-action.trigger
+          git diff --cached --quiet && exit 1 || true
+          git commit -m "fix: bind rekap edit lokasi to correct attendance row"
+          git push
