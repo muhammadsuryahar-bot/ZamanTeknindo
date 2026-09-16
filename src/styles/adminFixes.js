@@ -29,6 +29,39 @@ if (typeof document !== "undefined" && !document.getElementById("zaman-admin-fix
       top: 78px !important;
       right: 0 !important;
     }
+
+    /* Rekap: satu vertical scroll saja di halaman. Tabel hanya horizontal-scroll.
+       Sebelumnya main + shell bisa membentuk nested vertical scrolling. */
+    .main-area-admin:has(.tableHint) {
+      overflow-y: visible !important;
+      min-height: 100svh !important;
+      height: auto !important;
+    }
+    .main-area-admin:has(.tableHint) .tableWrap {
+      overflow-x: auto !important;
+      overflow-y: hidden !important;
+      max-height: none !important;
+      height: auto !important;
+    }
+    .main-area-admin:has(.tableHint) .tableWrap table {
+      height: auto !important;
+    }
+    .main-area-admin:has(.tableHint) ~ * {
+      overflow: visible !important;
+    }
+    .main-area-admin:has(.tableHint) {
+      scrollbar-width: auto;
+    }
+
+    @media (min-width: 861px) {
+      /* Shell Rekap mengikuti tinggi konten agar scrollbar vertikal tidak dobel. */
+      .admin-sidebar:has(+ .main-area-admin:has(.tableHint)) {
+        align-self: flex-start !important;
+        min-height: 100svh !important;
+        height: 100svh !important;
+      }
+    }
+
     @media (max-width: 760px) {
       .admin-rekap-toolbar {
         min-height: 96px !important;
