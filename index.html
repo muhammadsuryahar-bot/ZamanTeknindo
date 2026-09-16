@@ -136,7 +136,10 @@
           const cells = row.querySelectorAll('td');
           if (!cells.length) return null;
           const nama = cells[0]?.textContent?.trim() || '';
-          const jamMasuk = cells[3]?.textContent?.trim() || '';
+          const headerCells = row.closest('table')?.querySelectorAll('thead th') || [];
+          const headers = [...headerCells].map((th) => (th.textContent || '').trim().toLowerCase());
+          const jamIndex = headers.indexOf('masuk');
+          const jamMasuk = cells[jamIndex >= 0 ? jamIndex : 3]?.textContent?.trim() || '';
           return rekapData.find((item) => String(item?.pengguna?.nama || '').trim() === nama && normalisasiJam(new Date(item?.jamMasuk).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })) === normalisasiJam(jamMasuk))
             || rekapData.find((item) => String(item?.pengguna?.nama || '').trim() === nama)
             || null;
@@ -154,14 +157,20 @@
               <div><div style="font-size:17px;font-weight:800;color:#172033">Edit Lokasi Masuk</div><div style="margin-top:5px;font-size:12px;color:#667085">${String(item?.pengguna?.nama || 'Karyawan').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div></div>
               <button type="button" data-close aria-label="Tutup" style="border:0;background:transparent;color:#667085;font-size:24px;line-height:1;cursor:pointer">×</button>
             </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+              <div><label style="display:block;margin-bottom:6px;font-size:12px;font-weight:800;color:#344054">Latitude</label><input data-lat type="number" step="any" min="-90" max="90" value="${item?.latitudeMasuk ?? ''}" style="width:100%;box-sizing:border-box;border:1px solid #D0D5DD;border-radius:12px;padding:10px;font:inherit" /></div>
+              <div><label style="display:block;margin-bottom:6px;font-size:12px;font-weight:800;color:#344054">Longitude</label><input data-lng type="number" step="any" min="-180" max="180" value="${item?.longitudeMasuk ?? ''}" style="width:100%;box-sizing:border-box;border:1px solid #D0D5DD;border-radius:12px;padding:10px;font:inherit" /></div>
+            </div>
             <label style="display:block;margin-bottom:8px;font-size:12px;font-weight:800;color:#344054">Alamat lengkap lokasi</label>
             <textarea data-alamat rows="5" maxlength="500" placeholder="Alamat lokasi absensi">${String(item?.alamatMasuk || '').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
-            <div style="display:flex;justify-content:space-between;gap:10px;margin-top:7px;font-size:11px;color:#667085"><span>Hanya alamat yang diubah. Koordinat GPS tetap tersimpan.</span><span data-count></span></div>
+            <div style="display:flex;justify-content:space-between;gap:10px;margin-top:7px;font-size:11px;color:#667085"><span>Koordinat dan alamat disimpan sebagai satu data lokasi absensi.</span><span data-count></span></div>
             <div data-error style="min-height:18px;margin-top:8px;font-size:12px;color:#B42318"></div>
             <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px"><button type="button" data-close style="border:1px solid #D0D5DD;background:#fff;color:#344054;padding:10px 14px;border-radius:10px;font-weight:700;cursor:pointer">Batal</button><button type="button" data-save style="border:0;background:#0B6E45;color:#fff;padding:10px 14px;border-radius:10px;font-weight:800;cursor:pointer">Simpan Alamat</button></div>
           `;
           overlay.appendChild(box);
           document.body.appendChild(overlay);
+          const latitudeInput = box.querySelector('[data-lat]');
+          const longitudeInput = box.querySelector('[data-lng]');
           const textarea = box.querySelector('[data-alamat]');
           const count = box.querySelector('[data-count]');
           const error = box.querySelector('[data-error]');
@@ -173,7 +182,11 @@
           overlay.addEventListener('mousedown', (event) => { if (event.target === overlay) close(); });
           box.querySelector('[data-save]').addEventListener('click', async () => {
             const alamatMasuk = textarea.value.trim();
+            const latitudeMasuk = Number(latitudeInput.value);
+            const longitudeMasuk = Number(longitudeInput.value);
             error.textContent = '';
+            if (!Number.isFinite(latitudeMasuk) || latitudeMasuk < -90 || latitudeMasuk > 90) { error.textContent = 'Latitude harus berada antara -90 dan 90.'; latitudeInput.focus(); return; }
+            if (!Number.isFinite(longitudeMasuk) || longitudeMasuk < -180 || longitudeMasuk > 180) { error.textContent = 'Longitude harus berada antara -180 dan 180.'; longitudeInput.focus(); return; }
             if (!alamatMasuk) { error.textContent = 'Alamat lokasi wajib diisi.'; textarea.focus(); return; }
             if (alamatMasuk.length > 500) { error.textContent = 'Alamat maksimal 500 karakter.'; textarea.focus(); return; }
             const save = box.querySelector('[data-save]');
@@ -183,7 +196,7 @@
               const response = await originalFetch(`${apiBase || '/api'}/admin/absensi/${item.id}/edit-lokasi`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token') || ''}` },
-                body: JSON.stringify({ alamatMasuk }),
+                body: JSON.stringify({ latitudeMasuk, longitudeMasuk, alamatMasuk }),
               });
               const data = await response.json().catch(() => ({}));
               if (!response.ok) throw new Error(data?.pesan || 'Gagal mengubah alamat lokasi.');

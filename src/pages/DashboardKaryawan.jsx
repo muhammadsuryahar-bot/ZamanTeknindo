@@ -349,6 +349,8 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   const kameraSesiRef = useRef(0);
   const kameraSiapRef = useRef(false);
   const sesiKirimRef = useRef(false);
+  const alamatLookupRef = useRef(0);
+  const alamatLookupPromiseRef = useRef(null);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -645,6 +647,8 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
   async function fotoUlang() {
     hentikanKamera();
+    alamatLookupRef.current += 1;
+    alamatLookupPromiseRef.current = null;
     setFotoTerambil(null);
     setLokasi(null);
     setStatusLokasi("mencari");
@@ -717,10 +721,19 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       const { latitude, longitude, akurasi } = posisiTerbaik;
       setLokasi({ latitude, longitude, akurasi, alamat: null });
       setStatusLokasi("ditemukan");
-      void ambilAlamatDariKoordinat(latitude, longitude).then((alamatLengkap) => {
-        if (!mountedRef.current || !sesiMasihAktif()) return;
-        setLokasi((prev) => prev ? { ...prev, alamat: alamatLengkap } : prev);
-      }).catch((err) => console.error("Reverse geocoding gagal:", err));
+      const alamatLookupId = ++alamatLookupRef.current;
+      const alamatLookupPromise = ambilAlamatDariKoordinat(latitude, longitude)
+        .then((alamatLengkap) => {
+          if (!mountedRef.current || alamatLookupId !== alamatLookupRef.current) return alamatLengkap;
+          setLokasi((prev) => prev ? { ...prev, alamat: alamatLengkap } : prev);
+          return alamatLengkap;
+        })
+        .catch((err) => {
+          console.error("Reverse geocoding gagal:", err);
+          return "";
+        });
+      alamatLookupPromiseRef.current = alamatLookupPromise;
+      void alamatLookupPromise;
     };
 
     const watchId = navigator.geolocation.watchPosition(
@@ -762,6 +775,24 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     if (!TAHAP_VALID.has(tahap) || tahap === "selesai") { setPesan("Status absensi belum siap untuk dikirim. Muat ulang status absensi."); return; }
     if (!Number.isFinite(Number(lokasi?.latitude)) || !Number.isFinite(Number(lokasi?.longitude)) || !Number.isFinite(Number(lokasi?.akurasi))) { setPesan("Lokasi belum berhasil diperoleh. Tunggu sampai lokasi ditemukan lalu coba lagi."); return; }
 
+    let alamatDariLookup = String(lokasi?.alamat || "").trim();
+    if (!alamatDariLookup && alamatLookupPromiseRef.current) {
+      setPesan("Menyelesaikan alamat lokasi...");
+      try {
+        alamatDariLookup = String(await Promise.race([
+          alamatLookupPromiseRef.current,
+          new Promise((resolve) => setTimeout(() => resolve(""), 3000)),
+        ]) || "").trim();
+      } catch {
+        alamatDariLookup = "";
+      }
+    }
+
+    sesiKirimRef.current = true;
+    if (!statusTerverifikasi) { setPesan("Status absensi belum diverifikasi oleh server. Tunggu sampai verifikasi selesai, lalu coba lagi."); return; }
+    if (!TAHAP_VALID.has(tahap) || tahap === "selesai") { setPesan("Status absensi belum siap untuk dikirim. Muat ulang status absensi."); return; }
+    if (!Number.isFinite(Number(lokasi?.latitude)) || !Number.isFinite(Number(lokasi?.longitude)) || !Number.isFinite(Number(lokasi?.akurasi))) { setPesan("Lokasi belum berhasil diperoleh. Tunggu sampai lokasi ditemukan lalu coba lagi."); return; }
+
     sesiKirimRef.current = true;
     setLoading(true);
     setPesan("");
@@ -771,7 +802,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     formData.append("waktuAsli", waktuAsli);
     formData.append("latitude", String(lokasi.latitude));
     formData.append("longitude", String(lokasi.longitude));
-    const alamatDasar = lokasi.alamat || `${lokasi.latitude}, ${lokasi.longitude}`;
+    const alamatDasar = alamatDariLookup || lokasi.alamat || `${lokasi.latitude}, ${lokasi.longitude}`;
     const infoAkurasi = lokasi.akurasi ? ` (akurasi ±${lokasi.akurasi}m)` : "";
     formData.append("alamat", alamatDasar + infoAkurasi);
     const endpoint = tahap === "belum_masuk" ? "masuk" : "pulang";
