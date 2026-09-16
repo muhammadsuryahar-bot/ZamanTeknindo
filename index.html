@@ -135,7 +135,7 @@
         function ambilItemDariBaris(row) {
           const cells = row.querySelectorAll('td');
           if (!cells.length) return null;
-          const nama = cells[0]?.textContent?.trim() || '';
+          const nama = row.querySelector('td:first-child strong')?.textContent?.trim() || cells[0]?.textContent?.trim() || '';
           const headerCells = row.closest('table')?.querySelectorAll('thead th') || [];
           const headers = [...headerCells].map((th) => (th.textContent || '').trim().toLowerCase());
           const jamIndex = headers.indexOf('masuk');
@@ -217,6 +217,9 @@
           const empty = cells[0]?.textContent?.trim() === '';
           if (empty) return;
           const cell = document.createElement('td');
+          cell.style.width = '130px';
+          cell.style.minWidth = '130px';
+          cell.style.padding = '8px 10px';
           cell.style.textAlign = 'center';
           cell.style.verticalAlign = 'middle';
           const button = document.createElement('button');
@@ -224,6 +227,16 @@
           button.className = 'zaman-lokasi-action';
           button.dataset.zamanLocationAction = 'true';
           button.textContent = 'Edit Lokasi';
+          button.style.width = '100%';
+          button.style.minHeight = '34px';
+          button.style.padding = '7px 10px';
+          button.style.border = '1px solid #D0D5DD';
+          button.style.borderRadius = '8px';
+          button.style.background = '#FFFFFF';
+          button.style.color = '#16233D';
+          button.style.fontSize = '11px';
+          button.style.fontWeight = '750';
+          button.style.cursor = 'pointer';
           button.addEventListener('click', async () => {
             const item = ambilItemDariBaris(row);
             if (!item) { window.alert('Data absensi tidak ditemukan. Muat ulang halaman Admin lalu coba lagi.'); return; }
@@ -245,6 +258,10 @@
               const th = document.createElement('th');
               th.dataset.zamanActionHead = 'true';
               th.textContent = 'Aksi';
+              th.style.width = '130px';
+              th.style.minWidth = '130px';
+              th.style.textAlign = 'center';
+              th.style.verticalAlign = 'middle';
               theadRow.appendChild(th);
             }
             table.querySelectorAll('tbody tr').forEach((row) => tambahAksi(row));
