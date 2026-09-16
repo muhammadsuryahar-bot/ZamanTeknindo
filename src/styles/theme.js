@@ -32,35 +32,28 @@ export const font = {
 
 export const bayangan = "0 1px 2px rgba(22,35,61,0.04), 0 8px 24px rgba(22,35,61,0.06)";
 
-// Skala ukuran font -- SENGAJA cuma 6 pilihan (bukan angka bebas kayak
-// 13.5/14/14.5 dst). Dipakai berulang di semua halaman supaya hierarki
-// teksnya konsisten dan kerasa "dirancang", bukan ditambal komponen per
-// komponen dengan angka acak.
+// Skala ukuran font -- SENGAJA cuma 6 pilihan.
 export const teks = {
-  kecil: 11,      // label kecil, keterangan tambahan, badge
-  badan: 13,      // teks isi/body biasa -- paling sering dipakai
-  subjudul: 15,   // sub-judul di dalam kartu
-  judul: 18,      // judul halaman/section
-  besar: 24,      // angka statistik besar
-  hero: 32,       // judul utama (halaman Login, dsb)
+  kecil: 11,
+  badan: 13,
+  subjudul: 15,
+  judul: 18,
+  besar: 24,
+  hero: 32,
 };
 
-// Skala jarak (padding/margin/gap) -- kelipatan 4px, konvensi umum di
-// design system (Material, Apple HIG, Tailwind) supaya jarak antar elemen
-// terasa beraturan, bukan angka acak yang bedanya nyaris tak kerasa.
+// Skala jarak (padding/margin/gap) -- kelipatan 4px.
 export const jarak = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 };
 
 // Skala sudut kartu/tombol -- cuma 3 pilihan.
 export const radius = { kecil: 6, sedang: 10, besar: 16 };
 
-// Patch UI Admin yang sengaja ditempatkan di design-system layer agar tidak
-// menyentuh logic halaman. Toolbar Rekap tidak lagi menimpa statistik, dan
-// form kantor tetap sederhana untuk Admin.
+// Patch UI Admin yang terisolasi di design-system layer agar tidak
+// menyentuh logic halaman lain.
 if (typeof document !== "undefined" && !document.getElementById("zaman-admin-stability-fix")) {
   const style = document.createElement("style");
   style.id = "zaman-admin-stability-fix";
   style.textContent = `
-    /* Toolbar tanggal menjadi bagian dari layout, bukan overlay di atas card. */
     .admin-rekap-toolbar {
       position: relative !important;
       top: auto !important;
@@ -84,12 +77,10 @@ if (typeof document !== "undefined" && !document.getElementById("zaman-admin-sta
       min-height: 0 !important;
     }
 
-    /* Hapus kompensasi padding lama yang membuat ruang kosong/overlap. */
     .main-area-admin:has(.statGrid) .statGrid {
       padding-top: 0 !important;
     }
 
-    /* Form Kantor/Homebase: Admin tidak perlu memasukkan koordinat. */
     .main-area-admin section:has(input[placeholder*="Homebase Bandung"]) input[inputmode="decimal"],
     .main-area-admin section:has(input[placeholder*="Homebase Bandung"]) label:has(input[inputmode="decimal"]) {
       display: none !important;
@@ -121,9 +112,7 @@ if (typeof document !== "undefined" && !document.getElementById("zaman-admin-sta
   document.head.appendChild(style);
 }
 
-// Intersep hanya request penyimpanan master Kantor/Homebase. Admin tetap
-// mengetik alamat biasa; sebelum request dikirim, koordinat kantor dicari
-// otomatis. Request endpoint lain sama sekali tidak disentuh.
+// Intersep hanya request penyimpanan master Kantor/Homebase.
 if (typeof window !== "undefined" && !window.__zamanOfficeLocationBridge) {
   const fetchAsli = window.fetch.bind(window);
   window.__zamanOfficeLocationBridge = true;
@@ -169,9 +158,6 @@ if (typeof window !== "undefined" && !window.__zamanOfficeLocationBridge) {
     if (!payload || typeof payload !== "object" || !String(payload.alamat || "").trim()) return fetchAsli(input, init);
 
     const koordinat = await geocodeAlamatKantor(payload.alamat);
-    const nextInit = { ...init, body: JSON.stringify({ ...payload, ...koordinat }) };
-    return fetchAsli(input, nextInit);
+    return fetchAsli(input, { ...init, body: JSON.stringify({ ...payload, ...koordinat }) });
   };
-}
-`;
 }
