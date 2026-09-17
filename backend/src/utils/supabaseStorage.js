@@ -3,6 +3,8 @@ const { createClient } = require("@supabase/supabase-js");
 const BUCKET_NAME = "absensi";
 const SIGNED_URL_TTL_SECONDS = 300;
 const SIGNED_URL_CACHE_SECONDS = 180;
+const SIGNED_URL_BATCH_SIZE = 100;
+const SIGNED_URL_RETRY_DELAYS_MS = [300, 900];
 const DELETE_RETRY_DELAYS_MS = [300, 900, 1800];
 
 let supabaseClient = null;
@@ -46,6 +48,7 @@ function errorLayakDiulangi(error) {
     pesan.includes("network") ||
     pesan.includes("timeout") ||
     pesan.includes("timed out") ||
+    pesan.includes("gateway") ||
     pesan.includes("econnreset") ||
     pesan.includes("socket")
   );
@@ -230,11 +233,46 @@ async function buatSignedUrlFoto(
   return data.signedUrl;
 }
 
+async function buatSignedUrlsChunkDenganRetry(
+  supabase,
+  paths,
+  expiresIn,
+) {
+  let errorTerakhir = null;
+
+  for (let percobaan = 0; percobaan <= SIGNED_URL_RETRY_DELAYS_MS.length; percobaan += 1) {
+    try {
+      const { data, error } = await supabase.storage
+        .from(BUCKET_NAME)
+        .createSignedUrls(paths, expiresIn);
+
+      if (!error) return data || [];
+
+      errorTerakhir = error;
+      if (!errorLayakDiulangi(error) || percobaan >= SIGNED_URL_RETRY_DELAYS_MS.length) break;
+    } catch (error) {
+      errorTerakhir = error;
+      if (!errorLayakDiulangi(error) || percobaan >= SIGNED_URL_RETRY_DELAYS_MS.length) break;
+    }
+
+    await tunggu(SIGNED_URL_RETRY_DELAYS_MS[percobaan]);
+  }
+
+  throw errorTerakhir || new Error("Gagal membuat signed URL batch.");
+}
+
 async function buatSignedUrlFotoBatch(
   filePaths,
   expiresIn = SIGNED_URL_TTL_SECONDS,
 ) {
-  const pathUnik = [...new Set(filePaths.filter(Boolean))];
+  const pathUnik = [
+    ...new Set(
+      (Array.isArray(filePaths) ? filePaths : [])
+        .filter(Boolean)
+        .map((path) => String(path).trim())
+        .filter(Boolean),
+    ),
+  ];
 
   if (pathUnik.length === 0) return new Map();
 
@@ -253,23 +291,37 @@ async function buatSignedUrlFotoBatch(
 
   if (belumAdaCache.length > 0) {
     const supabase = ambilSupabase();
-    const { data, error } = await supabase.storage
-      .from(BUCKET_NAME)
-      .createSignedUrls(belumAdaCache, expiresIn);
 
-    if (error) {
-      console.error("Gagal membuat signed URL batch:", error.message);
-      return hasil;
-    }
+    // Jangan mengirim ratusan/ribuan path dalam satu request Storage.
+    // Batch kecil mengurangi risiko Gateway Timeout pada endpoint signed URL.
+    for (let i = 0; i < belumAdaCache.length; i += SIGNED_URL_BATCH_SIZE) {
+      const chunk = belumAdaCache.slice(i, i + SIGNED_URL_BATCH_SIZE);
 
-    for (const item of data || []) {
-      if (!item.error && item.signedUrl) {
-        hasil.set(item.path, item.signedUrl);
-        simpanCacheSignedUrl(item.path, item.signedUrl);
-      } else if (item.error) {
+      try {
+        const data = await buatSignedUrlsChunkDenganRetry(
+          supabase,
+          chunk,
+          expiresIn,
+        );
+
+        for (const item of data) {
+          if (!item?.error && item?.signedUrl && item?.path) {
+            hasil.set(item.path, item.signedUrl);
+            simpanCacheSignedUrl(item.path, item.signedUrl);
+          } else if (item?.error) {
+            console.warn(
+              `Gagal membuat signed URL untuk ${item.path}:`,
+              item.error,
+            );
+          }
+        }
+      } catch (error) {
+        // Jangan membuat seluruh rekap gagal hanya karena satu batch foto
+        // bermasalah. Batch berikutnya tetap diproses dan URL yang berhasil
+        // tetap dikembalikan ke caller.
         console.error(
-          `Gagal membuat signed URL untuk ${item.path}:`,
-          item.error,
+          `Gagal membuat signed URL batch (${chunk.length} file):`,
+          error?.message || error,
         );
       }
     }
