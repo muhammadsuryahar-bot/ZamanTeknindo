@@ -2,13 +2,16 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const rootDir = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
   resolve: {
     alias: {
       // DashboardKaryawan hanya memakai point() dan booleanPointInPolygon().
       // Jangan kirim seluruh @turf/turf ke browser karena memperberat bundle awal.
-      "@turf/turf": path.resolve(__dirname, "src/utils/turfLite.js"),
+      "@turf/turf": path.resolve(rootDir, "src/utils/turfLite.js"),
     },
   },
 
