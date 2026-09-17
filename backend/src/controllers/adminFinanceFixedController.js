@@ -1,6 +1,7 @@
 const prisma = require("../utils/prismaClient");
 const { JAM_MASUK_STANDAR_DEFAULT } = require("../utils/waktuIndonesia");
 
+const MAX_GAJI = 9999999999;
 const STATUS_FINAL_VALID = new Set([
   "tepat_waktu",
   "telat",
@@ -244,6 +245,12 @@ async function ubahGajiKaryawanFixed(req, res) {
       });
     }
 
+    if (!Number.isSafeInteger(gajiPokok) || gajiPokok > MAX_GAJI) {
+      return res.status(400).json({
+        pesan: `Gaji pokok maksimal Rp ${MAX_GAJI.toLocaleString("id-ID")}.`,
+      });
+    }
+
     const pengguna = await prisma.pengguna.findUnique({
       where: { id: penggunaId },
       select: {
@@ -352,7 +359,7 @@ async function tambahHariLiburFixed(req, res) {
       });
 
       return res.status(201).json({
-        pesan: `Hari libur "${hariLibur.keterangan}" berhasil ditambahkan.`,
+        pesan: `Hari libur \"${hariLibur.keterangan}\" berhasil ditambahkan.`,
         data: hariLibur,
       });
     } catch (error) {
