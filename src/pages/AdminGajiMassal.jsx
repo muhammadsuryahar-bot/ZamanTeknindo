@@ -4,7 +4,9 @@ import { warna, font } from "../styles/theme";
 import { Wallet, Download, Upload, CheckCircle2, AlertTriangle, XCircle, Save, RefreshCw } from "lucide-react";
 
 const MAX_IMPORT_FILE_BYTES = 2 * 1024 * 1024;
-const MAX_GAJI = 999999999999;
+// Prisma menyimpan gaji sebagai Decimal(12,2). Sistem ini menggunakan rupiah bulat,
+// sehingga batas aman nominal integer adalah 9.999.999.999.
+const MAX_GAJI = 9999999999;
 
 function formatRupiah(value) {
   const n = Number(value) || 0;
