@@ -8,6 +8,7 @@ const NAMA_BULAN = [
   "Juli", "Agustus", "September", "Oktober", "November", "Desember",
 ];
 const KUNCI_CACHE_LAPORAN = "zaman-teknindo:gaji-laporan-cache:v2";
+const MAX_GAJI = 9999999999;
 
 function hanyaDigit(teks) {
   return String(teks).replace(/\D/g, "");
@@ -110,8 +111,12 @@ export default function PengaturanGaji() {
   async function simpanGajiPokok(id) {
     if (sedangSimpanGajiId === id) return;
     const angkaGaji = Number(String(inputGaji[id] || "").replace(/\D/g, ""));
-    if (!Number.isFinite(angkaGaji) || angkaGaji < 0) {
-      setPesan("Gaji pokok harus berupa angka yang valid.");
+    if (!Number.isSafeInteger(angkaGaji) || angkaGaji < 0) {
+      setPesan("Gaji pokok harus berupa angka bulat yang valid.");
+      return;
+    }
+    if (angkaGaji > MAX_GAJI) {
+      setPesan(`Gaji pokok maksimal Rp ${MAX_GAJI.toLocaleString("id-ID")}.`);
       return;
     }
     setPesan("");
@@ -170,7 +175,10 @@ export default function PengaturanGaji() {
         body: JSON.stringify(formLibur),
       });
       const data = await bacaJsonAman(res);
-      if (!res.ok) return setPesanLibur(data.pesan || "Gagal menambahkan hari libur.");
+      if (!res.ok) {
+        setPesanLibur(data.pesan || "Gagal menambahkan hari libur.");
+        return;
+      }
       setFormLibur({ tanggal: "", keterangan: "" });
       await ambilHariLibur();
     } catch (error) {
@@ -184,7 +192,13 @@ export default function PengaturanGaji() {
   async function hapusHariLiburKlik(id) {
     try {
       const res = await fetch(`${API_URL}/admin/hari-libur/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${getToken()}` } });
-      if (res.ok) await ambilHariLibur();
+      const data = await bacaJsonAman(res);
+      if (!res.ok) {
+        setPesanLibur(data.pesan || "Gagal menghapus hari libur.");
+        return;
+      }
+      await ambilHariLibur();
+      setPesanLibur(data.pesan || "Hari libur berhasil dihapus.");
     } catch (error) {
       console.error(error);
       setPesanLibur("Gagal menghapus hari libur.");
@@ -202,7 +216,7 @@ export default function PengaturanGaji() {
       const sudahAda = new Set(daftarHariLibur.map((h) => new Date(h.tanggal).toISOString().slice(0, 10)));
       const usulan = (Array.isArray(data.data) ? data.data : [])
         .filter((item) => !sudahAda.has(item.date))
-        .map((item) => ({ tanggal: item.date, keterangan: item.description, dipilih: true }));
+        .map((item) => ({ tanggal: item.date, keterangan: item.description, dipilih: true, error: "" }));
       setHasilImpor(usulan);
       if (!usulan.length) setPesanImpor(data.data?.length ? `Semua hari libur ${tahunLibur} sudah terdaftar.` : `Tidak ada data hari libur ${tahunLibur} dari sumber publik.`);
     } catch (error) {
@@ -220,9 +234,16 @@ export default function PengaturanGaji() {
 
   async function simpanUsulanTerpilih() {
     const terpilih = (hasilImpor || []).filter((u) => u.dipilih);
-    if (!terpilih.length) return;
+    if (!terpilih.length) {
+      setPesanImpor("Pilih minimal satu hari libur.");
+      return;
+    }
+
     setSedangSimpanImpor(true);
+    setPesanImpor("");
+    const gagal = [];
     let berhasil = 0;
+
     for (const item of terpilih) {
       try {
         const res = await fetch(`${API_URL}/admin/hari-libur`, {
@@ -230,12 +251,25 @@ export default function PengaturanGaji() {
           headers: { Authorization: `Bearer ${getToken()}`, "Content-Type": "application/json" },
           body: JSON.stringify({ tanggal: item.tanggal, keterangan: item.keterangan }),
         });
-        if (res.ok) berhasil += 1;
-      } catch (error) { console.error(error); }
+        const data = await bacaJsonAman(res);
+        if (res.ok) {
+          berhasil += 1;
+        } else {
+          gagal.push({ ...item, error: data.pesan || "Gagal menyimpan tanggal ini." });
+        }
+      } catch (error) {
+        console.error(error);
+        gagal.push({ ...item, error: "Tidak bisa terhubung ke server saat menyimpan tanggal ini." });
+      }
     }
+
     setSedangSimpanImpor(false);
-    setHasilImpor(null);
-    setPesanImpor(`${berhasil} hari libur berhasil ditambahkan.`);
+    setPesanImpor(
+      gagal.length
+        ? `${berhasil} hari libur berhasil ditambahkan, ${gagal.length} gagal. Perbaiki baris yang gagal lalu coba impor lagi.`
+        : `${berhasil} hari libur berhasil ditambahkan.`,
+    );
+    setHasilImpor(gagal.length ? gagal.map((item) => ({ ...item, dipilih: true })) : null);
     await ambilHariLibur();
   }
 
@@ -331,7 +365,7 @@ export default function PengaturanGaji() {
         <div style={styles.infoBox}><Calendar size={15} /><span>{daftarHariLibur.length ? `Kalender ${tahunLibur} tersimpan dengan ${daftarHariLibur.length} hari libur.` : `Belum ada data hari libur untuk ${tahunLibur}.`}</span></div>
         <button type="button" onClick={() => void cariUsulanImpor()} style={styles.secondaryWide} disabled={sedangCariImpor}>{sedangCariImpor ? "Mencari…" : `Impor Otomatis Kalender ${tahunLibur}`}</button>
         {pesanImpor && <p style={styles.error}>{pesanImpor}</p>}
-        {Array.isArray(hasilImpor) && hasilImpor.length > 0 && <div style={styles.importBox}><p style={styles.sub}>Pilih usulan yang ingin disimpan. Belum tersimpan sebelum dikonfirmasi.</p>{hasilImpor.map((item, index) => <label key={item.tanggal} style={styles.importRow}><input type="checkbox" checked={item.dipilih} onChange={() => toggleUsulanImpor(index)} /><span>{formatTanggalLibur(item.tanggal)}</span><span style={{ flex: 1 }}>{item.keterangan}</span></label>)}<div style={styles.buttonRow}><button type="button" onClick={() => void simpanUsulanTerpilih()} style={styles.primary} disabled={sedangSimpanImpor}>{sedangSimpanImpor ? "Menyimpan…" : `Impor ${hasilImpor.filter((x) => x.dipilih).length} Terpilih`}</button><button type="button" onClick={() => setHasilImpor(null)} style={styles.secondary}>Batal</button></div></div>}
+        {Array.isArray(hasilImpor) && hasilImpor.length > 0 && <div style={styles.importBox}><p style={styles.sub}>Pilih usulan yang ingin disimpan. Belum tersimpan sebelum dikonfirmasi.</p>{hasilImpor.map((item, index) => <label key={item.tanggal} style={styles.importRow}><input type="checkbox" checked={item.dipilih} onChange={() => toggleUsulanImpor(index)} /><span>{formatTanggalLibur(item.tanggal)}</span><span style={{ flex: 1 }}>{item.keterangan}</span>{item.error && <span style={styles.importError}>{item.error}</span>}</label>)}<div style={styles.buttonRow}><button type="button" onClick={() => void simpanUsulanTerpilih()} style={styles.primary} disabled={sedangSimpanImpor}>{sedangSimpanImpor ? "Menyimpan…" : `Impor ${hasilImpor.filter((x) => x.dipilih).length} Terpilih`}</button><button type="button" onClick={() => setHasilImpor(null)} style={styles.secondary}>Batal</button></div></div>}
         <div style={{ marginTop: 12 }}>{daftarHariLibur.map((item) => <div key={item.id} style={styles.holidayRow}><span style={styles.date}>{formatTanggalLibur(item.tanggal)}</span><span style={{ flex: 1 }}>{item.keterangan}</span><button type="button" onClick={() => void hapusHariLiburKlik(item.id)} style={styles.delete}>Hapus</button></div>)}</div>
       </section>
 
@@ -362,7 +396,6 @@ const styles = {
   salaryRow: { display: "flex", alignItems: "center", gap: 14, padding: "13px 0", borderTop: `1px solid ${warna.garis}`, flexWrap: "wrap" },
   salaryAction: { display: "flex", alignItems: "center", gap: 8, width: "min(100%, 360px)" },
   rupiah: { display: "flex", alignItems: "center", flex: 1, minWidth: 0, border: `1px solid ${warna.garis}`, borderRadius: 9, overflow: "hidden", background: warna.panelAlt },
-  rupiah: { display: "flex", alignItems: "center", flex: 1, minWidth: 0, border: `1px solid ${warna.garis}`, borderRadius: 9, overflow: "hidden", background: warna.panelAlt },
   primary: { minHeight: 40, padding: "0 14px", border: 0, borderRadius: 9, background: warna.aksen, color: "#fff", fontWeight: 750, cursor: "pointer", whiteSpace: "nowrap" },
   secondary: { minHeight: 40, padding: "0 14px", border: `1px solid ${warna.garis}`, borderRadius: 9, background: warna.panel, color: warna.tinta, fontWeight: 700, cursor: "pointer" },
   secondaryWide: { width: "100%", minHeight: 40, padding: "0 14px", border: `1px dashed ${warna.garis}`, borderRadius: 9, background: warna.panelAlt, color: warna.tinta, fontWeight: 700, cursor: "pointer" },
@@ -377,7 +410,8 @@ const styles = {
   errorBox: { display: "flex", gap: 8, alignItems: "flex-start", marginTop: 12, padding: "10px 12px", borderRadius: 9, background: warna.bahayaLembut, color: warna.bahaya, fontSize: 12 },
   warningBox: { marginTop: 12, padding: 12, borderRadius: 9, background: warna.peringatanLembut, color: warna.tinta, fontSize: 12 },
   importBox: { marginTop: 12, padding: 12, border: `1px solid ${warna.garis}`, borderRadius: 10 },
-  importRow: { display: "flex", gap: 9, alignItems: "center", padding: "6px 0", fontSize: 12.5 },
+  importRow: { display: "flex", gap: 9, alignItems: "center", padding: "6px 0", fontSize: 12.5, flexWrap: "wrap" },
+  importError: { flexBasis: "100%", marginLeft: 25, color: warna.bahaya, fontSize: 11.5, lineHeight: 1.4 },
   buttonRow: { display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 },
   holidayRow: { display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: `1px solid ${warna.garis}`, fontSize: 12.5 },
   date: { width: 125, flexShrink: 0, fontFamily: font.mono, fontWeight: 650 },
