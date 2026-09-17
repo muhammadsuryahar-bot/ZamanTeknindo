@@ -237,7 +237,7 @@ export default function AdminArsip({ kembaliKeDashboard }) {
     try {
       const res = await fetch(
         `${API_URL}/admin/gaji/export?tahun=${tahun}&bulan=${bulan}`,
-        { headers: { Authorization: `Bearer ${getToken()}` } },
+        { headers: { Authorization: `Bearer ${getToken()}` },
       );
 
       if (!res.ok) {
@@ -348,7 +348,7 @@ export default function AdminArsip({ kembaliKeDashboard }) {
   }
 
   return (
-    <div className="admin-page-archive"
+    <div className="admin-arsip-page"
       style={{
         fontFamily: font.display,
         color: warna.tinta,
@@ -669,7 +669,6 @@ export default function AdminArsip({ kembaliKeDashboard }) {
 }
 
 const styles = {
-  
   header: {
     display: "flex",
     alignItems: "flex-start",
