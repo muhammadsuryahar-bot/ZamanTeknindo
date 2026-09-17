@@ -87,6 +87,57 @@ if (typeof window !== "undefined" && !window.__zamanOfficeGeocodeBridge) {
 }
 
 /*
+ * GPS session guard:
+ * setiap kali tampilan kamera benar-benar dibuka sebagai sesi baru, lokasi
+ * global dari sesi kamera sebelumnya dibuang. Jadi koordinat lama tidak bisa
+ * membuat tombol "Ambil Foto" terlihat siap sebelum GPS sesi baru menemukan
+ * lokasi yang memenuhi syarat.
+ */
+if (typeof window !== "undefined" && !window.__zamanKameraLocationSessionGuard) {
+  let kameraTerlihat = false;
+
+  const sinkronkanSesiLokasiKamera = () => {
+    const kameraSekarangTerlihat = Boolean(document.querySelector(".cameraSection"));
+
+    if (kameraSekarangTerlihat && !kameraTerlihat) {
+      window.__zamanLokasiTerakhir = null;
+      window.__zamanLokasiSudahDitemukan = false;
+      window.__zamanLokasiSesiAktif = true;
+      window.__zamanLokasiSesiMulaiPada = Date.now();
+    }
+
+    if (!kameraSekarangTerlihat && kameraTerlihat) {
+      window.__zamanLokasiSudahDitemukan = false;
+      window.__zamanLokasiSesiAktif = false;
+    }
+
+    kameraTerlihat = kameraSekarangTerlihat;
+  };
+
+  const observer = new MutationObserver(sinkronkanSesiLokasiKamera);
+  const pasangObserver = () => {
+    if (document.body) {
+      observer.observe(document.body, { childList: true, subtree: true });
+      sinkronkanSesiLokasiKamera();
+      return true;
+    }
+    return false;
+  };
+
+  if (!pasangObserver()) {
+    window.addEventListener("DOMContentLoaded", pasangObserver, { once: true });
+  }
+
+  const interval = window.setInterval(sinkronkanSesiLokasiKamera, 250);
+  window.addEventListener("pagehide", () => {
+    observer.disconnect();
+    window.clearInterval(interval);
+  }, { once: true });
+
+  window.__zamanKameraLocationSessionGuard = true;
+}
+
+/*
  * Optimasi GPS untuk HP:
  * - GPS presisi tinggi tetap berjalan sejak awal.
  * - Lokasi cache/network dicoba LANGSUNG, bukan menunggu 1,2 detik.
