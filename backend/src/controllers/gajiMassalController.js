@@ -3,6 +3,8 @@ const prisma = require("../utils/prismaClient");
 
 const MAX_ROWS = 500;
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
+// Database: Decimal(12,2). Sistem menyimpan nominal rupiah bulat.
+const MAX_GAJI = 9999999999;
 
 function normalizeHeader(value) {
   return String(value ?? "")
@@ -15,22 +17,19 @@ function parseMoney(value) {
   if (value == null || value === "") return null;
 
   if (typeof value === "number") {
-    if (!Number.isFinite(value) || value < 0) return null;
-    return Number.isSafeInteger(value) ? value : null;
+    if (!Number.isSafeInteger(value) || value < 0 || value > MAX_GAJI) return null;
+    return value;
   }
 
   const text = String(value).trim();
   if (!text || /^-/.test(text)) return null;
   if (/\d+\s*[.,]\s*-/.test(text)) return null;
 
-  // Gaji pokok pada sistem disimpan sebagai nominal rupiah bulat.
-  // Format pemisah ribuan seperti 7.500.000 atau Rp 7.500.000 tetap didukung,
-  // tetapi tanda minus tidak boleh dihapus lalu berubah menjadi nilai positif.
   const digits = text.replace(/\D/g, "");
   if (!digits) return null;
 
   const n = Number(digits);
-  return Number.isSafeInteger(n) && n >= 0 ? n : null;
+  return Number.isSafeInteger(n) && n >= 0 && n <= MAX_GAJI ? n : null;
 }
 
 function normalizeEmail(value) {
@@ -80,7 +79,7 @@ async function templateGajiMassal(req, res) {
     sheet.addRow(["PETUNJUK"]);
     sheet.addRow(["Email wajib diisi dan harus sama dengan email akun karyawan aktif."]);
     sheet.addRow(["Nama hanya untuk pengecekan Admin; sistem menyimpan berdasarkan email."]);
-    sheet.addRow(["Gaji Pokok isi angka, misalnya 7500000. Jangan memakai rumus."]);
+    sheet.addRow(["Gaji Pokok isi angka, misalnya 7500000. Maksimal Rp 9.999.999.999. Jangan memakai rumus."]);
 
     const buffer = await workbook.xlsx.writeBuffer();
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
@@ -145,8 +144,7 @@ async function previewGajiMassal(req, res) {
       if (r.email) seen.add(r.email);
       const user = byEmail.get(r.email);
       if (r.email && !user) errorMessages.push("Email tidak ditemukan pada karyawan aktif");
-      if (r.gajiPokok == null) errorMessages.push("Gaji pokok kosong/tidak valid");
-      if (r.gajiPokok != null && (r.gajiPokok < 0 || r.gajiPokok > 999999999999)) errorMessages.push("Nominal gaji tidak valid");
+      if (r.gajiPokok == null) errorMessages.push(`Gaji pokok kosong/tidak valid atau melebihi batas Rp ${MAX_GAJI.toLocaleString("id-ID")}`);
 
       let pesan = "Siap";
       if (user && r.nama && r.nama.toLowerCase() !== user.nama.trim().toLowerCase()) {
@@ -180,8 +178,8 @@ async function simpanGajiMassal(req, res) {
     const emails = rows.map((r) => r.email);
     if (emails.some((email) => !email)) return res.status(400).json({ pesan: "Semua baris wajib memiliki email." });
     if (emails.length !== new Set(emails).size) return res.status(400).json({ pesan: "Ada email duplikat. Perbaiki Excel lalu impor ulang." });
-    if (rows.some((r) => r.gajiPokok == null || r.gajiPokok < 0 || !Number.isSafeInteger(r.gajiPokok))) {
-      return res.status(400).json({ pesan: "Ada nominal gaji pokok yang tidak valid." });
+    if (rows.some((r) => r.gajiPokok == null || r.gajiPokok < 0 || !Number.isSafeInteger(r.gajiPokok) || r.gajiPokok > MAX_GAJI)) {
+      return res.status(400).json({ pesan: `Ada nominal gaji pokok yang tidak valid. Maksimal Rp ${MAX_GAJI.toLocaleString("id-ID")}.` });
     }
 
     const users = await prisma.pengguna.findMany({
@@ -192,9 +190,6 @@ async function simpanGajiMassal(req, res) {
     const missing = emails.filter((email) => !byEmail.has(email));
     if (missing.length) return res.status(400).json({ pesan: `${missing.length} email tidak ditemukan pada karyawan aktif. Tidak ada data yang disimpan.` });
 
-    // Gunakan array transaction Prisma agar seluruh import tetap atomik,
-    // tetapi tanpa interactive transaction callback yang menahan koneksi
-    // sambil menjalankan 500 await secara berurutan di JavaScript.
     const operasi = rows.map((row) => {
       const penggunaId = byEmail.get(row.email);
       return prisma.gajiKaryawan.upsert({
