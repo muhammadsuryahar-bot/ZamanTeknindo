@@ -132,12 +132,33 @@ async function previewGajiMassal(req, res) {
     }
 
     const rawRows = [];
+    let sudahMasukPetunjuk = false;
+
     sheet.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) return;
+      if (rowNumber === 1 || sudahMasukPetunjuk) return;
+
+      const nilaiBaris = [];
+      row.eachCell({ includeEmpty: false }, (cell) => {
+        const value = cell.value;
+        if (value != null && String(value).trim() !== "") nilaiBaris.push(String(value).trim());
+      });
+
+      // Template resmi sistem menaruh bagian PETUNJUK setelah tabel data.
+      // Baris PETUNJUK dan seluruh isi setelahnya bukan data karyawan.
+      if (nilaiBaris.some((value) => value.toLowerCase() === "petunjuk")) {
+        sudahMasukPetunjuk = true;
+        return;
+      }
+
       const email = normalizeEmail(row.getCell(emailCol).value);
       const nama = String(namaCol ? row.getCell(namaCol).value ?? "" : "").trim();
       const gajiPokok = parseMoney(row.getCell(gajiCol).value);
-      if (email || nama || gajiPokok != null) rawRows.push({ email, nama, gajiPokok, nomorBaris: rowNumber });
+
+      // Baris kosong dilewati. Baris yang mempunyai email/nama tetap diproses
+      // agar kesalahan data dapat ditampilkan sebagai baris merah di preview.
+      if (email || nama || gajiPokok != null) {
+        rawRows.push({ email, nama, gajiPokok, nomorBaris: rowNumber });
+      }
     });
 
     if (rawRows.length === 0) return res.status(400).json({ pesan: "Excel tidak memiliki data karyawan." });
