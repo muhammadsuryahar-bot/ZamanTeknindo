@@ -150,13 +150,22 @@ async function previewGajiMassal(req, res) {
         return;
       }
 
-      const email = normalizeEmail(row.getCell(emailCol).value);
-      const nama = String(namaCol ? row.getCell(namaCol).value ?? "" : "").trim();
-      const gajiPokok = parseMoney(row.getCell(gajiCol).value);
+      const rawEmail = row.getCell(emailCol).value;
+      const rawNama = namaCol ? row.getCell(namaCol).value : "";
+      const rawGaji = row.getCell(gajiCol).value;
 
-      // Baris kosong dilewati. Baris yang mempunyai email/nama tetap diproses
-      // agar kesalahan data dapat ditampilkan sebagai baris merah di preview.
-      if (email || nama || gajiPokok != null) {
+      const email = normalizeEmail(rawEmail);
+      const nama = String(rawNama ?? "").trim();
+      const gajiPokok = parseMoney(rawGaji);
+
+      // Baris kosong dilewati. Namun baris yang memiliki isi pada salah satu
+      // kolom data tetap diproses, meskipun nilainya salah, supaya kesalahan
+      // seperti gaji "abc" atau formula yang tidak didukung tidak diam-diam
+      // hilang dari preview.
+      const adaIsiKolomData = [rawEmail, rawNama, rawGaji].some(
+        (value) => value != null && String(value).trim() !== "",
+      );
+      if (adaIsiKolomData) {
         rawRows.push({ email, nama, gajiPokok, nomorBaris: rowNumber });
       }
     });
