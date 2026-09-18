@@ -21,13 +21,27 @@ function parseMoney(value) {
     return value;
   }
 
-  const text = String(value).trim();
-  if (!text || /^-/.test(text)) return null;
-  if (/\d+\s*[.,]\s*-/.test(text)) return null;
+  let text = String(value).trim();
+  if (!text) return null;
 
-  const digits = text.replace(/\D/g, "");
-  if (!digits) return null;
+  // Tolak semua bentuk negatif, termasuk "Rp -100", "100-", dan accounting "(100)".
+  if (/[()\-]/.test(text)) return null;
 
+  // Hilangkan prefiks rupiah dan whitespace pemisah.
+  text = text.replace(/^Rp\s*/i, "").replace(/[\s\u00a0]/g, "");
+  if (!text) return null;
+
+  // Hanya izinkan angka bulat atau pemisah ribuan yang konsisten.
+  // Contoh valid: 7500000, 7.500.000, 7,500,000.
+  const hanyaAngka = /^\d+$/;
+  const ribuanTitik = /^\d{1,3}(?:\.\d{3})+$/;
+  const ribuanKoma = /^\d{1,3}(?:,\d{3})+$/;
+
+  if (!hanyaAngka.test(text) && !ribuanTitik.test(text) && !ribuanKoma.test(text)) {
+    return null;
+  }
+
+  const digits = text.replace(/[.,]/g, "");
   const n = Number(digits);
   return Number.isSafeInteger(n) && n >= 0 && n <= MAX_GAJI ? n : null;
 }
