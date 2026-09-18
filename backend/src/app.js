@@ -73,7 +73,9 @@ app.use(
   }),
 );
 
-app.use(express.json());
+// Payload JSON dinaikkan agar penyimpanan import gaji massal sampai 500 baris
+// tidak gagal hanya karena ukuran request default Express terlalu kecil.
+app.use(express.json({ limit: "1mb" }));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/absensi", absensiRoutes);
