@@ -327,7 +327,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   const [kameraAktif, setKameraAktif] = useState(false);
   const [kameraMembuka, setKameraMembuka] = useState(false);
   const [fotoTerambil, setFotoTerambil] = useState(null);
-  const [fotoPreview, setFotoPreview] = useState("");
+  const [fotoPreview, setFotoPreview] = useState(null);
   const [lokasi, setLokasi] = useState(null);
   const [statusLokasi, setStatusLokasi] = useState("mencari");
   const [pesan, setPesan] = useState("");
@@ -472,7 +472,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       setFotoPreview(url);
       return () => URL.revokeObjectURL(url);
     }
-    setFotoPreview("");
+    setFotoPreview(null);
   }, [fotoTerambil]);
 
   async function ambilStatusHariIni({ pertahankanVerifikasiSaatFallback = false } = {}) {
@@ -510,6 +510,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     const timeoutId = setTimeout(() => controller.abort(), STATUS_REQUEST_TIMEOUT_MS);
     setStatusVerifikasiSedang(true);
     try {
+      if (requestId !== statusRequestRef.current || !mountedRef.current) { clearTimeout(timeoutId); return; }
       const res = await fetch(`${API_URL}/absensi/status-hari-ini`, { headers: { Authorization: `Bearer ${getToken()}` }, signal: controller.signal });
       let data = {};
       try { data = await res.json(); } catch (parseError) { console.warn("Respons status absensi bukan JSON:", parseError); }
@@ -539,7 +540,9 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       // DEBUG: log biar keliatan sudah_masuk dari kiosk
       console.log("[STATUS HARI INI FIXED]", data.tahap, "manualPending:", data.manualPending);
     } catch (err) {
-      console.error("Gagal memuat status absensi:", err);
+      // AbortError karena unmount komponen (bukan timeout) — abaikan dengan senyap.
+      if (err?.name === "AbortError" && (requestId !== statusRequestRef.current || !mountedRef.current)) return;
+      if (err?.name !== "AbortError") console.error("Gagal memuat status absensi:", err);
       const pesanGagal = err?.name === "AbortError" ? "Server terlalu lama merespons. Status terakhir di perangkat digunakan." : "Server tidak dapat dihubungi. Status terakhir di perangkat digunakan.";
       const berhasilPakaiCache = terapkanCache(pesanGagal);
       if (!berhasilPakaiCache) { setTahap("belum_terverifikasi"); setStatusTerverifikasi(false); setPesan(err?.name === "AbortError" ? "Server terlalu lama merespons. Coba lagi atau periksa koneksi." : "Gagal memuat status absen. Coba lagi atau periksa koneksi."); }

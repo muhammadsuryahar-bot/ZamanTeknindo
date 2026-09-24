@@ -8,7 +8,8 @@ function getWIBTodayRange() {
   const wibDateStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
   const start = new Date(`${wibDateStr}T00:00:00+07:00`);
   const end = new Date(`${wibDateStr}T23:59:59.999+07:00`);
-  return { wibDateStr, start, end };
+  const tanggalDate = new Date(`${wibDateStr}T00:00:00.000Z`);
+  return { wibDateStr, start, end, tanggalDate };
 }
 const { deleteFotoAbsensi } = require("../utils/supabaseStorage");
 
@@ -320,7 +321,7 @@ async function absenPulang(req, res) {
     const { latitude, longitude, alamat } = req.body;
     if (!req.file) return res.status(400).json({ pesan: "Foto absen wajib diunggah." });
 
-    const { start: tanggal, end: tanggalEnd } = getWIBTodayRange();
+    const { tanggalDate: tanggal, end: tanggalEnd } = getWIBTodayRange();
     const pengajuanDisetujui = await prisma.pengajuanIzin.findFirst({
       where: { penggunaId, tanggal, status: "disetujui" },
       select: { id: true, jenis: true, tanggal: true },

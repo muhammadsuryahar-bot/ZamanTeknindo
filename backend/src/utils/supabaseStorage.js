@@ -85,4 +85,31 @@ async function buatSignedUrlFotoBatch(paths) {
   return map;
 }
 
-module.exports = { buatSignedUrlFotoBatch, getPublicUrl };
+async function uploadFotoAbsensi(buffer, filePath, mimeType = "image/jpeg") {
+  const bucket = CANDIDATE_BUCKETS[0] || "foto-absensi";
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .upload(filePath, buffer, {
+      contentType: mimeType,
+      upsert: false,
+    });
+
+  if (error) {
+    console.error(`[foto] Gagal upload ke ${bucket}/${filePath}:`, error.message);
+    throw new Error(`Upload foto gagal: ${error.message}`);
+  }
+
+  console.log(`[foto] Upload berhasil ke ${bucket}/${data.path}`);
+  return data.path;
+}
+
+async function deleteFotoAbsensi(filePath) {
+  if (!filePath) return;
+  const bucket = CANDIDATE_BUCKETS[0] || "foto-absensi";
+  const { error } = await supabase.storage.from(bucket).remove([filePath]);
+  if (error) {
+    console.error(`[foto] Gagal hapus ${bucket}/${filePath}:`, error.message);
+  }
+}
+
+module.exports = { buatSignedUrlFotoBatch, getPublicUrl, uploadFotoAbsensi, deleteFotoAbsensi };
