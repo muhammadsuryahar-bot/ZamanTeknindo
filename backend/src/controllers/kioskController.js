@@ -308,7 +308,7 @@ const kioskAbsen = async (req, res) => {
       const finalLatitude = isGpsMissing && kantor ? kantor.latitude : latitude;
       const finalLongitude = isGpsMissing && kantor ? kantor.longitude : longitude;
       const finalAlamat = alamat
-        ? `${alamat}${akurasi ? ` (akurasi ±${Math.round(Number(akurasi))}m)` : ''}`
+          ? `Absen via Kiosk: ${alamat}${akurasi ? ` (akurasi ±${Math.round(Number(akurasi))}m)` : ''}`
         : kantor ? `Absen via Kiosk: ${kantor.namaKantor}${kantor.alamat ? ` - ${kantor.alamat}` : ''}` : null;
 
       const tanggalOnlyForCreate = new Date(`${wibDateStrForCreate}T00:00:00.000Z`);
@@ -371,7 +371,7 @@ const kioskAbsen = async (req, res) => {
       const finalLatitude = isGpsMissing && kantor ? kantor.latitude : latitude;
       const finalLongitude = isGpsMissing && kantor ? kantor.longitude : longitude;
       const finalAlamat = alamat
-        ? `${alamat}${akurasi ? ` (akurasi ±${Math.round(Number(akurasi))}m)` : ''}`
+          ? `Absen via Kiosk: ${alamat}${akurasi ? ` (akurasi ±${Math.round(Number(akurasi))}m)` : ''}`
         : kantor ? `Absen via Kiosk: ${kantor.namaKantor}${kantor.alamat ? ` - ${kantor.alamat}` : ''}` : null;
 
       const data = await prisma.absensi.update({

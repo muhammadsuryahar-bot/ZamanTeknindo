@@ -38,12 +38,18 @@ async function alamatDariKoordinat(latitude, longitude) {
 
 async function normalisasiLokasi(item, field) {
   const koordinatLama = koordinatDariAlamat(item[field]);
-  if (!koordinatLama) return item;
-  const namaLokasi = await alamatDariKoordinat(koordinatLama.latitude, koordinatLama.longitude);
+  const fieldPrefix = field === "alamatMasuk" ? "latitudeMasuk" : "latitudePulang";
+  const longitudeField = field === "alamatMasuk" ? "longitudeMasuk" : "longitudePulang";
+  const isKioskLama = String(item[field] || "").startsWith("Absen via Kiosk:");
+  const latitude = koordinatLama?.latitude ?? Number(item[fieldPrefix]);
+  const longitude = koordinatLama?.longitude ?? Number(item[longitudeField]);
+  if ((!koordinatLama && !isKioskLama) || !Number.isFinite(latitude) || !Number.isFinite(longitude)) return item;
+  const namaLokasi = await alamatDariKoordinat(latitude, longitude);
   if (!namaLokasi) return item;
+  const akurasi = koordinatLama?.akurasi || String(item[field] || "").match(/akurasi\s*±([^\)]+)/i)?.[1] || null;
   return {
     ...item,
-    [field]: `${namaLokasi}${koordinatLama.akurasi ? ` (akurasi ±${koordinatLama.akurasi})` : ""}`,
+    [field]: `${isKioskLama ? "Absen via Kiosk: " : ""}${namaLokasi}${akurasi ? ` (akurasi ±${akurasi})` : ""}`,
   };
 }
 
