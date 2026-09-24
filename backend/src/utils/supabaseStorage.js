@@ -10,13 +10,13 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Daftar bucket yang mungkin dipakai di project kamu - urut prioritas
+// Bucket production proyek adalah `absensi`; nama lama tetap didukung.
 const CANDIDATE_BUCKETS = [
   process.env.SUPABASE_BUCKET_FOTO,
-  'foto-absensi',
   'absensi',
-  'foto'
-].filter(Boolean);
+  'foto-absensi',
+  'foto',
+].filter((bucket, index, buckets) => bucket && buckets.indexOf(bucket) === index);
 
 function getPublicUrl(bucket, path) {
   const { data } = supabase.storage.from(bucket).getPublicUrl(path);
@@ -74,7 +74,7 @@ async function buatSignedUrlFotoBatch(paths) {
 
     if (!foundUrl) {
       console.error(`[foto] file tidak ketemu di semua bucket (atau gagal signed) untuk path: ${path}`);
-      const fallbackBucket = CANDIDATE_BUCKETS[0] || 'foto-absensi';
+      const fallbackBucket = CANDIDATE_BUCKETS[0] || 'absensi';
       foundUrl = getPublicUrl(fallbackBucket, path);
     }
 
@@ -86,26 +86,33 @@ async function buatSignedUrlFotoBatch(paths) {
 }
 
 async function uploadFotoAbsensi(buffer, filePath, mimeType = "image/jpeg") {
-  const bucket = CANDIDATE_BUCKETS[0] || "foto-absensi";
-  const { data, error } = await supabase.storage
-    .from(bucket)
-    .upload(filePath, buffer, {
-      contentType: mimeType,
-      upsert: false,
-    });
+  let errorTerakhir = null;
 
-  if (error) {
+  for (const bucket of CANDIDATE_BUCKETS) {
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .upload(filePath, buffer, {
+        contentType: mimeType,
+        upsert: false,
+      });
+
+    if (!error) {
+      console.log(`[foto] Upload berhasil ke ${bucket}/${data.path}`);
+      return data.path;
+    }
+
+    errorTerakhir = error;
     console.error(`[foto] Gagal upload ke ${bucket}/${filePath}:`, error.message);
-    throw new Error(`Upload foto gagal: ${error.message}`);
   }
 
-  console.log(`[foto] Upload berhasil ke ${bucket}/${data.path}`);
-  return data.path;
+  throw new Error(
+    `Upload foto gagal pada semua bucket (${CANDIDATE_BUCKETS.join(", ")}): ${errorTerakhir?.message || "konfigurasi Storage tidak tersedia"}`,
+  );
 }
 
 async function deleteFotoAbsensi(filePath) {
   if (!filePath) return;
-  const bucket = CANDIDATE_BUCKETS[0] || "foto-absensi";
+  const bucket = CANDIDATE_BUCKETS[0] || "absensi";
   const { error } = await supabase.storage.from(bucket).remove([filePath]);
   if (error) {
     console.error(`[foto] Gagal hapus ${bucket}/${filePath}:`, error.message);
