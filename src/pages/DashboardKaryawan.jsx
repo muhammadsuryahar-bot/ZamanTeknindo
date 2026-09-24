@@ -705,7 +705,13 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       const data = await res.json();
       const a = data.address || {};
       const namaJalan = a.road || a.pedestrian || a.residential || a.living_street || a.footway || a.cycleway || a.path || a.service || null;
-      return { jalan: [namaJalan, a.house_number].filter(Boolean).join(" No. ") || null, kotaKecamatan: [a.village || a.suburb, a.city || a.town || a.county].filter(Boolean).join(", ") || null };
+      const kecamatan = a.suburb || a.city_district || a.district || a.village || null;
+      const kota = a.city || a.town || a.municipality || a.county || null;
+      const provinsi = a.state || a.province || null;
+      return {
+        jalan: namaJalan,
+        kotaKecamatan: [kecamatan, kota, provinsi].filter(Boolean).join(", ") || null,
+      };
     } finally { clearTimeout(timeoutId); }
   }
 
@@ -716,8 +722,11 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       cariProvinsiResmi(latitude, longitude).catch((err) => { console.error("Gagal mencari provinsi resmi:", err); return null; }),
     ]);
     const jalan = detailNominatim?.jalan || null;
-    const kotaKecamatan = kotaKecamatanBDC || detailNominatim?.kotaKecamatan || null;
-    const bagian = [jalan, kotaKecamatan, provinsiResmi].filter(Boolean);
+    const kotaKecamatan =
+      detailNominatim?.kotaKecamatan ||
+      [kotaKecamatanBDC, provinsiResmi].filter(Boolean).join(", ") ||
+      null;
+    const bagian = [jalan, kotaKecamatan].filter(Boolean);
     return bagian.length === 0 ? `${latitude}, ${longitude}` : bagian.join(", ");
   }
 

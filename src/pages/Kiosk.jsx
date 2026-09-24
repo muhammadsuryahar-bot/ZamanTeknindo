@@ -9,6 +9,26 @@ const JAM_MASUK_MAX = 8 * 60 + 10;
 const JAM_PULANG_MIN = 17 * 60;
 const POPUP_DURATION_SECONDS = 15;
 
+async function ambilAlamatKiosk(latitude, longitude) {
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+      { headers: { Accept: "application/json" } },
+    );
+    if (!response.ok) throw new Error(`Nominatim HTTP ${response.status}`);
+    const data = await response.json();
+    const alamat = data.address || {};
+    const jalan = alamat.road || alamat.pedestrian || alamat.residential || null;
+    const kecamatan = alamat.suburb || alamat.city_district || alamat.district || alamat.village || null;
+    const kota = alamat.city || alamat.town || alamat.municipality || alamat.county || null;
+    const provinsi = alamat.state || alamat.province || null;
+    const bagian = [jalan, kecamatan, kota, provinsi].filter(Boolean);
+    return bagian.length ? bagian.join(", ") : null;
+  } catch {
+    return null;
+  }
+}
+
 function useWIBClock() {
   const [now, setNow] = useState(new Date());
   useEffect(() => {
@@ -619,14 +639,17 @@ export default function Kiosk() {
       }
 
       let lat = null,
-        lng = null;
+        lng = null,
+        akurasi = null;
       try {
         const p = await new Promise((res, rej) =>
           navigator.geolocation.getCurrentPosition(res, rej, { timeout: 2000 }),
         );
         lat = p.coords.latitude;
         lng = p.coords.longitude;
+        akurasi = Number.isFinite(p.coords.accuracy) ? Math.round(p.coords.accuracy) : null;
       } catch {}
+      const alamat = lat !== null && lng !== null ? await ambilAlamatKiosk(lat, lng) : null;
 
       const canvas = document.createElement("canvas");
       canvas.width = 320;
@@ -648,6 +671,8 @@ export default function Kiosk() {
             foto,
             latitude: lat,
             longitude: lng,
+            akurasi,
+            alamat,
             tipe: "auto",
             waktuAsli: (attempt || new Date()).toISOString(),
           }),
@@ -664,6 +689,8 @@ export default function Kiosk() {
             foto,
             latitude: lat,
             longitude: lng,
+            akurasi,
+            alamat,
             tipe: "auto",
             waktuAsli: (attempt || new Date()).toISOString(),
           },
@@ -778,14 +805,17 @@ export default function Kiosk() {
     setFallbackConflict(null);
     try {
       let lat = null,
-        lng = null;
+        lng = null,
+        akurasi = null;
       try {
         const p = await new Promise((res, rej) =>
           navigator.geolocation.getCurrentPosition(res, rej, { timeout: 2000 }),
         );
         lat = p.coords.latitude;
         lng = p.coords.longitude;
+        akurasi = Number.isFinite(p.coords.accuracy) ? Math.round(p.coords.accuracy) : null;
       } catch {}
+      const alamat = lat !== null && lng !== null ? await ambilAlamatKiosk(lat, lng) : null;
       const canvas = document.createElement("canvas");
       canvas.width = 320;
       canvas.height = 240;
@@ -805,6 +835,8 @@ export default function Kiosk() {
             foto,
             latitude: lat,
             longitude: lng,
+            akurasi,
+            alamat,
             alasan: fallbackAlasan,
             attemptAt: attemptAt
               ? attemptAt.toISOString()
@@ -821,6 +853,8 @@ export default function Kiosk() {
             foto,
             latitude: lat,
             longitude: lng,
+            akurasi,
+            alamat,
             alasan: fallbackAlasan,
             attemptAt: attemptAt
               ? attemptAt.toISOString()

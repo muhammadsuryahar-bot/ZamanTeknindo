@@ -7,6 +7,55 @@ import { CalendarDays, RefreshCcw, AlertCircle, MapPin, Navigation } from "lucid
 
 const TIMEZONE_WIB = "Asia/Jakarta";
 
+function koordinatDariAlamat(alamat) {
+  const cocok = String(alamat || "").match(
+    /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)(?:\s*\(akurasi\s*±([^\)]+)\))?/i,
+  );
+  if (!cocok) return null;
+  return { latitude: Number(cocok[1]), longitude: Number(cocok[2]), akurasi: cocok[3] || null };
+}
+
+async function alamatDariKoordinat(latitude, longitude) {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+      { headers: { Accept: "application/json" } },
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const alamat = data.address || {};
+    const bagian = [
+      alamat.road || alamat.pedestrian || alamat.residential,
+      alamat.suburb || alamat.city_district || alamat.district || alamat.village,
+      alamat.city || alamat.town || alamat.municipality || alamat.county,
+      alamat.state || alamat.province,
+    ].filter(Boolean);
+    return bagian.length ? bagian.join(", ") : null;
+  } catch {
+    return null;
+  }
+}
+
+async function normalisasiLokasi(item, field) {
+  const koordinatLama = koordinatDariAlamat(item[field]);
+  if (!koordinatLama) return item;
+  const namaLokasi = await alamatDariKoordinat(koordinatLama.latitude, koordinatLama.longitude);
+  if (!namaLokasi) return item;
+  return {
+    ...item,
+    [field]: `${namaLokasi}${koordinatLama.akurasi ? ` (akurasi ±${koordinatLama.akurasi})` : ""}`,
+  };
+}
+
+async function normalisasiRiwayat(data) {
+  return Promise.all(
+    data.map(async (item) => {
+      const denganMasuk = await normalisasiLokasi(item, "alamatMasuk");
+      return normalisasiLokasi(denganMasuk, "alamatPulang");
+    }),
+  );
+}
+
 export default function RiwayatAbsensi({ kembali }) {
   const [riwayat, setRiwayat] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -32,7 +81,8 @@ export default function RiwayatAbsensi({ kembali }) {
         throw new Error(data?.pesan || "Gagal memuat riwayat absensi.");
       }
 
-      setRiwayat(Array.isArray(data.data) ? data.data : []);
+      const daftar = Array.isArray(data.data) ? data.data : [];
+      setRiwayat(await normalisasiRiwayat(daftar));
     } catch (err) {
       console.error(err);
       if (!silent) { setRiwayat([]); setPesan(err?.message || "Gagal memuat riwayat. Cek koneksi ke server."); }

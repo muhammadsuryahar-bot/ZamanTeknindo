@@ -237,7 +237,7 @@ const recognize = async (req, res) => {
 
 const kioskAbsen = async (req, res) => {
   try {
-    let { penggunaId, tipe, foto, latitude, longitude } = req.body;
+    let { penggunaId, tipe, foto, latitude, longitude, alamat, akurasi } = req.body;
     const waktuAsli = String(req.body?.waktuAsli || "").trim();
     let now = new Date();
     if (req.get("X-Zaman-Background") === "offline-sync" && waktuAsli) {
@@ -303,7 +303,9 @@ const kioskAbsen = async (req, res) => {
       const isGpsMissing = latitude == null || longitude == null || latitude === 0 || longitude === 0;
       const finalLatitude = isGpsMissing && kantor ? kantor.latitude : latitude;
       const finalLongitude = isGpsMissing && kantor ? kantor.longitude : longitude;
-      const finalAlamat = kantor ? `Absen via Kiosk: ${kantor.namaKantor}${kantor.alamat ? ` - ${kantor.alamat}` : ''}` : null;
+      const finalAlamat = alamat
+        ? `${alamat}${akurasi ? ` (akurasi ±${Math.round(Number(akurasi))}m)` : ''}`
+        : kantor ? `Absen via Kiosk: ${kantor.namaKantor}${kantor.alamat ? ` - ${kantor.alamat}` : ''}` : null;
 
       const tanggalOnlyForCreate = new Date(`${wibDateStrForCreate}T00:00:00.000Z`);
       const data = absen
@@ -364,7 +366,9 @@ const kioskAbsen = async (req, res) => {
       const isGpsMissing = latitude == null || longitude == null || latitude === 0 || longitude === 0;
       const finalLatitude = isGpsMissing && kantor ? kantor.latitude : latitude;
       const finalLongitude = isGpsMissing && kantor ? kantor.longitude : longitude;
-      const finalAlamat = kantor ? `Absen via Kiosk: ${kantor.namaKantor}${kantor.alamat ? ` - ${kantor.alamat}` : ''}` : null;
+      const finalAlamat = alamat
+        ? `${alamat}${akurasi ? ` (akurasi ±${Math.round(Number(akurasi))}m)` : ''}`
+        : kantor ? `Absen via Kiosk: ${kantor.namaKantor}${kantor.alamat ? ` - ${kantor.alamat}` : ''}` : null;
 
       const data = await prisma.absensi.update({
         where: { id: absen.id },
