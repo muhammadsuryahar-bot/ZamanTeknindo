@@ -1,4 +1,9 @@
-const sharp = require("sharp");
+let sharp;
+try {
+  sharp = require("sharp");
+} catch {
+  sharp = null;
+}
 const crypto = require("crypto");
 
 const {
@@ -56,19 +61,12 @@ async function kompresFoto(req, res, next) {
       });
     }
 
-    let kualitas = 80;
+    let bufferHasil = req.file.buffer;
 
-    let bufferHasil = await sharp(req.file.buffer)
-      .rotate()
-      .resize({
-        width: LEBAR_MAKS_PX,
-        withoutEnlargement: true,
-      })
-      .jpeg({ quality: kualitas })
-      .toBuffer();
-
-    while (bufferHasil.length > TARGET_MAKS_BYTES && kualitas > 30) {
-      kualitas -= 10;
+    // Gunakan sharp hanya jika tersedia (tidak tersedia di Vercel serverless)
+    // Frontend sudah mengkompresi foto sebelum upload, jadi aman tanpa sharp.
+    if (sharp) {
+      let kualitas = 80;
 
       bufferHasil = await sharp(req.file.buffer)
         .rotate()
@@ -78,9 +76,25 @@ async function kompresFoto(req, res, next) {
         })
         .jpeg({ quality: kualitas })
         .toBuffer();
+
+      while (bufferHasil.length > TARGET_MAKS_BYTES && kualitas > 30) {
+        kualitas -= 10;
+
+        bufferHasil = await sharp(req.file.buffer)
+          .rotate()
+          .resize({
+            width: LEBAR_MAKS_PX,
+            withoutEnlargement: true,
+          })
+          .jpeg({ quality: kualitas })
+          .toBuffer();
+      }
+    } else {
+      console.log("[kompresFoto] sharp tidak tersedia, upload buffer asli (frontend sudah kompresi)");
     }
 
-    const filePath = buatPathStorage(req.user.id, "jpg");
+    const ekstensi = req.file.mimetype === "image/png" ? "png" : "jpg";
+    const filePath = buatPathStorage(req.user.id, ekstensi);
 
     console.log("FILE PATH SUPABASE:", filePath);
     console.log("FILE SIZE:", bufferHasil.length);
@@ -88,14 +102,13 @@ async function kompresFoto(req, res, next) {
     const storagePath = await uploadFotoAbsensi(
       bufferHasil,
       filePath,
-      "image/jpeg",
+      req.file.mimetype,
     );
 
     req.file.filename = storagePath;
     req.file.path = storagePath;
     req.file.size = bufferHasil.length;
     req.file.buffer = bufferHasil;
-    req.file.mimetype = "image/jpeg";
 
     // Foto sudah masuk Storage sebelum controller berjalan. Jika request
     // akhirnya gagal, bersihkan file agar tidak menjadi orphan file.
