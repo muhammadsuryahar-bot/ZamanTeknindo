@@ -7,6 +7,7 @@ import logo from "../assets/logo.png";
 import AdminIzin from "./AdminIzin";
 import PengaturanGaji from "./PengaturanGaji";
 import AdminGajiMassal from "./AdminGajiMassal";
+import AdminManual from "./AdminManual";
 import { labelStatusKehadiran } from "../utils/statusKehadiran";
 import {
   ClipboardList,
@@ -49,6 +50,8 @@ const IKON_TAB = {
   approval: Clock,
   karyawan: Users,
   izin: FileEdit,
+  wajah: UserPlus,
+  manual: AlertTriangle,
   gaji: Wallet,
   "gaji-massal": Wallet,
   kantor: Building2,
@@ -86,6 +89,8 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
       "approval",
       "karyawan",
       "izin",
+      "wajah",
+      "manual",
       "gaji",
       "gaji-massal",
       "kantor",
@@ -96,9 +101,22 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
   const [rekap, setRekap] = useState([]);
   const [belumAbsen, setBelumAbsen] = useState([]);
   const [belumAbsenTerbuka, setBelumAbsenTerbuka] = useState(false);
+  const [manualPendingCount, setManualPendingCount] = useState(0);
   const [menunggu, setMenunggu] = useState([]);
   const [karyawan, setKaryawan] = useState([]);
   const [jumlahKaryawanAktif, setJumlahKaryawanAktif] = useState(0);
+
+  // STATE KELOLA WAJAH
+  const [faces, setFaces] = useState([]);
+  const [loadingFaces, setLoadingFaces] = useState(false);
+  const [cariWajah, setCariWajah] = useState("");
+  const [tabWajah, setTabWajah] = useState("sudah"); // sudah / belum - FIX
+  const [wajahSudahDimuat, setWajahSudahDimuat] = useState(false);
+  const [faceHapusId, setFaceHapusId] = useState(null);
+  const [kioskPin, setKioskPin] = useState("");
+  const [savingPin, setSavingPin] = useState(false);
+  const [pinData, setPinData] = useState({});
+
 
   // Loading dibuat per menu supaya perpindahan tab tidak menahan seluruh halaman.
   const [loading, setLoading] = useState(true);
@@ -120,6 +138,8 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
       "approval",
       "karyawan",
       "izin",
+      "wajah",
+      "manual",
       "gaji",
       "gaji-massal",
       "kantor",
@@ -132,6 +152,8 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
       approval: tabAwal === "approval",
       karyawan: tabAwal === "karyawan",
       izin: tabAwal === "izin",
+      wajah: tabAwal === "wajah",
+      manual: tabAwal === "manual",
       gaji: tabAwal === "gaji",
       "gaji-massal": tabAwal === "gaji-massal",
       kantor: tabAwal === "kantor",
@@ -189,6 +211,8 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
   const [notifikasi, setNotifikasi] = useState({
     akunBaru: 0,
     izinBaru: 0,
+    manualPending: 0,
+    manualBaru: 0,
     total: 0,
   });
   const [notifikasiTerbuka, setNotifikasiTerbuka] = useState(false);
@@ -308,18 +332,119 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tanggalRekap]);
 
+  async function muatWajah() {
+    if (wajahSudahDimuat) return;
+    setLoadingFaces(true);
+    try {
+      const token = getToken();
+      const r = await fetch(`${API_URL}/kiosk/faces-detailed`, {
+        headers: { Authorization: `Bearer ${token}`, "x-kiosk-key": "kiosk_rahasia_zaman_2025" },
+      });
+      const pinRes = await fetch(`${API_URL}/admin/pengaturan-potongan`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (pinRes.ok) {
+        const pinDataJson = await pinRes.json();
+        setKioskPin(pinDataJson.data?.kioskPin || "246810");
+        setPinData(pinDataJson.data || {});
+      }
+
+      if (r.ok) {
+        const data = await r.json();
+        setFaces(Array.isArray(data) ? data : data.data || []);
+        setWajahSudahDimuat(true);
+      } else {
+        const r2 = await fetch(`${API_URL}/kiosk/pengguna-list`, {
+          headers: { Authorization: `Bearer ${token}`, "x-kiosk-key": "kiosk_rahasia_zaman_2025" },
+        });
+        if (r2.ok) {
+          const users = await r2.json();
+          const list = Array.isArray(users) ? users : users.data || [];
+          const withFace = list.filter(u => u.hasFace).map(u => ({
+            id: u.id,
+            penggunaId: u.id,
+            pengguna: u,
+            descriptors: [{},{},{}],
+            quality: "KIOSK",
+            createdAt: new Date().toISOString()
+          }));
+          setFaces(withFace);
+          setWajahSudahDimuat(true);
+        }
+      }
+    } catch (e) { console.error(e); }
+    setLoadingFaces(false);
+  }
+
+  async function handleSavePin() {
+    if (!kioskPin) return;
+    setSavingPin(true);
+    try {
+      const r = await fetch(`${API_URL}/admin/pengaturan-potongan`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({
+          ...pinData,
+          kioskPin
+        })
+      });
+      if (r.ok) {
+        setPesanSukses("PIN Kiosk berhasil diperbarui");
+      } else {
+        const j = await r.json();
+        setPesan("Gagal menyimpan PIN: " + j.pesan);
+      }
+    } catch (e) {
+      setPesan("Error: " + e.message);
+    } finally {
+      setSavingPin(false);
+    }
+  }
+
+  const [modalHapusWajah, setModalHapusWajah] = useState(null);
+
+  async function eksekusiHapusWajah(target) {
+    if (!target?.penggunaId) return;
+    const penggunaId = target.penggunaId;
+    setFaceHapusId(penggunaId);
+    try {
+      const token = getToken();
+      const r = await fetch(`${API_URL}/kiosk/face/${penggunaId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}`, "x-kiosk-key": "kiosk_rahasia_zaman_2025" },
+      });
+      const text = await r.text();
+      let j;
+      try { j = JSON.parse(text); } catch { 
+        console.error("Response bukan JSON:", text.slice(0,200));
+        throw new Error(`Server mengembalikan HTML, bukan JSON. Status ${r.status}. Pastikan route DELETE /kiosk/face/:id ada di backend.`); 
+      }
+      if (r.ok) {
+        setPesanSukses(j.message || `Wajah ${target.nama || ""} berhasil dihapus, karyawan harus daftar ulang di Kiosk.`);
+        setFaces(f => f.filter(x => x.penggunaId !== penggunaId));
+        setModalHapusWajah(null);
+      } else {
+        setPesan(j.message || `Gagal hapus wajah (status ${r.status})`);
+      }
+    } catch (e) { 
+      console.error(e);
+      setPesan(e.message); 
+    }
+    setFaceHapusId(null);
+  }
+
   useEffect(() => {
     if (tab === "karyawan") {
       muatKaryawan();
     }
-
-    // Tab Kantor baru mengambil datanya saat benar-benar dibuka.
-    // Tab Menunggu tidak perlu data kantor sampai Admin menekan
-    // tombol "Aktifkan Akun".
+    if (tab === "wajah") {
+      muatWajah();
+      muatKaryawan(); // FIX: load karyawan juga biar tau siapa belum daftar - sebelumnya karyawan kosong jadi Total 0
+    }
     if (tab === "kantor") {
       muatKantor();
     }
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
@@ -358,8 +483,10 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
       setNotifikasi({
         akunBaru: Number(data.data.akunBaru) || 0,
         izinBaru: Number(data.data.izinBaru) || 0,
+        manualPending: Number(data.data.manualPending || data.data.manualBaru || 0) || 0,
         total: Number(data.data.total) || 0,
       });
+      setManualPendingCount(Number(data.data.manualPending || data.data.manualBaru || 0) || 0);
     } catch (error) {
       // Notifikasi bukan bagian yang boleh membuat seluruh dashboard
       // ikut gagal kalau gagal dimuat -- cukup dicatat di console.
@@ -790,14 +917,18 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
   // itu, supaya foto lama yang sempat tersimpan salah juga ikut normal
   // tampil lagi tanpa perlu karyawan absen ulang.
   function urlFoto(namaFile, urlSigned = null) {
-    if (!namaFile) return null;
+    if (!namaFile) return urlSigned || null;
 
-    if (namaFile.startsWith("http") || namaFile.startsWith("data:") || namaFile.startsWith("/uploads/")) {
+    if (namaFile.startsWith("data:") || namaFile.startsWith("http://") || namaFile.startsWith("https://")) {
       return namaFile;
     }
 
-    if (urlSigned && (urlSigned.includes("token=") || urlSigned.includes("sign="))) {
+    if (urlSigned && (urlSigned.startsWith("http://") || urlSigned.startsWith("https://"))) {
       return urlSigned;
+    }
+
+    if (namaFile.startsWith("/uploads/")) {
+      return `${API_URL.replace(/\/api$/, "")}${namaFile}`;
     }
 
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -807,7 +938,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
       return `${supabaseUrl}/storage/v1/object/public/${bucket}/${namaFile}`;
     }
 
-    return urlSigned || null;
+    return urlSigned || `${API_URL.replace(/\/api$/, "")}/uploads/${namaFile}`;
   }
 
   function formatJam(tanggalIso) {
@@ -887,6 +1018,8 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
       label: "Karyawan",
     },
     { id: "izin", label: "Izin", badge: notifikasi.izinBaru || null },
+    { id: "wajah", label: "Kelola Wajah" },
+    { id: "manual", label: "Verifikasi Manual", badge: manualPendingCount || notifikasi.manualPending || null },
     { id: "gaji", label: "Gaji" },
     { id: "gaji-massal", label: "Gaji Massal" },
     { id: "kantor", label: "Kantor Pusat" },
@@ -897,7 +1030,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
   // sekali (itu masih dipakai apa adanya untuk judul halaman & badge).
   const grupSidebar = [
     { label: "WORKSPACE", idTab: ["rekap", "approval"] },
-    { label: "PEOPLE", idTab: ["karyawan", "izin"] },
+    { label: "PEOPLE", idTab: ["karyawan", "izin", "wajah", "manual"] },
     { label: "FINANCE", idTab: ["gaji", "gaji-massal"] },
     { label: "SYSTEM", idTab: ["kantor"] },
   ];
@@ -956,7 +1089,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
               {grup.idTab.map((id) => {
                 const t = tabs.find((x) => x.id === id);
                 if (!t) return null;
-                const Ikon = IKON_TAB[t.id];
+                const Ikon = IKON_TAB[t.id] || ClipboardList;
                 return (
                   <button
                     key={t.id}
@@ -964,7 +1097,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                     style={tab === t.id ? styles.navItemAktif : styles.navItem}
                     className="nav-item-hover"
                   >
-                    <Ikon size={17} strokeWidth={2} style={styles.navIkon} />
+                    {Ikon ? <Ikon size={17} strokeWidth={2} style={styles.navIkon} /> : null}
                     <span style={{ flex: 1, textAlign: "left" }}>
                       {t.label}
                     </span>
@@ -1198,6 +1331,36 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                           </strong>
                           <span style={styles.notifikasiItemSub}>
                             Menunggu persetujuan Admin.
+                          </span>
+                        </div>
+                        <ArrowRight size={15} style={styles.notifikasiArrow} />
+                      </button>
+                    )}
+
+                    {(notifikasi.manualPending > 0 || notifikasi.manualBaru > 0) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNotifikasiTerbuka(false);
+                          pindahTab("manual");
+                        }}
+                        style={styles.notifikasiItem}
+                      >
+                        <div
+                          style={{
+                            ...styles.notifikasiItemIcon,
+                            color: warna.bahaya,
+                            background: warna.bahayaLembut,
+                          }}
+                        >
+                          <AlertTriangle size={17} />
+                        </div>
+                        <div style={styles.notifikasiItemContent}>
+                          <strong style={styles.notifikasiItemJudul}>
+                            {notifikasi.manualPending || notifikasi.manualBaru} verifikasi manual kiosk
+                          </strong>
+                          <span style={styles.notifikasiItemSub}>
+                            Wajah error / tidak dikenali • Butuh verifikasi Admin. Jam asli klik tetap dicatat.
                           </span>
                         </div>
                         <ArrowRight size={15} style={styles.notifikasiArrow} />
@@ -2238,6 +2401,184 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
           {tabPernahDibuka.izin && (
             <div style={{ display: tab === "izin" ? "block" : "none" }}>
               <AdminIzin />
+            </div>
+          )}
+
+          {tabPernahDibuka.wajah && (
+            <div style={{ display: tab === "wajah" ? "block" : "none" }}>
+              <div style={{ background: "#fff", borderRadius: 16, padding: 20, border: "1px solid #e5e7eb", marginBottom: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: "#16233D" }}>Kelola Wajah Karyawan</div>
+                    <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>Menyimpan, melihat & hapus data wajah dari Kiosk • {faces.length} terdaftar</div>
+                  </div>
+                  <button onClick={() => { setWajahSudahDimuat(false); muatWajah(); }} style={{ height: 36, padding: "0 14px", borderRadius: 8, border: "1px solid #e5e7eb", background: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>↻ Refresh</button>
+                </div>
+                              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginTop: 16 }}>
+                <div onClick={()=>setTabWajah("sudah")} style={{ background: tabWajah==="sudah" ? "#0B6E45" : "#E4F3EA", borderRadius: 12, padding: 14, border: `1px solid ${tabWajah==="sudah" ? "#0B6E45" : "#c6e2d3"}`, cursor:"pointer", transition:"all 0.2s", boxShadow: tabWajah==="sudah" ? "0 4px 12px rgba(11,110,69,0.25)" : "none" }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: tabWajah==="sudah" ? "#fff" : "#0B6E45" }}>SUDAH DAFTAR WAJAH</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: tabWajah==="sudah" ? "#fff" : "#0B6E45", marginTop: 4 }}>{faces.length}</div>
+                  <div style={{ fontSize: 10, color: tabWajah==="sudah" ? "rgba(255,255,255,0.8)" : "#065F46", marginTop:4 }}>{tabWajah==="sudah" ? "● Sedang dilihat" : "Klik untuk lihat • Bisa presensi"}</div>
+                </div>
+                <div onClick={()=>setTabWajah("belum")} style={{ background: tabWajah==="belum" ? "#C0392B" : "#FBE7E4", borderRadius: 12, padding: 14, border: `1px solid ${tabWajah==="belum" ? "#C0392B" : "#f5c6c1"}`, cursor:"pointer", transition:"all 0.2s", boxShadow: tabWajah==="belum" ? "0 4px 12px rgba(192,57,43,0.25)" : "none" }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: tabWajah==="belum" ? "#fff" : "#C0392B" }}>BELUM DAFTAR</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: tabWajah==="belum" ? "#fff" : "#C0392B", marginTop: 4 }}>{karyawan.filter(k => !faces.find(f => f.penggunaId === k.id)).length}</div>
+                  <div style={{ fontSize: 10, color: tabWajah==="belum" ? "rgba(255,255,255,0.8)" : "#991B1B", marginTop:4 }}>{tabWajah==="belum" ? "● Sedang dilihat" : "Klik untuk lihat • Harus daftar"}</div>
+                </div>
+                <div onClick={()=>setTabWajah("total")} style={{ background: tabWajah==="total" ? "#2980B9" : "#D6EAF8", borderRadius: 12, padding: 14, border: `1px solid ${tabWajah==="total" ? "#2980B9" : "#a9cce3"}`, cursor:"pointer", transition:"all 0.2s", boxShadow: tabWajah==="total" ? "0 4px 12px rgba(41,128,185,0.25)" : "none" }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: tabWajah==="total" ? "#fff" : "#2980B9" }}>TOTAL KARYAWAN</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: tabWajah==="total" ? "#fff" : "#2980B9", marginTop: 4 }}>{karyawan.length || jumlahKaryawanAktif || 0}</div>
+                  <div style={{ fontSize: 10, color: tabWajah==="total" ? "rgba(255,255,255,0.8)" : "#1E40AF", marginTop:4 }}>{tabWajah==="total" ? "● Sedang dilihat" : "Klik untuk lihat semua"}</div>
+                </div>
+              </div>
+                <div style={{ marginTop: 16, display: "flex", gap: 16, alignItems: "center" }}>
+                  <div style={{ display: "flex", gap: 8, flex: 2 }}>
+                    <input value={cariWajah} onChange={e => setCariWajah(e.target.value)} placeholder="Cari nama, jabatan, email..." style={{ flex: 1, height: 40, borderRadius: 10, border: "1px solid #e5e7eb", padding: "0 14px", fontSize: 13, boxSizing: "border-box" }} />
+                  </div>
+                  
+                  <div style={{ flex: 1, display: "flex", gap: 8, alignItems: "center", background: "#f9fafb", padding: "4px 8px 4px 12px", borderRadius: 10, border: "1px solid #e5e7eb" }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>PIN Kiosk Admin:</div>
+                    <input value={kioskPin} onChange={e => setKioskPin(e.target.value)} placeholder="PIN" style={{ flex: 1, height: 32, borderRadius: 6, border: "1px solid #d1d5db", padding: "0 10px", fontSize: 13, width: 80 }} />
+                    <button onClick={handleSavePin} disabled={savingPin} style={{ height: 32, padding: "0 12px", borderRadius: 6, border: 0, background: warna.aksen, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: savingPin ? 0.7 : 1 }}>{savingPin ? "..." : "Simpan"}</button>
+                  </div>
+                </div>
+              </div>
+              <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e5e7eb", overflow: "hidden" }}>
+                
+              <div style={{ padding: "14px 20px", borderBottom: "1px solid #e5e7eb", fontWeight: 700, fontSize: 13, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <span>{tabWajah==="sudah" ? `Daftar Wajah Terdaftar (${faces.filter(f => { if(!cariWajah) return true; const q=cariWajah.toLowerCase(); return f.pengguna?.nama?.toLowerCase().includes(q) || f.pengguna?.email?.toLowerCase().includes(q) || f.pengguna?.jabatan?.toLowerCase().includes(q); }).length})` : tabWajah==="belum" ? `Daftar Belum Daftar Wajah (${karyawan.filter(k => !faces.find(f => f.penggunaId === k.id)).filter(k => { if(!cariWajah) return true; const q=cariWajah.toLowerCase(); return k.nama?.toLowerCase().includes(q) || k.email?.toLowerCase().includes(q) || k.jabatan?.toLowerCase().includes(q); }).length})` : `Daftar Semua Karyawan (${karyawan.filter(k => { if(!cariWajah) return true; const q=cariWajah.toLowerCase(); return k.nama?.toLowerCase().includes(q) || k.email?.toLowerCase().includes(q) || k.jabatan?.toLowerCase().includes(q); }).length})`}</span>
+                <span style={{ fontSize:11, color:"#6b7280", fontWeight:400 }}>{tabWajah==="sudah" ? "Sudah bisa presensi di Kiosk" : tabWajah==="belum" ? "Harus daftar wajah di Kiosk" : "Total semua karyawan"}</span>
+              </div>
+
+                {loadingFaces ? (
+                  <div style={{ padding: 40, textAlign: "center", color: "#6b7280" }}>Memuat data wajah...</div>
+                ) : (
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                      <thead style={{ background: "#f9fafb", textAlign: "left", fontSize: 11, color: "#6b7280" }}>
+                        <tr>
+                          <th style={{ padding: "10px 16px" }}>KARYAWAN</th>
+                          <th style={{ padding: "10px 16px" }}>JABATAN</th>
+                          <th style={{ padding: "10px 16px" }}>FACE DATA</th>
+                          <th style={{ padding: "10px 16px" }}>TERDAFTAR</th>
+                          <th style={{ padding: "10px 16px", textAlign: "right" }}>AKSI</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(tabWajah==="sudah" ? faces.filter(f => { if(!cariWajah) return true; const q=cariWajah.toLowerCase(); return f.pengguna?.nama?.toLowerCase().includes(q) || f.pengguna?.email?.toLowerCase().includes(q) || f.pengguna?.jabatan?.toLowerCase().includes(q); }) : tabWajah==="belum" ? karyawan.filter(k => !faces.find(f => f.penggunaId === k.id)).filter(k => { if(!cariWajah) return true; const q=cariWajah.toLowerCase(); return k.nama?.toLowerCase().includes(q) || k.email?.toLowerCase().includes(q) || k.jabatan?.toLowerCase().includes(q); }).map(k => ({ penggunaId: k.id, pengguna: k, isBelum: true, createdAt: k.createdAt })) : karyawan.filter(k => { if(!cariWajah) return true; const q=cariWajah.toLowerCase(); return k.nama?.toLowerCase().includes(q) || k.email?.toLowerCase().includes(q) || k.jabatan?.toLowerCase().includes(q); }).map(k => { const hasFace = !!faces.find(f => f.penggunaId === k.id); const faceData = faces.find(f => f.penggunaId === k.id); return { penggunaId: k.id, pengguna: k, isBelum: !hasFace, createdAt: faceData?.createdAt || k.createdAt, descriptors: faceData?.descriptors, fotoSample: faceData?.fotoSample }; })).map(f => (
+                          <tr key={f.penggunaId} style={{ borderTop: "1px solid #f3f4f6" }}>
+                            <td style={{ padding: "12px 16px" }}>
+                              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                                {f.fotoSample ? (
+                                  <img
+                                    src={urlFoto(f.fotoSample)}
+                                    alt={f.pengguna?.nama || "Wajah"}
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = "none";
+                                      if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = "grid";
+                                    }}
+                                    style={{ width: 38, height: 38, borderRadius: 19, objectFit: "cover", border: "2px solid #10B981" }}
+                                  />
+                                ) : null}
+                                <div style={{ display: f.fotoSample ? "none" : "grid", width: 36, height: 36, borderRadius: 18, background: "#E4F3EA", placeItems: "center", fontWeight: 700, color: "#0B6E45" }}>
+                                  {(f.pengguna?.nama || "?")[0]}
+                                </div>
+                                <div>
+                                  <div style={{ fontWeight: 700, color: "#16233D" }}>{f.pengguna?.nama || "-"}</div>
+                                  <div style={{ fontSize: 11, color: "#6b7280" }}>{f.pengguna?.email || "-"}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td style={{ padding: "12px 16px" }}>
+                              <div style={{ fontWeight: 600 }}>{f.pengguna?.jabatan || "-"}</div>
+                              <div style={{ fontSize: 11, color: "#6b7280" }}>{f.pengguna?.divisi || "-"}</div>
+                            </td>
+                            <td style={{ padding: "12px 16px" }}>
+                              {f.isBelum ? <span style={{ background: "#FBE7E4", color: "#C0392B", padding: "3px 8px", borderRadius: 99, fontSize: 10, fontWeight: 700 }}>Belum daftar</span> : <span style={{ background: "#E4F3EA", color: "#0B6E45", padding: "3px 8px", borderRadius: 99, fontSize: 10, fontWeight: 700 }}>{f.descriptors?.length || 3} pose</span>}
+                            </td>
+                            <td style={{ padding: "12px 16px", fontSize: 11, color: "#6b7280" }}>{f.createdAt ? new Date(f.createdAt).toLocaleDateString("id-ID") : "-"}</td>
+                            <td style={{ padding: "12px 16px", textAlign: "right" }}>
+                              {f.isBelum ? <span style={{ fontSize:11, color:"#6b7280" }}>Daftar di Kiosk</span> : <button onClick={() => setModalHapusWajah({ penggunaId: f.penggunaId, nama: f.pengguna?.nama, email: f.pengguna?.email, jabatan: f.pengguna?.jabatan, divisi: f.pengguna?.divisi, fotoSample: f.fotoSample })} disabled={faceHapusId === f.penggunaId} style={{ height: 28, padding: "0 10px", borderRadius: 6, border: 0, background: faceHapusId === f.penggunaId ? "#9ca3af" : "#C0392B", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{faceHapusId === f.penggunaId ? "..." : "Hapus"}</button>}
+                            </td>
+                          </tr>
+                        ))}
+                        {faces.length === 0 && (
+                          <tr><td colSpan={5} style={{ padding: 40, textAlign: "center", color: "#6b7280" }}>Belum ada wajah terdaftar. Daftar via Kiosk → 3 pose</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Modal Konfirmasi Hapus Wajah - Dashboard Admin */}
+          {modalHapusWajah && (
+            <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.65)", backdropFilter: "blur(4px)", display: "grid", placeItems: "center", zIndex: 999, padding: 16 }}>
+              <div style={{ width: 420, maxWidth: "100%", background: "#fff", borderRadius: 20, padding: 24, boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)" }}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+                  <div style={{ width: 56, height: 56, borderRadius: 28, background: "#FBE7E4", border: "4px solid #FDF2F0", display: "grid", placeItems: "center", fontSize: 26, color: "#C0392B", marginBottom: 14 }}>
+                    🗑️
+                  </div>
+                  <div style={{ fontWeight: 800, fontSize: 18, color: "#16233D" }}>Konfirmasi Hapus Wajah</div>
+                  <div style={{ fontSize: 13, color: "#5B6472", marginTop: 6, lineHeight: 1.5 }}>
+                    Apakah Anda yakin ingin menghapus data sampel wajah karyawan ini?
+                  </div>
+                </div>
+
+                {/* Target User Card */}
+                <div style={{ marginTop: 16, padding: 12, borderRadius: 14, background: "#F8FAFC", border: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: 12 }}>
+                  {modalHapusWajah.fotoSample ? (
+                    <img src={urlFoto(modalHapusWajah.fotoSample)} alt={modalHapusWajah.nama || "Wajah"} style={{ width: 44, height: 44, borderRadius: 22, objectFit: "cover", border: "2px solid #C0392B" }} />
+                  ) : (
+                    <div style={{ width: 44, height: 44, borderRadius: 22, background: "#FBE7E4", color: "#C0392B", display: "grid", placeItems: "center", fontWeight: 800, fontSize: 16 }}>
+                      {(modalHapusWajah.nama || "?")[0]}
+                    </div>
+                  )}
+                  <div style={{ textAlign: "left", flex: 1, overflow: "hidden" }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: "#16233D", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {modalHapusWajah.nama || "Karyawan"}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#6B7280" }}>
+                      {modalHapusWajah.jabatan || "-"} • {modalHapusWajah.divisi || "-"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Alert Notice */}
+                <div style={{ marginTop: 14, padding: "10px 14px", borderRadius: 10, background: "#FFFBEB", border: "1px solid #FCD34D", color: "#92400E", fontSize: 12, lineHeight: 1.4, display: "flex", gap: 8, alignItems: "flex-start" }}>
+                  <span style={{ fontSize: 14 }}>⚠️</span>
+                  <div>
+                    <b>Perhatian:</b> Setelah dihapus, karyawan tidak dapat melakukan presensi wajah di Kiosk sebelum mendaftarkan sampel wajahnya kembali.
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+                  <button
+                    disabled={faceHapusId === modalHapusWajah.penggunaId}
+                    onClick={() => setModalHapusWajah(null)}
+                    style={{ flex: 1, height: 42, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF", color: "#374151", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+                    Batal
+                  </button>
+                  <button
+                    disabled={faceHapusId === modalHapusWajah.penggunaId}
+                    onClick={() => eksekusiHapusWajah(modalHapusWajah)}
+                    style={{ flex: 1, height: 42, borderRadius: 12, border: 0, background: "#C0392B", color: "#FFFFFF", fontWeight: 700, fontSize: 13, cursor: faceHapusId === modalHapusWajah.penggunaId ? "not-allowed" : "pointer", opacity: faceHapusId === modalHapusWajah.penggunaId ? 0.7 : 1 }}>
+                    {faceHapusId === modalHapusWajah.penggunaId ? "Menghapus..." : "Ya, Hapus Wajah"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+
+
+
+          {tabPernahDibuka.manual && (
+            <div style={{ display: tab === "manual" ? "block" : "none" }}>
+              <AdminManual />
             </div>
           )}
 

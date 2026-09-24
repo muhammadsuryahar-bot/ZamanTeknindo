@@ -18,7 +18,11 @@ export default defineConfig({
       // main.jsx tetap menahan penerapan halaman baru ketika kamera sedang
       // aktif, jadi sesi absensi karyawan tidak diputus mendadak.
       registerType: "prompt",
-      includeAssets: ["favicon.png", "favicon.svg"],
+      includeAssets: [
+        "favicon.png",
+        "favicon.svg",
+        "models/**/*",
+      ],
       manifest: {
         id: "/karyawan",
         name: "Absensi PT. Zaman Teknindo",

@@ -3,6 +3,13 @@ const {
   tanggalHariIniWIB,
   jamSekarangWIB,
 } = require("../utils/waktuIndonesia");
+
+function getWIBTodayRange() {
+  const wibDateStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
+  const start = new Date(`${wibDateStr}T00:00:00+07:00`);
+  const end = new Date(`${wibDateStr}T23:59:59.999+07:00`);
+  return { wibDateStr, start, end };
+}
 const { deleteFotoAbsensi } = require("../utils/supabaseStorage");
 
 // Batas default tepat waktu absensi masuk: 08:10 WIB.
@@ -200,7 +207,7 @@ async function absenMasuk(req, res) {
     const { latitude, longitude, alamat } = req.body;
     if (!req.file) return res.status(400).json({ pesan: "Foto absen wajib diunggah." });
 
-    const tanggal = tanggalHariIni();
+    const { start, end: tanggalEnd, tanggalDate: tanggal } = getWIBTodayRange();
     const pengajuanDisetujui = await prisma.pengajuanIzin.findFirst({
       where: { penggunaId, tanggal, status: "disetujui" },
       select: { id: true, jenis: true, tanggal: true },
@@ -313,7 +320,7 @@ async function absenPulang(req, res) {
     const { latitude, longitude, alamat } = req.body;
     if (!req.file) return res.status(400).json({ pesan: "Foto absen wajib diunggah." });
 
-    const tanggal = tanggalHariIni();
+    const { start: tanggal, end: tanggalEnd } = getWIBTodayRange();
     const pengajuanDisetujui = await prisma.pengajuanIzin.findFirst({
       where: { penggunaId, tanggal, status: "disetujui" },
       select: { id: true, jenis: true, tanggal: true },
@@ -404,7 +411,26 @@ async function riwayatSaya(req, res) {
         statusOtomatis: true, statusFinal: true, catatanAdmin: true,
       },
     });
-    return res.json({ data: riwayat });
+
+    const dataDenganStatus = riwayat.map((item) => {
+      let statusFinal = item.statusFinal || item.statusOtomatis;
+      if (!statusFinal && item.jamMasuk) {
+        try {
+          const jamStr = new Date(item.jamMasuk).toLocaleTimeString("en-GB", { timeZone: "Asia/Jakarta", hour12: false });
+          const [h, m] = jamStr.split(":").map(Number);
+          const totalMenit = (h || 0) * 60 + (m || 0);
+          statusFinal = totalMenit > 490 ? "telat" : "tepat_waktu";
+        } catch {
+          statusFinal = "tepat_waktu";
+        }
+      }
+      return {
+        ...item,
+        statusFinal: statusFinal || "tepat_waktu",
+      };
+    });
+
+    return res.json({ data: dataDenganStatus });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ pesan: "Terjadi kesalahan pada server. Silakan coba lagi." });
@@ -414,10 +440,10 @@ async function riwayatSaya(req, res) {
 async function statusHariIni(req, res) {
   try {
     const penggunaId = req.user.id;
-    const tanggal = tanggalHariIni();
+    const { wibDateStr, start, end, tanggalDate } = getWIBTodayRange();
 
-    const absensi = await prisma.absensi.findUnique({
-      where: { penggunaId_tanggal: { penggunaId, tanggal } },
+    const absensi = await prisma.absensi.findFirst({
+      where: { penggunaId, tanggal: tanggalDate },
       select: {
         id: true,
         tanggal: true,
@@ -426,10 +452,28 @@ async function statusHariIni(req, res) {
         statusOtomatis: true,
         statusFinal: true,
       },
+      orderBy: { id: "desc" },
     });
 
+    // Cek manual pending hari ini (kiosk fallback tanpa PIN)
+    let manualPending = null;
+    try {
+      manualPending = await prisma.manualAbsenRequest.findFirst({
+        where: {
+          penggunaId,
+          status: "PENDING",
+          requestedAt: { gte: start, lte: end },
+        },
+        orderBy: { requestedAt: "desc" },
+        select: { id: true, tipe: true, requestedAt: true, attemptMenit: true, keterangan: true },
+      });
+    } catch (e) {
+      // tabel belum ada? abaikan
+      console.warn("manualAbsenRequest check failed:", e.message);
+    }
+
     const pengajuanDisetujui = await prisma.pengajuanIzin.findFirst({
-      where: { penggunaId, tanggal, status: "disetujui" },
+      where: { penggunaId, tanggal: { gte: start, lte: end }, status: "disetujui" },
       select: {
         id: true,
         jenis: true,
@@ -444,18 +488,43 @@ async function statusHariIni(req, res) {
         tahap: "tidak_perlu_absen",
         data: absensi,
         pengajuanIzin: pengajuanDisetujui,
+        manualPending,
       });
     }
 
+    // Jika sudah ada absensi dari kiosk (wajah) -> langsung pakai itu
     let tahap = "belum_masuk";
     if (absensi?.jamMasuk && !absensi?.jamPulang) tahap = "sudah_masuk";
     if (absensi?.jamMasuk && absensi?.jamPulang) tahap = "selesai";
 
-    return res.json({ tahap, data: absensi, pengajuanIzin: null });
+    // FIX: kalau belum ada absensi tapi ada manual PENDING hari ini -> anggap sudah_masuk (menunggu verifikasi)
+    // biar dashboard gak balik jadi "Siap untuk absen masuk" kayak screenshot kamu
+    if (!absensi && manualPending) {
+      // kalau tipe masuk pending, anggap sudah_masuk
+      if (manualPending.tipe === "masuk" || !manualPending.tipe) {
+        tahap = "sudah_masuk";
+      }
+    }
+
+    return res.json({ tahap, data: absensi, pengajuanIzin: null, manualPending });
   } catch (error) {
     console.error("Gagal memuat status absensi hari ini:", error);
     return res.status(500).json({ pesan: "Terjadi kesalahan pada server. Silakan coba lagi." });
   }
 }
 
-module.exports = { absenMasuk, absenPulang, riwayatSaya, statusHariIni };
+async function statusWajahSaya(req, res) {
+  try {
+    const penggunaId = req.user.id;
+    const existing = await prisma.userFace.findUnique({
+      where: { penggunaId },
+      select: { id: true, quality: true, updatedAt: true },
+    });
+    return res.json({ hasFace: !!existing, data: existing || null });
+  } catch (error) {
+    console.error("Gagal memuat status wajah:", error);
+    return res.status(500).json({ pesan: "Terjadi kesalahan pada server." });
+  }
+}
+
+module.exports = { absenMasuk, absenPulang, riwayatSaya, statusHariIni, statusWajahSaya };

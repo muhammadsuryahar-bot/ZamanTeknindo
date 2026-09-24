@@ -14,6 +14,7 @@ import {
   Navigation,
   Wifi,
   WifiOff,
+  ScanFace,
 } from "lucide-react";
 
 import { API_URL, getToken } from "../utils/api";
@@ -33,7 +34,7 @@ const TAHAP_VALID = new Set([
   "selesai",
   "tidak_perlu_absen",
 ]);
-const STATUS_CACHE_VERSION = 2;
+const STATUS_CACHE_VERSION = 3; // FIX: bump biar cache lama belum_masuk kehapus, sinkron sama kiosk
 const STATUS_REQUEST_TIMEOUT_MS = 8000;
 const ABSENSI_REQUEST_TIMEOUT_MS = 15000;
 const LOKASI_REQUEST_TIMEOUT_MS = 20000;
@@ -322,6 +323,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   const navigate = useNavigate();
   const [tahap, setTahap] = useState("memuat");
   const [pengajuanHariIni, setPengajuanHariIni] = useState(null);
+  const [manualPending, setManualPending] = useState(null);
   const [kameraAktif, setKameraAktif] = useState(false);
   const [kameraMembuka, setKameraMembuka] = useState(false);
   const [fotoTerambil, setFotoTerambil] = useState(null);
@@ -524,9 +526,18 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       }
       setTahap(data.tahap);
       setPengajuanHariIni(data.pengajuanIzin || null);
+      setManualPending(data.manualPending || null);
+      // FIX: simpan info pending kiosk manual fallback
+      if (data.manualPending) {
+        localStorage.setItem(`zaman-teknindo:manual-pending:${pengguna.id}:${tanggalLokalISO()}`, JSON.stringify(data.manualPending));
+      } else {
+        localStorage.removeItem(`zaman-teknindo:manual-pending:${pengguna.id}:${tanggalLokalISO()}`);
+      }
       simpanCacheStatusHariIni(pengguna, data.tahap);
       setStatusTerverifikasi(true);
       setPesan("");
+      // DEBUG: log biar keliatan sudah_masuk dari kiosk
+      console.log("[STATUS HARI INI FIXED]", data.tahap, "manualPending:", data.manualPending);
     } catch (err) {
       console.error("Gagal memuat status absensi:", err);
       const pesanGagal = err?.name === "AbortError" ? "Server terlalu lama merespons. Status terakhir di perangkat digunakan." : "Server tidak dapat dihubungi. Status terakhir di perangkat digunakan.";
@@ -813,7 +824,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       <div style={styles.container}>
         <header style={styles.header}>
           <div style={styles.brandHeader}><img className="karyawan-header-logo" src={logoHorizontal} alt="PT. Zaman Teknindo" style={styles.logoHeader} /><div style={styles.userBlock}><div style={styles.avatarBadge}>{inisialNama(pengguna.nama)}</div><div style={{ minWidth: 0 }}><p className="karyawan-header-user-name" style={styles.namaUser}>{pengguna.nama}</p><p style={styles.subNamaUser}>{pengguna.jabatan || "Karyawan"}{pengguna.divisi ? ` · ${pengguna.divisi}` : ""}</p></div></div></div>
-          <div style={styles.headerActions} className="karyawan-header-actions"><button onClick={() => navigate("/karyawan/izin")} style={styles.headerButton} className="karyawan-header-button" type="button"><FileText size={16} /><span>Izin</span></button><button onClick={() => navigate("/karyawan/riwayat")} style={styles.headerButton} className="karyawan-header-button" type="button"><History size={16} /><span>Riwayat</span></button><button onClick={onLogout} style={styles.headerLogout} className="karyawan-header-button" type="button" aria-label="Keluar"><LogOut size={16} /><span>Keluar</span></button></div>
+          <div style={styles.headerActions} className="karyawan-header-actions"><button onClick={() => navigate("/karyawan/registrasi-wajah")} style={styles.headerButton} className="karyawan-header-button" type="button"><ScanFace size={16} /><span>Wajah</span></button><button onClick={() => navigate("/karyawan/izin")} style={styles.headerButton} className="karyawan-header-button" type="button"><FileText size={16} /><span>Izin</span></button><button onClick={() => navigate("/karyawan/riwayat")} style={styles.headerButton} className="karyawan-header-button" type="button"><History size={16} /><span>Riwayat</span></button><button onClick={onLogout} style={styles.headerLogout} className="karyawan-header-button" type="button" aria-label="Keluar"><LogOut size={16} /><span>Keluar</span></button></div>
         </header>
 
         <section style={styles.heroCard}><div><p style={styles.eyebrow}>SISTEM ABSENSI PT. ZAMAN TEKNINDO</p><h1 style={styles.heroTitle}>{judulAksi}</h1>{jumlahTertunda > 0 && <p style={styles.badgeTertunda}><Clock3 size={13} />{jumlahTertunda} absen menunggu dikirim (tersimpan offline)</p>}<p style={styles.heroDate}>{new Date().toLocaleDateString("id-ID", { timeZone: TIMEZONE_WIB, weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p></div><div style={styles.heroBadges}><div style={{ ...styles.networkBadge, color: isOnline ? warna.sukses : warna.peringatan, background: isOnline ? warna.suksesLembut : warna.peringatanLembut }}>{isOnline ? <Wifi size={14} /> : <WifiOff size={14} />}{isOnline ? "Online" : "Offline"}</div><div style={styles.securityBadge}><ShieldCheck size={15} />Data absensi terlindungi</div>{!isOnline && <div style={styles.offlineNotice}>Koneksi terputus. Absensi akan tetap disimpan di perangkat dan dikirim otomatis saat internet kembali.</div>}{isOnline && sedangSinkron && jumlahTertunda > 0 && <div style={styles.syncNotice}><RefreshCcw size={13} />Sedang mengirim {jumlahTertunda} absen yang tertunda...</div>}{isOnline && pesanSinkronisasi && !sedangSinkron && <div style={styles.syncNotice}><RefreshCcw size={13} />{pesanSinkronisasi}</div>}</div></section>
@@ -829,7 +840,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         <div style={styles.footerNote}><ShieldCheck size={14} /><span>Gunakan koneksi internet yang stabil saat mengirim absensi.</span></div>
       </div>
       <canvas ref={canvasRef} style={{ display: "none" }} />
-      <style>{`* { box-sizing: border-box; } .karyawan-scroll-hidden { scrollbar-width: none; -ms-overflow-style: none; } .karyawan-scroll-hidden::-webkit-scrollbar { display: none; width: 0; height: 0; } .karyawan-page button:disabled { opacity: 0.58; cursor: not-allowed !important; transform: none !important; } @media (max-width: 760px) { .karyawan-desktop-only { display: none; } } @media (max-width: 520px) { .karyawan-header-logo { width: 150px !important; margin-bottom: 10px !important; } .karyawan-header-user-name { font-size: 15px !important; } .karyawan-header-actions { width: 100%; display: grid !important; grid-template-columns: repeat(3, 1fr); gap: 7px !important; } .karyawan-header-button { width: 100% !important; min-height: 44px !important; padding: 8px 6px !important; justify-content: center !important; font-size: 11px !important; white-space: nowrap; } .karyawan-action-buttons { grid-template-columns: 1fr !important; } .cameraTopbar { align-items: flex-start; } .cameraTitle { max-width: 230px; } .cameraReadyBadge { flex-shrink: 0; } .faceGuideHint { transform: translate(-50%, calc(-50% + 82px)); font-size: 9.5px; } .cameraLocationBadge { left: 9px; top: 9px; } .cameraHelpRow { font-size: 10.5px; } }`}</style>
+      <style>{`* { box-sizing: border-box; } .karyawan-scroll-hidden { scrollbar-width: none; -ms-overflow-style: none; } .karyawan-scroll-hidden::-webkit-scrollbar { display: none; width: 0; height: 0; } .karyawan-page button:disabled { opacity: 0.58; cursor: not-allowed !important; transform: none !important; } @media (max-width: 760px) { .karyawan-desktop-only { display: none; } } @media (max-width: 520px) { .karyawan-header-logo { width: 150px !important; margin-bottom: 10px !important; } .karyawan-header-user-name { font-size: 15px !important; } .karyawan-header-actions { width: 100%; display: grid !important; grid-template-columns: repeat(4, 1fr); gap: 6px !important; } .karyawan-header-button { width: 100% !important; min-height: 44px !important; padding: 8px 4px !important; justify-content: center !important; font-size: 10.5px !important; white-space: nowrap; } .karyawan-action-buttons { grid-template-columns: 1fr !important; } .cameraTopbar { align-items: flex-start; } .cameraTitle { max-width: 230px; } .cameraReadyBadge { flex-shrink: 0; } .faceGuideHint { transform: translate(-50%, calc(-50% + 82px)); font-size: 9.5px; } .cameraLocationBadge { left: 9px; top: 9px; } .cameraHelpRow { font-size: 10.5px; } }`}</style>
     </div>
   );
 }

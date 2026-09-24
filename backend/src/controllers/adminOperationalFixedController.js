@@ -28,6 +28,7 @@ async function ambilPengaturanAman() {
       potonganTelat: 10000,
       potonganAlpha: 15000,
       jamMasukStandar: JAM_MASUK_STANDAR_DEFAULT,
+      kioskPin: "246810",
     }
   );
 }
@@ -156,10 +157,17 @@ async function notifikasiAdminFixed(req, res) {
       where: { status: "menunggu" },
     });
 
+    // NEW - Manual Pending (Backup Kiosk tanpa PIN + jam asli klik)
+    const jumlahManualPending = await prisma.manualAbsenRequest.count({
+      where: { status: "PENDING" },
+    });
+
     const data = {
       akunBaru: jumlahAkunBaru,
       izinBaru: jumlahIzinMenunggu,
-      total: jumlahAkunBaru + jumlahIzinMenunggu,
+      manualPending: jumlahManualPending,
+      manualBaru: jumlahManualPending,
+      total: jumlahAkunBaru + jumlahIzinMenunggu + jumlahManualPending,
     };
 
     cacheNotifikasi = { dibuatPada: Date.now(), data };

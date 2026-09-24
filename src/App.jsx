@@ -1,7 +1,7 @@
 import { useEffect, useState, lazy, Suspense, Component } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import Login from "./pages/Login";
-import { getPenggunaLogin, getToken, hapusSesiLogin } from "./utils/api";
+import { API_URL, getPenggunaLogin, getToken, hapusSesiLogin } from "./utils/api";
 import { pasangWebPushOtomatis } from "./utils/webPush";
 import { warna } from "./styles/theme";
 
@@ -9,6 +9,7 @@ const Daftar = lazy(() => import("./pages/Daftar"));
 const DashboardKaryawan = lazy(() => import("./pages/DashboardKaryawan"));
 const RiwayatAbsensi = lazy(() => import("./pages/RiwayatAbsensi"));
 const PengajuanIzin = lazy(() => import("./pages/PengajuanIzin"));
+const RegistrasiWajah = lazy(() => import("./pages/RegistrasiWajah"));
 const DashboardAdmin = lazy(() => import("./pages/DashboardAdmin"));
 const AdminArsip = lazy(() => import("./pages/AdminArsip"));
 const AdminEditKaryawan = lazy(() => import("./pages/AdminEditKaryawan"));
@@ -382,6 +383,7 @@ function RuteAplikasi({ pengguna, setPengguna, onLogout }) {
         <Route path="/karyawan" element={<RuteTerproteksi pengguna={pengguna} peranDiizinkan={["karyawan"]}><DashboardKaryawan pengguna={pengguna} onLogout={onLogout} /></RuteTerproteksi>} />
         <Route path="/karyawan/riwayat" element={<RuteTerproteksi pengguna={pengguna} peranDiizinkan={["karyawan"]}><RiwayatAbsensi kembali={() => navigate("/karyawan")} /></RuteTerproteksi>} />
         <Route path="/karyawan/izin" element={<RuteTerproteksi pengguna={pengguna} peranDiizinkan={["karyawan"]}><PengajuanIzin kembali={() => navigate("/karyawan")} /></RuteTerproteksi>} />
+        <Route path="/karyawan/registrasi-wajah" element={<RuteTerproteksi pengguna={pengguna} peranDiizinkan={["karyawan"]}><RegistrasiWajah kembali={() => navigate("/karyawan")} pengguna={pengguna} /></RuteTerproteksi>} />
         <Route path="/ganti-password" element={<RuteTerproteksi pengguna={pengguna}><GantiPassword kembali={() => navigate(pengguna?.peran === "admin" ? "/admin" : "/karyawan")} /></RuteTerproteksi>} />
         <Route path="/admin/edit-karyawan" element={<RuteTerproteksi pengguna={pengguna} peranDiizinkan={["admin"]}><div className="admin-page-edit-karyawan"><AdminEditKaryawan /></div></RuteTerproteksi>} />
         <Route path="/admin/*" element={<RuteTerproteksi pengguna={pengguna} peranDiizinkan={["admin"]}><Routes><Route path="*" element={<AdminShell pengguna={pengguna} onLogout={onLogout} />} /></Routes></RuteTerproteksi>} />

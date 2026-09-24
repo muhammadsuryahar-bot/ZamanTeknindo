@@ -1,3 +1,4 @@
+
 const express = require("express");
 const multer = require("multer");
 const router = express.Router();
@@ -42,6 +43,13 @@ const {
 } = require("../controllers/hitungGajiController");
 const { exportLaporanExcel } = require("../controllers/exportGajiController");
 
+// NEW - Manual Verifikasi Controller
+const {
+  getManualPending,
+  approveManual,
+  rejectManual,
+} = require("../controllers/adminManualController");
+
 router.use(cekLogin, cekAdmin);
 
 router.use((req, res, next) => {
@@ -75,13 +83,10 @@ function validasiEditStatusAbsensi(req, res, next) {
   const statusFinal = String(req.body?.statusFinal || "").trim();
   const catatanAdmin = String(req.body?.catatanAdmin || "").trim();
   if (!STATUS_FINAL_VALID.has(statusFinal)) {
-    return res.status(400).json({ pesan: "Status absensi tidak valid. Gunakan status tepat_waktu, telat, alpha, izin, sakit, cuti, atau urgent." });
+    return res.status(400).json({ pesan: "Status absensi tidak valid." });
   }
   if (!catatanAdmin) {
-    return res.status(400).json({ pesan: "Catatan wajib diisi kalau mengubah status absensi secara manual." });
-  }
-  if (catatanAdmin.length > 500) {
-    return res.status(400).json({ pesan: "Catatan Admin maksimal 500 karakter." });
+    return res.status(400).json({ pesan: "Catatan wajib diisi." });
   }
   next();
 }
@@ -92,12 +97,10 @@ function validasiNominalNonNegatif(field, label) {
     if (raw == null || String(raw).trim() === "") {
       return res.status(400).json({ pesan: `${label} wajib diisi.` });
     }
-
     const nilai = Number(raw);
     if (!Number.isFinite(nilai) || nilai < 0) {
-      return res.status(400).json({ pesan: `${label} harus berupa angka yang valid dan tidak boleh negatif.` });
+      return res.status(400).json({ pesan: `${label} harus angka valid.` });
     }
-
     req.body[field] = nilai;
     next();
   };
@@ -106,7 +109,7 @@ function validasiNominalNonNegatif(field, label) {
 function validasiPengaturanPotongan(req, res, next) {
   const jamMasuk = String(req.body?.jamMasukStandar || "08:10:00").trim();
   if (!/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(jamMasuk)) {
-    return res.status(400).json({ pesan: "Jam masuk standar tidak valid. Gunakan format HH:MM atau HH:MM:SS." });
+    return res.status(400).json({ pesan: "Jam masuk tidak valid." });
   }
   req.body.jamMasukStandar = jamMasuk;
   next();
@@ -115,20 +118,8 @@ function validasiPengaturanPotongan(req, res, next) {
 function validasiTanggalHariLibur(req, res, next) {
   const nilai = String(req.body?.tanggal || "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(nilai)) {
-    return res.status(400).json({ pesan: "Tanggal hari libur harus menggunakan format YYYY-MM-DD." });
+    return res.status(400).json({ pesan: "Tanggal harus YYYY-MM-DD." });
   }
-
-  const [tahun, bulan, hari] = nilai.split("-").map(Number);
-  const kandidat = new Date(Date.UTC(tahun, bulan - 1, hari));
-  const valid =
-    kandidat.getUTCFullYear() === tahun &&
-    kandidat.getUTCMonth() === bulan - 1 &&
-    kandidat.getUTCDate() === hari;
-
-  if (!valid) {
-    return res.status(400).json({ pesan: "Tanggal hari libur tidak valid." });
-  }
-
   req.body.tanggal = nilai;
   next();
 }
@@ -139,7 +130,7 @@ const uploadExcelGaji = multer({
   fileFilter: (req, file, cb) => {
     const nama = String(file.originalname || "").toLowerCase();
     if (!nama.endsWith(".xlsx")) {
-      return cb(new Error("Hanya file Excel .xlsx yang diperbolehkan."));
+      return cb(new Error("Hanya .xlsx"));
     }
     cb(null, true);
   },
@@ -156,29 +147,15 @@ router.put("/karyawan/:id/reset-password", batasResetPassword, resetPasswordOleh
 
 router.get("/rekap-hari-ini", rekapHariIniFixed);
 router.get("/rekap-tanggal", ambilRekapTanggal);
-router.put(
-  "/absensi/tanggal/:tanggal/pengguna/:penggunaId/status",
-  validasiEditStatusAbsensi,
-  ubahStatusTanpaAbsensi,
-);
+router.put("/absensi/tanggal/:tanggal/pengguna/:penggunaId/status", validasiEditStatusAbsensi, ubahStatusTanpaAbsensi);
 router.get("/ringkasan", ringkasanDashboardFixed);
 router.put("/absensi/:id/edit-status", editStatusAbsensiFixed);
 
 router.get("/pengaturan-potongan", ambilPengaturanPotonganFixed);
-router.put(
-  "/pengaturan-potongan",
-  validasiNominalNonNegatif("potonganTelat", "Potongan telat"),
-  validasiNominalNonNegatif("potonganAlpha", "Potongan alpha"),
-  validasiPengaturanPotongan,
-  ubahPengaturanPotonganFixed,
-);
+router.put("/pengaturan-potongan", validasiNominalNonNegatif("potonganTelat", "Potongan telat"), validasiNominalNonNegatif("potonganAlpha", "Potongan alpha"), validasiPengaturanPotongan, ubahPengaturanPotonganFixed);
 
 router.get("/gaji", daftarGajiKaryawanFixed);
-router.put(
-  "/gaji/:id/atur",
-  validasiNominalNonNegatif("gajiPokok", "Gaji pokok"),
-  ubahGajiKaryawanFixed,
-);
+router.put("/gaji/:id/atur", validasiNominalNonNegatif("gajiPokok", "Gaji pokok"), ubahGajiKaryawanFixed);
 router.post("/gaji/hitung/:penggunaId", hitungDanSimpanSatu);
 router.post("/gaji/hitung-semua", hitungDanSimpanSemua);
 router.get("/gaji/laporan", lihatLaporanBulanan);
@@ -187,7 +164,7 @@ router.get("/gaji/export", exportLaporanExcel);
 router.get("/gaji/template-massal", templateGajiMassal);
 router.post("/gaji/import-preview", (req, res, next) => {
   uploadExcelGaji.single("file")(req, res, (err) => {
-    if (err) return res.status(400).json({ pesan: err.message || "File Excel tidak valid." });
+    if (err) return res.status(400).json({ pesan: err.message });
     next();
   });
 }, previewGajiMassal);
@@ -201,5 +178,10 @@ router.get("/hari-libur", daftarHariLiburFixed);
 router.post("/hari-libur", validasiTanggalHariLibur, tambahHariLiburFixed);
 router.delete("/hari-libur/:id", hapusHariLiburFixed);
 router.get("/hari-libur-usulan", usulanHariLiburFixed);
+
+// ===== NEW: Verifikasi Manual - Backup Kiosk (TANPA PIN di kiosk) =====
+router.get("/manual-pending", getManualPending);
+router.post("/manual-approve/:id", approveManual);
+router.post("/manual-reject/:id", rejectManual);
 
 module.exports = router;

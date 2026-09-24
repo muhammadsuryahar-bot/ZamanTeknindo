@@ -1,17 +1,27 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const kioskController = require("../controllers/kioskController");
+const kioskController = require('../controllers/kioskController');
+const { checkKioskKey } = kioskController;
 
-// middleware cek x-kiosk-key
-router.use(kioskController.checkKioskKey);
+// List & Status
+router.get('/pengguna-list', checkKioskKey, kioskController.getPenggunaListKiosk);
+router.get('/status/:penggunaId', checkKioskKey, kioskController.getStatusKiosk);
+router.get('/faces', checkKioskKey, kioskController.getAllFaces);
+router.get('/faces-detailed', kioskController.getFacesDetailed);
 
-router.get("/faces", kioskController.getAllFaces);
-router.get("/pengguna-list", kioskController.getPenggunaListKiosk);
-router.get("/status/:penggunaId", kioskController.getStatusKiosk);
-router.post("/enroll", kioskController.enrollFace);
-router.post("/recognize", kioskController.recognize);
-router.post("/absen", kioskController.kioskAbsen);
-router.post("/manual-fallback", kioskController.submitManualFallback);
-router.post("/verify-admin-pin", kioskController.verifyAdminPin);
+// Absen
+router.post('/enroll', checkKioskKey, kioskController.enrollFace);
+router.post('/recognize', checkKioskKey, kioskController.recognize);
+router.post('/absen', checkKioskKey, kioskController.kioskAbsen);
+router.post('/absen-via-kiosk', checkKioskKey, kioskController.kioskAbsen);
+router.post('/manual-fallback', checkKioskKey, kioskController.submitManualFallback);
+
+// PIN - tanpa checkKioskKey biar gak dobel error
+router.post('/verify-admin-pin', kioskController.verifyAdminPin);
+router.post('/verify-pin', kioskController.verifyAdminPin);
+
+// Hapus wajah - INI YANG BIKIN 404 KEMARIN, sekarang ada
+router.delete('/face/:penggunaId', kioskController.hapusFace);
+router.delete('/face/:id', kioskController.hapusFace);
 
 module.exports = router;

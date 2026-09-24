@@ -138,6 +138,7 @@ async function ambilPengaturanPotonganFixed(req, res) {
         potonganTelat: 10000,
         potonganAlpha: 15000,
         jamMasukStandar: JAM_MASUK_STANDAR_DEFAULT,
+        kioskPin: "246810",
       },
     });
 
@@ -155,6 +156,7 @@ async function ubahPengaturanPotonganFixed(req, res) {
     const potonganTelat = parseNonNegativeNumber(req.body?.potonganTelat);
     const potonganAlpha = parseNonNegativeNumber(req.body?.potonganAlpha);
     const jamMasuk = normalisasiJam(req.body?.jamMasukStandar);
+    const kioskPin = String(req.body?.kioskPin || "246810").trim();
 
     if (potonganTelat === null || potonganAlpha === null) {
       return res.status(400).json({
@@ -174,12 +176,14 @@ async function ubahPengaturanPotonganFixed(req, res) {
         potonganTelat,
         potonganAlpha,
         jamMasukStandar: jamMasuk,
+        kioskPin,
       },
       create: {
         id: 1,
         potonganTelat,
         potonganAlpha,
         jamMasukStandar: jamMasuk,
+        kioskPin,
       },
     });
 

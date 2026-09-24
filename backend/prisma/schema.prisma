@@ -4,8 +4,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
   // directUrl = env("DIRECT_URL")
 }
 
@@ -22,26 +22,26 @@ model Kantor {
 }
 
 model Pengguna {
-  id Int @id @default(autoincrement())
-  nama String
-  email String @unique
-  kataSandi String @map("kata_sandi")
-  peran Peran @default(karyawan)
-  jabatan String?
-  divisi String?
-  kantorId Int? @map("kantor_id")
-  statusAkun StatusAkun @default(menunggu_konfirmasi) @map("status_akun")
-  dibuatPada DateTime @default(now()) @map("dibuat_pada")
-  absensiDiedit Absensi[] @relation("AbsensiDiedit")
-  absensi Absensi[] @relation("AbsensiPengguna")
-  gaji GajiKaryawan?
-  laporanGaji LaporanGaji[]
-  izinDiproses PengajuanIzin[] @relation("IzinDiproses")
-  pengajuanIzin PengajuanIzin[] @relation("IzinPengaju")
+  id                Int                  @id @default(autoincrement())
+  nama              String
+  email             String               @unique
+  kataSandi         String               @map("kata_sandi")
+  peran             Peran                @default(karyawan)
+  jabatan           String?
+  divisi            String?
+  kantorId          Int?                 @map("kantor_id")
+  statusAkun        StatusAkun           @default(menunggu_konfirmasi) @map("status_akun")
+  dibuatPada        DateTime             @default(now()) @map("dibuat_pada")
+  absensiDiedit     Absensi[]            @relation("AbsensiDiedit")
+  absensi           Absensi[]            @relation("AbsensiPengguna")
+  gaji              GajiKaryawan?
+  laporanGaji       LaporanGaji[]
+  izinDiproses      PengajuanIzin[]      @relation("IzinDiproses")
+  pengajuanIzin     PengajuanIzin[]      @relation("IzinPengaju")
   pushSubscriptions PushSubscription[]
-  kantor Kantor? @relation(fields: [kantorId], references: [id])
-  face UserFace?
-  manualAbsens ManualAbsenRequest[]
+  kantor            Kantor?              @relation(fields: [kantorId], references: [id])
+  face              UserFace?
+  manualAbsens      ManualAbsenRequest[]
 
   @@index([kantorId])
   @@map("pengguna")
@@ -68,7 +68,7 @@ model Absensi {
   tanggal         DateTime         @db.Date
   jamMasuk        DateTime?        @map("jam_masuk")
   jamPulang       DateTime?        @map("jam_pulang")
-  fotoMasuk String? @map("foto_masuk") @db.Text
+  fotoMasuk       String?          @map("foto_masuk") @db.Text
   fotoPulang      String?          @map("foto_pulang")
   latitudeMasuk   Float?           @map("latitude_masuk")
   longitudeMasuk  Float?           @map("longitude_masuk")
@@ -84,8 +84,8 @@ model Absensi {
   dibuatPada      DateTime         @default(now()) @map("dibuat_pada")
   editor          Pengguna?        @relation("AbsensiDiedit", fields: [dieditOleh], references: [id])
   pengguna        Pengguna         @relation("AbsensiPengguna", fields: [penggunaId], references: [id])
-  keterangan      String? @map("keterangan")
-  menitTerlambat  Int?    @map("menit_terlambat")
+  keterangan      String?          @map("keterangan")
+  menitTerlambat  Int?             @map("menit_terlambat")
 
   @@unique([penggunaId, tanggal])
   @@index([dieditOleh])
@@ -107,6 +107,7 @@ model PengaturanPotongan {
   potonganTelat   Decimal  @default(10000.00) @map("potongan_telat") @db.Decimal(12, 2)
   potonganAlpha   Decimal  @default(15000.00) @map("potongan_alpha") @db.Decimal(12, 2)
   jamMasukStandar String   @default("08:10:00") @map("jam_masuk_standar")
+  kioskPin        String   @default("246810") @map("kiosk_pin")
   diubahPada      DateTime @updatedAt @map("diubah_pada")
 
   @@map("pengaturan_potongan")
@@ -163,22 +164,22 @@ model LaporanGaji {
 }
 
 model ArsipBulanan {
-  id                   Int          @id @default(autoincrement())
+  id                   Int         @id @default(autoincrement())
   tahun                Int
   bulan                Int
-  namaFile             String?      @map("nama_file")
-  lokasiArsip          String?      @map("lokasi_arsip")
-  status               StatusArsip  @default(draft)
-  dikonfirmasiPada     DateTime?    @map("dikonfirmasi_pada")
-  siapDihapusPada      DateTime?    @map("siap_dihapus_pada")
-  mulaiDihapusPada     DateTime?    @map("mulai_dihapus_pada")
-  selesaiDihapusPada   DateTime?    @map("selesai_dihapus_pada")
-  jumlahAbsensiAwal    Int          @default(0) @map("jumlah_absensi_awal")
-  jumlahFotoAwal       Int          @default(0) @map("jumlah_foto_awal")
-  jumlahAbsensiDihapus Int          @default(0) @map("jumlah_absensi_dihapus")
-  jumlahFotoDihapus    Int          @default(0) @map("jumlah_foto_dihapus")
-  pesanError           String?      @map("pesan_error")
-  dibuatPada           DateTime     @default(now()) @map("dibuat_pada")
+  namaFile             String?     @map("nama_file")
+  lokasiArsip          String?     @map("lokasi_arsip")
+  status               StatusArsip @default(draft)
+  dikonfirmasiPada     DateTime?   @map("dikonfirmasi_pada")
+  siapDihapusPada      DateTime?   @map("siap_dihapus_pada")
+  mulaiDihapusPada     DateTime?   @map("mulai_dihapus_pada")
+  selesaiDihapusPada   DateTime?   @map("selesai_dihapus_pada")
+  jumlahAbsensiAwal    Int         @default(0) @map("jumlah_absensi_awal")
+  jumlahFotoAwal       Int         @default(0) @map("jumlah_foto_awal")
+  jumlahAbsensiDihapus Int         @default(0) @map("jumlah_absensi_dihapus")
+  jumlahFotoDihapus    Int         @default(0) @map("jumlah_foto_dihapus")
+  pesanError           String?     @map("pesan_error")
+  dibuatPada           DateTime    @default(now()) @map("dibuat_pada")
 
   @@unique([tahun, bulan])
   @@index([status, siapDihapusPada])
@@ -230,27 +231,37 @@ enum StatusArsip {
 
 // MODEL BARU 1: Simpan embedding wajah
 model UserFace {
-  id Int @id @default(autoincrement())
-  penggunaId Int @unique @map("pengguna_id")
-  user Pengguna @relation(fields: [penggunaId], references: [id], onDelete: Cascade)
+  id          Int      @id @default(autoincrement())
+  penggunaId  Int      @unique @map("pengguna_id")
+  user        Pengguna @relation(fields: [penggunaId], references: [id], onDelete: Cascade)
   descriptors Json
-  quality String @default("KIOSK")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  fotoSample  String?  @map("foto_sample") @db.Text
+  quality     String   @default("KIOSK")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("user_face")
 }
 
 model ManualAbsenRequest {
-  id Int @id @default(autoincrement())
-  penggunaId Int @map("pengguna_id")
-  user Pengguna @relation(fields: [penggunaId], references: [id], onDelete: Cascade)
-  tipe String
-  requestedAt DateTime @map("requested_at")
-  fotoBukti String? @map("foto_bukti")
-  alasan String?
-  status String @default("PENDING")
-  createdAt DateTime @default(now()) @map("created_at")
+  id             Int       @id @default(autoincrement())
+  penggunaId     Int       @map("pengguna_id")
+  user           Pengguna  @relation(fields: [penggunaId], references: [id], onDelete: Cascade)
+  tipe           String    @map("tipe") // masuk / pulang
+  requestedAt    DateTime  @map("requested_at") // JAM ASLI KLIK 08.09 (bukan 08.11)
+  attemptMenit   Int?      @map("attempt_menit")
+  statusOtomatis String?   @map("status_otomatis") // tepat_waktu / terlambat
+  fotoBukti      String?   @map("foto_bukti") @db.Text
+  alasan         String?   @map("alasan")
+  status         String    @default("PENDING") @map("status") // PENDING, APPROVED, REJECTED
+  keterangan     String?   @map("keterangan") // CONFLICT warning kalau salah pilih User B
+  alasanTolak    String?   @map("alasan_tolak")
+  approvedAt     DateTime? @map("approved_at")
+  approvedBy     Int?      @map("approved_by")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at")
 
+  @@index([penggunaId, requestedAt])
+  @@index([status])
   @@map("manual_absen_request")
 }
