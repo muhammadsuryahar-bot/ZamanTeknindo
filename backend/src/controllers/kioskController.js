@@ -52,32 +52,35 @@ const checkKioskKey = (req, res, next) => {
 const verifyAdminPin = async (req, res) => {
   try {
     const { pin } = req.body;
-    
-    // Ambil PIN dari database
-    let pengaturan = await prisma.pengaturanPotongan.findUnique({ where: { id: 1 } });
-    if (!pengaturan) {
-      pengaturan = await prisma.pengaturanPotongan.create({
-        data: { id: 1 }
-      });
-    }
-
-    const ADMIN_PIN = String(
-      pengaturan.kioskPin || process.env.ADMIN_KIOSK_PIN || process.env.KIOSK_ADMIN_PIN || "246810",
-    ).trim();
     const inputPin = String(pin || "").trim();
-
-    console.log(
-      `[PIN CHECK] Input: "${inputPin}" | DB/ENV: "${ADMIN_PIN}" | Match: ${inputPin === ADMIN_PIN}`,
-    );
 
     if (!inputPin) {
       return res.status(400).json({ message: "PIN tidak boleh kosong" });
     }
+
+    // Coba ambil PIN dari database, fallback ke env var atau default
+    let ADMIN_PIN = process.env.ADMIN_KIOSK_PIN || process.env.KIOSK_ADMIN_PIN || "246810";
+    try {
+      let pengaturan = await prisma.pengaturanPotongan.findUnique({ where: { id: 1 } });
+      if (!pengaturan) {
+        pengaturan = await prisma.pengaturanPotongan.create({
+          data: { id: 1 }
+        });
+      }
+      if (pengaturan.kioskPin) {
+        ADMIN_PIN = String(pengaturan.kioskPin).trim();
+      }
+    } catch (dbErr) {
+      console.warn("[PIN] DB tidak bisa dijangkau, pakai PIN dari env/default:", dbErr.message);
+    }
+
+    console.log(`[PIN CHECK] Input length: ${inputPin.length} | Match: ${inputPin === ADMIN_PIN}`);
+
     if (inputPin === ADMIN_PIN) {
       return res.json({ ok: true, message: "PIN benar" });
     }
     return res.status(401).json({
-      message: `PIN admin salah. Input: ${inputPin}, Expected: ${ADMIN_PIN}`,
+      message: "PIN admin salah.",
     });
   } catch (e) {
     console.error("verifyAdminPin error:", e);
@@ -86,6 +89,7 @@ const verifyAdminPin = async (req, res) => {
       .json({ message: "Error verifikasi PIN: " + e.message });
   }
 };
+
 
 const getPenggunaListKiosk = async (req, res) => {
   try {
