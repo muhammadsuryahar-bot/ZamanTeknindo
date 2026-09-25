@@ -6,6 +6,73 @@ import TopbarHijau from "../components/TopbarHijau";
 import { CalendarDays, RefreshCcw, AlertCircle, MapPin, Navigation } from "lucide-react";
 
 const TIMEZONE_WIB = "Asia/Jakarta";
+const cacheAlamatKoordinat = new Map();
+
+async function alamatDariKoordinatNominatim(latitude, longitude) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 5000);
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+      { signal: controller.signal, headers: { Accept: "application/json" } },
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const a = data.address || {};
+    const jalan = a.road || a.pedestrian || a.residential || a.living_street || a.footway || null;
+    const kecamatan = a.suburb || a.city_district || a.district || a.village || null;
+    const kota = a.city || a.town || a.municipality || a.county || null;
+    const provinsi = a.state || a.province || null;
+    const bagian = [jalan, kecamatan, kota, provinsi].filter(Boolean);
+    return bagian.length ? bagian.join(", ") : null;
+  } catch {
+    return null;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+async function alamatDariKoordinat(latitude, longitude) {
+  // Tolak koordinat 0,0 (Samudera Atlantik)
+  if (latitude === 0 && longitude === 0) return null;
+
+  const cacheKey = `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
+  if (cacheAlamatKoordinat.has(cacheKey)) return cacheAlamatKoordinat.get(cacheKey);
+
+  // Coba Nominatim dulu (ada nama jalan), fallback ke BigDataCloud
+  let hasil = await alamatDariKoordinatNominatim(latitude, longitude).catch(() => null);
+
+  if (!hasil) {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 5000);
+    try {
+      const res = await fetch(
+        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=id`,
+        { signal: controller.signal },
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const bagian = [
+          data.locality,
+          data.city && data.city !== data.locality ? data.city : null,
+          data.principalSubdivision,
+        ].filter(Boolean);
+        if (bagian.length) hasil = bagian.join(", ");
+      }
+    } catch {
+      // Abaikan
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  }
+
+  cacheAlamatKoordinat.set(cacheKey, hasil);
+  return hasil;
+}
+
+function adalahKoordinatMentah(alamat) {
+  return /^\s*-?\d+\.\d+\s*,\s*-?\d+\.\d+/.test(String(alamat || ""));
+}
 
 function koordinatDariAlamat(alamat) {
   const cocok = String(alamat || "").match(
@@ -15,51 +82,46 @@ function koordinatDariAlamat(alamat) {
   return { latitude: Number(cocok[1]), longitude: Number(cocok[2]), akurasi: cocok[3] || null };
 }
 
-async function alamatDariKoordinat(latitude, longitude) {
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
-      { headers: { Accept: "application/json" } },
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    const alamat = data.address || {};
-    const bagian = [
-      alamat.road || alamat.pedestrian || alamat.residential,
-      alamat.suburb || alamat.city_district || alamat.district || alamat.village,
-      alamat.city || alamat.town || alamat.municipality || alamat.county,
-      alamat.state || alamat.province,
-    ].filter(Boolean);
-    return bagian.length ? bagian.join(", ") : null;
-  } catch {
-    return null;
-  }
-}
-
 async function normalisasiLokasi(item, field) {
-  const koordinatLama = koordinatDariAlamat(item[field]);
-  const fieldPrefix = field === "alamatMasuk" ? "latitudeMasuk" : "latitudePulang";
-  const longitudeField = field === "alamatMasuk" ? "longitudeMasuk" : "longitudePulang";
-  const isKioskLama = String(item[field] || "").startsWith("Absen via Kiosk:");
-  const latitude = koordinatLama?.latitude ?? Number(item[fieldPrefix]);
-  const longitude = koordinatLama?.longitude ?? Number(item[longitudeField]);
-  if ((!koordinatLama && !isKioskLama) || !Number.isFinite(latitude) || !Number.isFinite(longitude)) return item;
+  const nilaiAlamat = String(item[field] || "").trim();
+
+  // Jika sudah berupa teks alamat yang bermakna (bukan raw koordinat), tampilkan langsung
+  if (nilaiAlamat && !adalahKoordinatMentah(nilaiAlamat)) return item;
+
+  // Tentukan field koordinat yang sesuai
+  const latField = field === "alamatMasuk" ? "latitudeMasuk" : "latitudePulang";
+  const lngField = field === "alamatMasuk" ? "longitudeMasuk" : "longitudePulang";
+
+  // Coba parsing koordinat dari teks ("lat, lng") atau dari field langsung
+  const dariTeks = koordinatDariAlamat(nilaiAlamat);
+  const latitude = dariTeks?.latitude ?? Number(item[latField]);
+  const longitude = dariTeks?.longitude ?? Number(item[lngField]);
+  const akurasiAda = dariTeks?.akurasi || null;
+
+  // Tolak koordinat tidak valid atau 0,0 (Samudera Atlantik)
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return item;
+  if (latitude === 0 && longitude === 0) return item;
+
   const namaLokasi = await alamatDariKoordinat(latitude, longitude);
   if (!namaLokasi) return item;
-  const akurasi = koordinatLama?.akurasi || String(item[field] || "").match(/akurasi\s*±([^\)]+)/i)?.[1] || null;
+
   return {
     ...item,
-    [field]: `${isKioskLama ? "Absen via Kiosk: " : ""}${namaLokasi}${akurasi ? ` (akurasi ±${akurasi})` : ""}`,
+    [field]: namaLokasi + (akurasiAda ? ` (akurasi ±${akurasiAda})` : ""),
   };
 }
 
 async function normalisasiRiwayat(data) {
-  return Promise.all(
-    data.map(async (item) => {
-      const denganMasuk = await normalisasiLokasi(item, "alamatMasuk");
-      return normalisasiLokasi(denganMasuk, "alamatPulang");
-    }),
-  );
+  const hasil = [];
+  for (const item of data) {
+    const denganMasuk = await normalisasiLokasi(item, "alamatMasuk");
+    // Hanya normalisasi lokasi pulang jika karyawan sudah absen pulang
+    const denganPulang = item.jamPulang
+      ? await normalisasiLokasi(denganMasuk, "alamatPulang")
+      : denganMasuk;
+    hasil.push(denganPulang);
+  }
+  return hasil;
 }
 
 export default function RiwayatAbsensi({ kembali }) {
@@ -88,7 +150,12 @@ export default function RiwayatAbsensi({ kembali }) {
       }
 
       const daftar = Array.isArray(data.data) ? data.data : [];
-      setRiwayat(await normalisasiRiwayat(daftar));
+      setRiwayat(daftar);
+      if (!silent) setLoading(false);
+
+      // Reverse-geocoding hanya memperkaya tampilan; jangan menahan riwayat.
+      const daftarDenganAlamat = await normalisasiRiwayat(daftar);
+      setRiwayat(daftarDenganAlamat);
     } catch (err) {
       console.error(err);
       if (!silent) { setRiwayat([]); setPesan(err?.message || "Gagal memuat riwayat. Cek koneksi ke server."); }
@@ -135,16 +202,23 @@ export default function RiwayatAbsensi({ kembali }) {
   }
 
   function koordinatValid(latitude, longitude) {
-    return (
-      Number.isFinite(Number(latitude)) && Number.isFinite(Number(longitude))
-    );
+    const lat = Number(latitude);
+    const lng = Number(longitude);
+    // Tolak jika bukan angka finite, atau 0,0 (Samudera Atlantik)
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+    if (lat === 0 && lng === 0) return false;
+    return true;
   }
 
-  function alamatTampilan(item) {
-    if (item.alamatMasuk) return item.alamatMasuk;
+  function alamatTampilan(item, tipe = "masuk") {
+    const field = tipe === "masuk" ? "alamatMasuk" : "alamatPulang";
+    const latField = tipe === "masuk" ? "latitudeMasuk" : "latitudePulang";
+    const lngField = tipe === "masuk" ? "longitudeMasuk" : "longitudePulang";
 
-    if (koordinatValid(item.latitudeMasuk, item.longitudeMasuk)) {
-      return `GPS tersedia: ${Number(item.latitudeMasuk).toFixed(6)}, ${Number(item.longitudeMasuk).toFixed(6)}`;
+    if (item[field]) return item[field];
+
+    if (koordinatValid(item[latField], item[lngField])) {
+      return `${Number(item[latField]).toFixed(6)}, ${Number(item[lngField]).toFixed(6)}`;
     }
 
     return "Lokasi GPS tidak tersimpan pada data absensi ini.";
@@ -217,7 +291,7 @@ export default function RiwayatAbsensi({ kembali }) {
                     <MapPin size={14} />
                     <strong>Lokasi masuk</strong>
                   </div>
-                  <p style={styles.itemAlamat}>{alamatTampilan(item)}</p>
+                  <p style={styles.itemAlamat}>{alamatTampilan(item, "masuk")}</p>
 
                   {punyaKoordinatMasuk && (
                     <a
@@ -232,14 +306,14 @@ export default function RiwayatAbsensi({ kembali }) {
                   )}
                 </div>
 
-                {item.alamatPulang || punyaKoordinatPulang ? (
+                {item.jamPulang && (item.alamatPulang || punyaKoordinatPulang) ? (
                   <div style={styles.locationBlock}>
                     <div style={styles.locationTitle}>
                       <MapPin size={14} />
                       <strong>Lokasi pulang</strong>
                     </div>
                     <p style={styles.itemAlamat}>
-                      {item.alamatPulang || `GPS tersedia: ${Number(item.latitudePulang).toFixed(6)}, ${Number(item.longitudePulang).toFixed(6)}`}
+                      {alamatTampilan(item, "pulang")}
                     </p>
                     {punyaKoordinatPulang && (
                       <a

@@ -1,7 +1,7 @@
 const prisma = require("../utils/prismaClient");
 const {
   tanggalHariIniWIB,
-  jamSekarangWIB,
+  getWIBDateParts,
 } = require("../utils/waktuIndonesia");
 
 function getWIBTodayRange() {
@@ -192,22 +192,30 @@ function waktuAbsensiDariRequest(req) {
 }
 
 function menitSekarangWIB(date = new Date()) {
-  const jam = jamSekarangWIB(date);
-  return Math.floor(jam * 60);
+  const { jam, menit } = getWIBDateParts(date);
+  return jam * 60 + menit;
 }
 
 async function absenMasuk(req, res) {
   const fotoPath = req.file?.filename || null;
   let fotoTersimpanDiDatabase = false;
+  let tahap = "awal";
   async function hapusFotoJikaPerlu() {
-    if (fotoPath && !fotoTersimpanDiDatabase) await deleteFotoAbsensi(fotoPath);
+    if (!fotoPath || fotoTersimpanDiDatabase) return;
+    try {
+      await deleteFotoAbsensi(fotoPath);
+    } catch (error) {
+      console.error("Gagal membersihkan foto absen masuk:", error);
+    }
   }
 
   try {
+    tahap = "validasi-request";
     const penggunaId = req.user.id;
     const { latitude, longitude, alamat } = req.body;
     if (!req.file) return res.status(400).json({ pesan: "Foto absen wajib diunggah." });
 
+    tahap = "cek-izin";
     const { start, end: tanggalEnd, tanggalDate: tanggal } = getWIBTodayRange();
     const pengajuanDisetujui = await prisma.pengajuanIzin.findFirst({
       where: { penggunaId, tanggal, status: "disetujui" },
@@ -221,6 +229,7 @@ async function absenMasuk(req, res) {
       });
     }
 
+    tahap = "cek-absensi-sebelumnya";
     const sudahAbsen = await prisma.absensi.findUnique({
       where: { penggunaId_tanggal: { penggunaId, tanggal } },
     });
@@ -229,6 +238,7 @@ async function absenMasuk(req, res) {
       return res.status(409).json({ pesan: "Anda sudah melakukan absen masuk hari ini." });
     }
 
+    tahap = "validasi-lokasi";
     const waktuServer = waktuAbsensiDariRequest(req);
     const menitServerWIB = menitSekarangWIB(waktuServer);
     const batasTepatWaktu = await ambilBatasTepatWaktu();
@@ -265,6 +275,7 @@ async function absenMasuk(req, res) {
       statusFinal: statusOtomatis,
     };
 
+    tahap = "simpan-absensi";
     let absensi;
     if (sudahAbsen) {
       const hasilUpdate = await prisma.absensi.updateMany({
@@ -303,7 +314,12 @@ async function absenMasuk(req, res) {
       data: absensi,
     });
   } catch (error) {
-    console.error("Gagal memproses absen masuk:", error);
+    console.error("Gagal memproses absen masuk:", {
+      tahap,
+      code: error?.code,
+      message: error?.message,
+      meta: error?.meta,
+    });
     await hapusFotoJikaPerlu();
     return res.status(500).json({ pesan: "Terjadi kesalahan pada server. Silakan coba lagi." });
   }
