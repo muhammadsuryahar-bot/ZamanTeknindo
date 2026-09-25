@@ -7,40 +7,55 @@ import { CalendarDays, RefreshCcw, AlertCircle, MapPin, Navigation } from "lucid
 
 const TIMEZONE_WIB = "Asia/Jakarta";
 const cacheAlamatKoordinat = new Map();
+// Antrian request ke Nominatim (max 1 req/detik sesuai kebijakan penggunaan)
+let _nominatimQueue = Promise.resolve();
 
-async function alamatDariKoordinatNominatim(latitude, longitude) {
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), 5000);
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
-      { signal: controller.signal, headers: { Accept: "application/json" } },
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    const a = data.address || {};
-    const jalan = a.road || a.pedestrian || a.residential || a.living_street || a.footway || null;
-    const kecamatan = a.suburb || a.city_district || a.district || a.village || null;
-    const kota = a.city || a.town || a.municipality || a.county || null;
-    const provinsi = a.state || a.province || null;
-    const bagian = [jalan, kecamatan, kota, provinsi].filter(Boolean);
-    return bagian.length ? bagian.join(", ") : null;
-  } catch {
-    return null;
-  } finally {
-    window.clearTimeout(timeoutId);
+function antrianNominatim(fn) {
+  const hasil = _nominatimQueue.then(fn);
+  _nominatimQueue = hasil
+    .catch(() => {})
+    .then(() => new Promise((r) => window.setTimeout(r, 1100)));
+  return hasil;
+}
+
+async function _cariAlamatNominatim(latitude, longitude) {
+  for (const zoom of [19, 18, 17]) {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 7000);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=${zoom}&addressdetails=1`,
+        { signal: controller.signal, headers: { Accept: "application/json" } },
+      );
+      if (!res.ok) continue;
+      const data = await res.json();
+      const a = data.address || {};
+      const jalan =
+        a.road || a.pedestrian || a.residential || a.living_street ||
+        a.footway || a.cycleway || a.path || a.service || null;
+      const kecamatan = a.suburb || a.city_district || a.district || a.village || null;
+      const kota = a.city || a.town || a.municipality || a.county || null;
+      const provinsi = a.state || a.province || null;
+      const bagian = [jalan, kecamatan, kota, provinsi].filter(Boolean);
+      if (bagian.length > 0) return { alamat: bagian.join(", "), punyaJalan: !!jalan };
+    } catch {
+      break;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
   }
+  return null;
 }
 
 async function alamatDariKoordinat(latitude, longitude) {
-  // Tolak koordinat 0,0 (Samudera Atlantik)
   if (latitude === 0 && longitude === 0) return null;
-
-  const cacheKey = `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
+  const cacheKey = `${Number(latitude).toFixed(6)},${Number(longitude).toFixed(6)}`;
   if (cacheAlamatKoordinat.has(cacheKey)) return cacheAlamatKoordinat.get(cacheKey);
 
-  // Coba Nominatim dulu (ada nama jalan), fallback ke BigDataCloud
-  let hasil = await alamatDariKoordinatNominatim(latitude, longitude).catch(() => null);
+  const nominatimHasil = await antrianNominatim(() =>
+    _cariAlamatNominatim(latitude, longitude).catch(() => null),
+  );
+  let hasil = nominatimHasil?.alamat || null;
 
   if (!hasil) {
     const controller = new AbortController();
@@ -60,7 +75,6 @@ async function alamatDariKoordinat(latitude, longitude) {
         if (bagian.length) hasil = bagian.join(", ");
       }
     } catch {
-      // Abaikan
     } finally {
       window.clearTimeout(timeoutId);
     }
@@ -71,44 +85,68 @@ async function alamatDariKoordinat(latitude, longitude) {
 }
 
 function adalahKoordinatMentah(alamat) {
-  return /^\s*-?\d+\.\d+\s*,\s*-?\d+\.\d+/.test(String(alamat || ""));
+  const raw = String(alamat || "").replace(/Absensi via kiosk:\s*/i, "");
+  return /^\s*-?\d+\.\d+\s*,\s*-?\d+\.\d+/.test(raw);
 }
 
 function koordinatDariAlamat(alamat) {
-  const cocok = String(alamat || "").match(
+  const raw = String(alamat || "").replace(/Absensi via kiosk:\s*/i, "");
+  const cocok = raw.match(
     /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)(?:\s*\(akurasi\s*±([^\)]+)\))?/i,
   );
   if (!cocok) return null;
   return { latitude: Number(cocok[1]), longitude: Number(cocok[2]), akurasi: cocok[3] || null };
 }
 
+function punyaNamaJalan(alamat) {
+  return /^jalan|^jl\./i.test(String(alamat || "").trim());
+}
+
 async function normalisasiLokasi(item, field) {
-  const nilaiAlamat = String(item[field] || "").trim();
+  const rawLengkap = String(item[field] || "").trim();
+  const isKiosk = /Absensi via kiosk/i.test(rawLengkap);
+  const nilaiAlamat = rawLengkap.replace(/Absensi via kiosk:\s*/i, "");
 
-  // Jika sudah berupa teks alamat yang bermakna (bukan raw koordinat), tampilkan langsung
-  if (nilaiAlamat && !adalahKoordinatMentah(nilaiAlamat)) return item;
+  // Extract akurasi dari nilai DB (e.g. "111m")
+  const akurasi = nilaiAlamat.match(/\(akurasi\s*±([^\)]+)\)/i)?.[1] || null;
+  const alamatBersih = nilaiAlamat.replace(/\s*\(akurasi\s*±[^\)]+\)/i, "").trim();
 
-  // Tentukan field koordinat yang sesuai
   const latField = field === "alamatMasuk" ? "latitudeMasuk" : "latitudePulang";
   const lngField = field === "alamatMasuk" ? "longitudeMasuk" : "longitudePulang";
+  const latitude = Number(item[latField]);
+  const longitude = Number(item[lngField]);
+  const koordinatBagus =
+    Number.isFinite(latitude) && Number.isFinite(longitude) && !(latitude === 0 && longitude === 0);
 
-  // Coba parsing koordinat dari teks ("lat, lng") atau dari field langsung
-  const dariTeks = koordinatDariAlamat(nilaiAlamat);
-  const latitude = dariTeks?.latitude ?? Number(item[latField]);
-  const longitude = dariTeks?.longitude ?? Number(item[lngField]);
-  const akurasiAda = dariTeks?.akurasi || null;
+  // Jika DB sudah punya nama jalan, langsung return
+  if (alamatBersih && !adalahKoordinatMentah(alamatBersih) && punyaNamaJalan(alamatBersih)) {
+    return { ...item, [`isKiosk_${field}`]: isKiosk, [field]: nilaiAlamat };
+  }
 
-  // Tolak koordinat tidak valid atau 0,0 (Samudera Atlantik)
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return item;
-  if (latitude === 0 && longitude === 0) return item;
+  if (koordinatBagus) {
+    const namaLokasi = await alamatDariKoordinat(latitude, longitude);
+    if (namaLokasi && punyaNamaJalan(namaLokasi)) {
+      return {
+        ...item,
+        [`isKiosk_${field}`]: isKiosk,
+        [field]: namaLokasi + (akurasi ? ` (akurasi ±${akurasi})` : ""),
+      };
+    }
+    if (namaLokasi && !alamatBersih) {
+      return {
+        ...item,
+        [`isKiosk_${field}`]: isKiosk,
+        [field]: namaLokasi + (akurasi ? ` (akurasi ±${akurasi})` : ""),
+      };
+    }
+  }
 
-  const namaLokasi = await alamatDariKoordinat(latitude, longitude);
-  if (!namaLokasi) return item;
+  // Fallback: pakai nilai DB jika bukan koordinat mentah
+  if (alamatBersih && !adalahKoordinatMentah(alamatBersih)) {
+    return { ...item, [`isKiosk_${field}`]: isKiosk, [field]: nilaiAlamat };
+  }
 
-  return {
-    ...item,
-    [field]: namaLokasi + (akurasiAda ? ` (akurasi ±${akurasiAda})` : ""),
-  };
+  return { ...item, [`isKiosk_${field}`]: isKiosk };
 }
 
 async function normalisasiRiwayat(data) {
@@ -215,7 +253,9 @@ export default function RiwayatAbsensi({ kembali }) {
     const latField = tipe === "masuk" ? "latitudeMasuk" : "latitudePulang";
     const lngField = tipe === "masuk" ? "longitudeMasuk" : "longitudePulang";
 
-    if (item[field]) return item[field];
+    if (item[field]) {
+      return String(item[field]).replace(/Absensi via kiosk:\s*/i, "");
+    }
 
     if (koordinatValid(item[latField], item[lngField])) {
       return `${Number(item[latField]).toFixed(6)}, ${Number(item[lngField]).toFixed(6)}`;
@@ -291,7 +331,14 @@ export default function RiwayatAbsensi({ kembali }) {
                     <MapPin size={14} />
                     <strong>Lokasi masuk</strong>
                   </div>
-                  <p style={styles.itemAlamat}>{alamatTampilan(item, "masuk")}</p>
+                  <p style={styles.itemAlamat}>
+                    {alamatTampilan(item, "masuk")}
+                    {item.isKiosk_alamatMasuk && (
+                      <span style={{ display: "block", fontSize: 13, fontStyle: "italic", marginTop: 4 }}>
+                        (Absensi via kiosk)
+                      </span>
+                    )}
+                  </p>
 
                   {punyaKoordinatMasuk && (
                     <a
@@ -314,6 +361,11 @@ export default function RiwayatAbsensi({ kembali }) {
                     </div>
                     <p style={styles.itemAlamat}>
                       {alamatTampilan(item, "pulang")}
+                      {item.isKiosk_alamatPulang && (
+                        <span style={{ display: "block", fontSize: 13, fontStyle: "italic", marginTop: 4 }}>
+                          (Absensi via kiosk)
+                        </span>
+                      )}
                     </p>
                     {punyaKoordinatPulang && (
                       <a

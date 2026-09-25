@@ -544,4 +544,29 @@ async function statusWajahSaya(req, res) {
   }
 }
 
-module.exports = { absenMasuk, absenPulang, riwayatSaya, statusHariIni, statusWajahSaya };
+async function updateAlamat(req, res) {
+  try {
+    const { id } = req.params;
+    const { alamatMasuk, alamatPulang } = req.body;
+    const penggunaId = req.user.id;
+
+    const absensi = await prisma.absensi.findFirst({
+      where: { id: Number(id), penggunaId },
+    });
+    if (!absensi) return res.status(404).json({ pesan: "Data tidak ditemukan." });
+
+    const data = {};
+    if (typeof alamatMasuk === "string" && alamatMasuk.trim()) data.alamatMasuk = alamatMasuk.trim();
+    if (typeof alamatPulang === "string" && alamatPulang.trim()) data.alamatPulang = alamatPulang.trim();
+
+    if (Object.keys(data).length === 0) return res.status(400).json({ pesan: "Tidak ada data yang diperbarui." });
+
+    await prisma.absensi.update({ where: { id: Number(id) }, data });
+    return res.json({ pesan: "Alamat berhasil diperbarui." });
+  } catch (error) {
+    console.error("Gagal update alamat:", error);
+    return res.status(500).json({ pesan: "Terjadi kesalahan pada server." });
+  }
+}
+
+module.exports = { absenMasuk, absenPulang, riwayatSaya, statusHariIni, statusWajahSaya, updateAlamat };

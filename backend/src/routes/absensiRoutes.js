@@ -9,6 +9,7 @@ const {
   riwayatSaya,
   statusHariIni,
   statusWajahSaya,
+  updateAlamat,
 } = require("../controllers/absensiController");
 
 const kioskController = require("../controllers/kioskController");
@@ -22,5 +23,6 @@ router.get("/riwayat-saya", riwayatSaya);
 router.get("/status-hari-ini", statusHariIni);
 router.get("/status-wajah-saya", statusWajahSaya);
 router.post("/enroll-wajah", kioskController.enrollFace);
+router.patch("/:id/update-alamat", updateAlamat);
 
 module.exports = router;

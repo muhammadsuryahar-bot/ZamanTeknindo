@@ -29,6 +29,7 @@ import {
   UserPlus,
   FileCheck2,
   X,
+  Navigation,
 } from "lucide-react";
 
 const DAFTAR_STATUS = [
@@ -40,6 +41,188 @@ const DAFTAR_STATUS = [
   "cuti",
   "urgent",
 ];
+
+function koordinatValid(latitude, longitude) {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+  if (lat === 0 && lng === 0) return false;
+  return true;
+}
+
+// Antrian request ke Nominatim (max 1 req/detik sesuai kebijakan penggunaan)
+const cacheAlamatKoordinat = new Map();
+let _nominatimQueue = Promise.resolve();
+
+function antrianNominatim(fn) {
+  const hasil = _nominatimQueue.then(fn);
+  // Tambahkan delay 1.1 detik SETELAH request selesai agar tidak kena rate-limit
+  _nominatimQueue = hasil
+    .catch(() => {})
+    .then(() => new Promise((r) => window.setTimeout(r, 1100)));
+  return hasil;
+}
+
+async function _cariAlamatNominatim(latitude, longitude) {
+  for (const zoom of [19, 18, 17]) {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 7000);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=${zoom}&addressdetails=1`,
+        { signal: controller.signal, headers: { Accept: "application/json" } },
+      );
+      if (!res.ok) continue;
+      const data = await res.json();
+      const a = data.address || {};
+      const jalan =
+        a.road || a.pedestrian || a.residential || a.living_street ||
+        a.footway || a.cycleway || a.path || a.service || null;
+      const kecamatan = a.suburb || a.city_district || a.district || a.village || null;
+      const kota = a.city || a.town || a.municipality || a.county || null;
+      const provinsi = a.state || a.province || null;
+      const bagian = [jalan, kecamatan, kota, provinsi].filter(Boolean);
+      if (bagian.length > 0) return { alamat: bagian.join(", "), punyaJalan: !!jalan };
+    } catch {
+      break; // abort/network error, hentikan retry
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  }
+  return null;
+}
+
+async function alamatDariKoordinat(latitude, longitude) {
+  if (latitude === 0 && longitude === 0) return null;
+  const cacheKey = `${Number(latitude).toFixed(6)},${Number(longitude).toFixed(6)}`;
+  if (cacheAlamatKoordinat.has(cacheKey)) return cacheAlamatKoordinat.get(cacheKey);
+
+  // Coba Nominatim dulu (dijalankan lewat antrian agar tidak rate-limit)
+  const nominatimHasil = await antrianNominatim(() =>
+    _cariAlamatNominatim(latitude, longitude).catch(() => null),
+  );
+
+  let hasil = nominatimHasil?.alamat || null;
+
+  // Fallback BigDataCloud jika Nominatim gagal
+  if (!hasil) {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 5000);
+    try {
+      const res = await fetch(
+        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=id`,
+        { signal: controller.signal },
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const bagian = [
+          data.locality,
+          data.city && data.city !== data.locality ? data.city : null,
+          data.principalSubdivision,
+        ].filter(Boolean);
+        if (bagian.length) hasil = bagian.join(", ");
+      }
+    } catch {} finally {
+      window.clearTimeout(timeoutId);
+    }
+  }
+
+  // Hanya cache jika ada nama jalan (hasil berkualitas tinggi)
+  // Jika hasil tidak ada nama jalan, tetap cache agar tidak spam request
+  cacheAlamatKoordinat.set(cacheKey, hasil);
+  return hasil;
+}
+
+function punyaNamaJalan(alamat) {
+  return /^jalan|^jl\./i.test(String(alamat || "").trim());
+}
+
+function adalahKoordinatMentah(alamat) {
+  return /^\s*-?\d+\.\d+\s*,\s*-?\d+\.\d+/.test(String(alamat || ""));
+}
+
+function extractAkurasi(alamat) {
+  const cocok = String(alamat || "").match(/\(akurasi\s*±([^\)]+)\)/i);
+  return cocok ? cocok[1] : null;
+}
+
+function AlamatCell({ item, tipe = "masuk" }) {
+  const field = tipe === "masuk" ? "alamatMasuk" : "alamatPulang";
+  const latField = tipe === "masuk" ? "latitudeMasuk" : "latitudePulang";
+  const lngField = tipe === "masuk" ? "longitudeMasuk" : "longitudePulang";
+
+  const [alamatStr, setAlamatStr] = useState("");
+  const lat = item[latField];
+  const lng = item[lngField];
+  const valid = koordinatValid(lat, lng);
+
+  useEffect(() => {
+    const rawLengkap = String(item[field] || "").replace(/Absensi via kiosk:\s*/i, "");
+    const akurasi = extractAkurasi(rawLengkap); // e.g. "111m"
+    const rawBersih = rawLengkap.replace(/\s*\(akurasi\s*±[^\)]+\)/i, "").trim();
+
+    // Jika sudah ada nama jalan di DB, tampilkan langsung
+    if (rawBersih && !adalahKoordinatMentah(rawBersih) && punyaNamaJalan(rawBersih)) {
+      setAlamatStr(rawLengkap);
+      return;
+    }
+
+    if (valid) {
+      // Coba dapatkan nama jalan lewat geocoding
+      alamatDariKoordinat(lat, lng).then((hasil) => {
+        if (hasil && punyaNamaJalan(hasil)) {
+          // Dapat nama jalan – gabungkan dengan akurasi dari DB
+          setAlamatStr(hasil + (akurasi ? ` (akurasi ±${akurasi})` : ""));
+        } else if (rawBersih && !adalahKoordinatMentah(rawBersih)) {
+          // Geocoding tidak dapat nama jalan, pakai nilai DB apa adanya
+          setAlamatStr(rawLengkap);
+        } else if (hasil) {
+          setAlamatStr(hasil + (akurasi ? ` (akurasi ±${akurasi})` : ""));
+        } else {
+          setAlamatStr(
+            `${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}` +
+            (akurasi ? ` (akurasi ±${akurasi})` : ""),
+          );
+        }
+      });
+    } else if (rawBersih && !adalahKoordinatMentah(rawBersih)) {
+      setAlamatStr(rawLengkap);
+    } else {
+      setAlamatStr("GPS tidak tersedia");
+    }
+  }, [item, field, lat, lng, valid]);
+
+  const isKiosk = /Absensi via kiosk/i.test(String(item[field] || ""));
+
+  return (
+    <div style={{ marginBottom: tipe === "masuk" && item.jamPulang ? 16 : 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+        <MapPin size={16} style={{ color: warna.tintaUtama }} />
+        <strong style={{ color: warna.tintaUtama, fontSize: 13 }}>
+          {tipe === "masuk" ? "Lokasi masuk" : "Lokasi pulang"}
+        </strong>
+      </div>
+      <p style={{ margin: "0 0 8px 0", lineHeight: 1.4, color: warna.tintaSamar }}>
+        {alamatStr || "Mencari lokasi..."}
+        {isKiosk && (
+          <span style={{ display: "block", color: warna.tintaSamar, fontSize: 11, fontStyle: "italic", marginTop: 2 }}>
+            (Absensi via kiosk)
+          </span>
+        )}
+      </p>
+      {valid && (
+        <a
+          href={`https://www.google.com/maps?q=${lat},${lng}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#0000ff", fontSize: 13, textDecoration: "none", fontWeight: 700 }}
+        >
+          <Navigation size={14} style={{ color: "#0000ff" }} /> Lihat di Google Maps
+        </a>
+      )}
+    </div>
+  );
+}
 
 // Ikon navigasi sidebar -- pakai komponen SVG (lucide-react), bukan emoji.
 // Emoji tampilannya beda-beda tergantung OS (Windows/Mac/Android beda gaya
@@ -1918,10 +2101,13 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                                     ...styles.td,
                                     fontSize: 12,
                                     color: warna.tintaSamar,
-                                    maxWidth: 200,
+                                    maxWidth: 220,
                                   }}
                                 >
-                                  {item.alamatMasuk || "–"}
+                                  <AlamatCell item={item} tipe="masuk" />
+                                  {item.jamPulang && (
+                                    <AlamatCell item={item} tipe="pulang" />
+                                  )}
                                 </td>
                                 <td
                                   style={{ ...styles.td, textAlign: "right" }}
