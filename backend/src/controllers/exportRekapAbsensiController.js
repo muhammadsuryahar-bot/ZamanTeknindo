@@ -307,9 +307,12 @@ async function exportRekapAbsensi(req, res) {
           where: { id: 1 },
           select: { jamMasukStandar: true },
         }),
-        ambilSetHariLibur(
-          Number(tanggalMulai.slice(0, 4)),
-        ),
+        Promise.all(
+          [...new Set([
+            Number(tanggalMulai.slice(0, 4)),
+            Number(tanggalSelesai.slice(0, 4)),
+          ])].map((tahun) => ambilSetHariLibur(tahun)),
+        ).then((setList) => new Set(setList.flatMap((setTahun) => [...setTahun]))),
       ]);
 
     const jamMasukStandar =

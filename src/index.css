@@ -676,3 +676,42 @@ td {
     -webkit-overflow-scrolling: touch;
   }
 }
+
+/* ===== Rekap Absensi Excel: kontrol tetap rapi di desktop dan mobile ===== */
+.admin-rekap-export-toolbar {
+  box-sizing: border-box;
+}
+.admin-rekap-export-panel {
+  box-sizing: border-box;
+}
+@media (max-width: 720px) {
+  .admin-rekap-export-toolbar {
+    align-items: stretch !important;
+  }
+
+  .admin-rekap-export-copy {
+    width: 100%;
+  }
+
+  .admin-rekap-export-button {
+    width: 100% !important;
+  }
+
+  .admin-rekap-export-panel {
+    gap: 10px !important;
+  }
+
+  .admin-rekap-export-panel .rekapExportField {
+    grid-template-columns: 1fr !important;
+  }
+
+  .admin-rekap-export-panel .rekapExportActions {
+    justify-content: stretch !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1.4fr !important;
+  }
+
+  .admin-rekap-export-panel .rekapExportActions > button {
+    width: 100% !important;
+  }
+}
