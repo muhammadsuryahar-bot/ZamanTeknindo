@@ -52,7 +52,7 @@ function formatAngka(value) {
 }
 
 function buatNamaFile(tahun, bulan) {
-  return `Rekap_Absensi_${NAMA_BULAN[bulan - 1]}_${tahun}.xlsx`;
+  return `Laporan_Gaji_${NAMA_BULAN[bulan - 1]}_${tahun}.xlsx`;
 }
 
 const KUNCI_CACHE_ARSIP = "zaman-teknindo:arsip-bulanan-cache:v1";
