@@ -2071,7 +2071,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
 
               {panelExportAbsensiTerbuka && (
                 <div style={styles.rekapExportPanel} className="admin-rekap-export-panel">
-                  <div style={styles.rekapExportField}>
+                  <div style={styles.rekapExportField} className="rekapExportField">
                     <label style={styles.rekapExportLabel}>
                       Dari tanggal
                       <input
@@ -2093,7 +2093,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                       />
                     </label>
                   </div>
-                  <div style={styles.rekapExportActions}>
+                  <div style={styles.rekapExportActions} className="rekapExportActions">
                     <button
                       type="button"
                       onClick={resetPeriodeExportAbsensi}
