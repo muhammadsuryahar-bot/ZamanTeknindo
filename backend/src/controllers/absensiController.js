@@ -380,13 +380,25 @@ async function absenPulang(req, res) {
       });
     }
 
+    const waktuPulang = waktuAbsensiDariRequest(req);
+    const waktuMasuk = new Date(absensiHariIni.jamMasuk);
+    if (
+      Number.isNaN(waktuMasuk.getTime()) ||
+      waktuPulang.getTime() < waktuMasuk.getTime()
+    ) {
+      await hapusFotoJikaPerlu();
+      return res.status(400).json({
+        pesan: "Waktu absen pulang tidak boleh lebih awal dari waktu absen masuk.",
+      });
+    }
+
     const hasilUpdate = await prisma.absensi.updateMany({
       where: {
         id: absensiHariIni.id,
         jamPulang: null,
       },
       data: {
-        jamPulang: waktuAbsensiDariRequest(req),
+        jamPulang: waktuPulang,
         fotoPulang: fotoPath,
         latitudePulang: koordinat.latitude,
         longitudePulang: koordinat.longitude,
