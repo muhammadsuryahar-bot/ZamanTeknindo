@@ -38,6 +38,15 @@ function tanggalHariIniWIB() {
   return `${hasil.year}-${hasil.month}-${hasil.day}`;
 }
 
+function formatTanggalRekapPilihan(tanggal) {
+  if (!tanggal) return "-";
+  return new Date(`${tanggal}T00:00:00.000Z`).toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
 function formatTanggalIndonesia(tanggal) {
   if (!tanggal) return "-";
   return new Date(`${tanggal}T00:00:00.000Z`).toLocaleDateString("id-ID", {
@@ -253,7 +262,7 @@ function AdminContextBar({ tanggal, onTanggalChange, onRekapRefresh }) {
         >
           <div style={styles.adminRekapDateCopy}>
             <span style={styles.adminRekapEyebrow}>REKAP PER TANGGAL</span>
-            <strong style={styles.adminRekapDate}>{formatTanggalIndonesia(tanggal)}</strong>
+            <strong style={styles.adminRekapDate}>{formatTanggalRekapPilihan(tanggal)}</strong>
           </div>
           <div style={styles.adminRekapControls}>
             <input type="date" value={tanggal} max={tanggalHariIniWIB()} onChange={(e) => onTanggalChange(e.target.value, false)} style={styles.adminRekapInput} aria-label="Pilih tanggal rekap" />
@@ -269,7 +278,7 @@ function AdminContextBar({ tanggal, onTanggalChange, onRekapRefresh }) {
             <div style={styles.adminBelumHeader}>
               <div>
                 <strong style={styles.adminBelumTitle}>Karyawan belum absen</strong>
-                <span style={styles.adminBelumSub}>{formatTanggalIndonesia(tanggal)}</span>
+                <span style={styles.adminBelumSub}>{formatTanggalRekapPilihan(tanggal)}</span>
               </div>
               <button type="button" onClick={() => setPanelTerbuka(false)} style={styles.adminBelumClose}>Tutup</button>
             </div>
