@@ -386,26 +386,38 @@ async function exportLaporanExcel(req, res) {
       `Gaji ${NAMA_BULAN[bulan - 1]} ${tahun}`,
     );
 
+    sheet.showGridLines = false;
+    sheet.properties.defaultRowHeight = 20;
+
     sheet.mergeCells("A1:M1");
-
-    sheet.getCell("A1").value = `Laporan Absensi & Gaji — ${
-      NAMA_BULAN[bulan - 1]
-    } ${tahun}`;
-
+    sheet.getCell("A1").value = "Laporan Absensi & Gaji — " + NAMA_BULAN[bulan - 1] + " " + tahun;
     sheet.getCell("A1").font = {
+      name: "Aptos Display",
       bold: true,
-      size: 14,
-      color: {
-        argb: "FF1F4E79",
-      },
+      size: 16,
+      color: { argb: WARNA.navy },
     };
-
     sheet.getCell("A1").alignment = {
-      horizontal: "center",
+      horizontal: "left",
       vertical: "middle",
     };
+    sheet.getCell("A1").border = {
+      bottom: { style: "medium", color: { argb: WARNA.hijau } },
+    };
+    sheet.getRow(1).height = 28;
 
-    sheet.getRow(1).height = 30;
+    sheet.mergeCells("A2:M2");
+    sheet.getCell("A2").value = "Periode: " + NAMA_BULAN[bulan - 1] + " " + tahun + " • Sistem Absensi PT Zaman Teknindo";
+    sheet.getCell("A2").font = {
+      name: "Aptos",
+      size: 9,
+      color: { argb: WARNA.abuTeks },
+    };
+    sheet.getCell("A2").alignment = {
+      horizontal: "left",
+      vertical: "middle",
+    };
+    sheet.getRow(2).height = 20;
 
     const headerRow = sheet.getRow(3);
 
@@ -427,38 +439,47 @@ async function exportLaporanExcel(req, res) {
 
     buatStyleHeader(headerRow, 13);
 
+    const salaryDataStartRow = 4;
+
     laporan.forEach((item, index) => {
       const baris = sheet.addRow([
         index + 1,
         item.pengguna.nama,
         item.pengguna.jabatan || "-",
         item.pengguna.divisi || "-",
-        item.jumlahTepatWaktu,
-        item.jumlahTelat,
-        item.jumlahAlpha,
-        item.jumlahIzin,
-        item.jumlahSakit,
-        item.jumlahCuti,
+        Number(item.jumlahTepatWaktu || 0),
+        Number(item.jumlahTelat || 0),
+        Number(item.jumlahAlpha || 0),
+        Number(item.jumlahIzin || 0),
+        Number(item.jumlahSakit || 0),
+        Number(item.jumlahCuti || 0),
         Number(item.gajiPokok),
         Number(item.totalPotongan),
         Number(item.gajiDiterima),
       ]);
 
-      baris.eachCell((cell, colNumber) => {
-        beriBorder(cell);
+      const fill = index % 2 === 0 ? WARNA.putih : WARNA.abuMuda;
+      baris.height = 22;
+
+      baris.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        gayaDataCell(cell, {
+          horizontal:
+            colNumber === 1 || (colNumber >= 5 && colNumber <= 10)
+              ? "center"
+              : colNumber >= 11
+                ? "right"
+                : "left",
+          wrapText: colNumber >= 2 && colNumber <= 4,
+          fill,
+        });
 
         if (colNumber >= 11 && colNumber <= 13) {
           cell.numFmt = '"Rp" #,##0';
         }
-
-        if (colNumber === 1 || (colNumber >= 5 && colNumber <= 10)) {
-          cell.alignment = {
-            horizontal: "center",
-            vertical: "middle",
-          };
-        }
       });
     });
+
+    const salaryDataEndRow = salaryDataStartRow + laporan.length - 1;
 
     // ========================================================
     // TOTAL
@@ -480,17 +501,28 @@ async function exportLaporanExcel(req, res) {
       laporan.reduce((sum, item) => sum + Number(item.gajiDiterima), 0),
     ]);
 
-    barisTotal.font = {
-      bold: true,
-    };
-
-    barisTotal.eachCell((cell, colNumber) => {
-      beriBorder(cell);
+    barisTotal.height = 24;
+    barisTotal.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      gayaDataCell(cell, {
+        horizontal: colNumber >= 11 ? "right" : colNumber === 4 ? "right" : "left",
+        bold: true,
+        fill: WARNA.hijauMuda,
+      });
 
       if (colNumber >= 11 && colNumber <= 13) {
         cell.numFmt = '"Rp" #,##0';
       }
     });
+
+    sheet.autoFilter = "A3:M" + salaryDataEndRow;
+    sheet.views = [
+      {
+        state: "frozen",
+        ySplit: 3,
+        xSplit: 1,
+        activeCell: "B4",
+      },
+    ];
 
     sheet.columns = [
       { width: 5 },
@@ -506,13 +538,6 @@ async function exportLaporanExcel(req, res) {
       { width: 16 },
       { width: 18 },
       { width: 18 },
-    ];
-
-    sheet.views = [
-      {
-        state: "frozen",
-        ySplit: 3,
-      },
     ];
 
     // ========================================================
