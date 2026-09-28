@@ -467,6 +467,7 @@ Sebelum setiap release export, lakukan:
 - [ ] TOTAL sama dengan penjumlahan seluruh baris karyawan.
 - [ ] Tidak ada circular reference.
 - [ ] File dapat dibuka Excel tanpa repair warning.
+- [ ] Jika terdapat pengajuan disetujui ganda pada karyawan/tanggal yang sama, export tetap memilih satu klasifikasi utama dan tidak menggandakan hitungan.
 
 ---
 
