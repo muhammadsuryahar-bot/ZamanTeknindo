@@ -8,6 +8,7 @@ import {
   Info,
   CheckCircle2,
   Calendar,
+  Download,
 } from "lucide-react";
 
 const NAMA_BULAN = [
@@ -105,6 +106,7 @@ export default function PengaturanGaji() {
   const [sedangHitung, setSedangHitung] = useState(false);
   const [daftarGagal, setDaftarGagal] = useState([]);
   const [laporanDiUjung, setLaporanDiUjung] = useState(false);
+  const [sedangExportExcel, setSedangExportExcel] = useState(false);
 
   // ---------- Hari Libur ----------
   const [daftarHariLibur, setDaftarHariLibur] = useState([]);
@@ -536,6 +538,54 @@ export default function PengaturanGaji() {
     }
   }
 
+  async function exportExcelLaporan() {
+    if (sedangExportExcel || laporanBulanan.length === 0) return;
+
+    setSedangExportExcel(true);
+    setPesan("");
+
+    try {
+      const params = new URLSearchParams({
+        tahun: String(tahunPilih),
+        bulan: String(bulanPilih),
+      });
+      const res = await fetch(`${API_URL}/admin/gaji/export?${params.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+        },
+      });
+
+      if (!res.ok) {
+        const data = await bacaJsonAman(res);
+        throw new Error(
+          data.pesan || `Gagal mengexport laporan gaji (HTTP ${res.status}).`,
+        );
+      }
+
+      const blob = await res.blob();
+      if (!blob.size) {
+        throw new Error("File Excel kosong dan tidak dapat diunduh.");
+      }
+
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = `Laporan_Gaji_${NAMA_BULAN[bulanPilih - 1]}_${tahunPilih}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+      setPesan(
+        `File Excel laporan gaji ${namaBulanTerpilih} ${tahunPilih} berhasil dibuat.`,
+      );
+    } catch (err) {
+      console.error(err);
+      setPesan(err?.message || "Tidak bisa mengunduh laporan Excel.");
+    } finally {
+      setSedangExportExcel(false);
+    }
+  }
+
   async function hitungSemuaGaji() {
     setSedangHitung(true);
     setPesan("");
@@ -952,6 +1002,21 @@ export default function PengaturanGaji() {
             disabled={loadingLaporan}
           >
             {loadingLaporan ? "Memuat…" : "Muat Data yang Sudah Ada"}
+          </button>
+
+          <button
+            onClick={exportExcelLaporan}
+            style={styles.tombolSekunder}
+            className="gaji-button"
+            disabled={sedangExportExcel || statusLaporan !== "tersedia" || laporanBulanan.length === 0}
+            title={
+              statusLaporan === "tersedia" && laporanBulanan.length > 0
+                ? `Export laporan gaji ${namaBulanTerpilih} ${tahunPilih}`
+                : "Export tersedia setelah laporan gaji tersimpan"
+            }
+          >
+            <Download size={15} strokeWidth={2} />
+            {sedangExportExcel ? "Menyiapkan Excel…" : "Export Excel"}
           </button>
         </div>
 
