@@ -444,13 +444,22 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
   const [ringkasan, setRingkasan] = useState(null);
   const [loadingRingkasan, setLoadingRingkasan] = useState(false);
 
+  useEffect(() => {
+    setRingkasan(null);
+    setRingkasanTerbuka(false);
+  }, [tanggalRekap]);
+
   async function bukaTutupRingkasan() {
     const mauDibuka = !ringkasanTerbuka;
     setRingkasanTerbuka(mauDibuka);
     if (mauDibuka && !ringkasan) {
       setLoadingRingkasan(true);
       try {
-        const res = await fetch(`${API_URL}/admin/ringkasan`, {
+        const queryTanggal = String(tanggalRekap || "").trim();
+        const query = queryTanggal
+          ? `?tanggal=${encodeURIComponent(queryTanggal)}`
+          : "";
+        const res = await fetch(`${API_URL}/admin/ringkasan${query}`, {
           headers: { Authorization: `Bearer ${getToken()}` },
         });
         const data = await res.json();
@@ -1808,8 +1817,8 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                         Karyawan Belum Absen ({jumlahBelumAbsen})
                       </p>
                       <p style={styles.panelBelumAbsenSub}>
-                        Karyawan aktif yang belum memiliki record absensi untuk
-                        hari ini.
+                        Karyawan aktif yang belum memiliki record absensi pada
+                        tanggal {formatTanggalIndonesia(tanggalRekap)}.
                       </p>
                     </div>
                     <button
@@ -1829,7 +1838,8 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                         style={{ color: warna.sukses }}
                       />
                       <span>
-                        Semua karyawan aktif sudah memiliki absensi hari ini.
+                        Semua karyawan aktif sudah memiliki absensi pada tanggal
+                        {formatTanggalIndonesia(tanggalRekap)}.
                       </span>
                     </div>
                   ) : (
@@ -1867,7 +1877,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                   }}
                 >
                   <BarChart3 size={15} strokeWidth={2} />
-                  Tren & Analisis (7 hari terakhir)
+                  Tren & Analisis (7 hari sampai tanggal rekap)
                 </span>
                 <span
                   style={{
@@ -2163,7 +2173,8 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                       {!loading && rekap.length === 0 && (
                         <tr>
                           <td colSpan={7} style={styles.tdKosong}>
-                            Belum ada karyawan yang absen hari ini.
+                            Belum ada karyawan yang absen pada tanggal
+                            {formatTanggalIndonesia(tanggalRekap)}.
                           </td>
                         </tr>
                       )}
