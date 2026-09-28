@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="id">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/favicon.png" />
@@ -14,47 +14,6 @@
   </head>
   <body>
     <div id="root"></div>
-    <script>
-      (() => {
-        let sesiKameraTerlihat = null;
-
-        const perbaruiStatusLokasiKamera = () => {
-          const section = document.querySelector('.cameraSection');
-
-          if (!section) {
-            sesiKameraTerlihat = null;
-            window.__zamanLokasiSesiAktif = false;
-            window.__zamanLokasiSudahDitemukan = false;
-            return;
-          }
-
-          if (section !== sesiKameraTerlihat) {
-            sesiKameraTerlihat = section;
-            // Setiap pembukaan kamera harus menunggu koordinat yang baru.
-            // Jangan memakai lokasi dari sesi kamera sebelumnya.
-            window.__zamanLokasiSesiAktif = true;
-            window.__zamanLokasiSudahDitemukan = false;
-            window.__zamanLokasiTerakhir = null;
-          }
-
-          const lokasi = window.__zamanLokasiTerakhir;
-          const masihFresh =
-            lokasi &&
-            Number.isFinite(lokasi.latitude) &&
-            Number.isFinite(lokasi.longitude) &&
-            Number.isFinite(lokasi.accuracy) &&
-            Date.now() - lokasi.pada <= 120000;
-
-          if (masihFresh) {
-            window.__zamanLokasiSudahDitemukan = true;
-          }
-        };
-
-        window.setInterval(perbaruiStatusLokasiKamera, 250);
-        window.addEventListener('pageshow', perbaruiStatusLokasiKamera);
-        document.addEventListener('visibilitychange', perbaruiStatusLokasiKamera);
-      })();
-    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
