@@ -56,7 +56,7 @@ async function ringkasanDashboardFixed(req, res) {
       where: {
         tanggal: {
           gte: tujuhHariLalu,
-          lte: hariIni,
+          lte: new Date(`${hariIni}T23:59:59.999Z`),
         },
       },
       select: {
@@ -101,7 +101,7 @@ async function ringkasanDashboardFixed(req, res) {
       where: {
         tanggal: {
           gte: tigaPuluhHariLalu,
-          lte: hariIni,
+          lte: new Date(`${hariIni}T23:59:59.999Z`),
         },
       },
       select: {
