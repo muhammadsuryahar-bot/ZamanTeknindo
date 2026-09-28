@@ -237,7 +237,14 @@ async function exportRekapAbsensi(req, res) {
 
     const [karyawan, absensi, pengajuanDisetujui, pengaturan, setHariLibur] = await Promise.all([
       prisma.pengguna.findMany({
-        where: { peran: "karyawan", statusAkun: "aktif" },
+        where: {
+          peran: "karyawan",
+          OR: [
+            { statusAkun: "aktif" },
+            { absensi: { some: { tanggal: { gte: rangeStart, lte: rangeEnd } } } },
+            { pengajuanIzin: { some: { tanggal: { gte: rangeStart, lte: rangeEnd }, status: "disetujui" } } },
+          ],
+        },
         select: { id: true, nama: true, jabatan: true, divisi: true, kantor: { select: { namaKantor: true } } },
         orderBy: { nama: "asc" },
       }),
@@ -393,7 +400,29 @@ async function exportRekapAbsensi(req, res) {
     let rowNumber = dataStartRow;
     ringkasanPerKaryawan.forEach((item, index) => {
       const row = sheet.getRow(rowNumber);
-      row.getCell(1).value = index + 1; row.getCell(2).value = item.nama; row.getCell(3).value = item.tmk; row.getCell(4).value = ""; row.getCell(5).value = item.hc202425; row.getCell(6).value = item.hc202526; row.getCell(7).value = item.hcTerpakai; row.getCell(8).value = item.jumlahKehadiran; row.getCell(9).value = item.jumlahTelat; row.getCell(10).value = { formula: "MAX(0,H" + rowNumber + "-I" + rowNumber + ")" }; row.getCell(11).value = item.jumlahAdaKeterangan; row.getCell(12).value = { formula: "MAX(0,$N$" + (ringkasanPerKaryawan.length + dataStartRow + 2) + "-H" + rowNumber + "-K" + rowNumber + "-N" + rowNumber + "-O" + rowNumber + "-P" + rowNumber + ")" }; row.getCell(13).value = item.lembur; row.getCell(14).value = item.cuti; row.getCell(15).value = item.sakitAdaSurat; row.getCell(16).value = item.sakitTanpaSurat; row.getCell(17).value = item.jumlahHC;
+      row.getCell(1).value = index + 1;
+      row.getCell(2).value = item.nama;
+      row.getCell(3).value = item.tmk;
+      row.getCell(4).value = "";
+      row.getCell(5).value = item.hc202425;
+      row.getCell(6).value = item.hc202526;
+      row.getCell(7).value = item.hcTerpakai;
+      row.getCell(8).value = item.jumlahKehadiran;
+      row.getCell(9).value = item.jumlahTelat;
+      row.getCell(10).value = {
+        formula: "MAX(0,H" + rowNumber + "-I" + rowNumber + ")",
+        result: Math.max(0, Number(item.jumlahKehadiran || 0) - Number(item.jumlahTelat || 0)),
+      };
+      row.getCell(11).value = item.jumlahAdaKeterangan;
+      row.getCell(12).value = {
+        formula: "MAX(0,$N$" + (ringkasanPerKaryawan.length + dataStartRow + 3) + "-H" + rowNumber + "-K" + rowNumber + "-N" + rowNumber + "-O" + rowNumber + "-P" + rowNumber + ")",
+        result: Number(item.jumlahTanpaKeterangan || 0),
+      };
+      row.getCell(13).value = item.lembur;
+      row.getCell(14).value = item.cuti;
+      row.getCell(15).value = item.sakitAdaSurat;
+      row.getCell(16).value = item.sakitTanpaSurat;
+      row.getCell(17).value = item.jumlahHC;
       const fill = index % 2 === 0 ? COLORS.white : COLORS.lightBlue; row.height = 23;
       for (let col = 1; col <= 17; col += 1) { const cell=row.getCell(col); cell.font={name:"Aptos",size:10,bold:[1,2,8,9,10,11,12,13,14,15,16].includes(col),color:{argb:col===17?COLORS.redText:COLORS.text}}; cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:fill}}; cell.border=border; cell.alignment={horizontal:col===2?"left":"center",vertical:"middle",wrapText:[2,3,5,6,7].includes(col)}; }
       rowNumber += 1;
@@ -405,7 +434,7 @@ async function exportRekapAbsensi(req, res) {
     sheet.mergeCells("E" + (footerStart+1) + ":M" + (footerStart+1)); sheet.getCell("E" + (footerStart+1)).value = "Jumlah Hari Kerja Efektif dalam Periode " + formatTanggalIndonesia(tanggalAwal) + " - " + formatTanggalIndonesia(tanggalAkhir); sheet.getCell("N" + (footerStart+1)).value = jumlahHariKerja;
     sheet.mergeCells("E" + (footerStart+2) + ":M" + (footerStart+2)); sheet.getCell("E" + (footerStart+2)).value = "Jumlah Hari Minggu, Libur dan Cuti Bersama Periode " + formatTanggalIndonesia(tanggalAwal) + " - " + formatTanggalIndonesia(tanggalAkhir); sheet.getCell("N" + (footerStart+2)).value = jumlahHariLibur + " Hari";
     for (let r = footerStart; r <= footerStart+2; r += 1) { const e=sheet.getCell("E"+r); e.font={name:"Aptos",size:10,bold:true,color:{argb:COLORS.navy}}; e.fill={type:"pattern",pattern:"solid",fgColor:{argb:COLORS.lightBlue}}; e.alignment={horizontal:"left",vertical:"middle",wrapText:true}; e.border=border; const n=sheet.getCell("N"+r); n.font={name:"Aptos",size:11,bold:true,color:{argb:COLORS.redText}}; n.alignment={horizontal:"center",vertical:"middle"}; n.border=border; sheet.getRow(r).height=24; }
-    sheet.mergeCells("E" + (footerStart+3) + ":Q" + (footerStart+3)); sheet.getCell("E" + (footerStart+3)).value = "Catatan: JLH uang makan = JLH kehadiran - terlambat. Tidak masuk ADA KET dihitung dari izin/urgent yang disetujui atau status manual berizin; CUTI dan SAKIT dipisahkan. LEMBUR dibuat 0 sesuai format rekap."; sheet.getCell("E" + (footerStart+3)).font={name:"Aptos",size:9,italic:true,color:{argb:COLORS.text}}; sheet.getCell("E" + (footerStart+3)).alignment={horizontal:"left",vertical:"middle",wrapText:true}; sheet.getRow(footerStart+3).height=38;
+    sheet.mergeCells("E" + (footerStart+3) + ":Q" + (footerStart+3)); sheet.getCell("E" + (footerStart+3)).value = "Sumber: data absensi sistem + pengajuan disetujui. JLH uang makan = JLH kehadiran - terlambat. Tidak masuk TANPA KET = hari kerja efektif - kehadiran - ada ket - cuti - sakit. LEMBUR disediakan sesuai format rekap."; sheet.getCell("E" + (footerStart+3)).font={name:"Aptos",size:9,italic:true,color:{argb:COLORS.text}}; sheet.getCell("E" + (footerStart+3)).alignment={horizontal:"left",vertical:"middle",wrapText:true}; sheet.getRow(footerStart+3).height=38;
 
     const signatureRow = footerStart + 6;
     sheet.mergeCells("A" + signatureRow + ":D" + signatureRow); sheet.getCell("A"+signatureRow).value="Dibuat Oleh,"; sheet.getCell("A"+signatureRow).font={name:"Aptos",size:10,bold:true,color:{argb:COLORS.text}}; sheet.getCell("A"+signatureRow).alignment={horizontal:"center",vertical:"middle"};
