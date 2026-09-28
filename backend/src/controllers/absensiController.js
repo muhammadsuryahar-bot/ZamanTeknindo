@@ -21,6 +21,13 @@ const HEADER_OFFLINE_SYNC = "X-Zaman-Background";
 const OFFLINE_SYNC_HEADER_VALUE = "offline-sync";
 const MAX_OFFLINE_CLOCK_DRIFT_MS = 24 * 60 * 60 * 1000;
 const RADIUS_ABSENSI_METER = Number(process.env.ABSENSI_RADIUS_METER || 1500);
+const LOKASI_ABSENSI_TAMBAHAN = [
+  {
+    nama: "Bandung (Jalan Sadang Serang)",
+    latitude: -6.88842,
+    longitude: 107.624807,
+  },
+];
 
 function tanggalHariIni() {
   return tanggalHariIniWIB();
@@ -109,17 +116,6 @@ async function validasiLokasiAbsensi(penggunaId, koordinat) {
     };
   }
 
-  if (
-    !Number.isFinite(Number(kantor.latitude)) ||
-    !Number.isFinite(Number(kantor.longitude))
-  ) {
-    return {
-      ok: false,
-      status: 409,
-      pesan: `Koordinat kantor ${kantor.namaKantor} belum dikonfigurasi oleh Admin. Absensi belum dapat dilakukan.`,
-    };
-  }
-
   if (!Number.isFinite(RADIUS_ABSENSI_METER) || RADIUS_ABSENSI_METER <= 0) {
     console.error("ABSENSI_RADIUS_METER tidak valid:", process.env.ABSENSI_RADIUS_METER);
     return {
@@ -129,14 +125,36 @@ async function validasiLokasiAbsensi(penggunaId, koordinat) {
     };
   }
 
-  const jarakMeter = hitungJarakMeter(
-    koordinat.latitude,
-    koordinat.longitude,
-    kantor.latitude,
-    kantor.longitude,
+  const lokasiDiizinkan = [
+    {
+      nama: kantor.namaKantor,
+      latitude: kantor.latitude,
+      longitude: kantor.longitude,
+    },
+    ...LOKASI_ABSENSI_TAMBAHAN,
+  ].filter(
+    (lokasi) =>
+      lokasi.latitude !== null &&
+      lokasi.latitude !== undefined &&
+      lokasi.longitude !== null &&
+      lokasi.longitude !== undefined &&
+      Number.isFinite(Number(lokasi.latitude)) &&
+      Number.isFinite(Number(lokasi.longitude)),
   );
+  const lokasiTerdekat = lokasiDiizinkan
+    .map((lokasi) => ({
+      ...lokasi,
+      jarakMeter: hitungJarakMeter(
+        koordinat.latitude,
+        koordinat.longitude,
+        lokasi.latitude,
+        lokasi.longitude,
+      ),
+    }))
+    .filter((lokasi) => Number.isFinite(lokasi.jarakMeter))
+    .sort((a, b) => a.jarakMeter - b.jarakMeter)[0];
 
-  if (!Number.isFinite(jarakMeter)) {
+  if (!lokasiTerdekat) {
     return {
       ok: false,
       status: 400,
@@ -144,16 +162,16 @@ async function validasiLokasiAbsensi(penggunaId, koordinat) {
     };
   }
 
-  if (jarakMeter > RADIUS_ABSENSI_METER) {
+  if (lokasiTerdekat.jarakMeter > RADIUS_ABSENSI_METER) {
     return {
       ok: false,
       status: 400,
       pesan: `Anda berada sekitar ${Math.round(
-        jarakMeter,
-      )} meter dari ${kantor.namaKantor}. Absensi hanya dapat dilakukan dalam radius ${Math.round(
+        lokasiTerdekat.jarakMeter,
+      )} meter dari lokasi presensi terdekat (${lokasiTerdekat.nama}). Absensi hanya dapat dilakukan dalam radius ${Math.round(
         RADIUS_ABSENSI_METER,
-      )} meter dari kantor.`,
-      jarakMeter: Math.round(jarakMeter),
+      )} meter dari lokasi presensi.`,
+      jarakMeter: Math.round(lokasiTerdekat.jarakMeter),
       radiusMeter: Math.round(RADIUS_ABSENSI_METER),
     };
   }
@@ -161,7 +179,7 @@ async function validasiLokasiAbsensi(penggunaId, koordinat) {
   return {
     ok: true,
     kantor,
-    jarakMeter: Math.round(jarakMeter),
+    jarakMeter: Math.round(lokasiTerdekat.jarakMeter),
     radiusMeter: Math.round(RADIUS_ABSENSI_METER),
   };
 }

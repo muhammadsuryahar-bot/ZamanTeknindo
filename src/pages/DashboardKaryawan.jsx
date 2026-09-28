@@ -25,6 +25,7 @@ import {
   sinkronkanAntrian,
   simpanKeAntrian,
 } from "../utils/antrianOffline";
+import { formatAlamatPresensi } from "../utils/alamatPresensi";
 
 let dataProvinsiCache = null;
 
@@ -751,7 +752,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       setStatusLokasi("ditemukan");
       void ambilAlamatDariKoordinat(latitude, longitude).then((alamatLengkap) => {
         if (!mountedRef.current || !sesiMasihAktif()) return;
-        setLokasi((prev) => prev ? { ...prev, alamat: alamatLengkap } : prev);
+        setLokasi((prev) => prev ? { ...prev, alamat: formatAlamatPresensi(alamatLengkap, prev.akurasi) } : prev);
       }).catch((err) => console.error("Reverse geocoding gagal:", err));
     };
 
@@ -804,8 +805,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     formData.append("latitude", String(lokasi.latitude));
     formData.append("longitude", String(lokasi.longitude));
     const alamatDasar = lokasi.alamat || `${lokasi.latitude}, ${lokasi.longitude}`;
-    const infoAkurasi = lokasi.akurasi ? ` (akurasi ±${lokasi.akurasi}m)` : "";
-    formData.append("alamat", alamatDasar + infoAkurasi);
+    formData.append("alamat", formatAlamatPresensi(alamatDasar, lokasi.akurasi));
     const endpoint = tahap === "belum_masuk" ? "masuk" : "pulang";
     const simpanOffline = async () => {
       await simpanKeAntrian({ foto: fotoTerambil, penggunaId: pengguna.id, latitude: lokasi.latitude, longitude: lokasi.longitude, alamat: formData.get("alamat"), waktuAsli, endpoint });

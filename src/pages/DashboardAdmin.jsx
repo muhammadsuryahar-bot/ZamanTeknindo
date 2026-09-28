@@ -9,6 +9,7 @@ import PengaturanGaji from "./PengaturanGaji";
 import AdminGajiMassal from "./AdminGajiMassal";
 import AdminManual from "./AdminManual";
 import { labelStatusKehadiran } from "../utils/statusKehadiran";
+import { formatAlamatPresensi } from "../utils/alamatPresensi";
 import {
   ClipboardList,
   Clock,
@@ -163,7 +164,7 @@ function AlamatCell({ item, tipe = "masuk" }) {
 
     // Jika sudah ada nama jalan di DB, tampilkan langsung
     if (rawBersih && !adalahKoordinatMentah(rawBersih) && punyaNamaJalan(rawBersih)) {
-      setAlamatStr(rawLengkap);
+      setAlamatStr(formatAlamatPresensi(rawLengkap, akurasi));
       return;
     }
 
@@ -172,12 +173,12 @@ function AlamatCell({ item, tipe = "masuk" }) {
       alamatDariKoordinat(lat, lng).then((hasil) => {
         if (hasil && punyaNamaJalan(hasil)) {
           // Dapat nama jalan – gabungkan dengan akurasi dari DB
-          setAlamatStr(hasil + (akurasi ? ` (akurasi ±${akurasi})` : ""));
+          setAlamatStr(formatAlamatPresensi(hasil, akurasi));
         } else if (rawBersih && !adalahKoordinatMentah(rawBersih)) {
           // Geocoding tidak dapat nama jalan, pakai nilai DB apa adanya
-          setAlamatStr(rawLengkap);
+          setAlamatStr(formatAlamatPresensi(rawLengkap, akurasi));
         } else if (hasil) {
-          setAlamatStr(hasil + (akurasi ? ` (akurasi ±${akurasi})` : ""));
+          setAlamatStr(formatAlamatPresensi(hasil, akurasi));
         } else {
           setAlamatStr(
             `${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}` +
@@ -186,7 +187,7 @@ function AlamatCell({ item, tipe = "masuk" }) {
         }
       });
     } else if (rawBersih && !adalahKoordinatMentah(rawBersih)) {
-      setAlamatStr(rawLengkap);
+      setAlamatStr(formatAlamatPresensi(rawLengkap, akurasi));
     } else {
       setAlamatStr("GPS tidak tersedia");
     }
