@@ -235,29 +235,30 @@ export default function AdminArsip({ kembaliKeDashboard }) {
     setPesanError("");
 
     try {
-      if (!laporanGajiSudahDimuat) {
-        const hitungRes = await fetch(
-          `${API_URL}/admin/gaji/hitung-semua?tahun=${tahun}&bulan=${bulan}`,
-          {
-            method: "POST",
-            headers: { Authorization: `Bearer ${getToken()}` },
-          },
+      // Selalu hitung ulang tepat sebelum export supaya file resmi
+      // tidak bergantung pada cache/session lama dan selalu mencakup
+      // seluruh karyawan aktif pada periode yang dipilih.
+      const hitungRes = await fetch(
+        `${API_URL}/admin/gaji/hitung-semua?tahun=${tahun}&bulan=${bulan}`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${getToken()}` },
+        },
+      );
+
+      const hitungData = await hitungRes.json().catch(() => ({}));
+      if (!hitungRes.ok) {
+        throw new Error(
+          hitungData?.pesan || "Gagal menyiapkan laporan gaji untuk export.",
         );
+      }
 
-        const hitungData = await hitungRes.json().catch(() => ({}));
-        if (!hitungRes.ok) {
-          throw new Error(
-            hitungData?.pesan || "Gagal menyiapkan laporan gaji untuk export.",
-          );
-        }
+      setLaporanGajiSudahDimuat(true);
 
-        setLaporanGajiSudahDimuat(true);
-
-        if (Array.isArray(hitungData?.gagal) && hitungData.gagal.length > 0) {
-          setPesan(
-            `Laporan disiapkan dengan ${hitungData.gagal.length} data yang gagal diproses. Excel akan berisi data yang berhasil.`,
-          );
-        }
+      if (Array.isArray(hitungData?.gagal) && hitungData.gagal.length > 0) {
+        setPesan(
+          `Laporan disiapkan dengan ${hitungData.gagal.length} data yang gagal diproses. Excel akan berisi data yang berhasil.`,
+        );
       }
 
       const res = await fetch(
