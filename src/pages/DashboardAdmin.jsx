@@ -1223,6 +1223,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
   function pindahTab(idTab) {
     setTab(idTab);
     sessionStorage.setItem("admin-tab", idTab);
+    window.dispatchEvent(new Event("zaman-admin-tab-change"));
 
     setTabPernahDibuka((sebelumnya) => ({
       ...sebelumnya,
