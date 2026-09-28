@@ -247,11 +247,47 @@ async function hitungDanSimpanSemua(req, res) {
 async function lihatLaporanBulanan(req, res) {
   try {
     const { tahun, bulan } = validasiTahunBulan(req);
-    const data = await prisma.laporanGaji.findMany({
-      where: { tahun, bulan },
-      include: { pengguna: { select: { nama: true, jabatan: true, divisi: true } } },
-      orderBy: { pengguna: { nama: "asc" } },
+    const [karyawanAktif, laporan] = await Promise.all([
+      prisma.pengguna.findMany({
+        where: { peran: "karyawan", statusAkun: "aktif" },
+        select: { id: true, nama: true, jabatan: true, divisi: true },
+        orderBy: { nama: "asc" },
+      }),
+      prisma.laporanGaji.findMany({
+        where: { tahun, bulan },
+        include: { pengguna: { select: { nama: true, jabatan: true, divisi: true } } },
+        orderBy: { pengguna: { nama: "asc" } },
+      }),
+    ]);
+
+    const petaLaporan = new Map(laporan.map((item) => [item.penggunaId, item]));
+
+    // Rekap tampilan selalu mencakup seluruh karyawan aktif.
+    // Karyawan yang belum punya laporan/gaji tetap ditampilkan dengan
+    // nilai payroll 0, sehingga rekap absensi tidak hilang hanya karena
+    // admin belum mengisi gaji pokok.
+    const data = karyawanAktif.map((karyawan) => {
+      const tersimpan = petaLaporan.get(karyawan.id);
+      if (tersimpan) return tersimpan;
+
+      return {
+        id: `rekap-${karyawan.id}-${tahun}-${bulan}`,
+        penggunaId: karyawan.id,
+        tahun,
+        bulan,
+        jumlahTepatWaktu: 0,
+        jumlahTelat: 0,
+        jumlahAlpha: 0,
+        jumlahIzin: 0,
+        jumlahSakit: 0,
+        jumlahCuti: 0,
+        gajiPokok: 0,
+        totalPotongan: 0,
+        gajiDiterima: 0,
+        pengguna: karyawan,
+      };
     });
+
     return res.json({ data });
   } catch (error) {
     console.error(error);
@@ -259,5 +295,4 @@ async function lihatLaporanBulanan(req, res) {
     return res.status(500).json({ pesan: "Gagal mengambil laporan gaji. Silakan coba lagi." });
   }
 }
-
 module.exports = { hitungGajiKaryawan, hitungDanSimpanSatu, hitungDanSimpanSemua, lihatLaporanBulanan };
