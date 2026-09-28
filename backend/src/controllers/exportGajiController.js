@@ -735,12 +735,12 @@ async function exportLaporanExcel(req, res) {
 
         const baris = detailSheet.addRow([
           nomorDetail++,
-          tanggal,
+          formatTanggal(tanggal),
           item.pengguna.nama,
           item.pengguna.jabatan || "-",
           item.pengguna.divisi || "-",
-          jamMasuk || null,
-          jamPulang || null,
+          formatJam(jamMasuk),
+          formatJam(jamPulang),
           statusTampilan(statusOtomatis),
           statusTampilan(statusFinal),
           formatKeterlambatan(menitTerlambat),
@@ -764,14 +764,6 @@ async function exportLaporanExcel(req, res) {
             wrapText: colNumber === 3 || colNumber === 4 || colNumber === 5 || colNumber === 12,
             fill,
           });
-
-          if (colNumber === 2) {
-            cell.numFmt = "dd/mm/yyyy";
-          }
-
-          if (colNumber === 6 || colNumber === 7) {
-            cell.numFmt = "hh:mm:ss";
-          }
 
           if (colNumber === 11) {
             cell.numFmt = '"Rp" #,##0';
