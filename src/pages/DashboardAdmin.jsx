@@ -1213,8 +1213,37 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
     const dasar = String(tanggalRekap || "");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dasar)) return;
 
-    setTanggalExportMulai(`${dasar.slice(0, 7)}-01`);
-    setTanggalExportSelesai(dasar);
+    const [tahun, bulan, hari] = dasar.split("-").map(Number);
+    const tanggalDasar = new Date(Date.UTC(tahun, bulan - 1, hari));
+
+    // Default mengikuti periode absensi perusahaan 26–25 yang SUDAH SELESAI.
+    // Contoh pada 28 Sep 2026 => 26 Agu 2026 s.d. 25 Sep 2026.
+    let mulai;
+    let selesai;
+
+    if (hari >= 26) {
+      const awal = new Date(Date.UTC(tahun, bulan - 2, 26));
+      const akhir = new Date(Date.UTC(tahun, bulan - 1, 25));
+      mulai = awal.toISOString().slice(0, 10);
+      selesai = akhir.toISOString().slice(0, 10);
+    } else {
+      const awal = new Date(Date.UTC(tahun, bulan - 3, 26));
+      const akhir = new Date(Date.UTC(tahun, bulan - 2, 25));
+      mulai = awal.toISOString().slice(0, 10);
+      selesai = akhir.toISOString().slice(0, 10);
+    }
+
+    // Jika tanggal rekap bukan tanggal hari ini, jangan pernah membuat
+    // default export yang melewati tanggal rekap aktif.
+    if (selesai > dasar) {
+      selesai = dasar;
+    }
+
+    // Hindari warning lint dan tetap gunakan object date yang valid.
+    void tanggalDasar;
+
+    setTanggalExportMulai(mulai);
+    setTanggalExportSelesai(selesai);
   }
 
   useEffect(() => {
@@ -1249,8 +1278,8 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
     const akhir = new Date(`${selesai}T00:00:00Z`);
     const jumlahHari = Math.floor((akhir - awal) / (24 * 60 * 60 * 1000)) + 1;
 
-    if (jumlahHari > 31) {
-      setPesan("Rentang rekap maksimal 31 hari per file.");
+    if (jumlahHari > 62) {
+      setPesan("Rentang rekap maksimal 62 hari per file.");
       return;
     }
 
@@ -2117,7 +2146,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                       onClick={resetPeriodeExportAbsensi}
                       style={styles.rekapExportReset}
                     >
-                      Bulan berjalan
+                      Periode 26–25
                     </button>
                     <button
                       type="button"
@@ -2130,7 +2159,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                     </button>
                   </div>
                   <p style={styles.rekapExportNote}>
-                    Maksimal 31 hari per file. Weekend/libur tidak dibuat sebagai Alpha kecuali memang ada absensi.
+                    Maksimal 62 hari per file. Weekend/libur tidak dibuat sebagai Alpha kecuali memang ada absensi.
                   </p>
                 </div>
               )}
