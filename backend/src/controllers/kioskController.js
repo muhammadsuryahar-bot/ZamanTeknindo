@@ -4,15 +4,29 @@ const FACE_THRESHOLD = 0.5;
 
 const JAM_MASUK_MAX = process.env.JAM_MASUK_MAX || "08:10";
 const JAM_PULANG_MIN = process.env.JAM_PULANG_MIN || "17:00";
-const TOLERANSI_MENIT = 120; // normal 120
-const TESTING_MODE = true; // true = loloskan semua jam tapi tetap hitung telat
-const TESTING_LOLOSKAN_TUTUP = true; // kalau true, jam 15:10 tetap lolos tapi status = telat
+const TOLERANSI_MENIT = 120;
+const TESTING_MODE = /^(1|true|yes)$/i.test(
+  String(process.env.KIOSK_TESTING_MODE || "false").trim(),
+);
 
 function euclidean(a, b) {
   let sum = 0;
   for (let i = 0; i < a.length; i++) sum += (a[i] - b[i]) ** 2;
   return Math.sqrt(sum);
 }
+function validasiDescriptor(descriptor) {
+  if (!Array.isArray(descriptor) || descriptor.length !== 128) return null;
+  const angka = descriptor.map(Number);
+  if (angka.some((nilai) => !Number.isFinite(nilai))) return null;
+  return angka;
+}
+
+function validasiDescriptors(descriptors) {
+  if (!Array.isArray(descriptors) || descriptors.length < 1 || descriptors.length > 5) return null;
+  const hasil = descriptors.map(validasiDescriptor);
+  return hasil.every(Boolean) ? hasil : null;
+}
+
 function getWIBTodayRange(baseDate = new Date()) {
   const wibDateStr = baseDate.toLocaleDateString("en-CA", {
     timeZone: "Asia/Jakarta",
@@ -173,12 +187,16 @@ const getStatusKiosk = async (req, res) => {
 const enrollFace = async (req, res) => {
   try {
     const targetId = Number(req.body.penggunaId || req.user?.id);
-    const { descriptors, fotoSample, foto } = req.body;
-    const sample = fotoSample || foto || null;
-    if (!targetId || !descriptors?.length)
+    const descriptors = validasiDescriptors(req.body?.descriptors);
+    const rawSample = req.body?.fotoSample || req.body?.foto || null;
+    const sample =
+      typeof rawSample === "string" && rawSample.length <= 750_000
+        ? rawSample
+        : null;
+    if (!targetId || !descriptors)
       return res
         .status(400)
-        .json({ message: "penggunaId & descriptors wajib" });
+        .json({ message: "penggunaId & descriptors wajah yang valid wajib diisi." });
     const data = await prisma.userFace.upsert({
       where: { penggunaId: targetId },
       update: {
@@ -202,9 +220,9 @@ const enrollFace = async (req, res) => {
 
 const recognize = async (req, res) => {
   try {
-    const { descriptor } = req.body;
+    const descriptor = validasiDescriptor(req.body?.descriptor);
     if (!descriptor)
-      return res.status(400).json({ message: "descriptor wajib" });
+      return res.status(400).json({ message: "Descriptor wajah tidak valid." });
     const faces = await prisma.userFace.findMany();
     let best = null;
     let bestDist = Infinity;
