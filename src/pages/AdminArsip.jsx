@@ -237,10 +237,10 @@ export default function AdminArsip({ kembaliKeDashboard }) {
     try {
       if (!laporanGajiSudahDimuat) {
         const hitungRes = await fetch(
-          \`${API_URL}/admin/gaji/hitung-semua?tahun=${tahun}&bulan=${bulan}\`,
+          `${API_URL}/admin/gaji/hitung-semua?tahun=${tahun}&bulan=${bulan}`,
           {
             method: "POST",
-            headers: { Authorization: \`Bearer ${getToken()}\` },
+            headers: { Authorization: `Bearer ${getToken()}` },
           },
         );
 
@@ -255,14 +255,14 @@ export default function AdminArsip({ kembaliKeDashboard }) {
 
         if (Array.isArray(hitungData?.gagal) && hitungData.gagal.length > 0) {
           setPesan(
-            \`Laporan disiapkan dengan ${hitungData.gagal.length} data yang gagal diproses. Excel akan berisi data yang berhasil.\`,
+            `Laporan disiapkan dengan ${hitungData.gagal.length} data yang gagal diproses. Excel akan berisi data yang berhasil.`,
           );
         }
       }
 
       const res = await fetch(
-        \`${API_URL}/admin/gaji/export?tahun=${tahun}&bulan=${bulan}\`,
-        { headers: { Authorization: \`Bearer ${getToken()}\` } },
+        `${API_URL}/admin/gaji/export?tahun=${tahun}&bulan=${bulan}`,
+        { headers: { Authorization: `Bearer ${getToken()}` } },
       );
 
       if (!res.ok) {
@@ -295,7 +295,7 @@ export default function AdminArsip({ kembaliKeDashboard }) {
 
       setNamaFile(namaFileFinal);
       setPesan(
-        \`File Excel ${namaFileFinal} berhasil diunduh. Simpan file tersebut di arsip perusahaan sebelum melakukan konfirmasi cleanup.\`,
+        `File Excel ${namaFileFinal} berhasil diunduh. Simpan file tersebut di arsip perusahaan sebelum melakukan konfirmasi cleanup.`,
       );
     } catch (error) {
       console.error("Gagal export Excel:", error);
