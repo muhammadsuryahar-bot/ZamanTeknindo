@@ -149,6 +149,9 @@ const WARNA = {
 };
 
 function buatStyleHeader(row, jumlahKolom) {
+  // Hanya kolom yang benar-benar memiliki header yang diberi fill biru.
+  // Sel header di luar batas tabel dibersihkan agar tidak terjadi "blue bleed"
+  // ke kolom kosong saat file dibuka di Excel/LibreOffice.
   for (let kolom = 1; kolom <= jumlahKolom; kolom++) {
     const cell = row.getCell(kolom);
     cell.font = {
@@ -174,6 +177,31 @@ function buatStyleHeader(row, jumlahKolom) {
       right: { style: "thin", color: { argb: WARNA.garis } },
     };
   }
+
+  // Bersihkan sel yang mungkin sudah ikut terbentuk pada row yang sama.
+  // Tidak membuat sel baru di luar row.cellCount.
+  for (let kolom = jumlahKolom + 1; kolom <= row.cellCount; kolom++) {
+    const cell = row.getCell(kolom);
+    cell.value = undefined;
+    cell.font = {
+      name: "Aptos",
+      size: 10,
+      bold: false,
+      color: { argb: WARNA.teks },
+    };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: WARNA.putih },
+    };
+    cell.alignment = {
+      horizontal: "left",
+      vertical: "middle",
+      wrapText: false,
+    };
+    cell.border = {};
+  }
+
   row.height = 30;
 }
 
@@ -526,19 +554,39 @@ async function exportLaporanExcel(req, res) {
 
     sheet.columns = [
       { width: 5 },
-      { width: 24 },
-      { width: 16 },
-      { width: 16 },
+      { width: 28 },
+      { width: 22 },
+      { width: 14 },
       { width: 12 },
       { width: 10 },
       { width: 10 },
-      { width: 10 },
-      { width: 10 },
-      { width: 10 },
-      { width: 16 },
+      { width: 12 },
+      { width: 12 },
+      { width: 18 },
+      { width: 17 },
       { width: 18 },
       { width: 18 },
     ];
+
+    // Batas visual/print harus sama persis dengan tabel A:M.
+    sheet.pageSetup = {
+      paperSize: 9,
+      orientation: "landscape",
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      horizontalDpi: 300,
+      verticalDpi: 300,
+      margins: {
+        left: 0.25,
+        right: 0.25,
+        top: 0.5,
+        bottom: 0.5,
+        header: 0.2,
+        footer: 0.2,
+      },
+    };
+    sheet.printArea = `A1:M${salaryDataEndRow}`;
 
     // ========================================================
     // SHEET 2 — DETAIL ABSENSI
@@ -802,17 +850,37 @@ async function exportLaporanExcel(req, res) {
     detailSheet.columns = [
       { width: 6 },
       { width: 13 },
-      { width: 24 },
-      { width: 18 },
-      { width: 18 },
+      { width: 28 },
+      { width: 21 },
+      { width: 14 },
       { width: 12 },
       { width: 12 },
       { width: 17 },
       { width: 15 },
       { width: 18 },
       { width: 16 },
-      { width: 32 },
+      { width: 34 },
     ];
+
+    // Batas visual/print harus sama persis dengan tabel A:L.
+    detailSheet.pageSetup = {
+      paperSize: 9,
+      orientation: "landscape",
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      horizontalDpi: 300,
+      verticalDpi: 300,
+      margins: {
+        left: 0.25,
+        right: 0.25,
+        top: 0.5,
+        bottom: 0.5,
+        header: 0.2,
+        footer: 0.2,
+      },
+    };
+    detailSheet.printArea = `A1:L${detailLastRow}`;
 
     detailSheet.views = [
       {
