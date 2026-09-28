@@ -217,9 +217,9 @@ function AlamatCell({ item, tipe = "masuk" }) {
           href={`https://www.google.com/maps?q=${lat},${lng}`}
           target="_blank"
           rel="noopener noreferrer"
-          style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#0000ff", fontSize: 13, textDecoration: "none", fontWeight: 700 }}
+          style={{ display: "inline-flex", alignItems: "center", gap: 5, color: warna.aksen, fontSize: 13, textDecoration: "none", fontWeight: 700 }}
         >
-          <Navigation size={14} style={{ color: "#0000ff" }} /> Lihat di Google Maps
+          <Navigation size={14} style={{ color: warna.aksen }} /> Lihat di Google Maps
         </a>
       )}
     </div>
