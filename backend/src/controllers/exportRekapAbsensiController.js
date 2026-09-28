@@ -415,7 +415,7 @@ async function exportRekapAbsensi(req, res) {
       };
       row.getCell(11).value = item.jumlahAdaKeterangan;
       row.getCell(12).value = {
-        formula: "MAX(0,$N$" + (ringkasanPerKaryawan.length + dataStartRow + 3) + "-H" + rowNumber + "-K" + rowNumber + "-N" + rowNumber + "-O" + rowNumber + "-P" + rowNumber + ")",
+        formula: "MAX(0,$N$" + (ringkasanPerKaryawan.length + dataStartRow + 2) + "-H" + rowNumber + "-K" + rowNumber + "-N" + rowNumber + "-O" + rowNumber + "-P" + rowNumber + ")",
         result: Number(item.jumlahTanpaKeterangan || 0),
       };
       row.getCell(13).value = item.lembur;
