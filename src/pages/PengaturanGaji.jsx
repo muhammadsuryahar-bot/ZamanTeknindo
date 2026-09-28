@@ -42,30 +42,48 @@ function buatKunciPeriode(tahun, bulan) {
   return `${tahun}-${String(bulan).padStart(2, "0")}`;
 }
 
-function bacaCacheLaporan(tahun, bulan) {
+function bacaCacheLaporan(tahun, bulan, jumlahKaryawanDiharapkan = null) {
   try {
     const raw = sessionStorage.getItem(KUNCI_CACHE_LAPORAN);
     if (!raw) return null;
     const cache = JSON.parse(raw);
-    if (!cache || Number(cache.tahun) !== Number(tahun) || Number(cache.bulan) !== Number(bulan)) {
+    if (
+      !cache ||
+      Number(cache.version) !== 3 ||
+      Number(cache.tahun) !== Number(tahun) ||
+      Number(cache.bulan) !== Number(bulan)
+    ) {
       return null;
     }
     if (!Array.isArray(cache.laporan) || cache.laporan.length === 0) return null;
+
+    const jumlahKaryawanCache =
+      Number(cache.jumlahKaryawanAktif) || cache.laporan.length;
+
+    if (
+      Number.isInteger(jumlahKaryawanDiharapkan) &&
+      jumlahKaryawanDiharapkan > 0 &&
+      jumlahKaryawanCache < jumlahKaryawanDiharapkan
+    ) {
+      return null;
+    }
+
     return cache;
   } catch {
     return null;
   }
 }
 
-function simpanCacheLaporan(tahun, bulan, laporan) {
+function simpanCacheLaporan(tahun, bulan, laporan, jumlahKaryawanAktif = laporan.length) {
   if (!Array.isArray(laporan) || laporan.length === 0) return;
   try {
     sessionStorage.setItem(
       KUNCI_CACHE_LAPORAN,
       JSON.stringify({
-        version: 2,
+        version: 3,
         tahun: Number(tahun),
         bulan: Number(bulan),
+        jumlahKaryawanAktif: Number(jumlahKaryawanAktif) || laporan.length,
         laporan,
         disimpanPada: new Date().toISOString(),
       }),
@@ -140,12 +158,16 @@ export default function PengaturanGaji() {
   // sudah dimuat sebelumnya. Jadi berpindah Gaji → Arsip → kembali ke Gaji
   // tidak memaksa Admin memuat data dari server lagi.
   useEffect(() => {
-    const cache = bacaCacheLaporan(tahunPilih, bulanPilih);
+    const cache = bacaCacheLaporan(
+      tahunPilih,
+      bulanPilih,
+      daftarGaji.length > 0 ? daftarGaji.length : null,
+    );
     setLaporanBulanan(cache?.laporan || []);
     setStatusLaporan(cache?.laporan?.length ? "tersedia" : "belum_dimuat");
     setLaporanDiUjung(false);
     setDaftarGagal([]);
-  }, [bulanPilih, tahunPilih]);
+  }, [bulanPilih, tahunPilih, daftarGaji.length]);
 
   async function bacaJsonAman(res) {
     try {
@@ -482,8 +504,14 @@ export default function PengaturanGaji() {
     }
   }
 
-  async function muatLaporanBulanan() {
-    const cache = bacaCacheLaporan(tahunPilih, bulanPilih);
+  async function muatLaporanBulanan({ lewatiCache = false } = {}) {
+    const cache = lewatiCache
+      ? null
+      : bacaCacheLaporan(
+          tahunPilih,
+          bulanPilih,
+          daftarGaji.length > 0 ? daftarGaji.length : null,
+        );
     if (cache?.laporan?.length) {
       setLaporanBulanan(cache.laporan);
       setStatusLaporan("tersedia");
@@ -523,7 +551,7 @@ export default function PengaturanGaji() {
         setStatusLaporan("kosong");
       } else {
         setStatusLaporan("tersedia");
-        simpanCacheLaporan(tahunPilih, bulanPilih, hasil);
+        simpanCacheLaporan(tahunPilih, bulanPilih, hasil, daftarGaji.length || hasil.length);
         setPesan(`Laporan gaji ${namaBulanTerpilih} ${tahunPilih} sudah dimuat.`);
       }
     } catch (err) {
@@ -568,7 +596,7 @@ export default function PengaturanGaji() {
       );
       setDaftarGagal(Array.isArray(data.gagal) ? data.gagal : []);
 
-      await muatLaporanBulanan();
+      await muatLaporanBulanan({ lewatiCache: true });
     } catch (err) {
       console.error(err);
       setPesan("Tidak bisa terhubung ke server saat menghitung gaji.");
