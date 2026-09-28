@@ -1214,14 +1214,15 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dasar)) return;
 
     const [tahun, bulan, hari] = dasar.split("-").map(Number);
-    const tanggalDasar = new Date(Date.UTC(tahun, bulan - 1, hari));
 
     // Default mengikuti periode absensi perusahaan 26–25 yang SUDAH SELESAI.
     // Contoh pada 28 Sep 2026 => 26 Agu 2026 s.d. 25 Sep 2026.
+    // Tanggal 25 sudah termasuk periode yang selesai; tanggal 24 masih
+    // berada di tengah periode berjalan 26–25.
     let mulai;
     let selesai;
 
-    if (hari >= 26) {
+    if (hari >= 25) {
       const awal = new Date(Date.UTC(tahun, bulan - 2, 26));
       const akhir = new Date(Date.UTC(tahun, bulan - 1, 25));
       mulai = awal.toISOString().slice(0, 10);
@@ -1238,9 +1239,6 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
     if (selesai > dasar) {
       selesai = dasar;
     }
-
-    // Hindari warning lint dan tetap gunakan object date yang valid.
-    void tanggalDasar;
 
     setTanggalExportMulai(mulai);
     setTanggalExportSelesai(selesai);
