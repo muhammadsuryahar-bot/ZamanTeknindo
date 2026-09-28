@@ -133,12 +133,12 @@ function AdminContextBar({ tanggal, onTanggalChange, onRekapRefresh }) {
       }
     }
     syncTab();
-    const interval = window.setInterval(syncTab, 250);
+    window.addEventListener("zaman-admin-tab-change", syncTab);
     window.addEventListener("focus", syncTab);
     window.addEventListener("pageshow", syncTab);
     return () => {
       mounted = false;
-      window.clearInterval(interval);
+      window.removeEventListener("zaman-admin-tab-change", syncTab);
       window.removeEventListener("focus", syncTab);
       window.removeEventListener("pageshow", syncTab);
     };
