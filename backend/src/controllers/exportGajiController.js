@@ -133,41 +133,113 @@ function statusTampilan(status) {
   }
 }
 
-function buatStyleHeader(row) {
-  row.font = {
-    bold: true,
-    color: { argb: "FFFFFFFF" },
-  };
+const WARNA = {
+  navy: "FF16233D",
+  biruHeader: "FF1F4E79",
+  hijau: "FF0B6E45",
+  hijauMuda: "FFEAF5EF",
+  garis: "FFD9E0E7",
+  abuMuda: "FFF7F9FB",
+  teks: "FF243247",
+  abuTeks: "FF667085",
+  putih: "FFFFFFFF",
+  kuningMuda: "FFFFF4CC",
+  merahMuda: "FFFDECEC",
+  biruMuda: "FFEAF2FF",
+};
 
-  row.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FF1F4E79" },
-  };
+function buatStyleHeader(row, jumlahKolom) {
+  // Hanya kolom yang benar-benar memiliki header yang diberi fill biru.
+  // Sel header di luar batas tabel dibersihkan agar tidak terjadi "blue bleed"
+  // ke kolom kosong saat file dibuka di Excel/LibreOffice.
+  for (let kolom = 1; kolom <= jumlahKolom; kolom++) {
+    const cell = row.getCell(kolom);
+    cell.font = {
+      name: "Aptos",
+      size: 10,
+      bold: true,
+      color: { argb: WARNA.putih },
+    };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: WARNA.biruHeader },
+    };
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true,
+    };
+    cell.border = {
+      top: { style: "thin", color: { argb: WARNA.garis } },
+      left: { style: "thin", color: { argb: WARNA.garis } },
+      bottom: { style: "thin", color: { argb: WARNA.garis } },
+      right: { style: "thin", color: { argb: WARNA.garis } },
+    };
+  }
 
-  row.alignment = {
-    horizontal: "center",
-    vertical: "middle",
-    wrapText: true,
-  };
+  // Bersihkan sel yang mungkin sudah ikut terbentuk pada row yang sama.
+  // Tidak membuat sel baru di luar row.cellCount.
+  for (let kolom = jumlahKolom + 1; kolom <= row.cellCount; kolom++) {
+    const cell = row.getCell(kolom);
+    cell.value = undefined;
+    cell.font = {
+      name: "Aptos",
+      size: 10,
+      bold: false,
+      color: { argb: WARNA.teks },
+    };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: WARNA.putih },
+    };
+    cell.alignment = {
+      horizontal: "left",
+      vertical: "middle",
+      wrapText: false,
+    };
+    cell.border = {};
+  }
 
-  row.border = {
-    top: { style: "thin" },
-    left: { style: "thin" },
-    bottom: { style: "thin" },
-    right: { style: "thin" },
-  };
-
-  row.height = 28;
+  row.height = 30;
 }
 
 function beriBorder(cell) {
   cell.border = {
-    top: { style: "thin" },
-    left: { style: "thin" },
-    bottom: { style: "thin" },
-    right: { style: "thin" },
+    top: { style: "thin", color: { argb: WARNA.garis } },
+    left: { style: "thin", color: { argb: WARNA.garis } },
+    bottom: { style: "thin", color: { argb: WARNA.garis } },
+    right: { style: "thin", color: { argb: WARNA.garis } },
   };
+}
+
+function gayaDataCell(cell, {
+  horizontal = "left",
+  wrapText = false,
+  bold = false,
+  fill = null,
+  color = WARNA.teks,
+} = {}) {
+  cell.font = {
+    name: "Aptos",
+    size: 10,
+    bold,
+    color: { argb: color },
+  };
+  cell.alignment = {
+    horizontal,
+    vertical: "middle",
+    wrapText,
+  };
+  beriBorder(cell);
+  if (fill) {
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: fill },
+    };
+  }
 }
 
 // ============================================================
@@ -342,26 +414,38 @@ async function exportLaporanExcel(req, res) {
       `Gaji ${NAMA_BULAN[bulan - 1]} ${tahun}`,
     );
 
+    sheet.showGridLines = false;
+    sheet.properties.defaultRowHeight = 20;
+
     sheet.mergeCells("A1:M1");
-
-    sheet.getCell("A1").value = `Laporan Absensi & Gaji — ${
-      NAMA_BULAN[bulan - 1]
-    } ${tahun}`;
-
+    sheet.getCell("A1").value = "Laporan Absensi & Gaji — " + NAMA_BULAN[bulan - 1] + " " + tahun;
     sheet.getCell("A1").font = {
+      name: "Aptos Display",
       bold: true,
-      size: 14,
-      color: {
-        argb: "FF1F4E79",
-      },
+      size: 16,
+      color: { argb: WARNA.navy },
     };
-
     sheet.getCell("A1").alignment = {
-      horizontal: "center",
+      horizontal: "left",
       vertical: "middle",
     };
+    sheet.getCell("A1").border = {
+      bottom: { style: "medium", color: { argb: WARNA.hijau } },
+    };
+    sheet.getRow(1).height = 28;
 
-    sheet.getRow(1).height = 30;
+    sheet.mergeCells("A2:M2");
+    sheet.getCell("A2").value = "Periode: " + NAMA_BULAN[bulan - 1] + " " + tahun + " • Sistem Absensi PT Zaman Teknindo";
+    sheet.getCell("A2").font = {
+      name: "Aptos",
+      size: 9,
+      color: { argb: WARNA.abuTeks },
+    };
+    sheet.getCell("A2").alignment = {
+      horizontal: "left",
+      vertical: "middle",
+    };
+    sheet.getRow(2).height = 20;
 
     const headerRow = sheet.getRow(3);
 
@@ -381,7 +465,9 @@ async function exportLaporanExcel(req, res) {
       "Gaji Diterima",
     ];
 
-    buatStyleHeader(headerRow);
+    buatStyleHeader(headerRow, 13);
+
+    const salaryDataStartRow = 4;
 
     laporan.forEach((item, index) => {
       const baris = sheet.addRow([
@@ -389,32 +475,39 @@ async function exportLaporanExcel(req, res) {
         item.pengguna.nama,
         item.pengguna.jabatan || "-",
         item.pengguna.divisi || "-",
-        item.jumlahTepatWaktu,
-        item.jumlahTelat,
-        item.jumlahAlpha,
-        item.jumlahIzin,
-        item.jumlahSakit,
-        item.jumlahCuti,
+        Number(item.jumlahTepatWaktu || 0),
+        Number(item.jumlahTelat || 0),
+        Number(item.jumlahAlpha || 0),
+        Number(item.jumlahIzin || 0),
+        Number(item.jumlahSakit || 0),
+        Number(item.jumlahCuti || 0),
         Number(item.gajiPokok),
         Number(item.totalPotongan),
         Number(item.gajiDiterima),
       ]);
 
-      baris.eachCell((cell, colNumber) => {
-        beriBorder(cell);
+      const fill = index % 2 === 0 ? WARNA.putih : WARNA.abuMuda;
+      baris.height = 22;
+
+      baris.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        gayaDataCell(cell, {
+          horizontal:
+            colNumber === 1 || (colNumber >= 5 && colNumber <= 10)
+              ? "center"
+              : colNumber >= 11
+                ? "right"
+                : "left",
+          wrapText: colNumber >= 2 && colNumber <= 4,
+          fill,
+        });
 
         if (colNumber >= 11 && colNumber <= 13) {
           cell.numFmt = '"Rp" #,##0';
         }
-
-        if (colNumber === 1 || (colNumber >= 5 && colNumber <= 10)) {
-          cell.alignment = {
-            horizontal: "center",
-            vertical: "middle",
-          };
-        }
       });
     });
+
+    const salaryDataEndRow = salaryDataStartRow + laporan.length - 1;
 
     // ========================================================
     // TOTAL
@@ -436,40 +529,64 @@ async function exportLaporanExcel(req, res) {
       laporan.reduce((sum, item) => sum + Number(item.gajiDiterima), 0),
     ]);
 
-    barisTotal.font = {
-      bold: true,
-    };
-
-    barisTotal.eachCell((cell, colNumber) => {
-      beriBorder(cell);
+    barisTotal.height = 24;
+    barisTotal.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      gayaDataCell(cell, {
+        horizontal: colNumber >= 11 ? "right" : colNumber === 4 ? "right" : "left",
+        bold: true,
+        fill: WARNA.hijauMuda,
+      });
 
       if (colNumber >= 11 && colNumber <= 13) {
         cell.numFmt = '"Rp" #,##0';
       }
     });
 
-    sheet.columns = [
-      { width: 5 },
-      { width: 24 },
-      { width: 16 },
-      { width: 16 },
-      { width: 12 },
-      { width: 10 },
-      { width: 10 },
-      { width: 10 },
-      { width: 10 },
-      { width: 10 },
-      { width: 16 },
-      { width: 18 },
-      { width: 18 },
-    ];
-
+    sheet.autoFilter = "A3:M" + salaryDataEndRow;
     sheet.views = [
       {
         state: "frozen",
         ySplit: 3,
+        xSplit: 1,
+        activeCell: "B4",
       },
     ];
+
+    sheet.columns = [
+      { width: 5 },
+      { width: 28 },
+      { width: 22 },
+      { width: 14 },
+      { width: 12 },
+      { width: 10 },
+      { width: 10 },
+      { width: 12 },
+      { width: 12 },
+      { width: 18 },
+      { width: 17 },
+      { width: 18 },
+      { width: 18 },
+    ];
+
+    // Batas visual/print harus sama persis dengan tabel A:M.
+    sheet.pageSetup = {
+      paperSize: 9,
+      orientation: "landscape",
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      horizontalDpi: 300,
+      verticalDpi: 300,
+      margins: {
+        left: 0.25,
+        right: 0.25,
+        top: 0.5,
+        bottom: 0.5,
+        header: 0.2,
+        footer: 0.2,
+      },
+    };
+    sheet.printArea = `A1:M${salaryDataEndRow}`;
 
     // ========================================================
     // SHEET 2 — DETAIL ABSENSI
@@ -478,26 +595,38 @@ async function exportLaporanExcel(req, res) {
     const detailSheet = workbook.addWorksheet("Detail Absensi");
 
     // Sekarang 12 kolom
+    detailSheet.showGridLines = false;
+    detailSheet.properties.defaultRowHeight = 20;
+
     detailSheet.mergeCells("A1:L1");
-
-    detailSheet.getCell("A1").value = `Detail Absensi — ${
-      NAMA_BULAN[bulan - 1]
-    } ${tahun}`;
-
+    detailSheet.getCell("A1").value = "Detail Absensi — " + NAMA_BULAN[bulan - 1] + " " + tahun;
     detailSheet.getCell("A1").font = {
+      name: "Aptos Display",
       bold: true,
-      size: 14,
-      color: {
-        argb: "FF1F4E79",
-      },
+      size: 16,
+      color: { argb: WARNA.navy },
     };
-
     detailSheet.getCell("A1").alignment = {
-      horizontal: "center",
+      horizontal: "left",
       vertical: "middle",
     };
+    detailSheet.getCell("A1").border = {
+      bottom: { style: "medium", color: { argb: WARNA.hijau } },
+    };
+    detailSheet.getRow(1).height = 28;
 
-    detailSheet.getRow(1).height = 30;
+    detailSheet.mergeCells("A2:L2");
+    detailSheet.getCell("A2").value = "Periode: " + NAMA_BULAN[bulan - 1] + " " + tahun + " • Detail absensi hari kerja";
+    detailSheet.getCell("A2").font = {
+      name: "Aptos",
+      size: 9,
+      color: { argb: WARNA.abuTeks },
+    };
+    detailSheet.getCell("A2").alignment = {
+      horizontal: "left",
+      vertical: "middle",
+    };
+    detailSheet.getRow(2).height = 20;
 
     const detailHeader = detailSheet.getRow(3);
 
@@ -516,7 +645,7 @@ async function exportLaporanExcel(req, res) {
       "Keterangan",
     ];
 
-    buatStyleHeader(detailHeader);
+    buatStyleHeader(detailHeader, 12);
 
     let nomorDetail = 1;
 
@@ -667,60 +796,45 @@ async function exportLaporanExcel(req, res) {
           keterangan,
         ]);
 
-        baris.eachCell((cell, colNumber) => {
-          beriBorder(cell);
+        const fill = nomorDetail % 2 === 0 ? WARNA.putih : WARNA.abuMuda;
+        baris.height = 24;
 
-          // No
-          if (colNumber === 1) {
-            cell.alignment = {
-              horizontal: "center",
-              vertical: "middle",
-            };
-          }
+        baris.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          gayaDataCell(cell, {
+            horizontal:
+              colNumber === 1 ||
+              colNumber === 2 ||
+              (colNumber >= 6 && colNumber <= 10)
+                ? "center"
+                : colNumber === 11
+                  ? "right"
+                  : "left",
+            wrapText: colNumber === 3 || colNumber === 4 || colNumber === 5 || colNumber === 12,
+            fill,
+          });
 
-          // Tanggal
-          if (colNumber === 2) {
-            cell.alignment = {
-              horizontal: "center",
-              vertical: "middle",
-            };
-          }
-
-          // Jam masuk & pulang
-          if (colNumber === 6 || colNumber === 7) {
-            cell.alignment = {
-              horizontal: "center",
-              vertical: "middle",
-            };
-          }
-
-          // Status otomatis
-          if (colNumber === 8) {
-            cell.alignment = {
-              horizontal: "center",
-              vertical: "middle",
-            };
-          }
-
-          // Status final
-          if (colNumber === 9) {
-            cell.alignment = {
-              horizontal: "center",
-              vertical: "middle",
-            };
-          }
-
-          // Keterlambatan
-          if (colNumber === 10) {
-            cell.alignment = {
-              horizontal: "center",
-              vertical: "middle",
-            };
-          }
-
-          // Potongan
           if (colNumber === 11) {
             cell.numFmt = '"Rp" #,##0';
+          }
+
+          if (colNumber === 8 || colNumber === 9) {
+            const status = String(cell.value || "");
+            if (status === "Tepat Waktu") {
+              cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: WARNA.hijauMuda } };
+            } else if (status === "Telat") {
+              cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: WARNA.kuningMuda } };
+            } else if (status === "Alpha") {
+              cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: WARNA.merahMuda } };
+            } else if (status === "Izin" || status === "Sakit" || status === "Cuti" || status === "Urgent") {
+              cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: WARNA.biruMuda } };
+            }
+
+            cell.font = {
+              name: "Aptos",
+              size: 10,
+              bold: true,
+              color: { argb: WARNA.teks },
+            };
           }
         });
       }
@@ -730,25 +844,50 @@ async function exportLaporanExcel(req, res) {
     // LEBAR KOLOM DETAIL
     // ========================================================
 
+    const detailLastRow = detailSheet.rowCount;
+    detailSheet.autoFilter = "A3:L" + detailLastRow;
+
     detailSheet.columns = [
       { width: 6 },
+      { width: 13 },
+      { width: 28 },
+      { width: 21 },
       { width: 14 },
-      { width: 24 },
-      { width: 16 },
-      { width: 16 },
-      { width: 14 },
-      { width: 14 },
+      { width: 12 },
+      { width: 12 },
+      { width: 17 },
+      { width: 15 },
       { width: 18 },
       { width: 16 },
-      { width: 18 },
-      { width: 16 },
-      { width: 30 },
+      { width: 34 },
     ];
+
+    // Batas visual/print harus sama persis dengan tabel A:L.
+    detailSheet.pageSetup = {
+      paperSize: 9,
+      orientation: "landscape",
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      horizontalDpi: 300,
+      verticalDpi: 300,
+      margins: {
+        left: 0.25,
+        right: 0.25,
+        top: 0.5,
+        bottom: 0.5,
+        header: 0.2,
+        footer: 0.2,
+      },
+    };
+    detailSheet.printArea = `A1:L${detailLastRow}`;
 
     detailSheet.views = [
       {
         state: "frozen",
         ySplit: 3,
+        xSplit: 2,
+        activeCell: "C4",
       },
     ];
 

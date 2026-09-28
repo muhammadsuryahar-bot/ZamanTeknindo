@@ -2,12 +2,13 @@ const express = require('express');
 const router = express.Router();
 const kioskController = require('../controllers/kioskController');
 const { checkKioskKey } = kioskController;
+const { batasKioskPin } = require('../middleware/rateLimiter');
 
 // List & Status
 router.get('/pengguna-list', checkKioskKey, kioskController.getPenggunaListKiosk);
 router.get('/status/:penggunaId', checkKioskKey, kioskController.getStatusKiosk);
 router.get('/faces', checkKioskKey, kioskController.getAllFaces);
-router.get('/faces-detailed', kioskController.getFacesDetailed);
+router.get('/faces-detailed', checkKioskKey, kioskController.getFacesDetailed);
 
 // Absen
 router.post('/enroll', checkKioskKey, kioskController.enrollFace);
@@ -17,11 +18,10 @@ router.post('/absen-via-kiosk', checkKioskKey, kioskController.kioskAbsen);
 router.post('/manual-fallback', checkKioskKey, kioskController.submitManualFallback);
 
 // PIN - tanpa checkKioskKey biar gak dobel error
-router.post('/verify-admin-pin', kioskController.verifyAdminPin);
-router.post('/verify-pin', kioskController.verifyAdminPin);
+router.post('/verify-admin-pin', checkKioskKey, batasKioskPin, kioskController.verifyAdminPin);
+router.post('/verify-pin', checkKioskKey, batasKioskPin, kioskController.verifyAdminPin);
 
 // Hapus wajah - INI YANG BIKIN 404 KEMARIN, sekarang ada
-router.delete('/face/:penggunaId', kioskController.hapusFace);
-router.delete('/face/:id', kioskController.hapusFace);
+router.delete('/face/:penggunaId', checkKioskKey, kioskController.hapusFace);
 
 module.exports = router;

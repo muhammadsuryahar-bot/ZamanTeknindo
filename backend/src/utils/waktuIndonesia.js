@@ -10,6 +10,20 @@ function getWIBDateParts(date = new Date()) {
   return { wibDateStr, wibTimeStr, tahun, bulan, tanggal, jam, menit, detik };
 }
 
+// Bentuk data waktu yang kompatibel dengan modul laporan/export lama:
+// hari/bulan/tahun + jam/menit/detik dalam zona WIB.
+function bagianWaktuWIB(date = new Date()) {
+  const bagian = getWIBDateParts(date);
+  return {
+    tahun: bagian.tahun,
+    bulan: bagian.bulan,
+    hari: bagian.tanggal,
+    jam: bagian.jam,
+    menit: bagian.menit,
+    detik: bagian.detik,
+  };
+}
+
 function tahunBulanSekarangWIB() {
   const { tahun, bulan, tanggal, jam, menit } = getWIBDateParts();
   return { tahun, bulan, tanggal, jam, menit };
@@ -93,4 +107,5 @@ module.exports = {
   getWIBNow,
   getWIBTimeInfo,
   getWIBDateParts,
+  bagianWaktuWIB,
 };

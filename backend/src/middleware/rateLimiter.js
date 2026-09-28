@@ -42,9 +42,18 @@ const batasGantiPassword = rateLimit({
   legacyHeaders: false,
 });
 
+const batasKioskPin = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { message: "Terlalu banyak percobaan PIN Kiosk. Coba lagi dalam beberapa menit." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 module.exports = {
   batasLogin,
   batasDaftar,
   batasResetPassword,
   batasGantiPassword,
+  batasKioskPin,
 };
