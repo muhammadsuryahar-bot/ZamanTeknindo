@@ -34,6 +34,20 @@ import {
   Navigation,
 } from "lucide-react";
 
+function tanggalHariIniWIB() {
+  const bagian = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const hasil = {};
+  for (const part of bagian) {
+    if (part.type !== "literal") hasil[part.type] = part.value;
+  }
+  return `${hasil.year}-${hasil.month}-${hasil.day}`;
+}
+
 const DAFTAR_STATUS = [
   "tepat_waktu",
   "telat",
