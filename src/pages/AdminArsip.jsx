@@ -235,9 +235,34 @@ export default function AdminArsip({ kembaliKeDashboard }) {
     setPesanError("");
 
     try {
+      if (!laporanGajiSudahDimuat) {
+        const hitungRes = await fetch(
+          \`${API_URL}/admin/gaji/hitung-semua?tahun=${tahun}&bulan=${bulan}\`,
+          {
+            method: "POST",
+            headers: { Authorization: \`Bearer ${getToken()}\` },
+          },
+        );
+
+        const hitungData = await hitungRes.json().catch(() => ({}));
+        if (!hitungRes.ok) {
+          throw new Error(
+            hitungData?.pesan || "Gagal menyiapkan laporan gaji untuk export.",
+          );
+        }
+
+        setLaporanGajiSudahDimuat(true);
+
+        if (Array.isArray(hitungData?.gagal) && hitungData.gagal.length > 0) {
+          setPesan(
+            \`Laporan disiapkan dengan ${hitungData.gagal.length} data yang gagal diproses. Excel akan berisi data yang berhasil.\`,
+          );
+        }
+      }
+
       const res = await fetch(
-        `${API_URL}/admin/gaji/export?tahun=${tahun}&bulan=${bulan}`,
-        { headers: { Authorization: `Bearer ${getToken()}` } },
+        \`${API_URL}/admin/gaji/export?tahun=${tahun}&bulan=${bulan}\`,
+        { headers: { Authorization: \`Bearer ${getToken()}\` } },
       );
 
       if (!res.ok) {
@@ -251,17 +276,26 @@ export default function AdminArsip({ kembaliKeDashboard }) {
       }
 
       const blob = await res.blob();
+      if (!blob.size) {
+        throw new Error("File Excel kosong dan tidak dapat diunduh.");
+      }
+
+      const contentDisposition = res.headers.get("content-disposition") || "";
+      const match = contentDisposition.match(/filename="([^"]+)"/i);
+      const namaFileFinal = match?.[1] || namaFile || buatNamaFile(tahun, bulan);
+
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = namaFile || buatNamaFile(tahun, bulan);
+      anchor.download = namaFileFinal;
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-      URL.revokeObjectURL(url);
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 
+      setNamaFile(namaFileFinal);
       setPesan(
-        `File Excel ${namaFile || buatNamaFile(tahun, bulan)} berhasil diunduh. Simpan file tersebut di arsip perusahaan sebelum melakukan konfirmasi cleanup.`,
+        \`File Excel ${namaFileFinal} berhasil diunduh. Simpan file tersebut di arsip perusahaan sebelum melakukan konfirmasi cleanup.\`,
       );
     } catch (error) {
       console.error("Gagal export Excel:", error);
@@ -455,17 +489,16 @@ export default function AdminArsip({ kembaliKeDashboard }) {
               <>
                 <CheckCircle2 size={15} />
                 <span>
-                  Laporan gaji periode ini sudah dimuat dari menu Gaji. Export
-                  Excel siap digunakan.
+                  Laporan periode ini sudah tersedia. Export Excel siap digunakan.
                 </span>
               </>
             ) : (
               <>
                 <Clock3 size={15} />
                 <span>
-                  Muat data laporan gaji periode ini terlebih dahulu melalui
-                  menu Gaji. Tombol Export Excel akan aktif setelah data
-                  berhasil dimuat.
+                  Export Excel akan menyiapkan laporan otomatis untuk semua
+                  karyawan aktif. Gaji pokok tidak wajib diisi; data yang belum
+                  memiliki gaji tetap masuk ke rekap dengan nilai payroll 0.
                 </span>
               </>
             )}
@@ -485,12 +518,8 @@ export default function AdminArsip({ kembaliKeDashboard }) {
               type="button"
               onClick={exportExcel}
               style={styles.primary}
-              disabled={loadingExport || !laporanGajiSudahDimuat}
-              title={
-                !laporanGajiSudahDimuat
-                  ? "Muat data laporan gaji terlebih dahulu melalui menu Gaji."
-                  : "Export Excel"
-              }
+              disabled={loadingExport}
+              title="Siapkan dan unduh laporan Excel resmi"
             >
               <Download size={16} />{" "}
               {loadingExport ? "Mengunduh..." : "Export Excel"}
