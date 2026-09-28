@@ -1290,8 +1290,8 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
     const akhir = new Date(`${selesai}T00:00:00Z`);
     const jumlahHari = Math.floor((akhir - awal) / (24 * 60 * 60 * 1000)) + 1;
 
-    if (jumlahHari > 62) {
-      setPesan("Rentang rekap maksimal 62 hari per file.");
+    if (jumlahHari > 31) {
+      setPesan("Rentang rekap maksimal 31 hari per file.");
       return;
     }
 
