@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, CheckCircle2, Edit3, FileDown, LoaderCircle, Search, X } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Edit3, LoaderCircle, Search, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { API_URL, getToken } from "../utils/api";
 import { warna, font, teks, radius, bayangan } from "../styles/theme";
@@ -14,7 +14,6 @@ export default function AdminEditKaryawan() {
   const [editId, setEditId] = useState(null);
   const [pesan, setPesan] = useState("");
   const [sukses, setSukses] = useState("");
-  const [exporting, setExporting] = useState(false);
   const [form, setForm] = useState({ email: "", jabatan: "", divisi: "", kantorId: "" });
 
   useEffect(() => {
@@ -74,37 +73,6 @@ export default function AdminEditKaryawan() {
     finally { setSimpanId(null); }
   }
 
-
-  async function exportRekapKaryawan() {
-    if (exporting) return;
-    setExporting(true);
-    setPesan("");
-    setSukses("");
-    try {
-      const res = await fetch(API_URL + "/admin/karyawan/export", {
-        headers: { Authorization: "Bearer " + getToken() },
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data?.pesan || "Gagal membuat rekap data karyawan.");
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = "Rekap_Data_Karyawan.xlsx";
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      URL.revokeObjectURL(url);
-      setSukses("Rekap data karyawan berhasil dibuat. Informasi gaji tidak disertakan.");
-    } catch (error) {
-      setPesan(error?.message || "Gagal membuat rekap data karyawan.");
-    } finally {
-      setExporting(false);
-    }
-  }
-
   const hasil = useMemo(() => {
     const q = cari.trim().toLowerCase();
     if (!q) return karyawan;
@@ -143,14 +111,7 @@ export default function AdminEditKaryawan() {
       </div>
       {pesan && <div style={styles.alertError}><X size={17} /> {pesan}</div>}
       {sukses && <div style={styles.alertSuccess}><CheckCircle2 size={17} /> {sukses}</div>}
-      <div style={styles.toolbar}>
-        <Search size={17} color={warna.tintaSamar} />
-        <input value={cari} onChange={(e) => setCari(e.target.value)} placeholder="Cari nama, email, jabatan, divisi, atau kantor..." style={styles.search} />
-        <button type="button" onClick={() => void exportRekapKaryawan()} disabled={exporting || loading} style={styles.exportButton} title="Unduh rekap data karyawan tanpa gaji">
-          <FileDown size={15} />
-          {exporting ? "Membuat..." : "Export Excel"}
-        </button>
-      </div>
+      <div style={styles.toolbar}><Search size={17} color={warna.tintaSamar} /><input value={cari} onChange={(e) => setCari(e.target.value)} placeholder="Cari nama, email, jabatan, divisi, atau kantor..." style={styles.search} /></div>
       <section style={styles.card}>
         {loading ? <div style={styles.loading}><LoaderCircle className="spin" size={20} /> Memuat karyawan...</div> : hasil.length === 0 ? <div style={styles.empty}>Tidak ada karyawan yang ditemukan.</div> : <>
           <div className="edit-karyawan-desktop">
@@ -195,7 +156,6 @@ const styles = {
   subtitle:{margin:"6px 0 0",color:warna.tintaSamar,fontSize:teks.badan,lineHeight:1.5},
   toolbar:{width:"100%",maxWidth:1440,margin:"0 auto 14px",display:"flex",alignItems:"center",gap:8,padding:"11px 12px",background:warna.panel,border:`1px solid ${warna.garis}`,borderRadius:radius.sedang,boxSizing:"border-box"},
   search:{width:"100%",border:0,outline:0,background:"transparent",fontSize:teks.badan,color:warna.tinta,fontFamily:font.display},
-  exportButton:{flexShrink:0,minHeight:38,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,border:`1px solid ${warna.garis}`,background:warna.panelAlt,color:warna.tinta,borderRadius:radius.sedang,padding:"8px 11px",cursor:"pointer",fontSize:12,fontWeight:700,fontFamily:font.display,whiteSpace:"nowrap"},
   card:{width:"100%",maxWidth:1440,margin:"0 auto",background:warna.panel,border:`1px solid ${warna.garis}`,borderRadius:radius.besar,overflow:"hidden",boxShadow:bayangan},
   table:{width:"100%",tableLayout:"fixed",borderCollapse:"collapse",fontFamily:font.display},
   th:{padding:"12px 14px",textAlign:"left",fontSize:teks.kecil,fontWeight:700,lineHeight:1.35,color:warna.tintaSamar,background:warna.panelAlt,borderBottom:`1px solid ${warna.garis}`},
