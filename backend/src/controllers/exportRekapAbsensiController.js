@@ -593,10 +593,17 @@ async function exportRekapAbsensi(req, res) {
           wrapText: col === 2,
         };
       }
+
+      // Naikkan pointer baris setelah setiap karyawan supaya data berikutnya
+      // tidak menimpa baris sebelumnya dan TOTAL tidak masuk ke baris data.
+      rowNumber += 1;
     });
 
-    const lastDataRow = rowNumber - 1;
-    const totalRow = lastDataRow + 1;
+    const adaDataKaryawan = ringkasanPerKaryawan.length > 0;
+    const lastDataRow = adaDataKaryawan ? rowNumber - 1 : dataStartRow;
+    // Saat tidak ada data sekalipun, TOTAL tetap diletakkan di baris berbeda
+    // agar formula tidak pernah membentuk circular reference seperti C7:C6.
+    const totalRow = adaDataKaryawan ? rowNumber : dataStartRow + 1;
 
     sheet.mergeCells("A" + totalRow + ":B" + totalRow);
     sheet.getCell("A" + totalRow).value = "TOTAL";
