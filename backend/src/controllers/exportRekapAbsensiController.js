@@ -105,6 +105,10 @@ function formatTanggalFile(tanggal) {
   return String(bagian.hari).padStart(2, "0") + bulan[bagian.bulan - 1] + bagian.tahun;
 }
 
+function punyaKeterangan(nilai) {
+  return nilai !== null && nilai !== undefined && String(nilai).trim() !== "";
+}
+
 function statusDariAbsensi(absensi, jamMasukStandar) {
   if (!absensi) return "alpha";
 
@@ -256,7 +260,7 @@ async function exportRekapAbsensi(req, res) {
       }),
       prisma.absensi.findMany({
         where: { tanggal: { gte: rangeStart, lte: rangeEnd }, pengguna: { peran: "karyawan", statusAkun: "aktif" } },
-        select: { penggunaId: true, tanggal: true, jamMasuk: true, jamPulang: true, statusOtomatis: true, statusFinal: true, catatanAdmin: true },
+        select: { penggunaId: true, tanggal: true, jamMasuk: true, jamPulang: true, statusOtomatis: true, statusFinal: true, keterangan: true, catatanAdmin: true },
         orderBy: [{ tanggal: "asc" }, { penggunaId: "asc" }],
       }),
       prisma.pengajuanIzin.findMany({
@@ -296,11 +300,11 @@ async function exportRekapAbsensi(req, res) {
       let jumlahKehadiran = 0;
       let jumlahTelat = 0;
       let jumlahAdaKeterangan = 0;
+      let jumlahTanpaKeterangan = 0;
       let jumlahCuti = 0;
       let jumlahSakitAdaSurat = 0;
       let jumlahSakitTanpaSurat = 0;
 
-      const tanggalKeterangan = new Set();
       const tanggalCuti = new Set();
       const tanggalSakit = new Set();
 
@@ -308,47 +312,56 @@ async function exportRekapAbsensi(req, res) {
         const tanggalKey = tanggal.toISOString().slice(0, 10);
         const absensiItem = petaAbsensi.get(prefix + tanggalKey);
         const izinItem = petaIzin.get(prefix + tanggalKey);
-        const punyaCap = Boolean(absensiItem?.jamMasuk || absensiItem?.jamPulang);
-        const status = absensiItem ? statusDariAbsensi(absensiItem, jamMasukStandar) : null;
 
+        const punyaCap = Boolean(absensiItem?.jamMasuk || absensiItem?.jamPulang);
+        const status = absensiItem
+          ? statusDariAbsensi(absensiItem, jamMasukStandar)
+          : null;
+
+        // Kehadiran hanya dihitung kalau memang ada cap absensi.
         if (punyaCap) {
           jumlahKehadiran += 1;
           if (status === "telat") jumlahTelat += 1;
           continue;
         }
+
+        // CUTI selalu masuk kolom CUTI, bukan ADA KET/TANPA KET.
         if (status === "cuti" || izinItem?.jenis === "cuti") {
-          if (!tanggalCuti.has(tanggalKey)) { jumlahCuti += 1; tanggalCuti.add(tanggalKey); }
+          if (!tanggalCuti.has(tanggalKey)) {
+            jumlahCuti += 1;
+            tanggalCuti.add(tanggalKey);
+          }
           continue;
         }
+
+        // SAKIT selalu masuk kolom SAKIT dan dibedakan berdasarkan surat.
         if (status === "sakit" || izinItem?.jenis === "sakit") {
           if (!tanggalSakit.has(tanggalKey)) {
-            if (izinItem?.jenis === "sakit" && izinItem.fotoSurat) jumlahSakitAdaSurat += 1;
-            else jumlahSakitTanpaSurat += 1;
+            if (izinItem?.jenis === "sakit" && punyaKeterangan(izinItem?.fotoSurat)) {
+              jumlahSakitAdaSurat += 1;
+            } else {
+              jumlahSakitTanpaSurat += 1;
+            }
             tanggalSakit.add(tanggalKey);
           }
           continue;
         }
-        if (status === "izin" || status === "urgent" || izinItem?.jenis === "izin" || izinItem?.jenis === "urgent") {
-          if (!tanggalKeterangan.has(tanggalKey)) { jumlahAdaKeterangan += 1; tanggalKeterangan.add(tanggalKey); }
+
+        // TIDAK MASUK:
+        // 1) ADA KET = ada isi pada field keterangan.
+        // 2) TANPA KET = tidak ada isi keterangan.
+        // Berlaku untuk izin/urgent dari pengajuan maupun status manual absensi.
+        const adaKeterangan =
+          punyaKeterangan(absensiItem?.keterangan) ||
+          punyaKeterangan(izinItem?.keterangan);
+
+        if (adaKeterangan) {
+          jumlahAdaKeterangan += 1;
+        } else {
+          jumlahTanpaKeterangan += 1;
         }
       }
 
-      for (const [key, absensiItem] of petaAbsensi.entries()) {
-        if (!key.startsWith(prefix)) continue;
-        const tanggalKey = key.slice(prefix.length);
-        const tanggalObj = tanggalUTC(tanggalMulai);
-        const adaDiHariKerja = hariKerjaList.some((d) => d.toISOString().slice(0, 10) === tanggalKey);
-        if (!adaDiHariKerja) continue;
-        const punyaCap = Boolean(absensiItem?.jamMasuk || absensiItem?.jamPulang);
-        if (punyaCap) continue;
-        const status = statusDariAbsensi(absensiItem, jamMasukStandar);
-        if ((status === "izin" || status === "urgent") && !tanggalKeterangan.has(tanggalKey)) { jumlahAdaKeterangan += 1; tanggalKeterangan.add(tanggalKey); }
-        else if (status === "cuti" && !tanggalCuti.has(tanggalKey)) { jumlahCuti += 1; tanggalCuti.add(tanggalKey); }
-        else if (status === "sakit" && !tanggalSakit.has(tanggalKey)) { jumlahSakitTanpaSurat += 1; tanggalSakit.add(tanggalKey); }
-      }
-
-      const jumlahSakit = jumlahSakitAdaSurat + jumlahSakitTanpaSurat;
-      const jumlahTanpaKeterangan = Math.max(jumlahHariKerja - jumlahKehadiran - jumlahAdaKeterangan - jumlahCuti - jumlahSakit, 0);
       return {
         nama: item.nama || "-",
         tmk: "-",
@@ -692,7 +705,7 @@ async function exportRekapAbsensi(req, res) {
       "Jumlah Hari Minggu, Sabtu, dan Hari Libur : " +
         jumlahHariLibur +
         " Hari",
-      "Rumus: JLH UANG MAKAN = JLH KEHADIRAN - TERLAMBAT. LEMBUR sengaja dikosongkan. TANPA KET = hari kerja efektif yang bukan hadir, ada keterangan, cuti, atau sakit.",
+      "Rumus: JLH UANG MAKAN = JLH KEHADIRAN - TERLAMBAT. LEMBUR sengaja dikosongkan. ADA KET = tidak masuk dengan field keterangan terisi; TANPA KET = tidak masuk tanpa field keterangan. CUTI/SAKIT tetap dihitung pada kolomnya masing-masing.",
       "Sumber rekap: data absensi sistem + pengajuan yang disetujui pada periode yang dipilih.",
     ];
 
