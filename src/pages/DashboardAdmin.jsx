@@ -28,6 +28,7 @@ import {
   Bell,
   UserPlus,
   FileCheck2,
+  FileDown,
   X,
   Navigation,
 } from "lucide-react";
@@ -349,6 +350,18 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
   // Kata kunci pencarian, terpisah untuk tiap tab supaya tidak saling ganggu
   const [cariRekap, setCariRekap] = useState("");
   const [cariKaryawan, setCariKaryawan] = useState("");
+
+  const [panelExportAbsensiTerbuka, setPanelExportAbsensiTerbuka] = useState(false);
+  const [tanggalExportMulai, setTanggalExportMulai] = useState(() => {
+    const dasar = String(tanggalRekap || "");
+    return /^\d{4}-\d{2}-\d{2}$/.test(dasar)
+      ? `${dasar.slice(0, 7)}-01`
+      : dasar;
+  });
+  const [tanggalExportSelesai, setTanggalExportSelesai] = useState(
+    () => tanggalRekap,
+  );
+  const [sedangExportAbsensi, setSedangExportAbsensi] = useState(false);
 
   // Form aktivasi akun yang lagi dibuka (ganti prompt() bawaan browser)
   const [formAktivasiTerbuka, setFormAktivasiTerbuka] = useState(null); // id akun atau null
@@ -1186,6 +1199,94 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
           : "Selamat malam";
   const namaDepanAdmin = (pengguna?.nama || "Admin").trim().split(" ")[0];
 
+  function resetPeriodeExportAbsensi() {
+    const dasar = String(tanggalRekap || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dasar)) return;
+
+    setTanggalExportMulai(`${dasar.slice(0, 7)}-01`);
+    setTanggalExportSelesai(dasar);
+  }
+
+  async function exportRekapAbsensi() {
+    if (sedangExportAbsensi) return;
+
+    const mulai = String(tanggalExportMulai || "").trim();
+    const selesai = String(tanggalExportSelesai || "").trim();
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(mulai) || !/^\d{4}-\d{2}-\d{2}$/.test(selesai)) {
+      setPesan("Periode rekap absensi belum valid.");
+      return;
+    }
+
+    if (mulai > selesai) {
+      setPesan("Tanggal mulai tidak boleh lebih besar dari tanggal selesai.");
+      return;
+    }
+
+    if (selesai > tanggalHariIniWIB()) {
+      setPesan("Tanggal selesai tidak boleh melebihi hari ini.");
+      return;
+    }
+
+    const awal = new Date(`${mulai}T00:00:00Z`);
+    const akhir = new Date(`${selesai}T00:00:00Z`);
+    const jumlahHari = Math.floor((akhir - awal) / (24 * 60 * 60 * 1000)) + 1;
+
+    if (jumlahHari > 31) {
+      setPesan("Rentang rekap maksimal 31 hari per file.");
+      return;
+    }
+
+    setSedangExportAbsensi(true);
+    setPesan("");
+    setPesanSukses("");
+
+    try {
+      const query = new URLSearchParams({
+        tanggalMulai: mulai,
+        tanggalSelesai: selesai,
+      });
+
+      const res = await fetch(
+        `${API_URL}/admin/rekap-absensi/export?${query.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${getToken()}`,
+          },
+        },
+      );
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.pesan || "Gagal membuat rekap absensi.");
+      }
+
+      const blob = await res.blob();
+      const contentDisposition = res.headers.get("content-disposition") || "";
+      const match = contentDisposition.match(/filename="([^"]+)"/i);
+      const namaFile =
+        match?.[1] || `Rekap_Absensi_${mulai}_sampai_${selesai}.xlsx`;
+
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = namaFile;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+
+      setPanelExportAbsensiTerbuka(false);
+      setPesanSukses(
+        "Rekap absensi berhasil dibuat. File hanya berisi data kehadiran, tanpa gaji.",
+      );
+    } catch (error) {
+      setPesan(error?.message || "Gagal membuat rekap absensi.");
+    } finally {
+      setSedangExportAbsensi(false);
+    }
+  }
+
   function inisialNama(nama) {
     if (!nama) return "?";
     const bagian = nama.trim().split(" ");
@@ -1938,6 +2039,81 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              <div style={styles.rekapExportToolbar} className="admin-rekap-export-toolbar">
+                <div style={styles.rekapExportCopy}>
+                  <strong style={styles.rekapExportTitle}>
+                    Rekap Absensi Karyawan
+                  </strong>
+                  <span style={styles.rekapExportSub}>
+                    Unduh data kehadiran tanpa memasukkan data gaji.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPanelExportAbsensiTerbuka((terbuka) => {
+                      const hasil = !terbuka;
+                      if (hasil) resetPeriodeExportAbsensi();
+                      return hasil;
+                    });
+                  }}
+                  style={styles.rekapExportButton}
+                  className="admin-rekap-export-button"
+                  aria-expanded={panelExportAbsensiTerbuka}
+                >
+                  <FileDown size={15} />
+                  {panelExportAbsensiTerbuka ? "Tutup Export" : "Export Excel"}
+                </button>
+              </div>
+
+              {panelExportAbsensiTerbuka && (
+                <div style={styles.rekapExportPanel} className="admin-rekap-export-panel">
+                  <div style={styles.rekapExportField}>
+                    <label style={styles.rekapExportLabel}>
+                      Dari tanggal
+                      <input
+                        type="date"
+                        value={tanggalExportMulai}
+                        max={tanggalHariIniWIB()}
+                        onChange={(e) => setTanggalExportMulai(e.target.value)}
+                        style={styles.rekapExportInput}
+                      />
+                    </label>
+                    <label style={styles.rekapExportLabel}>
+                      Sampai tanggal
+                      <input
+                        type="date"
+                        value={tanggalExportSelesai}
+                        max={tanggalHariIniWIB()}
+                        onChange={(e) => setTanggalExportSelesai(e.target.value)}
+                        style={styles.rekapExportInput}
+                      />
+                    </label>
+                  </div>
+                  <div style={styles.rekapExportActions}>
+                    <button
+                      type="button"
+                      onClick={resetPeriodeExportAbsensi}
+                      style={styles.rekapExportReset}
+                    >
+                      Bulan berjalan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void exportRekapAbsensi()}
+                      disabled={sedangExportAbsensi}
+                      style={styles.rekapExportSubmit}
+                    >
+                      <FileDown size={14} />
+                      {sedangExportAbsensi ? "Membuat file…" : "Unduh Rekap Absensi"}
+                    </button>
+                  </div>
+                  <p style={styles.rekapExportNote}>
+                    Maksimal 31 hari per file. Weekend/libur tidak dibuat sebagai Alpha kecuali memang ada absensi.
+                  </p>
                 </div>
               )}
 
@@ -3666,6 +3842,127 @@ const styles = {
     fontSize: 12,
   },
 
+  rekapExportToolbar: {
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    flexWrap: "wrap",
+    marginBottom: 10,
+    padding: "11px 13px",
+    border: `1px solid ${warna.garis}`,
+    borderRadius: 12,
+    background: warna.panel,
+    boxSizing: "border-box",
+  },
+  rekapExportCopy: {
+    minWidth: 0,
+    display: "grid",
+    gap: 2,
+  },
+  rekapExportTitle: {
+    color: warna.tinta,
+    fontSize: 12.5,
+    lineHeight: 1.3,
+  },
+  rekapExportSub: {
+    color: warna.tintaSamar,
+    fontSize: 10.5,
+    lineHeight: 1.45,
+  },
+  rekapExportButton: {
+    flexShrink: 0,
+    minHeight: 36,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    border: 0,
+    borderRadius: 9,
+    background: warna.aksen,
+    color: "#fff",
+    padding: "8px 12px",
+    cursor: "pointer",
+    fontSize: 11.5,
+    fontWeight: 750,
+    fontFamily: font.display,
+  },
+  rekapExportPanel: {
+    width: "100%",
+    display: "grid",
+    gap: 10,
+    marginBottom: 10,
+    padding: 12,
+    border: `1px solid ${warna.garis}`,
+    borderRadius: 12,
+    background: warna.panelAlt,
+    boxSizing: "border-box",
+  },
+  rekapExportField: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 10,
+  },
+  rekapExportLabel: {
+    display: "grid",
+    gap: 5,
+    color: warna.tinta,
+    fontSize: 10.5,
+    fontWeight: 700,
+  },
+  rekapExportInput: {
+    width: "100%",
+    minHeight: 38,
+    boxSizing: "border-box",
+    border: `1px solid ${warna.garis}`,
+    borderRadius: 9,
+    padding: "7px 9px",
+    background: warna.panel,
+    color: warna.tinta,
+    fontSize: 11.5,
+    fontFamily: font.display,
+  },
+  rekapExportActions: {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: 7,
+    flexWrap: "wrap",
+  },
+  rekapExportReset: {
+    minHeight: 36,
+    border: `1px solid ${warna.garis}`,
+    borderRadius: 9,
+    background: warna.panel,
+    color: warna.tinta,
+    padding: "7px 10px",
+    cursor: "pointer",
+    fontSize: 11,
+    fontWeight: 700,
+    fontFamily: font.display,
+  },
+  rekapExportSubmit: {
+    minHeight: 36,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    border: 0,
+    borderRadius: 9,
+    background: warna.aksen,
+    color: "#fff",
+    padding: "7px 12px",
+    cursor: "pointer",
+    fontSize: 11,
+    fontWeight: 750,
+    fontFamily: font.display,
+  },
+  rekapExportNote: {
+    margin: 0,
+    color: warna.tintaSamar,
+    fontSize: 10.5,
+    lineHeight: 1.45,
+  },
   kotakCari: {
     width: "100%",
     maxWidth: 360,
