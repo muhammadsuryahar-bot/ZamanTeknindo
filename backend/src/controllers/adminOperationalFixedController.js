@@ -8,8 +8,20 @@ const {
 const CACHE_NOTIFIKASI_MS = 5000;
 let cacheNotifikasi = null;
 
-function tanggalKeHariIniDanRentang() {
-  const hariIni = tanggalHariIniWIB();
+function tanggalKeHariIniDanRentang(tanggalTarget = null) {
+  const hariIniSistem = tanggalHariIniWIB();
+  const target = String(tanggalTarget || "").trim();
+
+  if (
+    target &&
+    (!/^\d{4}-\d{2}-\d{2}$/.test(target) || target > hariIniSistem)
+  ) {
+    const error = new Error("Tanggal ringkasan harus valid dan tidak boleh melebihi hari ini.");
+    error.kode = "TANGGAL_RINGKASAN_TIDAK_VALID";
+    throw error;
+  }
+
+  const hariIni = target || hariIniSistem;
   const tujuhHariLalu = new Date(hariIni);
   tujuhHariLalu.setUTCDate(tujuhHariLalu.getUTCDate() - 6);
   const tigaPuluhHariLalu = new Date(hariIni);
@@ -36,7 +48,7 @@ async function ambilPengaturanAman() {
 async function ringkasanDashboardFixed(req, res) {
   try {
     const { hariIni, tujuhHariLalu, tigaPuluhHariLalu } =
-      tanggalKeHariIniDanRentang();
+      tanggalKeHariIniDanRentang(req.query?.tanggal);
 
     // Baca secara berurutan karena production menggunakan transaction pooler
     // dengan connection_limit kecil. Tidak ada Promise.all di jalur ini.
@@ -132,6 +144,11 @@ async function ringkasanDashboardFixed(req, res) {
     });
   } catch (error) {
     console.error("Gagal memuat ringkasan dashboard:", error);
+    if (error?.kode === "TANGGAL_RINGKASAN_TIDAK_VALID") {
+      return res.status(400).json({
+        pesan: error.message,
+      });
+    }
     return res.status(500).json({
       pesan: "Gagal memuat tren & analisis.",
     });
