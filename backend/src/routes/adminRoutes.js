@@ -22,10 +22,7 @@ const {
   ubahStatusKaryawanFixed,
 } = require("../controllers/adminOperationalFixedController");
 const { aktifkanAkunFixed } = require("../controllers/aktivasiAkunFixedController");
-const {
-  daftarKaryawanFixed,
-  exportDataKaryawan,
-} = require("../controllers/adminKaryawanFixedController");
+const { daftarKaryawanFixed } = require("../controllers/adminKaryawanFixedController");
 const {
   rekapHariIniFixed,
   ambilRekapTanggal,
@@ -144,7 +141,6 @@ router.get("/notifikasi", notifikasiAdminFixed);
 router.put("/akun/:id/aktifkan", aktifkanAkunFixed);
 
 router.get("/karyawan", daftarKaryawanFixed);
-router.get("/karyawan/export", exportDataKaryawan);
 router.put("/karyawan/:id", ubahProfilKaryawan);
 router.put("/karyawan/:id/status", validasiStatusAkun, ubahStatusKaryawanFixed);
 router.put("/karyawan/:id/reset-password", batasResetPassword, resetPasswordOlehAdmin);
