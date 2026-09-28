@@ -1217,6 +1217,13 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
     setTanggalExportSelesai(dasar);
   }
 
+  useEffect(() => {
+    if (panelExportAbsensiTerbuka) return;
+    resetPeriodeExportAbsensi();
+    // Sinkronkan periode export dengan tanggal rekap aktif.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tanggalRekap]);
+
   async function exportRekapAbsensi() {
     if (sedangExportAbsensi) return;
 
