@@ -83,9 +83,8 @@ function buatPetaAbsensi(semuaAbsensi) {
 }
 
 function hitungDariData({ penggunaId, tahun, bulan, gajiData, pengaturan, hariKerjaDihitung, petaAbsensi }) {
-  if (!gajiData) throw new Error("Gaji pokok karyawan ini belum diatur oleh Admin.");
-
   const hitungan = { tepat_waktu: 0, telat: 0, alpha: 0, izin: 0, sakit: 0, cuti: 0, urgent: 0 };
+  const punyaDataGaji = Boolean(gajiData);
   const jamMasukStandar = pengaturan?.jamMasukStandar || JAM_MASUK_STANDAR_DEFAULT;
 
   for (const tanggal of hariKerjaDihitung) {
@@ -106,11 +105,16 @@ function hitungDariData({ penggunaId, tahun, bulan, gajiData, pengaturan, hariKe
     }
   }
 
-  const gajiPokok = Number(gajiData.gajiPokok);
+  // Rekap tetap dibuat walaupun gaji pokok belum pernah diatur.
+  // Dalam kondisi tersebut, nilai payroll dibuat 0 supaya data kehadiran
+  // semua karyawan tetap masuk ke laporan dan tidak hilang dari rekap.
+  const gajiPokok = punyaDataGaji ? Number(gajiData.gajiPokok) : 0;
   const potonganTelat = Number(pengaturan.potonganTelat);
   const potonganAlpha = Number(pengaturan.potonganAlpha);
-  const totalPotongan = hitungan.telat * potonganTelat + hitungan.alpha * potonganAlpha;
-  const gajiDiterima = Math.max(gajiPokok - totalPotongan, 0);
+  const totalPotongan = punyaDataGaji
+    ? hitungan.telat * potonganTelat + hitungan.alpha * potonganAlpha
+    : 0;
+  const gajiDiterima = punyaDataGaji ? Math.max(gajiPokok - totalPotongan, 0) : 0;
 
   return {
     penggunaId,
