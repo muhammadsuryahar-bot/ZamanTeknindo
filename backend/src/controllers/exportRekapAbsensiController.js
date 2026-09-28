@@ -354,7 +354,7 @@ async function exportRekapAbsensi(req, res) {
         jumlahUangMakan: Math.max(jumlahKehadiran - jumlahTelat, 0),
         jumlahAdaKeterangan,
         jumlahTanpaKeterangan,
-        lembur: 0,
+        lembur: null,
         cuti: jumlahCuti,
         sakitAdaSurat: jumlahSakitAdaSurat,
         sakitTanpaSurat: jumlahSakitTanpaSurat,
