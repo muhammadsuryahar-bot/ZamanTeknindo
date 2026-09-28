@@ -14,6 +14,11 @@ const manualAbsenRoutes = require("./routes/manualAbsenRoutes");
 
 const app = express();
 
+// Vercel meneruskan X-Forwarded-For ke Express.
+// Percayai satu hop proxy agar express-rate-limit dapat membaca IP
+// dengan benar tanpa menghasilkan ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
+app.set("trust proxy", 1);
+
 // --- TAMBAHAN WAJIB INI, TARUH DI SINI ---
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
