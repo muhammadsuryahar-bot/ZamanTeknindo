@@ -238,8 +238,8 @@ async function exportRekapAbsensi(req, res) {
     const tanggalAwal = tanggalUTC(tanggalMulai);
     const tanggalAkhir = tanggalUTC(tanggalSelesai);
     const jumlahHari = Math.floor((tanggalAkhir - tanggalAwal) / (24 * 60 * 60 * 1000)) + 1;
-    if (jumlahHari > 62) {
-      return res.status(400).json({ pesan: "Rentang rekap maksimal 62 hari per file." });
+    if (jumlahHari > 31) {
+      return res.status(400).json({ pesan: "Rentang rekap maksimal 31 hari per file." });
     }
 
     const rangeStart = new Date(tanggalMulai + "T00:00:00+07:00");
@@ -275,6 +275,14 @@ async function exportRekapAbsensi(req, res) {
     ]);
 
     const jamMasukStandar = pengaturan?.jamMasukStandar || JAM_MASUK_STANDAR_DEFAULT;
+
+    // Satu baris Excel hanya boleh mewakili satu karyawan unik.
+    // Prisma sudah mengembalikan ID unik, tetapi kita deduplikasi lagi
+    // sebagai pengaman agar tidak pernah ada baris karyawan ganda.
+    const karyawanUnik = Array.from(
+      new Map(karyawan.map((item) => [String(item.id), item])).values(),
+    );
+
     const petaAbsensi = new Map();
     for (const item of absensi) {
       const tanggalKey = item.tanggal instanceof Date ? item.tanggal.toISOString().slice(0, 10) : String(item.tanggal).slice(0, 10);
@@ -295,7 +303,7 @@ async function exportRekapAbsensi(req, res) {
     const jumlahHariKerja = hariKerjaList.length;
     const jumlahHariLibur = Math.max(jumlahHari - jumlahHariKerja, 0);
 
-    const ringkasanPerKaryawan = karyawan.map((item) => {
+    const ringkasanPerKaryawan = karyawanUnik.map((item) => {
       const prefix = item.id + "_";
       let jumlahKehadiran = 0;
       let jumlahTelat = 0;
@@ -571,13 +579,13 @@ async function exportRekapAbsensi(req, res) {
       row.getCell(11).value = Number(item.sakitTanpaSurat || 0);
 
       const fill = index % 2 === 0 ? COLORS.white : COLORS.lightBlue;
-      row.height = 23;
+      row.height = 28;
 
       for (let col = 1; col <= 11; col += 1) {
         const cell = row.getCell(col);
         cell.font = {
           name: "Aptos",
-          size: 10,
+          size: 12,
           bold: col >= 3 && col !== 8,
           color: { argb: COLORS.text },
         };
@@ -676,7 +684,7 @@ async function exportRekapAbsensi(req, res) {
       const cell = sheet.getCell(totalRow, col);
       cell.font = {
         name: "Aptos",
-        size: 10,
+        size: 12,
         bold: true,
         color: { argb: COLORS.navy },
       };
@@ -691,7 +699,7 @@ async function exportRekapAbsensi(req, res) {
         vertical: "middle",
       };
     }
-    sheet.getRow(totalRow).height = 24;
+    sheet.getRow(totalRow).height = 30;
 
     const footerStart = totalRow + 2;
     const footerLines = [
@@ -784,23 +792,18 @@ async function exportRekapAbsensi(req, res) {
     };
 
     sheet.columns = [
-      { key: "no", width: 6 },
-      { key: "nama", width: 28 },
-      { key: "hadir", width: 14 },
-      { key: "late", width: 12 },
-      { key: "meal", width: 21 },
-      { key: "adaKet", width: 13 },
-      { key: "tanpaKet", width: 13 },
-      { key: "lembur", width: 10 },
-      { key: "cuti", width: 10 },
-      { key: "sakitSrt", width: 13 },
-      { key: "sakitNoSrt", width: 14 },
+      { key: "no", width: 7 },
+      { key: "nama", width: 34 },
+      { key: "hadir", width: 15 },
+      { key: "late", width: 13 },
+      { key: "meal", width: 23 },
+      { key: "adaKet", width: 14 },
+      { key: "tanpaKet", width: 14 },
+      { key: "lembur", width: 11 },
+      { key: "cuti", width: 11 },
+      { key: "sakitSrt", width: 14 },
+      { key: "sakitNoSrt", width: 15 },
     ];
-
-    sheet.autoFilter = {
-      from: "A6",
-      to: "K" + lastDataRow,
-    };
 
     sheet.pageSetup = {
       paperSize: 9,
