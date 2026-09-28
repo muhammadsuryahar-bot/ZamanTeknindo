@@ -2171,7 +2171,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                     </button>
                   </div>
                   <p style={styles.rekapExportNote}>
-                    Maksimal 62 hari per file. Weekend/libur tidak dibuat sebagai Alpha kecuali memang ada absensi.
+                    Maksimal 31 hari per file. Weekend/libur tidak dibuat sebagai Alpha kecuali memang ada absensi.
                   </p>
                 </div>
               )}
