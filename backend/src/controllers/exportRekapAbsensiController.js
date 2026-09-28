@@ -283,8 +283,35 @@ async function exportRekapAbsensi(req, res) {
     }
     const petaIzin = new Map();
     for (const item of pengajuanDisetujui) {
-      const tanggalKey = item.tanggal instanceof Date ? item.tanggal.toISOString().slice(0, 10) : String(item.tanggal).slice(0, 10);
-      petaIzin.set(item.penggunaId + "_" + tanggalKey, item);
+      const tanggalKey =
+        item.tanggal instanceof Date
+          ? item.tanggal.toISOString().slice(0, 10)
+          : String(item.tanggal).slice(0, 10);
+      const key = item.penggunaId + "_" + tanggalKey;
+      const sebelumnya = petaIzin.get(key);
+
+      if (!sebelumnya) {
+        petaIzin.set(key, item);
+        continue;
+      }
+
+      // Satu karyawan + satu tanggal tetap hanya dihitung satu kali.
+      // Jika ada data pengajuan ganda, prioritaskan cuti > sakit > jenis lain.
+      const prioritas = { cuti: 3, sakit: 2, izin: 1, urgent: 1 };
+      const pilih = (prioritas[item.jenis] || 0) > (prioritas[sebelumnya.jenis] || 0)
+        ? item
+        : sebelumnya;
+
+      petaIzin.set(key, {
+        ...pilih,
+        keterangan:
+          punyaKeterangan(sebelumnya.keterangan) || punyaKeterangan(item.keterangan)
+            ? (punyaKeterangan(pilih.keterangan)
+                ? pilih.keterangan
+                : sebelumnya.keterangan || item.keterangan)
+            : "",
+        fotoSurat: pilih.fotoSurat || sebelumnya.fotoSurat || item.fotoSurat || null,
+      });
     }
 
     const tanggalList = daftarTanggal(tanggalMulai, tanggalSelesai);
