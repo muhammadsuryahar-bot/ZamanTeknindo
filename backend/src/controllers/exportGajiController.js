@@ -133,41 +133,85 @@ function statusTampilan(status) {
   }
 }
 
-function buatStyleHeader(row) {
-  row.font = {
-    bold: true,
-    color: { argb: "FFFFFFFF" },
-  };
+const WARNA = {
+  navy: "FF16233D",
+  biruHeader: "FF1F4E79",
+  hijau: "FF0B6E45",
+  hijauMuda: "FFEAF5EF",
+  garis: "FFD9E0E7",
+  abuMuda: "FFF7F9FB",
+  teks: "FF243247",
+  abuTeks: "FF667085",
+  putih: "FFFFFFFF",
+  kuningMuda: "FFFFF4CC",
+  merahMuda: "FFFDECEC",
+  biruMuda: "FFEAF2FF",
+};
 
-  row.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FF1F4E79" },
-  };
-
-  row.alignment = {
-    horizontal: "center",
-    vertical: "middle",
-    wrapText: true,
-  };
-
-  row.border = {
-    top: { style: "thin" },
-    left: { style: "thin" },
-    bottom: { style: "thin" },
-    right: { style: "thin" },
-  };
-
-  row.height = 28;
+function buatStyleHeader(row, jumlahKolom) {
+  for (let kolom = 1; kolom <= jumlahKolom; kolom++) {
+    const cell = row.getCell(kolom);
+    cell.font = {
+      name: "Aptos",
+      size: 10,
+      bold: true,
+      color: { argb: WARNA.putih },
+    };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: WARNA.biruHeader },
+    };
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true,
+    };
+    cell.border = {
+      top: { style: "thin", color: { argb: WARNA.garis } },
+      left: { style: "thin", color: { argb: WARNA.garis } },
+      bottom: { style: "thin", color: { argb: WARNA.garis } },
+      right: { style: "thin", color: { argb: WARNA.garis } },
+    };
+  }
+  row.height = 30;
 }
 
 function beriBorder(cell) {
   cell.border = {
-    top: { style: "thin" },
-    left: { style: "thin" },
-    bottom: { style: "thin" },
-    right: { style: "thin" },
+    top: { style: "thin", color: { argb: WARNA.garis } },
+    left: { style: "thin", color: { argb: WARNA.garis } },
+    bottom: { style: "thin", color: { argb: WARNA.garis } },
+    right: { style: "thin", color: { argb: WARNA.garis } },
   };
+}
+
+function gayaDataCell(cell, {
+  horizontal = "left",
+  wrapText = false,
+  bold = false,
+  fill = null,
+  color = WARNA.teks,
+} = {}) {
+  cell.font = {
+    name: "Aptos",
+    size: 10,
+    bold,
+    color: { argb: color },
+  };
+  cell.alignment = {
+    horizontal,
+    vertical: "middle",
+    wrapText,
+  };
+  beriBorder(cell);
+  if (fill) {
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: fill },
+    };
+  }
 }
 
 // ============================================================
@@ -381,7 +425,7 @@ async function exportLaporanExcel(req, res) {
       "Gaji Diterima",
     ];
 
-    buatStyleHeader(headerRow);
+    buatStyleHeader(headerRow, 13);
 
     laporan.forEach((item, index) => {
       const baris = sheet.addRow([
@@ -516,7 +560,7 @@ async function exportLaporanExcel(req, res) {
       "Keterangan",
     ];
 
-    buatStyleHeader(detailHeader);
+    buatStyleHeader(detailHeader, 12);
 
     let nomorDetail = 1;
 
