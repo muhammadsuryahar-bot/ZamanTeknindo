@@ -247,14 +247,7 @@ async function exportRekapAbsensi(req, res) {
 
     const [karyawan, absensi, pengajuanDisetujui, pengaturan, setHariLibur] = await Promise.all([
       prisma.pengguna.findMany({
-        where: {
-          peran: "karyawan",
-          OR: [
-            { statusAkun: "aktif" },
-            { absensi: { some: { tanggal: { gte: rangeStart, lte: rangeEnd } } } },
-            { pengajuanIzin: { some: { tanggal: { gte: rangeStart, lte: rangeEnd }, status: "disetujui" } } },
-          ],
-        },
+        where: { peran: "karyawan" },
         select: { id: true, nama: true, jabatan: true, divisi: true, kantor: { select: { namaKantor: true } } },
         orderBy: { nama: "asc" },
       }),
@@ -385,7 +378,13 @@ async function exportRekapAbsensi(req, res) {
         cuti: jumlahCuti,
         sakitAdaSurat: jumlahSakitAdaSurat,
         sakitTanpaSurat: jumlahSakitTanpaSurat,
-        jumlahHC: "-",
+        jumlahHC:
+          jumlahKehadiran +
+          jumlahAdaKeterangan +
+          jumlahTanpaKeterangan +
+          jumlahCuti +
+          jumlahSakitAdaSurat +
+          jumlahSakitTanpaSurat,
       };
     });
 
@@ -397,7 +396,7 @@ async function exportRekapAbsensi(req, res) {
       views: [{ state: "frozen", ySplit: 6, xSplit: 2 }],
     });
     sheet.showGridLines = false;
-    sheet.properties.defaultRowHeight = 20;
+    sheet.properties.defaultRowHeight = 22;
 
     const COLORS = {
       navy: "FF284B78",
@@ -420,7 +419,7 @@ async function exportRekapAbsensi(req, res) {
       right: { style: "thin", color: { argb: COLORS.grid } },
     };
 
-    sheet.mergeCells("A1:K1");
+    sheet.mergeCells("A1:R1");
     sheet.getCell("A1").value = "REKAP DATA KEHADIRAN KARYAWAN";
     sheet.getCell("A1").font = {
       name: "Aptos Display",
@@ -436,7 +435,7 @@ async function exportRekapAbsensi(req, res) {
     sheet.getCell("A1").alignment = { horizontal: "center", vertical: "middle" };
     sheet.getRow(1).height = 28;
 
-    sheet.mergeCells("A2:K2");
+    sheet.mergeCells("A2:R2");
     sheet.getCell("A2").value =
       "PERIODE " +
       formatTanggalIndonesia(tanggalAwal) +
@@ -460,7 +459,7 @@ async function exportRekapAbsensi(req, res) {
     sheet.getRow(2).height = 23;
 
     for (const rowNum of [1, 2]) {
-      for (let col = 1; col <= 11; col += 1) {
+      for (let col = 1; col <= 18; col += 1) {
         sheet.getCell(rowNum, col).fill = {
           type: "pattern",
           pattern: "solid",
@@ -474,23 +473,30 @@ async function exportRekapAbsensi(req, res) {
       "B4:B6",
       "C4:C6",
       "D4:D6",
-      "E4:E6",
-      "F4:G4",
-      "H4:H6",
+      "E4:H4",
       "I4:I6",
-      "J4:K4",
+      "J4:J6",
+      "K4:K6",
+      "L4:M4",
+      "N4:N6",
+      "O4:O6",
+      "P4:Q4",
+      "R4:R6",
     ].forEach((merge) => sheet.mergeCells(merge));
 
     const topHeaders = {
       A4: "NO",
       B4: "NAMA",
-      C4: "JLH KEHADIRAN",
-      D4: "TERLAMBAT",
-      E4: "JLH UANG MAKAN\nYANG DIBAYARKAN",
-      F4: "TIDAK MASUK",
-      H4: "LEMBUR",
-      I4: "CUTI",
-      J4: "SAKIT",
+      C4: "TMK",
+      E4: "JUMLAH HAK CUTI",
+      I4: "JLH KEHADIRAN",
+      J4: "TERLAMBAT",
+      K4: "JLH UANG MAKAN\nYANG DIBAYARKAN",
+      L4: "TIDAK MASUK",
+      N4: "LEMBUR",
+      O4: "CUTI",
+      P4: "SAKIT",
+      R4: "JLH HC",
     };
 
     Object.entries(topHeaders).forEach(([cell, value]) => {
@@ -498,32 +504,45 @@ async function exportRekapAbsensi(req, res) {
     });
 
     const subHeaders = {
-      F5: "ADA KET",
-      G5: "TANPA KET",
-      J5: "ADA SRT",
-      K5: "TANPA SRT",
+      F5: "HC\n2024/2025",
+      G5: "HC\n2025/2026",
+      H5: "JLH HC SDH\nDIJALANI/DIPINJAM",
+      L5: "ADA KET",
+      M5: "TANPA KET",
+      P5: "ADA SRT",
+      Q5: "TANPA SRT",
     };
 
     Object.entries(subHeaders).forEach(([cell, value]) => {
       sheet.getCell(cell).value = value;
     });
 
+    // Struktur kolom mengikuti template atasan.
+    // C-G dan H tidak mempunyai sumber data yang tervalidasi dari sistem saat ini,
+    // sehingga sengaja dikosongkan; H juga diminta kosong oleh kebutuhan rekap.
     const groupFills = {
       1: COLORS.navy,
       2: COLORS.navy,
-      3: COLORS.blue,
-      4: COLORS.orange,
-      5: COLORS.purple,
-      6: COLORS.red,
-      7: COLORS.red,
-      8: COLORS.brown,
-      9: COLORS.brown,
-      10: COLORS.brownDark,
-      11: COLORS.brownDark,
+      3: COLORS.navy,
+      4: COLORS.navy,
+      5: COLORS.blue,
+      6: COLORS.blue,
+      7: COLORS.blue,
+      8: COLORS.blue,
+      9: COLORS.blue,
+      10: COLORS.orange,
+      11: COLORS.purple,
+      12: COLORS.red,
+      13: COLORS.red,
+      14: COLORS.brown,
+      15: COLORS.brown,
+      16: COLORS.brownDark,
+      17: COLORS.brownDark,
+      18: COLORS.navy,
     };
 
     for (let rowNum = 4; rowNum <= 6; rowNum += 1) {
-      for (let col = 1; col <= 11; col += 1) {
+      for (let col = 1; col <= 18; col += 1) {
         const cell = sheet.getCell(rowNum, col);
         cell.border = border;
         cell.alignment = {
@@ -546,7 +565,7 @@ async function exportRekapAbsensi(req, res) {
     }
 
     sheet.getRow(4).height = 31;
-    sheet.getRow(5).height = 34;
+    sheet.getRow(5).height = 40;
     sheet.getRow(6).height = 14;
 
     const dataStartRow = 7;
@@ -557,36 +576,65 @@ async function exportRekapAbsensi(req, res) {
 
       row.getCell(1).value = index + 1;
       row.getCell(2).value = item.nama;
-      row.getCell(3).value = Number(item.jumlahKehadiran || 0);
-      row.getCell(4).value = Number(item.jumlahTelat || 0);
 
-      row.getCell(5).value = {
-        formula: "MAX(0,C" + rowNumber + "-D" + rowNumber + ")",
+      // Kolom TMK + seluruh kolom hak cuti historis sengaja kosong.
+      row.getCell(3).value = null;
+      row.getCell(4).value = null;
+      row.getCell(5).value = null;
+      row.getCell(6).value = null;
+      row.getCell(7).value = null;
+      row.getCell(8).value = null;
+
+      row.getCell(9).value = Number(item.jumlahKehadiran || 0);
+      row.getCell(10).value = Number(item.jumlahTelat || 0);
+
+      row.getCell(11).value = {
+        formula: "MAX(0,I" + rowNumber + "-J" + rowNumber + ")",
         result: Math.max(
           0,
           Number(item.jumlahKehadiran || 0) - Number(item.jumlahTelat || 0),
         ),
       };
 
-      row.getCell(6).value = Number(item.jumlahAdaKeterangan || 0);
-      row.getCell(7).value = Number(item.jumlahTanpaKeterangan || 0);
+      row.getCell(12).value = Number(item.jumlahAdaKeterangan || 0);
+      row.getCell(13).value = Number(item.jumlahTanpaKeterangan || 0);
 
-      // LEMBUR sengaja dibiarkan kosong sesuai format perusahaan.
-      row.getCell(8).value = null;
+      // LEMBUR sengaja kosong.
+      row.getCell(14).value = null;
 
-      row.getCell(9).value = Number(item.cuti || 0);
-      row.getCell(10).value = Number(item.sakitAdaSurat || 0);
-      row.getCell(11).value = Number(item.sakitTanpaSurat || 0);
+      row.getCell(15).value = Number(item.cuti || 0);
+      row.getCell(16).value = Number(item.sakitAdaSurat || 0);
+      row.getCell(17).value = Number(item.sakitTanpaSurat || 0);
+
+      // JLH HC = seluruh kategori hari yang terklasifikasi.
+      // TERLAMBAT dan UANG MAKAN tidak ditambah karena TERLAMBAT adalah subset
+      // dari kehadiran dan UANG MAKAN adalah hasil turunan kehadiran.
+      row.getCell(18).value = {
+        formula:
+          "I" +
+          rowNumber +
+          "+L" +
+          rowNumber +
+          "+M" +
+          rowNumber +
+          "+O" +
+          rowNumber +
+          "+P" +
+          rowNumber +
+          "+Q" +
+          rowNumber,
+        result: Number(item.jumlahHC || 0),
+      };
 
       const fill = index % 2 === 0 ? COLORS.white : COLORS.lightBlue;
       row.height = 28;
 
-      for (let col = 1; col <= 11; col += 1) {
+      for (let col = 1; col <= 18; col += 1) {
         const cell = row.getCell(col);
         cell.font = {
           name: "Aptos",
-          size: 12,
-          bold: col >= 3 && col !== 8,
+          size: 10.5,
+          bold: col >= 9,
           color: { argb: COLORS.text },
         };
         cell.fill = {
@@ -602,35 +650,32 @@ async function exportRekapAbsensi(req, res) {
         };
       }
 
-      // Naikkan pointer baris setelah setiap karyawan supaya data berikutnya
-      // tidak menimpa baris sebelumnya dan TOTAL tidak masuk ke baris data.
       rowNumber += 1;
     });
 
     const adaDataKaryawan = ringkasanPerKaryawan.length > 0;
     const lastDataRow = adaDataKaryawan ? rowNumber - 1 : dataStartRow;
-    // Saat tidak ada data sekalipun, TOTAL tetap diletakkan di baris berbeda
-    // agar formula tidak pernah membentuk circular reference seperti C7:C6.
     const totalRow = adaDataKaryawan ? rowNumber : dataStartRow + 1;
 
-    sheet.mergeCells("A" + totalRow + ":B" + totalRow);
+    sheet.mergeCells("A" + totalRow + ":H" + totalRow);
     sheet.getCell("A" + totalRow).value = "TOTAL";
-    sheet.getCell("C" + totalRow).value = {
-      formula: "SUM(C" + dataStartRow + ":C" + lastDataRow + ")",
+
+    sheet.getCell("I" + totalRow).value = {
+      formula: "SUM(I" + dataStartRow + ":I" + lastDataRow + ")",
       result: ringkasanPerKaryawan.reduce(
         (sum, item) => sum + Number(item.jumlahKehadiran || 0),
         0,
       ),
     };
-    sheet.getCell("D" + totalRow).value = {
-      formula: "SUM(D" + dataStartRow + ":D" + lastDataRow + ")",
+    sheet.getCell("J" + totalRow).value = {
+      formula: "SUM(J" + dataStartRow + ":J" + lastDataRow + ")",
       result: ringkasanPerKaryawan.reduce(
         (sum, item) => sum + Number(item.jumlahTelat || 0),
         0,
       ),
     };
-    sheet.getCell("E" + totalRow).value = {
-      formula: "MAX(0,C" + totalRow + "-D" + totalRow + ")",
+    sheet.getCell("K" + totalRow).value = {
+      formula: "MAX(0,I" + totalRow + "-J" + totalRow + ")",
       result: Math.max(
         0,
         ringkasanPerKaryawan.reduce(
@@ -643,48 +688,56 @@ async function exportRekapAbsensi(req, res) {
           ),
       ),
     };
-    sheet.getCell("F" + totalRow).value = {
-      formula: "SUM(F" + dataStartRow + ":F" + lastDataRow + ")",
+    sheet.getCell("L" + totalRow).value = {
+      formula: "SUM(L" + dataStartRow + ":L" + lastDataRow + ")",
       result: ringkasanPerKaryawan.reduce(
         (sum, item) => sum + Number(item.jumlahAdaKeterangan || 0),
         0,
       ),
     };
-    sheet.getCell("G" + totalRow).value = {
-      formula: "SUM(G" + dataStartRow + ":G" + lastDataRow + ")",
+    sheet.getCell("M" + totalRow).value = {
+      formula: "SUM(M" + dataStartRow + ":M" + lastDataRow + ")",
       result: ringkasanPerKaryawan.reduce(
         (sum, item) => sum + Number(item.jumlahTanpaKeterangan || 0),
         0,
       ),
     };
-    sheet.getCell("H" + totalRow).value = null;
-    sheet.getCell("I" + totalRow).value = {
-      formula: "SUM(I" + dataStartRow + ":I" + lastDataRow + ")",
+    sheet.getCell("N" + totalRow).value = null;
+    sheet.getCell("O" + totalRow).value = {
+      formula: "SUM(O" + dataStartRow + ":O" + lastDataRow + ")",
       result: ringkasanPerKaryawan.reduce(
         (sum, item) => sum + Number(item.cuti || 0),
         0,
       ),
     };
-    sheet.getCell("J" + totalRow).value = {
-      formula: "SUM(J" + dataStartRow + ":J" + lastDataRow + ")",
+    sheet.getCell("P" + totalRow).value = {
+      formula: "SUM(P" + dataStartRow + ":P" + lastDataRow + ")",
       result: ringkasanPerKaryawan.reduce(
         (sum, item) => sum + Number(item.sakitAdaSurat || 0),
         0,
       ),
     };
-    sheet.getCell("K" + totalRow).value = {
-      formula: "SUM(K" + dataStartRow + ":K" + lastDataRow + ")",
+    sheet.getCell("Q" + totalRow).value = {
+      formula: "SUM(Q" + dataStartRow + ":Q" + lastDataRow + ")",
       result: ringkasanPerKaryawan.reduce(
         (sum, item) => sum + Number(item.sakitTanpaSurat || 0),
         0,
       ),
     };
+    sheet.getCell("R" + totalRow).value = {
+      formula:
+        "SUM(R" + dataStartRow + ":R" + lastDataRow + ")",
+      result: ringkasanPerKaryawan.reduce(
+        (sum, item) => sum + Number(item.jumlahHC || 0),
+        0,
+      ),
+    };
 
-    for (let col = 1; col <= 11; col += 1) {
+    for (let col = 1; col <= 18; col += 1) {
       const cell = sheet.getCell(totalRow, col);
       cell.font = {
         name: "Aptos",
-        size: 12,
+        size: 11,
         bold: true,
         color: { argb: COLORS.navy },
       };
@@ -717,16 +770,19 @@ async function exportRekapAbsensi(req, res) {
         " : " +
         jumlahHariKerja +
         " Hari",
-      "Jumlah Hari Minggu, Sabtu, dan Hari Libur : " +
+      "Jumlah Hari Minggu, Libur dan Cuti Bersama Periode " +
+        formatTanggalIndonesia(tanggalAwal) +
+        " - " +
+        formatTanggalIndonesia(tanggalAkhir) +
+        " : " +
         jumlahHariLibur +
         " Hari",
-      "Rumus: JLH UANG MAKAN = JLH KEHADIRAN - TERLAMBAT. LEMBUR sengaja dikosongkan. ADA KET = tidak masuk dengan field keterangan terisi; TANPA KET = tidak masuk tanpa field keterangan. CUTI/SAKIT tetap dihitung pada kolomnya masing-masing.",
-      "Sumber rekap: data absensi sistem + pengajuan yang disetujui pada periode yang dipilih.",
+      "Sumber rekap: data absensi sistem + pengajuan yang disetujui pada periode yang dipilih. JLH Uang Makan = JLH Kehadiran - Terlambat. JLH HC = JLH Kehadiran + Tidak Masuk (Ada Ket + Tanpa Ket) + Cuti + Sakit (Ada Srt + Tanpa Srt). Kolom TMK dan histori hak cuti disediakan mengikuti template atasan namun dikosongkan karena belum memiliki sumber data yang tervalidasi. LEMBUR dikosongkan sesuai kebutuhan.",
     ];
 
     footerLines.forEach((text, index) => {
       const rowIndex = footerStart + index;
-      sheet.mergeCells("A" + rowIndex + ":K" + rowIndex);
+      sheet.mergeCells("A" + rowIndex + ":R" + rowIndex);
       const cell = sheet.getCell("A" + rowIndex);
       cell.value = text;
       cell.font = {
@@ -747,12 +803,12 @@ async function exportRekapAbsensi(req, res) {
         wrapText: true,
       };
       cell.border = border;
-      sheet.getRow(rowIndex).height = index < 3 ? 23 : 34;
+      sheet.getRow(rowIndex).height = index < 3 ? 23 : 46;
     });
 
     const signatureRow = footerStart + footerLines.length + 2;
 
-    sheet.mergeCells("A" + signatureRow + ":C" + signatureRow);
+    sheet.mergeCells("A" + signatureRow + ":E" + signatureRow);
     sheet.getCell("A" + signatureRow).value = "Dibuat Oleh,";
     sheet.getCell("A" + signatureRow).font = {
       name: "Aptos",
@@ -765,20 +821,20 @@ async function exportRekapAbsensi(req, res) {
       vertical: "middle",
     };
 
-    sheet.mergeCells("I" + signatureRow + ":K" + signatureRow);
-    sheet.getCell("I" + signatureRow).value = "Diketahui Oleh,";
-    sheet.getCell("I" + signatureRow).font = {
+    sheet.mergeCells("N" + signatureRow + ":R" + signatureRow);
+    sheet.getCell("N" + signatureRow).value = "Diketahui Oleh,";
+    sheet.getCell("N" + signatureRow).font = {
       name: "Aptos",
       size: 10,
       bold: true,
       color: { argb: COLORS.text },
     };
-    sheet.getCell("I" + signatureRow).alignment = {
+    sheet.getCell("N" + signatureRow).alignment = {
       horizontal: "center",
       vertical: "middle",
     };
 
-    sheet.mergeCells("A" + (signatureRow + 1) + ":C" + (signatureRow + 1));
+    sheet.mergeCells("A" + (signatureRow + 1) + ":E" + (signatureRow + 1));
     sheet.getCell("A" + (signatureRow + 1)).value = "Zaman Teknindo";
     sheet.getCell("A" + (signatureRow + 1)).font = {
       name: "Aptos",
@@ -794,15 +850,22 @@ async function exportRekapAbsensi(req, res) {
     sheet.columns = [
       { key: "no", width: 7 },
       { key: "nama", width: 34 },
+      { key: "tmk", width: 14 },
+      { key: "spacer", width: 4 },
+      { key: "hakCuti", width: 20 },
+      { key: "hc2425", width: 13 },
+      { key: "hc2526", width: 13 },
+      { key: "hcDipinjam", width: 19 },
       { key: "hadir", width: 15 },
       { key: "late", width: 13 },
       { key: "meal", width: 23 },
-      { key: "adaKet", width: 14 },
-      { key: "tanpaKet", width: 14 },
+      { key: "adaKet", width: 13 },
+      { key: "tanpaKet", width: 13 },
       { key: "lembur", width: 11 },
       { key: "cuti", width: 11 },
-      { key: "sakitSrt", width: 14 },
-      { key: "sakitNoSrt", width: 15 },
+      { key: "sakitSrt", width: 13 },
+      { key: "sakitNoSrt", width: 14 },
+      { key: "jumlahHC", width: 12 },
     ];
 
     sheet.pageSetup = {
@@ -821,7 +884,7 @@ async function exportRekapAbsensi(req, res) {
       },
     };
 
-    sheet.printArea = "A1:K" + (signatureRow + 1);
+    sheet.printArea = "A1:R" + (signatureRow + 1);
 
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", "attachment; filename=\"Rekap_Absensi_" + formatTanggalFile(tanggalAwal) + "-" + formatTanggalFile(tanggalAkhir) + ".xlsx\"");
