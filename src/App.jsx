@@ -245,14 +245,14 @@ function AdminContextBar({ tanggal, onTanggalChange, onRekapRefresh }) {
           className="admin-rekap-toolbar"
           style={{
             ...styles.adminRekapToolbar,
-            opacity: rekapToolbarTerlihat ? 1 : 0,
-            visibility: rekapToolbarTerlihat ? "visible" : "hidden",
-            pointerEvents: rekapToolbarTerlihat ? "auto" : "none",
-            transform: rekapToolbarTerlihat ? "translateY(0)" : "translateY(-12px)",
+            opacity: 1,
+            visibility: "visible",
+            pointerEvents: "auto",
+            transform: "translateY(0)",
           }}
         >
           <div style={styles.adminRekapDateCopy}>
-            <span style={styles.adminRekapEyebrow}>TANGGAL REKAP</span>
+            <span style={styles.adminRekapEyebrow}>REKAP PER TANGGAL</span>
             <strong style={styles.adminRekapDate}>{formatTanggalIndonesia(tanggal)}</strong>
           </div>
           <div style={styles.adminRekapControls}>
