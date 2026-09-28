@@ -547,26 +547,38 @@ async function exportLaporanExcel(req, res) {
     const detailSheet = workbook.addWorksheet("Detail Absensi");
 
     // Sekarang 12 kolom
+    detailSheet.showGridLines = false;
+    detailSheet.properties.defaultRowHeight = 20;
+
     detailSheet.mergeCells("A1:L1");
-
-    detailSheet.getCell("A1").value = `Detail Absensi — ${
-      NAMA_BULAN[bulan - 1]
-    } ${tahun}`;
-
+    detailSheet.getCell("A1").value = "Detail Absensi — " + NAMA_BULAN[bulan - 1] + " " + tahun;
     detailSheet.getCell("A1").font = {
+      name: "Aptos Display",
       bold: true,
-      size: 14,
-      color: {
-        argb: "FF1F4E79",
-      },
+      size: 16,
+      color: { argb: WARNA.navy },
     };
-
     detailSheet.getCell("A1").alignment = {
-      horizontal: "center",
+      horizontal: "left",
       vertical: "middle",
     };
+    detailSheet.getCell("A1").border = {
+      bottom: { style: "medium", color: { argb: WARNA.hijau } },
+    };
+    detailSheet.getRow(1).height = 28;
 
-    detailSheet.getRow(1).height = 30;
+    detailSheet.mergeCells("A2:L2");
+    detailSheet.getCell("A2").value = "Periode: " + NAMA_BULAN[bulan - 1] + " " + tahun + " • Detail absensi hari kerja";
+    detailSheet.getCell("A2").font = {
+      name: "Aptos",
+      size: 9,
+      color: { argb: WARNA.abuTeks },
+    };
+    detailSheet.getCell("A2").alignment = {
+      horizontal: "left",
+      vertical: "middle",
+    };
+    detailSheet.getRow(2).height = 20;
 
     const detailHeader = detailSheet.getRow(3);
 
@@ -723,12 +735,12 @@ async function exportLaporanExcel(req, res) {
 
         const baris = detailSheet.addRow([
           nomorDetail++,
-          formatTanggal(tanggal),
+          tanggal,
           item.pengguna.nama,
           item.pengguna.jabatan || "-",
           item.pengguna.divisi || "-",
-          formatJam(jamMasuk),
-          formatJam(jamPulang),
+          jamMasuk || null,
+          jamPulang || null,
           statusTampilan(statusOtomatis),
           statusTampilan(statusFinal),
           formatKeterlambatan(menitTerlambat),
@@ -736,60 +748,53 @@ async function exportLaporanExcel(req, res) {
           keterangan,
         ]);
 
-        baris.eachCell((cell, colNumber) => {
-          beriBorder(cell);
+        const fill = nomorDetail % 2 === 0 ? WARNA.putih : WARNA.abuMuda;
+        baris.height = 24;
 
-          // No
-          if (colNumber === 1) {
-            cell.alignment = {
-              horizontal: "center",
-              vertical: "middle",
-            };
-          }
+        baris.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          gayaDataCell(cell, {
+            horizontal:
+              colNumber === 1 ||
+              colNumber === 2 ||
+              (colNumber >= 6 && colNumber <= 10)
+                ? "center"
+                : colNumber === 11
+                  ? "right"
+                  : "left",
+            wrapText: colNumber === 3 || colNumber === 4 || colNumber === 5 || colNumber === 12,
+            fill,
+          });
 
-          // Tanggal
           if (colNumber === 2) {
-            cell.alignment = {
-              horizontal: "center",
-              vertical: "middle",
-            };
+            cell.numFmt = "dd/mm/yyyy";
           }
 
-          // Jam masuk & pulang
           if (colNumber === 6 || colNumber === 7) {
-            cell.alignment = {
-              horizontal: "center",
-              vertical: "middle",
-            };
+            cell.numFmt = "hh:mm:ss";
           }
 
-          // Status otomatis
-          if (colNumber === 8) {
-            cell.alignment = {
-              horizontal: "center",
-              vertical: "middle",
-            };
-          }
-
-          // Status final
-          if (colNumber === 9) {
-            cell.alignment = {
-              horizontal: "center",
-              vertical: "middle",
-            };
-          }
-
-          // Keterlambatan
-          if (colNumber === 10) {
-            cell.alignment = {
-              horizontal: "center",
-              vertical: "middle",
-            };
-          }
-
-          // Potongan
           if (colNumber === 11) {
             cell.numFmt = '"Rp" #,##0';
+          }
+
+          if (colNumber === 8 || colNumber === 9) {
+            const status = String(cell.value || "");
+            if (status === "Tepat Waktu") {
+              cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: WARNA.hijauMuda } };
+            } else if (status === "Telat") {
+              cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: WARNA.kuningMuda } };
+            } else if (status === "Alpha") {
+              cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: WARNA.merahMuda } };
+            } else if (status === "Izin" || status === "Sakit" || status === "Cuti" || status === "Urgent") {
+              cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: WARNA.biruMuda } };
+            }
+
+            cell.font = {
+              name: "Aptos",
+              size: 10,
+              bold: true,
+              color: { argb: WARNA.teks },
+            };
           }
         });
       }
@@ -799,25 +804,30 @@ async function exportLaporanExcel(req, res) {
     // LEBAR KOLOM DETAIL
     // ========================================================
 
+    const detailLastRow = detailSheet.rowCount;
+    detailSheet.autoFilter = "A3:L" + detailLastRow;
+
     detailSheet.columns = [
       { width: 6 },
-      { width: 14 },
+      { width: 13 },
       { width: 24 },
-      { width: 16 },
-      { width: 16 },
-      { width: 14 },
-      { width: 14 },
+      { width: 18 },
+      { width: 18 },
+      { width: 12 },
+      { width: 12 },
+      { width: 17 },
+      { width: 15 },
       { width: 18 },
       { width: 16 },
-      { width: 18 },
-      { width: 16 },
-      { width: 30 },
+      { width: 32 },
     ];
 
     detailSheet.views = [
       {
         state: "frozen",
         ySplit: 3,
+        xSplit: 2,
+        activeCell: "C4",
       },
     ];
 
