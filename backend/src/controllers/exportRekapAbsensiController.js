@@ -259,12 +259,12 @@ async function exportRekapAbsensi(req, res) {
         orderBy: { nama: "asc" },
       }),
       prisma.absensi.findMany({
-        where: { tanggal: { gte: rangeStart, lte: rangeEnd }, pengguna: { peran: "karyawan", statusAkun: "aktif" } },
+        where: { tanggal: { gte: rangeStart, lte: rangeEnd }, pengguna: { peran: "karyawan" } },
         select: { penggunaId: true, tanggal: true, jamMasuk: true, jamPulang: true, statusOtomatis: true, statusFinal: true, keterangan: true, catatanAdmin: true },
         orderBy: [{ tanggal: "asc" }, { penggunaId: "asc" }],
       }),
       prisma.pengajuanIzin.findMany({
-        where: { tanggal: { gte: rangeStart, lte: rangeEnd }, status: "disetujui", pengguna: { peran: "karyawan", statusAkun: "aktif" } },
+        where: { tanggal: { gte: rangeStart, lte: rangeEnd }, status: "disetujui", pengguna: { peran: "karyawan" } },
         select: { id: true, penggunaId: true, tanggal: true, jenis: true, keterangan: true, fotoSurat: true },
         orderBy: [{ tanggal: "asc" }, { penggunaId: "asc" }, { id: "asc" }],
       }),
