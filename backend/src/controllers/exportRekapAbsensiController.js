@@ -242,8 +242,11 @@ async function exportRekapAbsensi(req, res) {
       return res.status(400).json({ pesan: "Rentang rekap maksimal 31 hari per file." });
     }
 
-    const rangeStart = new Date(tanggalMulai + "T00:00:00+07:00");
-    const rangeEnd = new Date(tanggalSelesai + "T23:59:59.999+07:00");
+    // Kolom tanggal di PostgreSQL adalah DATE. Gunakan batas tanggal UTC
+    // pada tengah malam dan batas akhir eksklusif agar filter tidak bergantung
+    // pada konversi timezone timestamp WIB.
+    const rangeStart = tanggalUTC(tanggalMulai);
+    const rangeEndExclusive = tambahHari(tanggalUTC(tanggalSelesai));
 
     const [karyawan, absensi, pengajuanDisetujui, pengaturan, setHariLibur] = await Promise.all([
       prisma.pengguna.findMany({
@@ -252,12 +255,12 @@ async function exportRekapAbsensi(req, res) {
         orderBy: { nama: "asc" },
       }),
       prisma.absensi.findMany({
-        where: { tanggal: { gte: rangeStart, lte: rangeEnd }, pengguna: { peran: "karyawan" } },
+        where: { tanggal: { gte: rangeStart, lt: rangeEndExclusive }, pengguna: { peran: "karyawan" } },
         select: { penggunaId: true, tanggal: true, jamMasuk: true, jamPulang: true, statusOtomatis: true, statusFinal: true, keterangan: true, catatanAdmin: true },
         orderBy: [{ tanggal: "asc" }, { penggunaId: "asc" }],
       }),
       prisma.pengajuanIzin.findMany({
-        where: { tanggal: { gte: rangeStart, lte: rangeEnd }, status: "disetujui", pengguna: { peran: "karyawan" } },
+        where: { tanggal: { gte: rangeStart, lt: rangeEndExclusive }, status: "disetujui", pengguna: { peran: "karyawan" } },
         select: { id: true, penggunaId: true, tanggal: true, jenis: true, keterangan: true, fotoSurat: true },
         orderBy: [{ tanggal: "asc" }, { penggunaId: "asc" }, { id: "asc" }],
       }),
