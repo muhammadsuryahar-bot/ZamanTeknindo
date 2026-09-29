@@ -57,7 +57,7 @@ function getWIBTimeInfo(baseDate = new Date()) {
 
 const checkKioskKey = (req, res, next) => {
   const key =
-    req.headers["x-kiosk-key"] || req.body.kioskKey || req.query.kioskKey;
+    req.headers["x-kiosk-key"] || req.body?.kioskKey || req.query.kioskKey;
   if (!process.env.KIOSK_SECRET_KEY || key === process.env.KIOSK_SECRET_KEY)
     return next();
   return res.status(401).json({ message: "Kiosk key tidak valid" });
@@ -270,6 +270,21 @@ const kioskAbsen = async (req, res) => {
     }
     const { start, end, tanggalOnly } = getWIBTodayRange(now);
     const { totalMenit, jamStr } = getWIBTimeInfo(now);
+
+    const penggunaAktif = await prisma.pengguna.findFirst({
+      where: {
+        id: Number(penggunaId),
+        peran: "karyawan",
+        statusAkun: "aktif",
+      },
+      select: { id: true, nama: true, statusAkun: true },
+    });
+
+    if (!penggunaAktif) {
+      return res.status(404).json({
+        message: "Karyawan tidak aktif atau tidak ditemukan.",
+      });
+    }
     const batasMasuk = parseJam(JAM_MASUK_MAX);
     const batasPulang = parseJam(JAM_PULANG_MIN);
     let absen = await prisma.absensi.findFirst({
@@ -507,10 +522,14 @@ const submitManualFallback = async (req, res) => {
       });
     } catch {
       try {
-        const rows = await prisma.$queryRawUnsafe(
-          `SELECT id, requested_at as "requestedAt", status FROM manual_absen_request WHERE pengguna_id=$1 AND requested_at BETWEEN $2 AND $3 AND status='PENDING' LIMIT 1`,
-          penggunaId, attemptStart, attemptEnd
-        );
+        const rows = await prisma.$queryRaw`
+          SELECT id, requested_at as "requestedAt", status
+          FROM manual_absen_request
+          WHERE pengguna_id=${penggunaId}
+            AND requested_at BETWEEN ${attemptStart} AND ${attemptEnd}
+            AND status='PENDING'
+          LIMIT 1
+        `;
         if (rows?.[0]) pending = rows[0];
       } catch { pending = null; }
     }
@@ -534,21 +553,23 @@ const submitManualFallback = async (req, res) => {
     // INSERT pakai snake_case, tanpa updated_at biar gak error P2022
     let data;
     try {
-      const result = await prisma.$queryRawUnsafe(
-        `INSERT INTO manual_absen_request (pengguna_id, tipe, foto_bukti, alasan, status, requested_at, attempt_menit, status_otomatis, created_at)
-         VALUES ($1, $2, $3, $4, 'PENDING', $5, $6, $7, NOW())
-         RETURNING id, pengguna_id as "penggunaId", tipe, status, requested_at as "requestedAt"`,
-        penggunaId, tipeFinal, foto, alasanBersih, attemptDate, attemptMenit, attemptMenit > 490? "telat" : "tepat_waktu"
-      );
+      const result = await prisma.$queryRaw`
+        INSERT INTO manual_absen_request
+          (pengguna_id, tipe, foto_bukti, alasan, status, requested_at, attempt_menit, status_otomatis, created_at)
+        VALUES
+          (${penggunaId}, ${tipeFinal}, ${foto}, ${alasanBersih}, 'PENDING', ${attemptDate}, ${attemptMenit}, ${attemptMenit > 490 ? "telat" : "tepat_waktu"}, NOW())
+        RETURNING id, pengguna_id as "penggunaId", tipe, status, requested_at as "requestedAt"
+      `;
       data = result?.[0];
     } catch (e1) {
       console.warn("Insert dengan kolom baru gagal:", e1.message);
-      const result = await prisma.$queryRawUnsafe(
-        `INSERT INTO manual_absen_request (pengguna_id, tipe, foto_bukti, alasan, status, requested_at, created_at)
-         VALUES ($1, $2, $3, $4, 'PENDING', $5, NOW())
-         RETURNING id, pengguna_id as "penggunaId", tipe, status, requested_at as "requestedAt"`,
-        penggunaId, tipeFinal, foto, alasanBersih, attemptDate
-      );
+      const result = await prisma.$queryRaw`
+        INSERT INTO manual_absen_request
+          (pengguna_id, tipe, foto_bukti, alasan, status, requested_at, created_at)
+        VALUES
+          (${penggunaId}, ${tipeFinal}, ${foto}, ${alasanBersih}, 'PENDING', ${attemptDate}, NOW())
+        RETURNING id, pengguna_id as "penggunaId", tipe, status, requested_at as "requestedAt"
+      `;
       data = result?.[0];
     }
 
