@@ -420,8 +420,10 @@ Arsip tidak boleh mengubah histori rekap yang sudah diverifikasi tanpa proses ya
 - kolom JLH HC SDH DIJALANI/DIPINJAM dikosongkan.
 
 ### Rekap Hari Ini
-- date picker tetap sebagai input tanggal;
-- hasil tanggal pilihan menggunakan format panjang Indonesia.
+- terdapat 3 pemilih tanggal pada area Rekap Hari Ini: tanggal rekap utama, tanggal mulai export, dan tanggal selesai export;
+- ketiganya tetap menggunakan date picker native agar pemilihan tanggal tetap mudah;
+- hasil tanggal yang dipilih ditampilkan dengan format panjang Indonesia, contoh **26 September 2026**;
+- perubahan format ini hanya berlaku pada halaman Rekap Hari Ini, tidak mengubah date picker pada modul lain.
 
 ### Backend
 - validasi DateTime diperbaiki;
