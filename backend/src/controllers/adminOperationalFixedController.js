@@ -8,25 +8,46 @@ const {
 const CACHE_NOTIFIKASI_MS = 5000;
 let cacheNotifikasi = null;
 
+function normalisasiTanggalRingkasan(raw) {
+  const nilai = String(raw || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(nilai)) return null;
+
+  const [tahun, bulan, hari] = nilai.split("-").map(Number);
+  const kandidat = new Date(Date.UTC(tahun, bulan - 1, hari));
+  if (
+    kandidat.getUTCFullYear() !== tahun ||
+    kandidat.getUTCMonth() !== bulan - 1 ||
+    kandidat.getUTCDate() !== hari
+  ) return null;
+
+  return nilai;
+}
+
 function tanggalKeHariIniDanRentang(tanggalTarget = null) {
   const hariIniSistem = tanggalHariIniWIB();
-  const target = String(tanggalTarget || "").trim();
+  const targetRaw = String(tanggalTarget || "").trim();
+  const target = targetRaw ? normalisasiTanggalRingkasan(targetRaw) : hariIniSistem;
 
-  if (
-    target &&
-    (!/^\d{4}-\d{2}-\d{2}$/.test(target) || target > hariIniSistem)
-  ) {
-    const error = new Error("Tanggal ringkasan harus valid dan tidak boleh melebihi hari ini.");
+  if (targetRaw && !target) {
+    const error = new Error("Tanggal ringkasan tidak valid.");
     error.kode = "TANGGAL_RINGKASAN_TIDAK_VALID";
     throw error;
   }
 
-  const hariIni = target || hariIniSistem;
-  const tujuhHariLalu = new Date(hariIni);
+  if (target > hariIniSistem) {
+    const error = new Error("Tanggal ringkasan tidak boleh melebihi hari ini.");
+    error.kode = "TANGGAL_RINGKASAN_TIDAK_VALID";
+    throw error;
+  }
+
+  const hariIni = target;
+  const tujuhHariLalu = new Date(`${hariIni}T00:00:00.000Z`);
   tujuhHariLalu.setUTCDate(tujuhHariLalu.getUTCDate() - 6);
-  const tigaPuluhHariLalu = new Date(hariIni);
+  const tigaPuluhHariLalu = new Date(`${hariIni}T00:00:00.000Z`);
   tigaPuluhHariLalu.setUTCDate(tigaPuluhHariLalu.getUTCDate() - 29);
-  return { hariIni, tujuhHariLalu, tigaPuluhHariLalu };
+  const besokHariIni = new Date(`${hariIni}T00:00:00.000Z`);
+  besokHariIni.setUTCDate(besokHariIni.getUTCDate() + 1);
+  return { hariIni, tujuhHariLalu, tigaPuluhHariLalu, besokHariIni };
 }
 
 async function ambilPengaturanAman() {
@@ -47,7 +68,7 @@ async function ambilPengaturanAman() {
 
 async function ringkasanDashboardFixed(req, res) {
   try {
-    const { hariIni, tujuhHariLalu, tigaPuluhHariLalu } =
+    const { hariIni, tujuhHariLalu, tigaPuluhHariLalu, besokHariIni } =
       tanggalKeHariIniDanRentang(req.query?.tanggal);
 
     // Baca secara berurutan karena production menggunakan transaction pooler
@@ -56,7 +77,7 @@ async function ringkasanDashboardFixed(req, res) {
       where: {
         tanggal: {
           gte: tujuhHariLalu,
-          lte: new Date(`${hariIni}T23:59:59.999Z`),
+          lt: besokHariIni,
         },
       },
       select: {
