@@ -758,9 +758,9 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
           tanggalRekap
             ? `${API_URL}/admin/rekap-tanggal?tanggal=${encodeURIComponent(tanggalRekap)}`
             : `${API_URL}/admin/rekap-hari-ini`,
-          { headers },
+          { headers, cache: "no-store" },
         ),
-        fetch(`${API_URL}/admin/akun-menunggu`, { headers }),
+        fetch(`${API_URL}/admin/akun-menunggu`, { headers, cache: "no-store" }),
       ]);
 
       const [resRekap, resMenunggu] = responses;
