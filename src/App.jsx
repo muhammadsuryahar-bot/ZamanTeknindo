@@ -112,7 +112,7 @@ function RuteTerproteksi({ pengguna, peranDiizinkan, children }) {
   return children;
 }
 
-function AdminContextBar({ tanggal, onTanggalChange, onRekapRefresh }) {
+function AdminContextBar({ tanggal, onTanggalChange, onRekapRefresh, belumAbsen, loadingBelumAbsen }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [tab, setTab] = useState(() => {
@@ -123,8 +123,6 @@ function AdminContextBar({ tanggal, onTanggalChange, onRekapRefresh }) {
     }
   });
   const [panelTerbuka, setPanelTerbuka] = useState(false);
-  const [belumAbsen, setBelumAbsen] = useState([]);
-  const [loadingBelumAbsen, setLoadingBelumAbsen] = useState(false);
   const [editId, setEditId] = useState(null);
   const [status, setStatus] = useState("alpha");
   const [catatan, setCatatan] = useState("");
@@ -180,31 +178,6 @@ function AdminContextBar({ tanggal, onTanggalChange, onRekapRefresh }) {
     target.addEventListener("scroll", ketikaScroll, { passive: true });
     return () => target.removeEventListener("scroll", ketikaScroll);
   }, [tab]);
-
-  useEffect(() => {
-    if (tab !== "rekap") return;
-    let mounted = true;
-    async function muat() {
-      setLoadingBelumAbsen(true);
-      try {
-        const res = await fetch(`${API_URL}/admin/rekap-tanggal?tanggal=${encodeURIComponent(tanggal)}`, {
-          headers: { Authorization: `Bearer ${getToken()}` },
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data?.pesan || "Gagal memuat rekap tanggal.");
-        if (mounted) setBelumAbsen(Array.isArray(data?.belumAbsen) ? data.belumAbsen : []);
-      } catch (error) {
-        console.error("Gagal memuat daftar belum absen:", error);
-        if (mounted) setBelumAbsen([]);
-      } finally {
-        if (mounted) setLoadingBelumAbsen(false);
-      }
-    }
-    void muat();
-    return () => {
-      mounted = false;
-    };
-  }, [tab, tanggal]);
 
   if (location.pathname === "/admin/arsip" || location.pathname === "/admin/edit-karyawan") return null;
 
@@ -339,6 +312,8 @@ function AdminShell({ pengguna, onLogout }) {
     }
   });
   const [rekapRefreshNonce, setRekapRefreshNonce] = useState(0);
+  const [belumAbsenRekap, setBelumAbsenRekap] = useState([]);
+  const [loadingBelumAbsenRekap, setLoadingBelumAbsenRekap] = useState(true);
 
   useEffect(() => {
     if (typeof window !== "undefined") window.__adminTanggalRekap = tanggalRekap;
@@ -366,12 +341,22 @@ function AdminShell({ pengguna, onLogout }) {
 
   return (
     <div style={styles.adminShell}>
-      {!arsipTerbuka && <AdminContextBar tanggal={tanggalRekap} onTanggalChange={onTanggalChange} onRekapRefresh={() => setRekapRefreshNonce((nilai) => nilai + 1)} />}
+      {!arsipTerbuka && (
+        <AdminContextBar
+          tanggal={tanggalRekap}
+          onTanggalChange={onTanggalChange}
+          onRekapRefresh={() => setRekapRefreshNonce((nilai) => nilai + 1)}
+          belumAbsen={belumAbsenRekap}
+          loadingBelumAbsen={loadingBelumAbsenRekap}
+        />
+      )}
       <DashboardAdmin
         pengguna={pengguna}
         onLogout={onLogout}
         tanggalRekap={tanggalRekap}
         rekapRefreshNonce={rekapRefreshNonce}
+        onRekapSnapshot={setBelumAbsenRekap}
+        onRekapLoading={setLoadingBelumAbsenRekap}
       />
       {arsipTerbuka && (
         <div className="admin-page-archive" style={styles.arsipOverlay} role="dialog" aria-modal="true" aria-label="Arsip dan Cleanup Absensi">
