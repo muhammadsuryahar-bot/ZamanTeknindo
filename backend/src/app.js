@@ -19,6 +19,19 @@ const app = express();
 // dengan benar tanpa menghasilkan ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
 app.set("trust proxy", 1);
 
+// Endpoint API bersifat dinamis. Jangan biarkan browser mengirim
+// If-None-Match/If-Modified-Since lalu menerima 304 tanpa body,
+// karena frontend membaca response API sebagai JSON.
+// Tanpa guard ini Rekap bisa tampak kosong walaupun database berisi data.
+app.use("/api", (req, res, next) => {
+  delete req.headers["if-none-match"];
+  delete req.headers["if-modified-since"];
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
+
 const normalisasiOrigin = (nilai) => String(nilai || "").trim().replace(/\/$/, "");
 const isProduction =
   process.env.VERCEL_ENV === "production" ||
