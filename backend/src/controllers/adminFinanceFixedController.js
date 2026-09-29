@@ -156,7 +156,16 @@ async function ubahPengaturanPotonganFixed(req, res) {
     const potonganTelat = parseNonNegativeNumber(req.body?.potonganTelat);
     const potonganAlpha = parseNonNegativeNumber(req.body?.potonganAlpha);
     const jamMasuk = normalisasiJam(req.body?.jamMasukStandar);
-    const kioskPin = String(req.body?.kioskPin || "246810").trim();
+
+    // Frontend Pengaturan Gaji tidak mengirim kioskPin. Jangan reset PIN
+    // yang sudah diatur setiap kali Admin menyimpan jam/potongan.
+    const pengaturanLama = await prisma.pengaturanPotongan.findUnique({
+      where: { id: 1 },
+      select: { kioskPin: true },
+    });
+    const kioskPin = req.body?.kioskPin != null
+      ? String(req.body.kioskPin).trim()
+      : String(pengaturanLama?.kioskPin || "246810").trim();
 
     if (potonganTelat === null || potonganAlpha === null) {
       return res.status(400).json({
