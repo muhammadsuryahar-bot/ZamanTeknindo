@@ -81,10 +81,36 @@ function getWIBTimeInfo() {
 
 function statusEfektif(absen, jamMasukStandar) {
   if (!absen) return "alpha";
-  if (absen.status === "izin" || absen.statusOtomatis === "izin") return "izin";
-  if (absen.status === "sakit" || absen.statusOtomatis === "sakit") return "sakit";
-  if (absen.status === "cuti" || absen.statusOtomatis === "cuti") return "cuti";
-  if (absen.status === "urgent" || absen.statusOtomatis === "urgent") return "urgent";
+
+  // Status yang sudah ditetapkan Admin adalah sumber kebenaran utama.
+  // Sebelumnya utility membaca field `status` yang tidak ada pada model
+  // Absensi sehingga edit status Admin bisa diabaikan oleh dashboard/gaji.
+  const statusFinal = String(absen.statusFinal || "").trim();
+  if (Object.values({
+    TEPAT_WAKTU: "tepat_waktu",
+    TELAT: "telat",
+    ALPHA: "alpha",
+    IZIN: "izin",
+    SAKIT: "sakit",
+    CUTI: "cuti",
+    URGENT: "urgent",
+  }).includes(statusFinal)) {
+    return statusFinal;
+  }
+
+  const statusOtomatis = String(absen.statusOtomatis || "").trim();
+  if (Object.values({
+    TEPAT_WAKTU: "tepat_waktu",
+    TELAT: "telat",
+    ALPHA: "alpha",
+    IZIN: "izin",
+    SAKIT: "sakit",
+    CUTI: "cuti",
+    URGENT: "urgent",
+  }).includes(statusOtomatis)) {
+    return statusOtomatis;
+  }
+
   if (!absen.jamMasuk) return "alpha";
   const standar = jamMasukStandar || JAM_MASUK_STANDAR_DEFAULT;
   const batasMenit = parseJam(standar);
