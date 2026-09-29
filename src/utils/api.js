@@ -185,12 +185,21 @@ export function pasangPenerjemahSesiKedaluwarsa() {
   window.fetch = async function (...argumen) {
     const urlPermintaanAwal = urlDariArgumen(argumen);
     const urlPermintaan = tambahkanTanggalRekap(urlPermintaanAwal);
-    const argumenDenganTanggal = [urlPermintaan, argumen[1]];
+    const initAsli = argumen[1] || {};
+    const permintaanKeBackendKita = urlPermintaan.includes("/api/");
+    // Semua request API internal harus mengambil response terbaru. Ini
+    // mencegah browser/service worker menghidupkan kembali response lama
+    // setelah backend mengembalikan data baru.
+    const argumenDenganTanggal = [
+      urlPermintaan,
+      permintaanKeBackendKita
+        ? { ...initAsli, cache: "no-store" }
+        : argumen[1],
+    ];
     const iniStatusAbsensi = urlPermintaan.includes(
       "/api/absensi/status-hari-ini",
     );
     const iniBackground = permintaanBackground(argumen);
-    const permintaanKeBackendKita = urlPermintaan.includes("/api/");
     const iniPermintaanAuth = urlPermintaan.includes("/api/auth/");
     const token = getToken();
 
