@@ -5,8 +5,6 @@ import { warna, font } from "../styles/theme";
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 const KIOSK_KEY = import.meta.env.VITE_KIOSK_KEY || "kiosk_rahasia_zaman_2025";
 
-const JAM_MASUK_MAX = 8 * 60 + 10;
-const JAM_PULANG_MIN = 17 * 60;
 const POPUP_DURATION_SECONDS = 15;
 
 async function ambilAlamatKiosk(latitude, longitude) {
@@ -33,12 +31,6 @@ function parseMenitJamKiosk(jam, fallback) {
   const [h, m] = String(jam || "").split(":").map(Number);
   if (!Number.isFinite(h) || !Number.isFinite(m)) return fallback;
   return h * 60 + m;
-}
-
-function formatMenitJamKiosk(totalMenit) {
-  const jam = Math.floor(totalMenit / 60);
-  const menit = totalMenit % 60;
-  return `${String(jam).padStart(2, "0")}:${String(menit).padStart(2, "0")}`;
 }
 
 function useWIBClock(jamMasukStr = "08:10", jamPulangStr = "17:00") {
