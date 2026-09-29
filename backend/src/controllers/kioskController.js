@@ -121,7 +121,7 @@ const verifyAdminPin = async (req, res) => {
 const getPenggunaListKiosk = async (req, res) => {
   try {
     const users = await prisma.pengguna.findMany({
-      where: { statusAkun: "aktif" },
+      where: { statusAkun: "aktif", peran: "karyawan" },
       select: {
         id: true,
         nama: true,
@@ -131,6 +131,9 @@ const getPenggunaListKiosk = async (req, res) => {
       },
     });
     const faces = await prisma.userFace.findMany({
+      where: {
+        user: { peran: "karyawan", statusAkun: "aktif" },
+      },
       select: { penggunaId: true },
     });
     const faceIds = new Set(faces.map((f) => f.penggunaId));
@@ -211,6 +214,21 @@ const enrollFace = async (req, res) => {
       return res
         .status(400)
         .json({ message: "penggunaId & descriptors wajah yang valid wajib diisi." });
+    const targetUser = await prisma.pengguna.findFirst({
+      where: {
+        id: targetId,
+        peran: "karyawan",
+        statusAkun: "aktif",
+      },
+      select: { id: true },
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({
+        message: "Karyawan aktif tidak ditemukan.",
+      });
+    }
+
     const data = await prisma.userFace.upsert({
       where: { penggunaId: targetId },
       update: {
@@ -250,8 +268,12 @@ const recognize = async (req, res) => {
       }
     }
     if (best && bestDist < FACE_THRESHOLD) {
-      const pengguna = await prisma.pengguna.findUnique({
-        where: { id: best.penggunaId },
+      const pengguna = await prisma.pengguna.findFirst({
+        where: {
+          id: best.penggunaId,
+          peran: "karyawan",
+          statusAkun: "aktif",
+        },
         select: {
           id: true,
           nama: true,
@@ -449,7 +471,11 @@ const kioskAbsen = async (req, res) => {
 
 const getAllFaces = async (req, res) => {
   try {
-    const faces = await prisma.userFace.findMany();
+    const faces = await prisma.userFace.findMany({
+      where: {
+        user: { peran: "karyawan", statusAkun: "aktif" },
+      },
+    });
     res.json(faces);
   } catch (e) {
     res.status(500).json({ message: e.message });
@@ -459,6 +485,9 @@ const getAllFaces = async (req, res) => {
 const getFacesDetailed = async (req, res) => {
   try {
     const faces = await prisma.userFace.findMany({
+      where: {
+        user: { peran: "karyawan", statusAkun: "aktif" },
+      },
       include: {
         user: {
           select: {
