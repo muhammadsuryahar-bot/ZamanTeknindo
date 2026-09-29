@@ -43,8 +43,21 @@ function getWIBNow() {
   return new Date(wibStr);
 }
 function parseJam(jamStr) {
-  const [h, m] = jamStr.split(":").map(Number);
-  return h * 60 + m;
+  const [h, m] = String(jamStr || "").split(":").map(Number);
+  return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : 0;
+}
+
+async function ambilBatasJamKiosk() {
+  try {
+    const pengaturan = await prisma.pengaturanPotongan.findUnique({
+      where: { id: 1 },
+      select: { jamMasukStandar: true },
+    });
+    return pengaturan?.jamMasukStandar || JAM_MASUK_MAX;
+  } catch (error) {
+    console.warn("[KIOSK] Gagal membaca jam masuk dari DB, pakai env:", error?.message || error);
+    return JAM_MASUK_MAX;
+  }
 }
 function getWIBTimeInfo(baseDate = new Date()) {
   const wibNow = new Date(baseDate.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
@@ -132,7 +145,8 @@ const getStatusKiosk = async (req, res) => {
     const penggunaId = Number(req.params.penggunaId);
     const { wibDateStr, tanggalOnly } = getWIBTodayRange();
     const { totalMenit, jamStr } = getWIBTimeInfo();
-    const batasMasuk = parseJam(JAM_MASUK_MAX);
+    const jamMasukStandar = await ambilBatasJamKiosk();
+    const batasMasuk = parseJam(jamMasukStandar);
     const batasPulang = parseJam(JAM_PULANG_MIN);
     const absen = await prisma.absensi.findFirst({
       where: { penggunaId, tanggal: tanggalOnly },
@@ -141,7 +155,7 @@ const getStatusKiosk = async (req, res) => {
     const jamInfo = {
       jamSekarang: jamStr,
       totalMenitSekarang: totalMenit,
-      batasMasuk: JAM_MASUK_MAX,
+      batasMasuk: jamMasukStandar,
       batasMasukMenit: batasMasuk,
       batasPulang: JAM_PULANG_MIN,
       batasPulangMenit: batasPulang,
@@ -270,6 +284,7 @@ const kioskAbsen = async (req, res) => {
     }
     const { start, end, tanggalOnly } = getWIBTodayRange(now);
     const { totalMenit, jamStr } = getWIBTimeInfo(now);
+    const jamMasukStandar = await ambilBatasJamKiosk();
 
     const penggunaAktif = await prisma.pengguna.findFirst({
       where: {
@@ -285,7 +300,7 @@ const kioskAbsen = async (req, res) => {
         message: "Karyawan tidak aktif atau tidak ditemukan.",
       });
     }
-    const batasMasuk = parseJam(JAM_MASUK_MAX);
+    const batasMasuk = parseJam(jamMasukStandar);
     const batasPulang = parseJam(JAM_PULANG_MIN);
     let absen = await prisma.absensi.findFirst({
       where: {
@@ -310,7 +325,7 @@ const kioskAbsen = async (req, res) => {
       );
       if (!TESTING_MODE && totalMenit > batasMasuk + TOLERANSI_MENIT) {
         return res.status(400).json({
-          message: `Absen masuk ditutup. Maksimal jam ${JAM_MASUK_MAX} (toleransi sampai ${String(Math.floor((batasMasuk + TOLERANSI_MENIT) / 60)).padStart(2, "0")}:${String((batasMasuk + TOLERANSI_MENIT) % 60).padStart(2, "0")}). Sekarang ${jamStr} WIB`,
+          message: `Absen masuk ditutup. Maksimal jam ${jamMasukStandar} (toleransi sampai ${String(Math.floor((batasMasuk + TOLERANSI_MENIT) / 60)).padStart(2, "0")}:${String((batasMasuk + TOLERANSI_MENIT) % 60).padStart(2, "0")}). Sekarang ${jamStr} WIB`,
         });
       }
       if (TESTING_MODE && totalMenit > batasMasuk + TOLERANSI_MENIT) {
@@ -322,10 +337,10 @@ const kioskAbsen = async (req, res) => {
       let keterangan = null;
       if (totalMenit > batasMasuk) {
         statusOtomatis = "telat";
-        console.log(`[KIOSK TELAT] TELAT: ${jamStr} > ${JAM_MASUK_MAX}`);
+        console.log(`[KIOSK TELAT] TELAT: ${jamStr} > ${jamMasukStandar}`);
       } else {
         console.log(
-          `[KIOSK TEPAT WAKTU] TEPAT WAKTU: ${jamStr} <= ${JAM_MASUK_MAX}`,
+          `[KIOSK TEPAT WAKTU] TEPAT WAKTU: ${jamStr} <= ${jamMasukStandar}`,
         );
       }
       const wibDateStrForCreate = now.toLocaleDateString("en-CA", {
