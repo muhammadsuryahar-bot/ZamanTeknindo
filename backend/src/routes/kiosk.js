@@ -4,6 +4,9 @@ const kioskController = require('../controllers/kioskController');
 const { checkKioskKey } = kioskController;
 const { batasKioskPin } = require('../middleware/rateLimiter');
 
+// Config
+router.get('/config', checkKioskKey, kioskController.getConfigKiosk);
+
 // List & Status
 router.get('/pengguna-list', checkKioskKey, kioskController.getPenggunaListKiosk);
 router.get('/status/:penggunaId', checkKioskKey, kioskController.getStatusKiosk);
