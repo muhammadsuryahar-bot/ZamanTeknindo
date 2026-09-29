@@ -525,10 +525,18 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
   // Refresh dibuat silent agar tabel tetap tampil tanpa skeleton/flicker.
   useEffect(() => {
     let intervalId = null;
+    let sudahMuatAwal = false;
 
     const refreshDashboard = () => {
       if (document.visibilityState !== "visible") return;
-      void muatData({ silent: true });
+
+      // Request pertama wajib mengakhiri state loading setelah data masuk.
+      // Setelah data awal tampil, refresh berikutnya silent agar tabel tidak
+      // kembali menjadi skeleton setiap 15 detik.
+      const silent = sudahMuatAwal;
+      sudahMuatAwal = true;
+
+      void muatData({ silent });
       void muatNotifikasi();
       if (tabRef.current === "karyawan") void muatKaryawan(true, { silent: true });
       if (tabRef.current === "kantor") void muatKantor(true, { silent: true });
