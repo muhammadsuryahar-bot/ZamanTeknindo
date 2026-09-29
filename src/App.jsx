@@ -112,7 +112,7 @@ function RuteTerproteksi({ pengguna, peranDiizinkan, children }) {
   return children;
 }
 
-function AdminContextBar({ tanggal, onTanggalChange, onRekapRefresh, belumAbsen, loadingBelumAbsen }) {
+function AdminContextBar({ tanggal, onTanggalChange, onRekapRefresh, belumAbsen, loadingBelumAbsen, onBelumAbsenChange }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [tab, setTab] = useState(() => {
@@ -209,7 +209,7 @@ function AdminContextBar({ tanggal, onTanggalChange, onRekapRefresh, belumAbsen,
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.pesan || "Gagal menyimpan status.");
-      setBelumAbsen((sebelumnya) => sebelumnya.filter((item) => item.id !== id));
+      onBelumAbsenChange?.((sebelumnya) => sebelumnya.filter((item) => item.id !== id));
       setEditId(null);
       setCatatan("");
       setPesan("Status berhasil dicatat.");
@@ -348,6 +348,7 @@ function AdminShell({ pengguna, onLogout }) {
           onRekapRefresh={() => setRekapRefreshNonce((nilai) => nilai + 1)}
           belumAbsen={belumAbsenRekap}
           loadingBelumAbsen={loadingBelumAbsenRekap}
+          onBelumAbsenChange={setBelumAbsenRekap}
         />
       )}
       <DashboardAdmin
