@@ -14,6 +14,12 @@ const manualAbsenRoutes = require("./routes/manualAbsenRoutes");
 
 const app = express();
 
+// API bersifat dinamis dan dibaca sebagai JSON oleh frontend. Matikan ETag
+// Express supaya request kondisional tidak berubah menjadi HTTP 304 tanpa body.
+// Ini mencegah data dashboard/absensi/notifikasi tampak kosong karena browser
+// mengirim If-None-Match dari response sebelumnya.
+app.disable("etag");
+
 // Vercel meneruskan X-Forwarded-For ke Express.
 // Percayai satu hop proxy agar express-rate-limit dapat membaca IP
 // dengan benar tanpa menghasilkan ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
