@@ -14,6 +14,8 @@ const manualAbsenRoutes = require("./routes/manualAbsenRoutes");
 
 const app = express();
 
+app.disable("x-powered-by");
+
 // API bersifat dinamis dan dibaca sebagai JSON oleh frontend. Matikan ETag
 // Express supaya request kondisional tidak berubah menjadi HTTP 304 tanpa body.
 // Ini mencegah data dashboard/absensi/notifikasi tampak kosong karena browser
@@ -101,4 +103,18 @@ app.get("/api", (req, res) => {
   res.json({ pesan: "Server Sistem Absensi berjalan dengan baik 🚀" });
 });
 
+
+// Semua error yang lolos dari controller/middleware dikembalikan sebagai JSON
+// yang konsisten dan tidak membocorkan stack trace ke browser.
+app.use((error, req, res, next) => {
+  console.error("Unhandled API error:", error);
+  if (res.headersSent) return next(error);
+
+  const status = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+  return res.status(status >= 400 && status < 600 ? status : 500).json({
+    pesan: status === 500
+      ? "Terjadi kesalahan pada server. Silakan coba lagi."
+      : String(error?.message || "Permintaan tidak dapat diproses."),
+  });
+});
 module.exports = app;
