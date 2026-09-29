@@ -1,9 +1,17 @@
 const prisma = require("../utils/prismaClient");
 
+const STATUS_MANUAL_REQUEST = new Set(["PENDING", "APPROVED", "REJECTED", "ALL"]);
+
+function validasiStatusManual(rawStatus) {
+  const status = String(rawStatus || "PENDING").trim().toUpperCase();
+  return STATUS_MANUAL_REQUEST.has(status) ? status : null;
+}
+
 const getManualPending = async (req, res) => {
   try {
-    const { status = "PENDING" } = req.query;
-    const where = status!== "ALL"? { status } : {};
+    const status = validasiStatusManual(req.query?.status);
+    if (!status) return res.status(400).json({ message: "Filter status verifikasi manual tidak valid." });
+    const where = status !== "ALL" ? { status } : {};
     let data;
     try {
       data = await prisma.manualAbsenRequest.findMany({
@@ -23,13 +31,22 @@ const getManualPending = async (req, res) => {
         take: 100
       });
     } catch (e) {
-      const f = where.status? `WHERE status='${where.status}'` : "";
-      const rows = await prisma.$queryRawUnsafe(
-        `SELECT id, pengguna_id as "penggunaId", tipe, requested_at as "requestedAt",
-                foto_bukti as "fotoBukti", alasan, status
-         FROM manual_absen_request ${f}
-         ORDER BY requested_at DESC LIMIT 100`
-      );
+      const rows = where.status
+        ? await prisma.$queryRaw`
+            SELECT id, pengguna_id as "penggunaId", tipe, requested_at as "requestedAt",
+                   foto_bukti as "fotoBukti", alasan, status
+            FROM manual_absen_request
+            WHERE status=${where.status}
+            ORDER BY requested_at DESC
+            LIMIT 100
+          `
+        : await prisma.$queryRaw`
+            SELECT id, pengguna_id as "penggunaId", tipe, requested_at as "requestedAt",
+                   foto_bukti as "fotoBukti", alasan, status
+            FROM manual_absen_request
+            ORDER BY requested_at DESC
+            LIMIT 100
+          `;
       data = [];
       for (let r of rows) {
         try {
@@ -53,10 +70,13 @@ const approveManual = async (req, res) => {
         select: { id:true, penggunaId:true, tipe:true, requestedAt:true, fotoBukti:true, alasan:true, status:true }
       });
     } catch {
-      const rows = await prisma.$queryRawUnsafe(
-        `SELECT id, pengguna_id as "penggunaId", tipe, requested_at as "requestedAt", foto_bukti as "fotoBukti", alasan, status
-         FROM manual_absen_request WHERE id=$1 LIMIT 1`, id
-      );
+      const rows = await prisma.$queryRaw`
+        SELECT id, pengguna_id as "penggunaId", tipe, requested_at as "requestedAt",
+               foto_bukti as "fotoBukti", alasan, status
+        FROM manual_absen_request
+        WHERE id=${id}
+        LIMIT 1
+      `;
       reqData = rows?.[0];
       if (reqData) {
         reqData.penggunaId = Number(reqData.penggunaId);
@@ -143,7 +163,7 @@ const approveManual = async (req, res) => {
     try {
       await prisma.manualAbsenRequest.update({ where: { id }, data: { status: "APPROVED" }, select: { id:true } });
     } catch {
-      await prisma.$queryRawUnsafe(`UPDATE manual_absen_request SET status='APPROVED' WHERE id=$1`, id);
+      await prisma.$queryRaw`UPDATE manual_absen_request SET status='APPROVED' WHERE id=${id}`;
     }
 
     res.json({ message: `Berhasil menyetujui presensi ${reqData.tipe} (Status: ${statusHitung === "telat" ? "Terlambat" : "Tepat Waktu"})` });
@@ -161,7 +181,7 @@ const rejectManual = async (req, res) => {
         select: { id:true }
       });
     } catch {
-      await prisma.$queryRawUnsafe(`UPDATE manual_absen_request SET status='REJECTED' WHERE id=$1`, id);
+      await prisma.$queryRaw`UPDATE manual_absen_request SET status='REJECTED' WHERE id=${id}`;
     }
     res.json({ message: "Pengajuan verifikasi manual berhasil ditolak" });
   } catch(e){ res.status(500).json({ message: e.message }); }
