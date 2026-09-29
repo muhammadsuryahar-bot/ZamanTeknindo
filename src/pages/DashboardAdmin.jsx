@@ -467,8 +467,13 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
   const [ringkasanTerbuka, setRingkasanTerbuka] = useState(false);
   const [ringkasan, setRingkasan] = useState(null);
   const [loadingRingkasan, setLoadingRingkasan] = useState(false);
+  const muatDataSequenceRef = useRef(0);
+  const ringkasanRequestRef = useRef(0);
 
   useEffect(() => {
+    // Batalkan secara logis request ringkasan dari tanggal sebelumnya agar
+    // hasil yang terlambat tidak menimpa tanggal yang sedang dipilih.
+    ringkasanRequestRef.current += 1;
     setRingkasan(null);
     setRingkasanTerbuka(false);
   }, [tanggalRekap]);
@@ -477,6 +482,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
     const mauDibuka = !ringkasanTerbuka;
     setRingkasanTerbuka(mauDibuka);
     if (mauDibuka && !ringkasan) {
+      const requestId = ++ringkasanRequestRef.current;
       setLoadingRingkasan(true);
       try {
         const queryTanggal = String(tanggalRekap || "").trim();
@@ -487,12 +493,16 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
           headers: { Authorization: `Bearer ${getToken()}` },
         });
         const data = await res.json();
+        if (requestId !== ringkasanRequestRef.current) return;
         setRingkasan(data.data || null);
       } catch (err) {
+        if (requestId !== ringkasanRequestRef.current) return;
         console.error(err);
         setPesan("Gagal memuat tren & analisis.");
       } finally {
-        setLoadingRingkasan(false);
+        if (requestId === ringkasanRequestRef.current) {
+          setLoadingRingkasan(false);
+        }
       }
     }
   }
@@ -725,6 +735,8 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
   }
 
   async function muatData({ silent = false } = {}) {
+    const requestSequence = ++muatDataSequenceRef.current;
+
     if (!silent) {
       setLoading(true);
       setPesan("");
@@ -805,11 +817,17 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
         throw new Error("Format data akun menunggu dari server tidak valid.");
       }
 
+      // Refresh otomatis setiap 15 detik dan perubahan date picker
+      // dapat berjalan bersamaan. Hanya response terbaru yang boleh
+      // mengganti tabel, supaya data tanggal lama tidak kembali muncul.
+      if (requestSequence !== muatDataSequenceRef.current) return;
+
       setRekap(dataRekap.data);
       setBelumAbsen(dataRekap.belumAbsen || []);
       setJumlahKaryawanAktif(dataRekap.jumlahKaryawanAktif || 0);
       setMenunggu(dataMenunggu.data);
     } catch (err) {
+      if (requestSequence !== muatDataSequenceRef.current) return;
       console.error("Gagal memuat data Dashboard Admin:", err);
       if (!silent) {
         setPesan(
@@ -817,7 +835,9 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
         );
       }
     } finally {
-      if (!silent) setLoading(false);
+      if (requestSequence === muatDataSequenceRef.current && !silent) {
+        setLoading(false);
+      }
     }
   }
 
