@@ -48,6 +48,16 @@ function tanggalHariIniWIB() {
   return `${hasil.year}-${hasil.month}-${hasil.day}`;
 }
 
+function formatTanggalRekapPilihan(tanggal) {
+  if (!tanggal) return "-";
+  return new Date(`${tanggal}T00:00:00.000Z`).toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 const DAFTAR_STATUS = [
   "tepat_waktu",
   "telat",
@@ -2140,6 +2150,9 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                         onChange={(e) => setTanggalExportMulai(e.target.value)}
                         style={styles.rekapExportInput}
                       />
+                      <span style={styles.rekapExportSelectedDate}>
+                        {formatTanggalRekapPilihan(tanggalExportMulai)}
+                      </span>
                     </label>
                     <label style={styles.rekapExportLabel}>
                       Sampai tanggal
@@ -2150,6 +2163,9 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                         onChange={(e) => setTanggalExportSelesai(e.target.value)}
                         style={styles.rekapExportInput}
                       />
+                      <span style={styles.rekapExportSelectedDate}>
+                        {formatTanggalRekapPilihan(tanggalExportSelesai)}
+                      </span>
                     </label>
                   </div>
                   <div style={styles.rekapExportActions} className="rekapExportActions">
@@ -3970,6 +3986,13 @@ const styles = {
     color: warna.tinta,
     fontSize: 10.5,
     fontWeight: 700,
+  },
+  rekapExportSelectedDate: {
+    display: "block",
+    marginTop: 6,
+    color: warna.tintaSamar,
+    fontSize: 12,
+    fontWeight: 650,
   },
   rekapExportInput: {
     width: "100%",
