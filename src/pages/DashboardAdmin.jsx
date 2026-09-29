@@ -521,11 +521,6 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
     tabRef.current = tab;
   }, [tab]);
 
-  useEffect(() => {
-    void muatData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tanggalRekap, rekapRefreshNonce]);
-
   // Sinkronisasi dashboard Admin berjalan otomatis saat tab sedang terlihat.
   // Refresh dibuat silent agar tabel tetap tampil tanpa skeleton/flicker.
   useEffect(() => {
@@ -570,7 +565,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
     };
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tanggalRekap]);
+  }, [tanggalRekap, rekapRefreshNonce]);
 
   async function muatWajah() {
     if (wajahSudahDimuat) return;
