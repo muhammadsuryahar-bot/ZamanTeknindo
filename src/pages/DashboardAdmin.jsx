@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, Fragment } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_URL, getToken } from "../utils/api";
 import { warna, font } from "../styles/theme";
+
+const KIOSK_KEY = import.meta.env.VITE_KIOSK_KEY || "kiosk_rahasia_zaman_2025";
 import logoHorizontal from "../assets/logo-horizontal.png";
 import logo from "../assets/logo.png";
 import AdminIzin from "./AdminIzin";
@@ -581,7 +583,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
     try {
       const token = getToken();
       const r = await fetch(`${API_URL}/kiosk/faces-detailed`, {
-        headers: { Authorization: `Bearer ${token}`, "x-kiosk-key": "kiosk_rahasia_zaman_2025" },
+        headers: { Authorization: `Bearer ${token}`, "x-kiosk-key": KIOSK_KEY },
       });
       const pinRes = await fetch(`${API_URL}/admin/pengaturan-potongan`, {
         headers: { Authorization: `Bearer ${token}` }
