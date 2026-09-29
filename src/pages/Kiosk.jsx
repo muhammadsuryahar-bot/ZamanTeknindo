@@ -29,7 +29,19 @@ async function ambilAlamatKiosk(latitude, longitude) {
   }
 }
 
-function useWIBClock() {
+function parseMenitJamKiosk(jam, fallback) {
+  const [h, m] = String(jam || "").split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return fallback;
+  return h * 60 + m;
+}
+
+function formatMenitJamKiosk(totalMenit) {
+  const jam = Math.floor(totalMenit / 60);
+  const menit = totalMenit % 60;
+  return `${String(jam).padStart(2, "0")}:${String(menit).padStart(2, "0")}`;
+}
+
+function useWIBClock(jamMasukStr = "08:10", jamPulangStr = "17:00") {
   const [now, setNow] = useState(new Date());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -39,6 +51,8 @@ function useWIBClock() {
     now.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }),
   );
   const menit = wib.getHours() * 60 + wib.getMinutes();
+  const jamMasukMax = parseMenitJamKiosk(jamMasukStr, 8 * 60 + 10);
+  const jamPulangMin = parseMenitJamKiosk(jamPulangStr, 17 * 60);
   const jam = new Intl.DateTimeFormat("id-ID", {
     timeZone: "Asia/Jakarta",
     hour: "2-digit",
@@ -53,16 +67,16 @@ function useWIBClock() {
     month: "long",
     year: "numeric",
   }).format(now);
-  const isTerlambat = menit > JAM_MASUK_MAX && menit <= JAM_MASUK_MAX + 120;
-  const isMasukDitutup = menit > JAM_MASUK_MAX + 120 && menit < JAM_PULANG_MIN;
-  const isPulang = menit >= JAM_PULANG_MIN;
+  const isTerlambat = menit > jamMasukMax && menit <= jamMasukMax + 120;
+  const isMasukDitutup = menit > jamMasukMax + 120 && menit < jamPulangMin;
+  const isPulang = menit >= jamPulangMin;
   const statusJam = isTerlambat
-    ? `TERLAMBAT • Lewat 08:10`
+    ? `TERLAMBAT • Lewat ${jamMasukStr}`
     : isMasukDitutup
-      ? `Masuk Ditutup • Pulang 17:00`
+      ? `Masuk Ditutup • Pulang ${jamPulangStr}`
       : isPulang
-        ? `Jam Pulang • Mulai 17:00`
-        : `Jam Masuk • Max 08:10`;
+        ? `Jam Pulang • Mulai ${jamPulangStr}`
+        : `Jam Masuk • Max ${jamMasukStr}`;
   return {
     jam,
     tanggal,
@@ -71,6 +85,10 @@ function useWIBClock() {
     isMasukDitutup,
     isPulang,
     statusJam,
+    jamMasukStr,
+    jamPulangStr,
+    jamMasukMax,
+    jamPulangMin,
   };
 }
 
@@ -82,8 +100,10 @@ const POSE = [
 
 export default function Kiosk() {
   const videoRef = useRef(null);
+  const [jamMasukKiosk, setJamMasukKiosk] = useState("08:10");
+  const [jamPulangKiosk, setJamPulangKiosk] = useState("17:00");
   const { jam, tanggal, isTerlambat, isMasukDitutup, isPulang, statusJam } =
-    useWIBClock();
+    useWIBClock(jamMasukKiosk, jamPulangKiosk);
   const [modelOk, setModelOk] = useState(false);
   const [camOk, setCamOk] = useState(false);
   const [mode, setMode] = useState("idle");
@@ -131,6 +151,32 @@ export default function Kiosk() {
     "Deteksi wajah tidak tersedia",
   );
   const [manualCari, setManualCari] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      try {
+        const response = await fetch(API_BASE + "/kiosk/config", {
+          headers: { "x-kiosk-key": KIOSK_KEY },
+          cache: "no-store",
+        });
+        if (!response.ok) return;
+
+        const data = await response.json();
+        if (!mounted) return;
+
+        if (data?.jamMasukStandar) setJamMasukKiosk(data.jamMasukStandar);
+        if (data?.jamPulangStandar) setJamPulangKiosk(data.jamPulangStandar);
+      } catch {
+        // Gunakan fallback 08:10 / 17:00 bila konfigurasi belum dapat diambil.
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Request izin lokasi langsung saat halaman Kiosk diakses
   useEffect(() => {
