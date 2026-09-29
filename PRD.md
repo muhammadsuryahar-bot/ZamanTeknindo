@@ -428,7 +428,9 @@ Arsip tidak boleh mengubah histori rekap yang sudah diverifikasi tanpa proses ya
 ### Backend
 - validasi DateTime diperbaiki;
 - filter tanggal ringkasan menggunakan DateTime ISO;
-- data karyawan historis tetap dapat direkap.
+- data karyawan historis tetap dapat direkap;
+- **Rekap Hari Ini menggunakan exact-date query untuk kolom PostgreSQL `DATE`**, sehingga data tanggal sebelumnya tidak ikut masuk ke tanggal yang dipilih;
+- pengajuan izin pada tanggal rekap juga difilter dengan exact date yang sama agar klasifikasi izin tidak bergeser.
 
 ---
 
