@@ -68,6 +68,23 @@ function getWIBTimeInfo(baseDate = new Date()) {
   return { wibNow, jam, menit, totalMenit, jamStr };
 }
 
+const getConfigKiosk = async (req, res) => {
+  try {
+    const pengaturan = await prisma.pengaturanPotongan.findUnique({
+      where: { id: 1 },
+      select: { jamMasukStandar: true },
+    });
+
+    return res.json({
+      jamMasukStandar: pengaturan?.jamMasukStandar || JAM_MASUK_MAX,
+      jamPulangStandar: JAM_PULANG_MIN,
+    });
+  } catch (error) {
+    console.error("[KIOSK] Gagal mengambil konfigurasi jam:", error);
+    return res.status(500).json({ message: "Gagal mengambil konfigurasi kiosk." });
+  }
+};
+
 const checkKioskKey = (req, res, next) => {
   const key =
     req.headers["x-kiosk-key"] || req.body?.kioskKey || req.query.kioskKey;
