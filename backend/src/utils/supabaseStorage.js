@@ -23,68 +23,70 @@ function getPublicUrl(bucket, path) {
   return data?.publicUrl || null;
 }
 
+const SIGNED_URL_CACHE_TTL_MS = 10 * 60 * 1000;
+const signedUrlCache = new Map();
+
+function ambilDariCache(path) {
+  const item = signedUrlCache.get(path);
+  if (!item) return null;
+  if (item.expiresAt <= Date.now()) {
+    signedUrlCache.delete(path);
+    return null;
+  }
+  return item.url;
+}
+
+function simpanKeCache(path, url) {
+  signedUrlCache.set(path, { url, expiresAt: Date.now() + SIGNED_URL_CACHE_TTL_MS });
+}
+
+async function cariUrlFoto(path) {
+  if (path.startsWith('http') || path.startsWith('data:') || path.startsWith('/uploads/')) {
+    return path;
+  }
+  const cached = ambilDariCache(path);
+  if (cached) return cached;
+  let foundUrl = null;
+  for (const bucket of CANDIDATE_BUCKETS) {
+    try {
+      const { data: signed, error: errSigned } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60 * 24 * 7);
+      if (!errSigned && signed?.signedUrl) {
+        foundUrl = signed.signedUrl;
+        break;
+      }
+      if (errSigned) console.error('[foto-debug] createSignedUrl gagal di bucket ' + bucket + ':', errSigned.message || errSigned);
+      const publicUrl = getPublicUrl(bucket, path);
+      if (publicUrl) {
+        try {
+          const headRes = await fetch(publicUrl, { method: 'HEAD' });
+          if (headRes.ok) { foundUrl = publicUrl; break; }
+        } catch (err) {
+          console.error('[foto-debug] fetch HEAD error:', err.message);
+        }
+      }
+    } catch (e) {
+      console.error('[foto] error bucket ' + bucket + ' path ' + path, e.message);
+    }
+  }
+  if (!foundUrl) {
+    const fallbackBucket = CANDIDATE_BUCKETS[0] || 'absensi';
+    foundUrl = getPublicUrl(fallbackBucket, path);
+  }
+  if (foundUrl && !foundUrl.startsWith('/uploads/')) simpanKeCache(path, foundUrl);
+  return foundUrl;
+}
+
 async function buatSignedUrlFotoBatch(paths) {
   const uniquePaths = [...new Set(paths.filter(Boolean))];
   const map = new Map();
-
   if (uniquePaths.length === 0) return map;
-
-  for (const path of uniquePaths) {
-    // skip kalau sudah http / data:
-    if (path.startsWith('http') || path.startsWith('data:') || path.startsWith('/uploads/')) {
-      map.set(path, path);
-      continue;
-    }
-
-    let foundUrl = null;
-
-    // Coba semua bucket candidate
-    for (const bucket of CANDIDATE_BUCKETS) {
-      try {
-        // 1. coba signed URL (untuk private bucket)
-        const { data: signed, error: errSigned } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60 * 24 * 7); // 7 hari
-        if (!errSigned && signed?.signedUrl) {
-          foundUrl = signed.signedUrl;
-          console.log(`[foto] OK signed ${bucket}/${path}`);
-          break;
-        } else if (errSigned) {
-          console.error(`[foto-debug] createSignedUrl gagal di bucket ${bucket}:`, errSigned.message || errSigned);
-        }
-
-        // 2. fallback public URL
-        const publicUrl = getPublicUrl(bucket, path);
-        if (publicUrl) {
-          try {
-            const headRes = await fetch(publicUrl, { method: 'HEAD' });
-            if (headRes.ok) {
-              foundUrl = publicUrl;
-              console.log(`[foto] OK public fallback ${bucket}/${path}`);
-              break;
-            } else {
-               console.error(`[foto-debug] HEAD request gagal di bucket ${bucket} dengan status: ${headRes.status}`);
-            }
-          } catch(err) {
-             console.error(`[foto-debug] fetch HEAD error di bucket ${bucket}:`, err.message);
-          }
-        }
-      } catch (e) {
-        console.error(`[foto] error bucket ${bucket} path ${path}`, e.message);
-      }
-    }
-
-    if (!foundUrl) {
-      console.error(`[foto] file tidak ketemu di semua bucket (atau gagal signed) untuk path: ${path}`);
-      const fallbackBucket = CANDIDATE_BUCKETS[0] || 'absensi';
-      foundUrl = getPublicUrl(fallbackBucket, path);
-    }
-
-    if (foundUrl) map.set(path, foundUrl);
+  const hasil = await Promise.all(uniquePaths.map(async (path) => [path, await cariUrlFoto(path)]));
+  for (const [path, url] of hasil) {
+    if (url) map.set(path, url);
   }
-
-  console.log(`[foto] buatSignedUrlFotoBatch: ${map.size}/${uniquePaths.length} berhasil`);
+  console.log('[foto] buatSignedUrlFotoBatch: ' + map.size + '/' + uniquePaths.length + ' berhasil (paralel/cache)');
   return map;
 }
-
 async function uploadFotoAbsensi(buffer, filePath, mimeType = "image/jpeg") {
   let errorTerakhir = null;
 
