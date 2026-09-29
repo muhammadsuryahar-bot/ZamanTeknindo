@@ -288,7 +288,7 @@ function SkeletonBaris({ jumlah = 4 }) {
   );
 }
 
-export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekapRefreshNonce }) {
+export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekapRefreshNonce, onRekapSnapshot, onRekapLoading }) {
   const navigate = useNavigate();
   const [tab, setTab] = useState(() => {
     const tabTersimpan = sessionStorage.getItem("admin-tab");
@@ -735,6 +735,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
     if (!silent) {
       setLoading(true);
       setPesan("");
+      onRekapLoading?.(true);
     }
 
     const token = getToken();
@@ -821,6 +822,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
       setBelumAbsen(dataRekap.belumAbsen || []);
       setJumlahKaryawanAktif(dataRekap.jumlahKaryawanAktif || 0);
       setMenunggu(dataMenunggu.data);
+      onRekapSnapshot?.(Array.isArray(dataRekap.belumAbsen) ? dataRekap.belumAbsen : []);
     } catch (err) {
       if (requestSequence !== muatDataSequenceRef.current) return;
       console.error("Gagal memuat data Dashboard Admin:", err);
@@ -832,6 +834,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
     } finally {
       if (requestSequence === muatDataSequenceRef.current && !silent) {
         setLoading(false);
+        onRekapLoading?.(false);
       }
     }
   }
