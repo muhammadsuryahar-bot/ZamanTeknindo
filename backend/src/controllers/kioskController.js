@@ -674,4 +674,5 @@ module.exports = {
   kioskAbsen,
   absenViaKiosk: kioskAbsen,
   submitManualFallback,
+  getConfigKiosk,
 };
