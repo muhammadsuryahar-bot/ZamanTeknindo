@@ -72,7 +72,7 @@ app.use(
       if (!origin) return callback(null, true);
 
       const normalized = normalisasiOrigin(origin);
-      if (!isProduction && /^https?:\/\/(localhost|127\\.0\\.0\\.1)(:\\d+)?$/.test(normalized)) {
+      if (!isProduction && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(normalized)) {
         return callback(null, true);
       }
 
