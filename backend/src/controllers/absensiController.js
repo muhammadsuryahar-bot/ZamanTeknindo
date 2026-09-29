@@ -519,8 +519,10 @@ async function statusHariIni(req, res) {
       console.warn("manualAbsenRequest check failed:", e.message);
     }
 
+    // PengajuanIzin.tanggal bertipe PostgreSQL DATE. Gunakan tanggal operasional
+    // WIB yang sama persis agar tidak ada pergeseran timezone.
     const pengajuanDisetujui = await prisma.pengajuanIzin.findFirst({
-      where: { penggunaId, tanggal: { gte: start, lte: end }, status: "disetujui" },
+      where: { penggunaId, tanggal: tanggalDate, status: "disetujui" },
       select: {
         id: true,
         jenis: true,
