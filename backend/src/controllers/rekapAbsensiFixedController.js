@@ -43,7 +43,35 @@ async function ambilRekapTanggal(req, res) { try { const hariIni = normalisasiTa
         pengguna: { peran: "karyawan", statusAkun: "aktif" },
       },
       select: { penggunaId: true, jenis: true },
-    }); const jamMasukStandar = pengaturanAman.jamMasukStandar || JAM_MASUK_STANDAR_DEFAULT; const semuaPathFoto = []; for (const item of data) { if (item.fotoMasuk && !item.fotoMasuk.startsWith("/uploads/")) semuaPathFoto.push(item.fotoMasuk); if (item.fotoPulang && !item.fotoPulang.startsWith("/uploads/")) semuaPathFoto.push(item.fotoPulang); } const petaUrlFoto = await buatSignedUrlFotoBatch(semuaPathFoto); const dataDenganKantor = data.map((item) => tambahInfoLokasi(item, petaUrlFoto, jamMasukStandar)); const sudahAbsen = new Set(data.map((item) => item.pengguna?.id).filter((id) => id != null)); const sudahPunyaIzin = new Set(pengajuanDisetujui.map((item) => item.penggunaId).filter((id) => id != null)); const belumAbsen = karyawanAktif.filter((karyawan) => !sudahAbsen.has(karyawan.id) && !sudahPunyaIzin.has(karyawan.id)); return res.json({ tanggal, hariIni, data: dataDenganKantor, belumAbsen, jumlahKaryawanAktif: karyawanAktif.length, pengajuanDisetujui }); } catch (error) { console.error("Gagal mengambil rekap absensi tanggal:", error); return res.status(500).json({ pesan: "Terjadi kesalahan pada server." }); } }
+    }); const jamMasukStandar = pengaturanAman.jamMasukStandar || JAM_MASUK_STANDAR_DEFAULT; const dataDenganKantor = data.map((item) => tambahInfoLokasi(item, new Map(), jamMasukStandar)); const sudahPunyaIzin = new Set(pengajuanDisetujui.map((item) => item.penggunaId).filter((id) => id != null)); const belumAbsen = karyawanAktif.filter((karyawan) => !sudahAbsen.has(karyawan.id) && !sudahPunyaIzin.has(karyawan.id)); return res.json({ tanggal, hariIni, data: dataDenganKantor, belumAbsen, jumlahKaryawanAktif: karyawanAktif.length, pengajuanDisetujui }); } catch (error) { console.error("Gagal mengambil rekap absensi tanggal:", error); return res.status(500).json({ pesan: "Terjadi kesalahan pada server." }); } }
+async function ambilUrlFotoRekap(req, res) {
+  try {
+    const rawPaths = Array.isArray(req.body?.paths) ? req.body.paths : [];
+    const paths = [...new Set(
+      rawPaths
+        .filter((path) => typeof path === "string")
+        .map((path) => path.trim())
+        .filter(
+          (path) =>
+            path &&
+            !path.startsWith("http://") &&
+            !path.startsWith("https://") &&
+            !path.startsWith("data:") &&
+            !path.startsWith("/uploads/") &&
+            path.length <= 500,
+        ),
+    )].slice(0, 50);
+
+    if (paths.length === 0) return res.json({ data: {} });
+
+    const urlMap = await buatSignedUrlFotoBatch(paths);
+    return res.json({ data: Object.fromEntries(urlMap.entries()) });
+  } catch (error) {
+    console.error("Gagal mengambil URL foto rekap:", error);
+    return res.status(500).json({ pesan: "Gagal memuat URL foto absensi." });
+  }
+}
+
 async function ubahStatusTanpaAbsensi(req, res) { try { const penggunaId = Number(req.params.penggunaId); const tanggal = normalisasiTanggal(req.params.tanggal); const statusFinal = String(req.body?.statusFinal || "").trim(); const catatanAdmin = String(req.body?.catatanAdmin || "").trim(); const adminId = Number(req.user.id); if (!Number.isInteger(penggunaId) || penggunaId <= 0 || !tanggal) return res.status(400).json({ pesan: "Karyawan atau tanggal tidak valid." }); if (!STATUS_MANUAL_VALID.has(statusFinal)) return res.status(400).json({ pesan: "Status absensi tidak valid." }); if (!catatanAdmin) return res.status(400).json({ pesan: "Catatan wajib diisi untuk perubahan status manual." }); if (catatanAdmin.length > 500) return res.status(400).json({ pesan: "Catatan Admin maksimal 500 karakter." }); const tanggalDate = tanggalSebagaiDate(tanggal); if (!tanggalDate) return res.status(400).json({ pesan: "Tanggal absensi tidak valid." }); const pengguna = await prisma.pengguna.findFirst({ where: { id: penggunaId, peran: "karyawan", statusAkun: "aktif" }, select: { id: true, nama: true } }); const existing = await prisma.absensi.findUnique({ where: { penggunaId_tanggal: { penggunaId, tanggal: tanggalDate } }, select: { id: true } }); const pengajuanDisetujui = await prisma.pengajuanIzin.findFirst({ where: { penggunaId, tanggal: tanggalDate, status: "disetujui" }, select: { id: true, jenis: true } }); if (!pengguna) return res.status(404).json({ pesan: "Karyawan aktif tidak ditemukan." }); if (existing) return res.status(409).json({ pesan: "Karyawan sudah memiliki record absensi. Gunakan edit status absensi biasa.", absensiId: existing.id }); if (pengajuanDisetujui) return res.status(409).json({ pesan: `Pengajuan ${pengajuanDisetujui.jenis} karyawan ini sudah disetujui. Tidak perlu membuat status manual lagi.` }); try { const absensi = await prisma.absensi.create({ data: { penggunaId, tanggal: tanggalDate, statusOtomatis: statusFinal === "alpha" ? "alpha" : null, statusFinal, catatanAdmin, dieditOleh: adminId, waktuEdit: new Date() } }); return res.status(201).json({ pesan: `Status ${pengguna.nama} pada ${tanggal} berhasil dicatat sebagai ${statusFinal}.`, data: absensi }); } catch (error) { if (error?.code === "P2002") return res.status(409).json({ pesan: "Karyawan sudah memiliki record absensi untuk tanggal tersebut. Gunakan edit status absensi biasa." }); throw error; } } catch (error) { console.error("Gagal memberi status pada karyawan tanpa absensi:", error); return res.status(500).json({ pesan: "Terjadi kesalahan pada server." }); } }
 async function rekapHariIniFixed(req, res) { return ambilRekapTanggal(req, res); }
-module.exports = { rekapHariIniFixed, ambilRekapTanggal, ubahStatusTanpaAbsensi };
+module.exports = { rekapHariIniFixed, ambilRekapTanggal, ambilUrlFotoRekap, ubahStatusTanpaAbsensi };
