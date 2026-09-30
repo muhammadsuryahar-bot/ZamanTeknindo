@@ -24,8 +24,13 @@ const MAX_OFFLINE_CLOCK_DRIFT_MS = 24 * 60 * 60 * 1000;
 const MAKS_AKURASI_LOKASI_METER = 100;
 
 function koordinatDariRequest(latitude, longitude) {
-  const lat = Number(latitude);
-  const lng = Number(longitude);
+  const latitudeRaw = String(latitude ?? "").trim();
+  const longitudeRaw = String(longitude ?? "").trim();
+
+  if (!latitudeRaw || !longitudeRaw) return null;
+
+  const lat = Number(latitudeRaw);
+  const lng = Number(longitudeRaw);
 
   if (
     !Number.isFinite(lat) ||
