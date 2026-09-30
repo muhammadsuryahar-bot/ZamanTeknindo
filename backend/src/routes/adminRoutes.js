@@ -26,6 +26,7 @@ const { daftarKaryawanFixed } = require("../controllers/adminKaryawanFixedContro
 const {
   rekapHariIniFixed,
   ambilRekapTanggal,
+  ambilUrlFotoRekap,
   ubahStatusTanpaAbsensi,
 } = require("../controllers/rekapAbsensiFixedController");
 const { daftarKantorFixed, tambahKantorFixed, ubahKantorFixed } = require("../controllers/kantorControllerFixed");
@@ -148,6 +149,7 @@ router.put("/karyawan/:id/reset-password", batasResetPassword, resetPasswordOleh
 
 router.get("/rekap-hari-ini", rekapHariIniFixed);
 router.get("/rekap-tanggal", ambilRekapTanggal);
+router.post("/rekap-foto-url", ambilUrlFotoRekap);
 router.get("/rekap-absensi/export", exportRekapAbsensi);
 router.put("/absensi/tanggal/:tanggal/pengguna/:penggunaId/status", validasiEditStatusAbsensi, ubahStatusTanpaAbsensi);
 router.get("/ringkasan", ringkasanDashboardFixed);
