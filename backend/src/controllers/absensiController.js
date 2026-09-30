@@ -20,141 +20,10 @@ const JAM_BATAS_TEPAT_WAKTU_DEFAULT = "08:10:00";
 const HEADER_OFFLINE_SYNC = "X-Zaman-Background";
 const OFFLINE_SYNC_HEADER_VALUE = "offline-sync";
 const MAX_OFFLINE_CLOCK_DRIFT_MS = 24 * 60 * 60 * 1000;
-const RADIUS_ABSENSI_METER = Number(process.env.ABSENSI_RADIUS_METER || 1500);
-const LOKASI_ABSENSI_TAMBAHAN = [
-  {
-    nama: "Bandung (Jalan Sadang Serang)",
-    latitude: -6.88842,
-    longitude: 107.624807,
-  },
-];
+const MAKS_AKURASI_LOKASI_METER = 100;
 
-function tanggalHariIni() {
-  return tanggalHariIniWIB();
-}
-
-function jamKeMenit(jam) {
-  const bagian = String(jam || "").split(":").map(Number);
-  if (bagian.length < 2 || bagian.some((n) => Number.isNaN(n))) return null;
-  const [jamAngka, menit] = bagian;
-  if (jamAngka < 0 || jamAngka > 23 || menit < 0 || menit > 59) return null;
-  // Aturan keterlambatan berbasis MENIT, bukan detik.
-  return jamAngka * 60 + menit;
-}
-
-async function ambilBatasTepatWaktu() {
-  try {
-    const pengaturan = await prisma.pengaturanPotongan.findUnique({
-      where: { id: 1 },
-      select: { jamMasukStandar: true },
-    });
-    return (
-      jamKeMenit(pengaturan?.jamMasukStandar) ??
-      jamKeMenit(JAM_BATAS_TEPAT_WAKTU_DEFAULT)
-    );
-  } catch (error) {
-    console.error("Gagal membaca batas tepat waktu dari pengaturan:", error);
-    return jamKeMenit(JAM_BATAS_TEPAT_WAKTU_DEFAULT);
-  }
-}
-
-function koordinatDariRequest(latitude, longitude) {
-  const lat = Number(latitude);
-  const lng = Number(longitude);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
-  return { latitude: lat, longitude: lng };
-}
-
-function hitungJarakMeter(latitude, longitude, targetLatitude, targetLongitude) {
-  const lat = Number(latitude);
-  const lng = Number(longitude);
-  const tLat = Number(targetLatitude);
-  const tLng = Number(targetLongitude);
-
-  if (![lat, lng, tLat, tLng].every(Number.isFinite)) return null;
-
-  const toRad = (nilai) => (nilai * Math.PI) / 180;
-  const bumiMeter = 6_371_000;
-  const dLat = toRad(tLat - lat);
-  const dLng = toRad(tLng - lng);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat)) *
-      Math.cos(toRad(tLat)) *
-      Math.sin(dLng / 2) ** 2;
-
-  return (
-    2 *
-    bumiMeter *
-    Math.atan2(Math.sqrt(a), Math.sqrt(Math.max(0, 1 - a)))
-  );
-}
-
-async function validasiLokasiAbsensi(penggunaId, koordinat) {
-  const pengguna = await prisma.pengguna.findUnique({
-    where: { id: penggunaId },
-    select: {
-      kantor: {
-        select: {
-          id: true,
-          namaKantor: true,
-          latitude: true,
-          longitude: true,
-        },
-      },
-    },
-  });
-
-  const kantor = pengguna?.kantor;
-  if (!kantor) {
-    return {
-      ok: false,
-      status: 409,
-      pesan:
-        "Kantor Anda belum ditentukan oleh Admin. Absensi belum dapat dilakukan. Hubungi Admin.",
-    };
-  }
-
-  if (!Number.isFinite(RADIUS_ABSENSI_METER) || RADIUS_ABSENSI_METER <= 0) {
-    console.error("ABSENSI_RADIUS_METER tidak valid:", process.env.ABSENSI_RADIUS_METER);
-    return {
-      ok: false,
-      status: 500,
-      pesan: "Konfigurasi radius absensi pada server tidak valid.",
-    };
-  }
-
-  const lokasiDiizinkan = [
-    {
-      nama: kantor.namaKantor,
-      latitude: kantor.latitude,
-      longitude: kantor.longitude,
-    },
-    ...LOKASI_ABSENSI_TAMBAHAN,
-  ].filter(
-    (lokasi) =>
-      lokasi.latitude !== null &&
-      lokasi.latitude !== undefined &&
-      lokasi.longitude !== null &&
-      lokasi.longitude !== undefined &&
-      Number.isFinite(Number(lokasi.latitude)) &&
-      Number.isFinite(Number(lokasi.longitude)),
-  );
-  const lokasiTerdekat = lokasiDiizinkan
-    .map((lokasi) => ({
-      ...lokasi,
-      jarakMeter: hitungJarakMeter(
-        koordinat.latitude,
-        koordinat.longitude,
-        lokasi.latitude,
-        lokasi.longitude,
-      ),
-    }))
-    .filter((lokasi) => Number.isFinite(lokasi.jarakMeter))
-    .sort((a, b) => a.jarakMeter - b.jarakMeter)[0];
-
-  if (!lokasiTerdekat) {
+function validasiLokasiAbsensi(koordinat, akurasi) {
+  if (!koordinat) {
     return {
       ok: false,
       status: 400,
@@ -162,25 +31,25 @@ async function validasiLokasiAbsensi(penggunaId, koordinat) {
     };
   }
 
-  if (lokasiTerdekat.jarakMeter > RADIUS_ABSENSI_METER) {
+  const akurasiMeter = Number(akurasi);
+  if (
+    !Number.isFinite(akurasiMeter) ||
+    akurasiMeter <= 0 ||
+    akurasiMeter > MAKS_AKURASI_LOKASI_METER
+  ) {
     return {
       ok: false,
       status: 400,
-      pesan: `Anda berada sekitar ${Math.round(
-        lokasiTerdekat.jarakMeter,
-      )} meter dari lokasi presensi terdekat (${lokasiTerdekat.nama}). Absensi hanya dapat dilakukan dalam radius ${Math.round(
-        RADIUS_ABSENSI_METER,
-      )} meter dari lokasi presensi.`,
-      jarakMeter: Math.round(lokasiTerdekat.jarakMeter),
-      radiusMeter: Math.round(RADIUS_ABSENSI_METER),
+      pesan: `Akurasi lokasi terlalu rendah (±${Number.isFinite(akurasiMeter) ? Math.round(akurasiMeter) : "-"} m). Aktifkan GPS/lokasi presisi dan ambil lokasi kembali. Maksimal akurasi yang diterima ±${MAKS_AKURASI_LOKASI_METER} m.`,
+      akurasiMeter: Number.isFinite(akurasiMeter) ? Math.round(akurasiMeter) : null,
+      batasAkurasiMeter: MAKS_AKURASI_LOKASI_METER,
     };
   }
 
   return {
     ok: true,
-    kantor,
-    jarakMeter: Math.round(lokasiTerdekat.jarakMeter),
-    radiusMeter: Math.round(RADIUS_ABSENSI_METER),
+    akurasiMeter: Math.round(akurasiMeter),
+    batasAkurasiMeter: MAKS_AKURASI_LOKASI_METER,
   };
 }
 
@@ -230,7 +99,7 @@ async function absenMasuk(req, res) {
   try {
     tahap = "validasi-request";
     const penggunaId = req.user.id;
-    const { latitude, longitude, alamat } = req.body;
+    const { latitude, longitude, alamat, akurasi } = req.body;
     if (!req.file) return res.status(400).json({ pesan: "Foto absen wajib diunggah." });
 
     tahap = "cek-izin";
@@ -269,7 +138,7 @@ async function absenMasuk(req, res) {
       });
     }
 
-    const validasiLokasi = await validasiLokasiAbsensi(penggunaId, koordinat);
+    const validasiLokasi = validasiLokasiAbsensi(koordinat, akurasi);
     if (!validasiLokasi.ok) {
       await hapusFotoJikaPerlu();
       return res.status(validasiLokasi.status).json({
@@ -352,7 +221,7 @@ async function absenPulang(req, res) {
 
   try {
     const penggunaId = req.user.id;
-    const { latitude, longitude, alamat } = req.body;
+    const { latitude, longitude, alamat, akurasi } = req.body;
     if (!req.file) return res.status(400).json({ pesan: "Foto absen wajib diunggah." });
 
     const { tanggalDate: tanggal, end: tanggalEnd } = getWIBTodayRange();
@@ -388,7 +257,7 @@ async function absenPulang(req, res) {
       });
     }
 
-    const validasiLokasi = await validasiLokasiAbsensi(penggunaId, koordinat);
+    const validasiLokasi = validasiLokasiAbsensi(koordinat, akurasi);
     if (!validasiLokasi.ok) {
       await hapusFotoJikaPerlu();
       return res.status(validasiLokasi.status).json({
