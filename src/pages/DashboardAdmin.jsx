@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, Fragment } from "react";
+import { useState, useEffect, useRef, Fragment, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_URL, getToken } from "../utils/api";
 import { warna, font } from "../styles/theme";
@@ -6,10 +6,10 @@ import { warna, font } from "../styles/theme";
 const KIOSK_KEY = import.meta.env.VITE_KIOSK_KEY || "kiosk_rahasia_zaman_2025";
 import logoHorizontal from "../assets/logo-horizontal.png";
 import logo from "../assets/logo.png";
-import AdminIzin from "./AdminIzin";
-import PengaturanGaji from "./PengaturanGaji";
-import AdminGajiMassal from "./AdminGajiMassal";
-import AdminManual from "./AdminManual";
+const AdminIzin = lazy(() => import("./AdminIzin"));
+const PengaturanGaji = lazy(() => import("./PengaturanGaji"));
+const AdminGajiMassal = lazy(() => import("./AdminGajiMassal"));
+const AdminManual = lazy(() => import("./AdminManual"));
 import { labelStatusKehadiran } from "../utils/statusKehadiran";
 import { formatAlamatPresensi } from "../utils/alamatPresensi";
 import {
@@ -2997,7 +2997,9 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
 
           {tabPernahDibuka.izin && (
             <div style={{ display: tab === "izin" ? "block" : "none" }}>
-              <AdminIzin />
+              <Suspense fallback={<div style={{ ...styles.kosongBox, minHeight: 160, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>{label}</div>}>
+                <AdminIzin />
+              </Suspense>
             </div>
           )}
 
@@ -3175,19 +3177,25 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
 
           {tabPernahDibuka.manual && (
             <div style={{ display: tab === "manual" ? "block" : "none" }}>
-              <AdminManual />
+              <Suspense fallback={<div style={{ ...styles.kosongBox, minHeight: 160, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>{label}</div>}>
+                <AdminManual />
+              </Suspense>
             </div>
           )}
 
           {tabPernahDibuka.gaji && (
             <div style={{ display: tab === "gaji" ? "block" : "none" }}>
-              <PengaturanGaji />
+              <Suspense fallback={<div style={{ ...styles.kosongBox, minHeight: 160, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>{label}</div>}>
+                <PengaturanGaji />
+              </Suspense>
             </div>
           )}
 
           {tabPernahDibuka["gaji-massal"] && (
             <div style={{ display: tab === "gaji-massal" ? "block" : "none" }}>
-              <AdminGajiMassal />
+              <Suspense fallback={<div style={{ ...styles.kosongBox, minHeight: 160, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>{label}</div>}>
+                <AdminGajiMassal />
+              </Suspense>
             </div>
           )}
 
