@@ -310,6 +310,8 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
     return tabValid.includes(tabTersimpan) ? tabTersimpan : "rekap";
   });
   const [rekap, setRekap] = useState([]);
+  const [fotoRekapUrl, setFotoRekapUrl] = useState({});
+  const fotoRekapUrlRef = useRef(new Map());
   const [belumAbsen, setBelumAbsen] = useState([]);
   const [belumAbsenTerbuka, setBelumAbsenTerbuka] = useState(false);
   const [manualPendingCount, setManualPendingCount] = useState(0);
@@ -739,6 +741,63 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
     }
   }
 
+  async function muatUrlFotoRekap(dataRekap, requestSequence) {
+    const paths = [
+      ...new Set(
+        (Array.isArray(dataRekap) ? dataRekap : [])
+          .flatMap((item) => [item.fotoMasuk, item.fotoPulang])
+          .filter(
+            (path) =>
+              typeof path === "string" &&
+              path.trim() &&
+              !path.startsWith("http://") &&
+              !path.startsWith("https://") &&
+              !path.startsWith("data:") &&
+              !path.startsWith("/uploads/"),
+          ),
+      ),
+    ];
+
+    const perluDimuat = paths.filter((path) => !fotoRekapUrlRef.current.has(path));
+    if (perluDimuat.length === 0) return;
+
+    try {
+      const token = getToken();
+      if (!token) return;
+
+      const response = await fetch(`${API_URL}/admin/rekap-foto-url`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
+        body: JSON.stringify({ paths: perluDimuat }),
+      });
+
+      if (!response.ok) return;
+
+      const payload = await response.json();
+      if (requestSequence !== muatDataSequenceRef.current) return;
+
+      const dataUrl =
+        payload?.data && typeof payload.data === "object" ? payload.data : {};
+
+      Object.entries(dataUrl).forEach(([path, url]) => {
+        if (typeof url === "string" && url) {
+          fotoRekapUrlRef.current.set(path, url);
+        }
+      });
+
+      if (Object.keys(dataUrl).length > 0) {
+        setFotoRekapUrl((sebelumnya) => ({ ...sebelumnya, ...dataUrl }));
+      }
+    } catch (error) {
+      // Foto tidak boleh menahan tabel rekap.
+      console.error("Gagal memuat URL foto rekap:", error);
+    }
+  }
+
   async function muatData({ silent = false } = {}) {
     const requestSequence = ++muatDataSequenceRef.current;
 
@@ -829,6 +888,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
       if (requestSequence !== muatDataSequenceRef.current) return;
 
       setRekap(dataRekap.data);
+      void muatUrlFotoRekap(dataRekap.data, requestSequence);
       setBelumAbsen(dataRekap.belumAbsen || []);
       setJumlahKaryawanAktif(dataRekap.jumlahKaryawanAktif || 0);
       setMenunggu(dataMenunggu.data);
@@ -1189,14 +1249,9 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
       return `${API_URL.replace(/\/api$/, "")}${namaFile}`;
     }
 
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const bucket = import.meta.env.VITE_SUPABASE_BUCKET || 'foto-absensi';
-    
-    if (supabaseUrl && !supabaseUrl.includes("xxxxxxxx.supabase.co")) {
-      return `${supabaseUrl}/storage/v1/object/public/${bucket}/${namaFile}`;
-    }
-
-    return urlSigned || `${API_URL.replace(/\/api$/, "")}/uploads/${namaFile}`;
+    // Foto Supabase production bersifat private. URL-nya dimuat
+    // terpisah di background supaya tabel utama tidak ikut lambat.
+    return null;
   }
 
   function formatJam(tanggalIso) {
@@ -2314,9 +2369,9 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                                 </td>
                                 <td style={styles.td}>
                                   <div style={styles.fotoAbsenRow}>
-                                    {item.fotoMasuk && (
+                                    {item.fotoMasuk && urlFoto(item.fotoMasuk, item.fotoMasukUrl || fotoRekapUrl[item.fotoMasuk]) ? (
                                       <a
-                                        href={urlFoto(item.fotoMasuk, item.fotoMasukUrl)}
+                                        href={urlFoto(item.fotoMasuk, item.fotoMasukUrl || fotoRekapUrl[item.fotoMasuk])}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         title="Lihat foto absen masuk"
@@ -2324,16 +2379,20 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                                         <img
                                           src={urlFoto(
                                             item.fotoMasuk,
-                                            item.fotoMasukUrl,
+                                            item.fotoMasukUrl || fotoRekapUrl[item.fotoMasuk],
                                           )}
                                           alt="Foto absen masuk"
                                           style={styles.fotoAbsenThumb}
                                         />
                                       </a>
-                                    )}
-                                    {item.fotoPulang && (
+                                    ) : item.fotoMasuk ? (
+                                      <span style={{ fontSize: 11, color: warna.tintaSamar }}>
+                                        Memuat foto...
+                                      </span>
+                                    ) : null}
+                                    {item.fotoPulang && urlFoto(item.fotoPulang, item.fotoPulangUrl || fotoRekapUrl[item.fotoPulang]) ? (
                                       <a
-                                        href={urlFoto(item.fotoPulang, item.fotoPulangUrl)}
+                                        href={urlFoto(item.fotoPulang, item.fotoPulangUrl || fotoRekapUrl[item.fotoPulang])}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         title="Lihat foto absen pulang"
@@ -2341,13 +2400,17 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                                         <img
                                           src={urlFoto(
                                             item.fotoPulang,
-                                            item.fotoPulangUrl,
+                                            item.fotoPulangUrl || fotoRekapUrl[item.fotoPulang],
                                           )}
                                           alt="Foto absen pulang"
                                           style={styles.fotoAbsenThumb}
                                         />
                                       </a>
-                                    )}
+                                    ) : item.fotoPulang ? (
+                                      <span style={{ fontSize: 11, color: warna.tintaSamar }}>
+                                        Memuat foto...
+                                      </span>
+                                    ) : null}
                                     {!item.fotoMasuk && !item.fotoPulang && (
                                       <span
                                         style={{
