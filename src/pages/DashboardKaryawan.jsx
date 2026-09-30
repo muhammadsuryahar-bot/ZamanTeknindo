@@ -747,6 +747,11 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       if (lokasiWatchRef.current !== null) { navigator.geolocation.clearWatch(lokasiWatchRef.current); lokasiWatchRef.current = null; }
       if (lokasiTimerRef.current) { clearTimeout(lokasiTimerRef.current); lokasiTimerRef.current = null; }
       if (!posisiTerbaik) { setStatusLokasi("gagal"); setPesan("Lokasi belum berhasil ditemukan. Pastikan GPS/lokasi HP aktif dan izin lokasi untuk situs ini diberikan, lalu coba lagi."); return; }
+      if (posisiTerbaik.akurasi > 100) {
+        setStatusLokasi("gagal");
+        setPesan(`Akurasi GPS masih rendah (±${Math.round(posisiTerbaik.akurasi)} m). Aktifkan GPS/lokasi presisi dan coba Foto Ulang agar akurasi lokasi lebih baik.`);
+        return;
+      }
       const { latitude, longitude, akurasi } = posisiTerbaik;
       setLokasi({ latitude, longitude, akurasi, alamat: null });
       setStatusLokasi("ditemukan");
@@ -781,7 +786,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
           setStatusLokasi("mencari");
         }
       },
-      { enableHighAccuracy: true, maximumAge: 3000, timeout: LOKASI_REQUEST_TIMEOUT_MS },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: LOKASI_REQUEST_TIMEOUT_MS },
     );
 
     lokasiWatchRef.current = watchId;
@@ -804,11 +809,12 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     formData.append("waktuAsli", waktuAsli);
     formData.append("latitude", String(lokasi.latitude));
     formData.append("longitude", String(lokasi.longitude));
+    formData.append("akurasi", String(lokasi.akurasi));
     const alamatDasar = lokasi.alamat || `${lokasi.latitude}, ${lokasi.longitude}`;
     formData.append("alamat", formatAlamatPresensi(alamatDasar, lokasi.akurasi));
     const endpoint = tahap === "belum_masuk" ? "masuk" : "pulang";
     const simpanOffline = async () => {
-      await simpanKeAntrian({ foto: fotoTerambil, penggunaId: pengguna.id, latitude: lokasi.latitude, longitude: lokasi.longitude, alamat: formData.get("alamat"), waktuAsli, endpoint });
+      await simpanKeAntrian({ foto: fotoTerambil, penggunaId: pengguna.id, latitude: lokasi.latitude, longitude: lokasi.longitude, akurasi: lokasi.akurasi, alamat: formData.get("alamat"), waktuAsli, endpoint });
       const sisa = await jumlahAntrian(pengguna.id);
       if (mountedRef.current) { setJumlahTertunda(sisa); setPesan("Sinyal lagi tidak stabil. Absen kamu sudah tersimpan aman di HP dan akan otomatis terkirim begitu koneksi kembali normal — tidak perlu ulangi."); setFotoTerambil(null); setLokasi(null); setStatusLokasi("mencari"); }
     };
