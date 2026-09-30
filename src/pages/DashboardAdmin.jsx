@@ -60,6 +60,80 @@ function formatTanggalRekapPilihan(tanggal) {
   });
 }
 
+function formatTanggalInput(tanggal) {
+  if (!tanggal) return "";
+  return new Date(`${tanggal}T00:00:00.000Z`).toLocaleDateString("id-ID", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+function TanggalPickerDashboard({ value, max, onChange, ariaLabel, style }) {
+  return (
+    <div
+      style={{
+        position: "relative",
+        minWidth: 132,
+        minHeight: 34,
+        ...style,
+      }}
+    >
+      <span
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          padding: "0 28px 0 10px",
+          boxSizing: "border-box",
+          color: warna.tinta,
+          fontSize: 11.5,
+          fontWeight: 650,
+          pointerEvents: "none",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {formatTanggalInput(value) || "DD/MM/YYYY"}
+      </span>
+      <span
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          right: 9,
+          top: "50%",
+          transform: "translateY(-50%)",
+          color: warna.tintaSamar,
+          fontSize: 12,
+          pointerEvents: "none",
+        }}
+      >
+        ▾
+      </span>
+      <input
+        type="date"
+        value={value}
+        max={max}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={ariaLabel}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          minHeight: 34,
+          margin: 0,
+          opacity: 0,
+          cursor: "pointer",
+          border: 0,
+        }}
+      />
+    </div>
+  );
+}
+
 const DAFTAR_STATUS = [
   "tepat_waktu",
   "telat",
@@ -2226,12 +2300,12 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                   <div style={styles.rekapExportField} className="rekapExportField">
                     <label style={styles.rekapExportLabel}>
                       Dari tanggal
-                      <input
-                        type="date"
+                      <TanggalPickerDashboard
                         value={tanggalExportMulai}
                         max={tanggalHariIniWIB()}
-                        onChange={(e) => setTanggalExportMulai(e.target.value)}
+                        onChange={(nilai) => setTanggalExportMulai(nilai)}
                         style={styles.rekapExportInput}
+                        ariaLabel="Pilih tanggal mulai export"
                       />
                       <span style={styles.rekapExportSelectedDate}>
                         {formatTanggalRekapPilihan(tanggalExportMulai)}
@@ -2239,12 +2313,12 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                     </label>
                     <label style={styles.rekapExportLabel}>
                       Sampai tanggal
-                      <input
-                        type="date"
+                      <TanggalPickerDashboard
                         value={tanggalExportSelesai}
                         max={tanggalHariIniWIB()}
-                        onChange={(e) => setTanggalExportSelesai(e.target.value)}
+                        onChange={(nilai) => setTanggalExportSelesai(nilai)}
                         style={styles.rekapExportInput}
+                        ariaLabel="Pilih tanggal selesai export"
                       />
                       <span style={styles.rekapExportSelectedDate}>
                         {formatTanggalRekapPilihan(tanggalExportSelesai)}
@@ -2252,13 +2326,6 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                     </label>
                   </div>
                   <div style={styles.rekapExportActions} className="rekapExportActions">
-                    <button
-                      type="button"
-                      onClick={resetPeriodeExportAbsensi}
-                      style={styles.rekapExportReset}
-                    >
-                      Periode 26–25
-                    </button>
                     <button
                       type="button"
                       onClick={() => void exportRekapAbsensi()}

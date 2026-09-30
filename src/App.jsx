@@ -48,6 +48,80 @@ function formatTanggalRekapPilihan(tanggal) {
   });
 }
 
+function formatTanggalInput(tanggal) {
+  if (!tanggal) return "";
+  return new Date(`${tanggal}T00:00:00.000Z`).toLocaleDateString("id-ID", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+function TanggalPicker({ value, max, onChange, ariaLabel, style }) {
+  return (
+    <div
+      style={{
+        position: "relative",
+        minWidth: 132,
+        minHeight: 34,
+        ...style,
+      }}
+    >
+      <span
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          padding: "0 28px 0 10px",
+          boxSizing: "border-box",
+          color: warna.tinta,
+          fontSize: 11.5,
+          fontWeight: 650,
+          pointerEvents: "none",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {formatTanggalInput(value) || "DD/MM/YYYY"}
+      </span>
+      <span
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          right: 9,
+          top: "50%",
+          transform: "translateY(-50%)",
+          color: warna.tintaSamar,
+          fontSize: 12,
+          pointerEvents: "none",
+        }}
+      >
+        ▾
+      </span>
+      <input
+        type="date"
+        value={value}
+        max={max}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={ariaLabel}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          minHeight: 34,
+          margin: 0,
+          opacity: 0,
+          cursor: "pointer",
+          border: 0,
+        }}
+      />
+    </div>
+  );
+}
+
 function formatTanggalIndonesia(tanggal) {
   if (!tanggal) return "-";
   return new Date(`${tanggal}T00:00:00.000Z`).toLocaleDateString("id-ID", {
@@ -239,7 +313,7 @@ function AdminContextBar({ tanggal, onTanggalChange, onRekapRefresh, belumAbsen,
             <strong style={styles.adminRekapDate}>{formatTanggalRekapPilihan(tanggal)}</strong>
           </div>
           <div style={styles.adminRekapControls}>
-            <input type="date" value={tanggal} max={tanggalHariIniWIB()} onChange={(e) => onTanggalChange(e.target.value, false)} style={styles.adminRekapInput} aria-label="Pilih tanggal rekap" />
+            <TanggalPicker value={tanggal} max={tanggalHariIniWIB()} onChange={(nilai) => onTanggalChange(nilai, false)} style={styles.adminRekapInput} ariaLabel="Pilih tanggal rekap" />
             <button type="button" onClick={() => setPanelTerbuka((v) => !v)} style={styles.adminRekapButton} aria-expanded={panelTerbuka}>
               {loadingBelumAbsen ? "Memuat…" : `Belum absen (${belumAbsen.length})`}
             </button>
