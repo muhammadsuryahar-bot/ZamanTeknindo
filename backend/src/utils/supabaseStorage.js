@@ -68,10 +68,6 @@ async function cariUrlFoto(path) {
       console.error('[foto] error bucket ' + bucket + ' path ' + path, e.message);
     }
   }
-  if (!foundUrl) {
-    const fallbackBucket = CANDIDATE_BUCKETS[0] || 'absensi';
-    foundUrl = getPublicUrl(fallbackBucket, path);
-  }
   if (foundUrl && !foundUrl.startsWith('/uploads/')) simpanKeCache(path, foundUrl);
   return foundUrl;
 }
@@ -114,10 +110,31 @@ async function uploadFotoAbsensi(buffer, filePath, mimeType = "image/jpeg") {
 
 async function deleteFotoAbsensi(filePath) {
   if (!filePath) return;
-  const bucket = CANDIDATE_BUCKETS[0] || "absensi";
-  const { error } = await supabase.storage.from(bucket).remove([filePath]);
-  if (error) {
-    console.error(`[foto] Gagal hapus ${bucket}/${filePath}:`, error.message);
+
+  let berhasilHapus = false;
+  for (const bucket of CANDIDATE_BUCKETS) {
+    try {
+      const { error } = await supabase.storage.from(bucket).remove([filePath]);
+      if (!error) {
+        berhasilHapus = true;
+      } else {
+        console.error(
+          `[foto] Gagal hapus ${bucket}/${filePath}:`,
+          error.message,
+        );
+      }
+    } catch (error) {
+      console.error(
+        `[foto] Exception saat hapus ${bucket}/${filePath}:`,
+        error?.message || error,
+      );
+    }
+  }
+
+  if (!berhasilHapus) {
+    console.warn(
+      `[foto] Tidak ada bucket yang berhasil membersihkan ${filePath}`,
+    );
   }
 }
 

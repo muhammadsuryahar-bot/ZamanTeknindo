@@ -798,7 +798,16 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     if (!fotoTerambil) { setPesan("Silakan ambil foto terlebih dahulu."); return; }
     if (!statusTerverifikasi) { setPesan("Status absensi belum diverifikasi oleh server. Tunggu sampai verifikasi selesai, lalu coba lagi."); return; }
     if (!TAHAP_VALID.has(tahap) || tahap === "selesai") { setPesan("Status absensi belum siap untuk dikirim. Muat ulang status absensi."); return; }
-    if (!Number.isFinite(Number(lokasi?.latitude)) || !Number.isFinite(Number(lokasi?.longitude)) || !Number.isFinite(Number(lokasi?.akurasi))) { setPesan("Lokasi belum berhasil diperoleh. Tunggu sampai lokasi ditemukan lalu coba lagi."); return; }
+    if (!Number.isFinite(Number(lokasi?.latitude)) || !Number.isFinite(Number(lokasi?.longitude)) || !Number.isFinite(Number(lokasi?.akurasi))) {
+      setPesan("Lokasi belum berhasil diperoleh. Tunggu sampai lokasi ditemukan lalu coba lagi.");
+      return;
+    }
+    if (Number(lokasi.akurasi) <= 0 || Number(lokasi.akurasi) > 100) {
+      setPesan(
+        `Akurasi GPS masih rendah (±${Math.round(Number(lokasi.akurasi) || 0)} m). Tunggu sampai akurasi maksimal ±100 meter lalu kirim absen.`,
+      );
+      return;
+    }
 
     sesiKirimRef.current = true;
     setLoading(true);

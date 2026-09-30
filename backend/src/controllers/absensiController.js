@@ -2,6 +2,7 @@ const prisma = require("../utils/prismaClient");
 const {
   tanggalHariIniWIB,
   getWIBDateParts,
+  parseJam,
 } = require("../utils/waktuIndonesia");
 
 function getWIBTodayRange() {
@@ -22,6 +23,43 @@ const OFFLINE_SYNC_HEADER_VALUE = "offline-sync";
 const MAX_OFFLINE_CLOCK_DRIFT_MS = 24 * 60 * 60 * 1000;
 const MAKS_AKURASI_LOKASI_METER = 100;
 
+function koordinatDariRequest(latitude, longitude) {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+
+  if (
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng) ||
+    lat < -90 ||
+    lat > 90 ||
+    lng < -180 ||
+    lng > 180
+  ) {
+    return null;
+  }
+
+  return {
+    latitude: lat,
+    longitude: lng,
+  };
+}
+
+async function ambilBatasTepatWaktu() {
+  try {
+    const pengaturan = await prisma.pengaturanPotongan.findUnique({
+      where: { id: 1 },
+      select: { jamMasukStandar: true },
+    });
+
+    return parseJam(
+      pengaturan?.jamMasukStandar || JAM_BATAS_TEPAT_WAKTU_DEFAULT,
+    );
+  } catch (error) {
+    console.error("Gagal membaca pengaturan jam masuk standar:", error);
+    return parseJam(JAM_BATAS_TEPAT_WAKTU_DEFAULT);
+  }
+}
+
 function validasiLokasiAbsensi(koordinat, akurasi) {
   if (!koordinat) {
     return {
@@ -41,14 +79,16 @@ function validasiLokasiAbsensi(koordinat, akurasi) {
       ok: false,
       status: 400,
       pesan: `Akurasi lokasi terlalu rendah (±${Number.isFinite(akurasiMeter) ? Math.round(akurasiMeter) : "-"} m). Aktifkan GPS/lokasi presisi dan ambil lokasi kembali. Maksimal akurasi yang diterima ±${MAKS_AKURASI_LOKASI_METER} m.`,
-      akurasiMeter: Number.isFinite(akurasiMeter) ? Math.round(akurasiMeter) : null,
+      akurasiMeter: Number.isFinite(akurasiMeter)
+        ? Math.round(akurasiMeter * 10) / 10
+        : null,
       batasAkurasiMeter: MAKS_AKURASI_LOKASI_METER,
     };
   }
 
   return {
     ok: true,
-    akurasiMeter: Math.round(akurasiMeter),
+    akurasiMeter: Math.round(akurasiMeter * 10) / 10,
     batasAkurasiMeter: MAKS_AKURASI_LOKASI_METER,
   };
 }
@@ -157,6 +197,7 @@ async function absenMasuk(req, res) {
       fotoMasuk: fotoPath,
       latitudeMasuk: koordinat.latitude,
       longitudeMasuk: koordinat.longitude,
+      akurasiMasuk: validasiLokasi.akurasiMeter,
       alamatMasuk: alamat || null,
       statusOtomatis,
       statusFinal: statusOtomatis,
@@ -289,6 +330,7 @@ async function absenPulang(req, res) {
         fotoPulang: fotoPath,
         latitudePulang: koordinat.latitude,
         longitudePulang: koordinat.longitude,
+        akurasiPulang: validasiLokasi.akurasiMeter,
         alamatPulang: alamat || null,
       },
     });
@@ -322,8 +364,8 @@ async function riwayatSaya(req, res) {
       select: {
         id: true, tanggal: true, jamMasuk: true, jamPulang: true,
         fotoMasuk: true, fotoPulang: true,
-        latitudeMasuk: true, longitudeMasuk: true, alamatMasuk: true,
-        latitudePulang: true, longitudePulang: true, alamatPulang: true,
+        latitudeMasuk: true, longitudeMasuk: true, akurasiMasuk: true, alamatMasuk: true,
+        latitudePulang: true, longitudePulang: true, akurasiPulang: true, alamatPulang: true,
         statusOtomatis: true, statusFinal: true, catatanAdmin: true,
       },
     });
@@ -424,7 +466,13 @@ async function statusHariIni(req, res) {
       }
     }
 
-    return res.json({ tahap, data: absensi, pengajuanIzin: null, manualPending });
+    return res.json({
+      tahap,
+      tanggal: wibDateStr,
+      data: absensi,
+      pengajuanIzin: null,
+      manualPending,
+    });
   } catch (error) {
     console.error("Gagal memuat status absensi hari ini:", error);
     return res.status(500).json({ pesan: "Terjadi kesalahan pada server. Silakan coba lagi." });

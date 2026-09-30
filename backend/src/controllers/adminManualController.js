@@ -1,4 +1,8 @@
 const prisma = require("../utils/prismaClient");
+const {
+  JAM_MASUK_STANDAR_DEFAULT,
+  parseJam,
+} = require("../utils/waktuIndonesia");
 
 const STATUS_MANUAL_REQUEST = new Set(["PENDING", "APPROVED", "REJECTED", "ALL"]);
 
@@ -93,11 +97,21 @@ const approveManual = async (req, res) => {
     const end = new Date(`${wibDateStr}T23:59:59.999+07:00`);
     const tanggalDate = new Date(`${wibDateStr}T00:00:00.000Z`);
 
-    // Hitung status otomatis: > 08:10 (490 menit) dianggap telat
-    const attemptWIBStr = attemptDate.toLocaleTimeString("en-GB", { timeZone: "Asia/Jakarta", hour12: false });
+    const pengaturan = await prisma.pengaturanPotongan.findUnique({
+      where: { id: 1 },
+      select: { jamMasukStandar: true },
+    });
+    const batasMenit = parseJam(
+      pengaturan?.jamMasukStandar || JAM_MASUK_STANDAR_DEFAULT,
+    );
+
+    const attemptWIBStr = attemptDate.toLocaleTimeString("en-GB", {
+      timeZone: "Asia/Jakarta",
+      hour12: false,
+    });
     const [hAttempt, mAttempt] = attemptWIBStr.split(":").map(Number);
     const attemptMenit = (hAttempt || 0) * 60 + (mAttempt || 0);
-    const statusHitung = attemptMenit > 490 ? "telat" : "tepat_waktu";
+    const statusHitung = attemptMenit > batasMenit ? "telat" : "tepat_waktu";
 
     let absen = await prisma.absensi.findFirst({
       where: { penggunaId: reqData.penggunaId, tanggal: tanggalDate },

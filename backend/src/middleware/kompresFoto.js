@@ -93,7 +93,28 @@ async function kompresFoto(req, res, next) {
       console.log("[kompresFoto] sharp tidak tersedia, upload buffer asli (frontend sudah kompresi)");
     }
 
-    const ekstensi = req.file.mimetype === "image/png" ? "png" : "jpg";
+    const mimeAsli = String(req.file.mimetype || "").toLowerCase();
+    let storageMimeType = mimeAsli;
+    let ekstensi = mimeAsli.split("/")[1] || "jpg";
+
+    if (sharp) {
+      // Sharp selalu menghasilkan JPEG di atas. Samakan ekstensi dan
+      // Content-Type agar browser/storage tidak menerima metadata yang salah.
+      storageMimeType = "image/jpeg";
+      ekstensi = "jpg";
+    } else {
+      const ekstensiAman = new Set([
+        "jpeg",
+        "jpg",
+        "png",
+        "webp",
+        "gif",
+        "bmp",
+        "tiff",
+      ]);
+      if (!ekstensiAman.has(ekstensi)) ekstensi = "jpg";
+    }
+
     const filePath = buatPathStorage(req.user.id, ekstensi);
 
     console.log("FILE PATH SUPABASE:", filePath);
@@ -102,7 +123,7 @@ async function kompresFoto(req, res, next) {
     const storagePath = await uploadFotoAbsensi(
       bufferHasil,
       filePath,
-      req.file.mimetype,
+      storageMimeType,
     );
 
     req.file.filename = storagePath;
