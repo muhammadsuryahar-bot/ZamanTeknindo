@@ -2997,7 +2997,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
 
           {tabPernahDibuka.izin && (
             <div style={{ display: tab === "izin" ? "block" : "none" }}>
-              <Suspense fallback={<div style={{ ...styles.kosongBox, minHeight: 160, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>{label}</div>}>
+              <Suspense fallback={<div style={{ ...styles.kosongBox, minHeight: 160, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>Memuat modul Izin…</div>}>
                 <AdminIzin />
               </Suspense>
             </div>
@@ -3177,7 +3177,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
 
           {tabPernahDibuka.manual && (
             <div style={{ display: tab === "manual" ? "block" : "none" }}>
-              <Suspense fallback={<div style={{ ...styles.kosongBox, minHeight: 160, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>{label}</div>}>
+              <Suspense fallback={<div style={{ ...styles.kosongBox, minHeight: 160, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>Memuat verifikasi manual…</div>}>
                 <AdminManual />
               </Suspense>
             </div>
@@ -3185,7 +3185,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
 
           {tabPernahDibuka.gaji && (
             <div style={{ display: tab === "gaji" ? "block" : "none" }}>
-              <Suspense fallback={<div style={{ ...styles.kosongBox, minHeight: 160, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>{label}</div>}>
+              <Suspense fallback={<div style={{ ...styles.kosongBox, minHeight: 160, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>Memuat pengaturan gaji…</div>}>
                 <PengaturanGaji />
               </Suspense>
             </div>
@@ -3193,7 +3193,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
 
           {tabPernahDibuka["gaji-massal"] && (
             <div style={{ display: tab === "gaji-massal" ? "block" : "none" }}>
-              <Suspense fallback={<div style={{ ...styles.kosongBox, minHeight: 160, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>{label}</div>}>
+              <Suspense fallback={<div style={{ ...styles.kosongBox, minHeight: 160, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>Memuat gaji massal…</div>}>
                 <AdminGajiMassal />
               </Suspense>
             </div>
