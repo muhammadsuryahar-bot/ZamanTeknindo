@@ -305,6 +305,7 @@ export async function sinkronkanAntrian({ apiUrl, getToken, penggunaId }) {
         formData.append("foto", item.foto, "absen.jpg");
         if (item.latitude != null) formData.append("latitude", String(item.latitude));
         if (item.longitude != null) formData.append("longitude", String(item.longitude));
+        if (item.akurasi != null) formData.append("akurasi", String(item.akurasi));
         if (item.alamat) formData.append("alamat", item.alamat);
         if (item.waktuAsli) formData.append("waktuAsli", item.waktuAsli);
 
