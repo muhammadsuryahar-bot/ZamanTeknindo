@@ -301,6 +301,20 @@ async function absenPulang(req, res) {
       return res.status(409).json({ pesan: "Anda sudah melakukan absen pulang hari ini." });
     }
 
+    const waktuPulang = waktuAbsensiDariRequest(req);
+    const menitPulangWIB = menitSekarangWIB(waktuPulang);
+
+    // Tanpa absen masuk hanya diperbolehkan sebagai fallback setelah
+    // batas 12:00 WIB. Sebelum itu, alur pulang normal wajib punya jam masuk.
+    if (!absensiHariIni?.jamMasuk && menitPulangWIB < BATAS_ABSEN_MASUK_WIB) {
+      await hapusFotoJikaPerlu();
+      return res.status(400).json({
+        pesan: "Anda belum melakukan absen masuk hari ini. Absen pulang tanpa absen masuk hanya tersedia mulai 12:00 WIB.",
+        kode: "BELUM_ABSEN_MASUK",
+        batasAbsenPulangTanpaMasukWIB: "12:00",
+      });
+    }
+
     const koordinat = koordinatDariRequest(latitude, longitude);
     if (!koordinat) {
       await hapusFotoJikaPerlu();
@@ -319,7 +333,6 @@ async function absenPulang(req, res) {
       });
     }
 
-    const waktuPulang = waktuAbsensiDariRequest(req);
     const waktuMasuk = absensiHariIni?.jamMasuk ? new Date(absensiHariIni.jamMasuk) : null;
     if (
       waktuMasuk &&
