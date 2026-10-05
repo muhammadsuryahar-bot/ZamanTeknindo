@@ -105,31 +105,6 @@ function formatTanggalFile(tanggal) {
   return String(bagian.hari).padStart(2, "0") + bulan[bagian.bulan - 1] + bagian.tahun;
 }
 
-function kodeDariStatus(status, izinItem) {
-  if (status === "tepat_waktu") return "H";
-  if (status === "telat") return "T";
-  if (status === "cuti" || izinItem?.jenis === "cuti") return "C";
-  if (status === "sakit" || izinItem?.jenis === "sakit") {
-    return punyaKeterangan(izinItem?.fotoSurat) ? "S" : "SX";
-  }
-  if (status === "izin" || status === "urgent" || izinItem?.jenis === "izin" || izinItem?.jenis === "urgent") {
-    return "I";
-  }
-  if (status === "alpha") return "A";
-  return "";
-}
-
-function excelColumnName(number) {
-  let value = number;
-  let result = "";
-  while (value > 0) {
-    const remainder = (value - 1) % 26;
-    result = String.fromCharCode(65 + remainder) + result;
-    value = Math.floor((value - 1) / 26);
-  }
-  return result;
-}
-
 function punyaKeterangan(nilai) {
   return nilai !== null && nilai !== undefined && String(nilai).trim() !== "";
 }
@@ -351,59 +326,79 @@ async function exportRekapAbsensi(req, res) {
     const jumlahHariKerja = hariKerjaList.length;
     const jumlahHariLibur = Math.max(jumlahHari - jumlahHariKerja, 0);
 
-    // Data Harian menjadi sumber rincian utama rekap, sesuai format HRD.
-    // Kode: H/T/I/A/S/SX/C/L dan kosong jika memang tidak ada data.
-    const detailHarianPerKaryawan = karyawanUnik.map((item) => {
+    const ringkasanPerKaryawan = karyawanUnik.map((item) => {
       const prefix = item.id + "_";
-      const kodeHarian = tanggalList.map((tanggal) => {
+      let jumlahKehadiran = 0;
+      let jumlahTelat = 0;
+      let jumlahAdaKeterangan = 0;
+      let jumlahTanpaKeterangan = 0;
+      let jumlahCuti = 0;
+      let jumlahSakitAdaSurat = 0;
+      let jumlahSakitTanpaSurat = 0;
+
+      const tanggalCuti = new Set();
+      const tanggalSakit = new Set();
+
+      for (const tanggal of hariKerjaList) {
         const tanggalKey = tanggal.toISOString().slice(0, 10);
         const absensiItem = petaAbsensi.get(prefix + tanggalKey);
         const izinItem = petaIzin.get(prefix + tanggalKey);
-        const adaCap = Boolean(absensiItem?.jamMasuk || absensiItem?.jamPulang);
 
-        if (adaCap) {
-          const status = statusDariAbsensi(absensiItem, jamMasukStandar);
-          return status === "telat" ? "T" : "H";
-        }
-
+        const punyaCap = Boolean(absensiItem?.jamMasuk || absensiItem?.jamPulang);
         const status = absensiItem
           ? statusDariAbsensi(absensiItem, jamMasukStandar)
           : null;
 
-        const dariStatus = kodeDariStatus(status, izinItem);
-        if (dariStatus) return dariStatus;
-        if (absensiItem) return "A";
-
-        const hari = tanggal.getUTCDay();
-        if (hari === 0 || hari === 6 || setHariLibur.has(tanggalKey)) {
-          return "L";
+        // Kehadiran hanya dihitung kalau memang ada cap absensi.
+        if (punyaCap) {
+          jumlahKehadiran += 1;
+          if (status === "telat") jumlahTelat += 1;
+          continue;
         }
 
-        return "";
-      });
+        // CUTI selalu masuk kolom CUTI, bukan ADA KET/TANPA KET.
+        if (status === "cuti" || izinItem?.jenis === "cuti") {
+          if (!tanggalCuti.has(tanggalKey)) {
+            jumlahCuti += 1;
+            tanggalCuti.add(tanggalKey);
+          }
+          continue;
+        }
 
-      return {
-        ...item,
-        kodeHarian,
-      };
-    });
+        // SAKIT selalu masuk kolom SAKIT dan dibedakan berdasarkan surat.
+        if (status === "sakit" || izinItem?.jenis === "sakit") {
+          if (!tanggalSakit.has(tanggalKey)) {
+            if (izinItem?.jenis === "sakit" && punyaKeterangan(izinItem?.fotoSurat)) {
+              jumlahSakitAdaSurat += 1;
+            } else {
+              jumlahSakitTanpaSurat += 1;
+            }
+            tanggalSakit.add(tanggalKey);
+          }
+          continue;
+        }
 
-    const ringkasanPerKaryawan = detailHarianPerKaryawan.map((item) => {
-      const hitung = (kode) => item.kodeHarian.filter((nilai) => nilai === kode).length;
-      const jumlahKehadiran = hitung("H") + hitung("T");
-      const jumlahTelat = hitung("T");
-      const jumlahAdaKeterangan = hitung("I");
-      const jumlahTanpaKeterangan = hitung("A");
-      const jumlahCuti = hitung("C");
-      const jumlahSakitAdaSurat = hitung("S");
-      const jumlahSakitTanpaSurat = hitung("SX");
+        // TIDAK MASUK:
+        // 1) ADA KET = ada isi pada field keterangan.
+        // 2) TANPA KET = tidak ada isi keterangan.
+        // Berlaku untuk izin/urgent dari pengajuan maupun status manual absensi.
+        const adaKeterangan =
+          punyaKeterangan(absensiItem?.keterangan) ||
+          punyaKeterangan(izinItem?.keterangan);
+
+        if (adaKeterangan) {
+          jumlahAdaKeterangan += 1;
+        } else {
+          jumlahTanpaKeterangan += 1;
+        }
+      }
 
       return {
         nama: item.nama || "-",
-        tmk: null,
-        hc202425: null,
-        hc202526: null,
-        hcTerpakai: null,
+        tmk: "-",
+        hc202425: "-",
+        hc202526: "-",
+        hcTerpakai: "-",
         jumlahKehadiran,
         jumlahTelat,
         jumlahUangMakan: Math.max(jumlahKehadiran - jumlahTelat, 0),
@@ -553,9 +548,9 @@ async function exportRekapAbsensi(req, res) {
       sheet.getCell(cell).value = value;
     });
 
-    // Struktur kolom mengikuti template HRD dua-sheet.
-    // TMK serta histori hak cuti (C-G) belum memiliki sumber master di database,
-    // sehingga hanya kolom-kolom yang memang berasal dari absensi/Data Harian yang diisi.
+    // Struktur kolom mengikuti template atasan.
+    // C-G dan H tidak mempunyai sumber data yang tervalidasi dari sistem saat ini,
+    // sehingga sengaja dikosongkan; H juga diminta kosong oleh kebutuhan rekap.
     const groupFills = {
       1: COLORS.navy,
       2: COLORS.navy,
@@ -619,50 +614,44 @@ async function exportRekapAbsensi(req, res) {
       row.getCell(6).value = null;
       row.getCell(7).value = null;
 
-      const dataDailyRow = dataStartRow + index;
-      row.getCell(8).value = {
-        formula: "IF(COUNTA('Data Harian'!$C" + dataDailyRow + ":$" + excelColumnName(2 + jumlahHari) + dataDailyRow + ")=0,\"\",COUNTIF('Data Harian'!$C" + dataDailyRow + ":$" + excelColumnName(2 + jumlahHari) + dataDailyRow + ",\"H\")+COUNTIF('Data Harian'!$C" + dataDailyRow + ":$" + excelColumnName(2 + jumlahHari) + dataDailyRow + ",\"T\")"
-          .replace(/^IF/, "=IF"),
-        result: Number(item.jumlahKehadiran || 0),
-      };
-      row.getCell(9).value = {
-        formula: "COUNTIF('Data Harian'!$C" + dataDailyRow + ":$" + excelColumnName(2 + jumlahHari) + dataDailyRow + ",\"T\")"
-          .replace(/^COUNTIF/, "=COUNTIF"),
-        result: Number(item.jumlahTelat || 0),
-      };
+      row.getCell(8).value = Number(item.jumlahKehadiran || 0);
+      row.getCell(9).value = Number(item.jumlahTelat || 0);
+
       row.getCell(10).value = {
-        formula: "=H" + rowNumber + "-I" + rowNumber,
-        result: Math.max(0, Number(item.jumlahUangMakan || 0)),
-      };
-      row.getCell(11).value = {
-        formula: "COUNTIF('Data Harian'!$C" + dataDailyRow + ":$" + excelColumnName(2 + jumlahHari) + dataDailyRow + ",\"I\")"
-          .replace(/^COUNTIF/, "=COUNTIF"),
-        result: Number(item.jumlahAdaKeterangan || 0),
-      };
-      row.getCell(12).value = {
-        formula: "COUNTIF('Data Harian'!$C" + dataDailyRow + ":$" + excelColumnName(2 + jumlahHari) + dataDailyRow + ",\"A\")"
-          .replace(/^COUNTIF/, "=COUNTIF"),
-        result: Number(item.jumlahTanpaKeterangan || 0),
+        formula: "MAX(0,H" + rowNumber + "-I" + rowNumber + ")",
+        result: Math.max(
+          0,
+          Number(item.jumlahKehadiran || 0) - Number(item.jumlahTelat || 0),
+        ),
       };
 
+      row.getCell(11).value = Number(item.jumlahAdaKeterangan || 0);
+      row.getCell(12).value = Number(item.jumlahTanpaKeterangan || 0);
+
+      // LEMBUR sengaja kosong.
       row.getCell(13).value = null;
-      row.getCell(14).value = {
-        formula: "COUNTIF('Data Harian'!$C" + dataDailyRow + ":$" + excelColumnName(2 + jumlahHari) + dataDailyRow + ",\"C\")"
-          .replace(/^COUNTIF/, "=COUNTIF"),
-        result: Number(item.cuti || 0),
-      };
-      row.getCell(15).value = {
-        formula: "COUNTIF('Data Harian'!$C" + dataDailyRow + ":$" + excelColumnName(2 + jumlahHari) + dataDailyRow + ",\"S\")"
-          .replace(/^COUNTIF/, "=COUNTIF"),
-        result: Number(item.sakitAdaSurat || 0),
-      };
-      row.getCell(16).value = {
-        formula: "COUNTIF('Data Harian'!$C" + dataDailyRow + ":$" + excelColumnName(2 + jumlahHari) + dataDailyRow + ",\"SX\")"
-          .replace(/^COUNTIF/, "=COUNTIF"),
-        result: Number(item.sakitTanpaSurat || 0),
-      };
+
+      row.getCell(14).value = Number(item.cuti || 0);
+      row.getCell(15).value = Number(item.sakitAdaSurat || 0);
+      row.getCell(16).value = Number(item.sakitTanpaSurat || 0);
+
+      // JLH HC = seluruh kategori hari yang terklasifikasi.
+      // TERLAMBAT dan UANG MAKAN tidak ditambah karena TERLAMBAT adalah subset
+      // dari kehadiran dan UANG MAKAN adalah hasil turunan kehadiran.
       row.getCell(17).value = {
-        formula: "=SUM(H" + rowNumber + ",K" + rowNumber + ":L" + rowNumber + ",N" + rowNumber + ":P" + rowNumber + ")",
+        formula:
+          "I" +
+          rowNumber +
+          "+L" +
+          rowNumber +
+          "+M" +
+          rowNumber +
+          "+O" +
+          rowNumber +
+          "+P" +
+          rowNumber +
+          "+Q" +
+          rowNumber,
         result: Number(item.jumlahHC || 0),
       };
 
@@ -758,7 +747,7 @@ async function exportRekapAbsensi(req, res) {
       ),
     };
     sheet.getCell("P" + totalRow).value = {
-      formula: "SUM(P" + dataStartRow + ":P" + lastDataRow + ")",
+      formula: "SUM(Q" + dataStartRow + ":Q" + lastDataRow + ")",
       result: ringkasanPerKaryawan.reduce(
         (sum, item) => sum + Number(item.sakitTanpaSurat || 0),
         0,
@@ -894,3 +883,46 @@ async function exportRekapAbsensi(req, res) {
       { key: "hakCuti", width: 20 },
       { key: "hc2425", width: 13 },
       { key: "hcDipinjam", width: 19 },
+      { key: "hadir", width: 15 },
+      { key: "late", width: 13 },
+      { key: "meal", width: 23 },
+      { key: "adaKet", width: 13 },
+      { key: "tanpaKet", width: 13 },
+      { key: "lembur", width: 11 },
+      { key: "cuti", width: 11 },
+      { key: "sakitSrt", width: 13 },
+      { key: "sakitNoSrt", width: 14 },
+      { key: "jumlahHC", width: 12 },
+    ];
+
+    sheet.pageSetup = {
+      paperSize: 9,
+      orientation: "landscape",
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      margins: {
+        left: 0.2,
+        right: 0.2,
+        top: 0.35,
+        bottom: 0.35,
+        header: 0.15,
+        footer: 0.15,
+      },
+    };
+
+    sheet.printArea = "A1:Q" + (signatureRow + 1);
+
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", "attachment; filename=\"Rekap_Absensi_" + formatTanggalFile(tanggalAwal) + "-" + formatTanggalFile(tanggalAkhir) + ".xlsx\"");
+    res.setHeader("Cache-Control", "no-store, private");
+    await workbook.xlsx.write(res);
+    return res.end();
+  } catch (error) {
+    console.error("Gagal export rekap absensi:", error);
+    return res.status(500).json({ pesan: "Gagal membuat rekap absensi. Silakan coba lagi." });
+  }
+}
+module.exports = {
+  exportRekapAbsensi,
+};
