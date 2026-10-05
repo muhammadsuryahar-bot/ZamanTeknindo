@@ -429,13 +429,14 @@ async function exportRekapAbsensi(req, res) {
     sheet.properties.defaultRowHeight = 22;
 
     const COLORS = {
-      navy: "FF284B78",
-      blue: "FF2374B5",
-      orange: "FFEE5B00",
-      purple: "FF7020A8",
+      navy: "FF2E4E7E",
+      green: "FF2E7D32",
+      blue: "FF1565C0",
+      orange: "FFE65100",
+      purple: "FF6A1B9A",
       red: "FFC62828",
-      brown: "FF7A655E",
-      brownDark: "FF71554B",
+      brown: "FF795548",
+      teal: "FF00695C",
       lightBlue: "FFE9F1F9",
       grid: "FF8A8A8A",
       text: "FF1F2937",
@@ -555,20 +556,19 @@ async function exportRekapAbsensi(req, res) {
       2: COLORS.navy,
       3: COLORS.navy,
       4: COLORS.navy,
-      5: COLORS.blue,
-      6: COLORS.blue,
-      7: COLORS.blue,
+      5: COLORS.green,
+      6: COLORS.green,
+      7: COLORS.green,
       8: COLORS.blue,
-      9: COLORS.blue,
-      10: COLORS.orange,
-      11: COLORS.purple,
+      9: COLORS.orange,
+      10: COLORS.purple,
+      11: COLORS.red,
       12: COLORS.red,
-      13: COLORS.red,
+      13: COLORS.brown,
       14: COLORS.brown,
       15: COLORS.brown,
-      16: COLORS.brownDark,
-      17: COLORS.brownDark,
-      18: COLORS.navy,
+      16: COLORS.brown,
+      17: COLORS.teal,
     };
 
     for (let rowNum = 4; rowNum <= 6; rowNum += 1) {
@@ -613,7 +613,6 @@ async function exportRekapAbsensi(req, res) {
       row.getCell(5).value = null;
       row.getCell(6).value = null;
       row.getCell(7).value = null;
-      row.getCell(8).value = null;
 
       row.getCell(8).value = Number(item.jumlahKehadiran || 0);
       row.getCell(9).value = Number(item.jumlahTelat || 0);
@@ -755,8 +754,7 @@ async function exportRekapAbsensi(req, res) {
       ),
     };
     sheet.getCell("Q" + totalRow).value = {
-      formula:
-        "SUM(Q" + dataStartRow + ":Q" + lastDataRow + ")",
+      formula: "SUM(Q" + dataStartRow + ":Q" + lastDataRow + ")",
       result: ringkasanPerKaryawan.reduce(
         (sum, item) => sum + Number(item.jumlahHC || 0),
         0,
@@ -884,7 +882,6 @@ async function exportRekapAbsensi(req, res) {
       { key: "spacer", width: 4 },
       { key: "hakCuti", width: 20 },
       { key: "hc2425", width: 13 },
-      { key: "hc2526", width: 13 },
       { key: "hcDipinjam", width: 19 },
       { key: "hadir", width: 15 },
       { key: "late", width: 13 },
