@@ -278,7 +278,7 @@ function DialJamKerja({ tahap }) {
             Senin–Jumat · 08:00–17:00 WIB · Tepat waktu sampai 08:10
           </p>
         </div>
-        <span style={{ ...dialStyles.statusBadge, color: warnaDial, background: tahap === "selesai" ? warna.suksesLembut : tahap === "sudah_masuk" ? warna.peringatanLembut : warna.aksenLembut }}>
+        <span style={{ ...dialStyles.statusBadge, color: warnaDial, background: tahap === "selesai" ? warna.suksesLembut : (tahap === "sudah_masuk" || tahap === "langsung_pulang") ? warna.peringatanLembut : warna.aksenLembut }}>
           {labelStatus}
         </span>
       </div>
@@ -396,6 +396,44 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pengguna]);
+
+  // Cutoff 12:00 WIB harus berlaku juga saat halaman Karyawan
+  // dibiarkan terbuka dari pagi tanpa reload. UI boleh berpindah lebih dulu
+  // berdasarkan jam perangkat, sedangkan backend tetap menjadi sumber kebenaran
+  // saat request benar-benar dikirim.
+  useEffect(() => {
+    const cekBatasAbsenMasuk = () => {
+      if (!mountedRef.current || tahap !== "belum_masuk") return;
+
+      const waktuWIB = new Intl.DateTimeFormat("en-GB", {
+        timeZone: TIMEZONE_WIB,
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+      }).format(new Date());
+
+      const [jam, menit] = waktuWIB.split(":").map(Number);
+      const menitSekarang = jam * 60 + menit;
+
+      if (menitSekarang < 12 * 60) return;
+
+      if (navigator.onLine) {
+        void ambilStatusHariIni({ pertahankanVerifikasiSaatFallback: true });
+        return;
+      }
+
+      // Saat offline, tampilkan alur yang benar secara UI. Backend akan
+      // tetap memvalidasi waktu saat sinkronisasi sehingga tidak ada bypass.
+      setTahap("langsung_pulang");
+      simpanCacheStatusHariIni(pengguna, "langsung_pulang");
+    };
+
+    cekBatasAbsenMasuk();
+    const intervalId = window.setInterval(cekBatasAbsenMasuk, 15000);
+
+    return () => window.clearInterval(intervalId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tahap, pengguna]);
 
   useEffect(() => {
     const ketikaTerlihat = () => {
