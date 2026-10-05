@@ -553,9 +553,9 @@ async function exportRekapAbsensi(req, res) {
       sheet.getCell(cell).value = value;
     });
 
-    // Struktur kolom mengikuti template atasan.
-    // C-G dan H tidak mempunyai sumber data yang tervalidasi dari sistem saat ini,
-    // sehingga sengaja dikosongkan; H juga diminta kosong oleh kebutuhan rekap.
+    // Struktur kolom mengikuti template HRD dua-sheet.
+    // TMK serta histori hak cuti (C-G) belum memiliki sumber master di database,
+    // sehingga hanya kolom-kolom yang memang berasal dari absensi/Data Harian yang diisi.
     const groupFills = {
       1: COLORS.navy,
       2: COLORS.navy,
@@ -619,7 +619,7 @@ async function exportRekapAbsensi(req, res) {
       row.getCell(6).value = null;
       row.getCell(7).value = null;
 
-      const dataDailyRow = dataStartRow;
+      const dataDailyRow = dataStartRow + index;
       row.getCell(8).value = {
         formula: "IF(COUNTA('Data Harian'!$C" + dataDailyRow + ":$" + excelColumnName(2 + jumlahHari) + dataDailyRow + ")=0,\"\",COUNTIF('Data Harian'!$C" + dataDailyRow + ":$" + excelColumnName(2 + jumlahHari) + dataDailyRow + ",\"H\")+COUNTIF('Data Harian'!$C" + dataDailyRow + ":$" + excelColumnName(2 + jumlahHari) + dataDailyRow + ",\"T\")"
           .replace(/^IF/, "=IF"),
@@ -629,10 +629,6 @@ async function exportRekapAbsensi(req, res) {
         formula: "COUNTIF('Data Harian'!$C" + dataDailyRow + ":$" + excelColumnName(2 + jumlahHari) + dataDailyRow + ",\"T\")"
           .replace(/^COUNTIF/, "=COUNTIF"),
         result: Number(item.jumlahTelat || 0),
-      };
-      row.getCell(10).value = {
-        formula: "J" + rowNumber + "=", 
-        result: Number(item.jumlahUangMakan || 0),
       };
       row.getCell(10).value = {
         formula: "=H" + rowNumber + "-I" + rowNumber,
@@ -898,192 +894,3 @@ async function exportRekapAbsensi(req, res) {
       { key: "hakCuti", width: 20 },
       { key: "hc2425", width: 13 },
       { key: "hcDipinjam", width: 19 },
-      { key: "hadir", width: 15 },
-      { key: "late", width: 13 },
-      { key: "meal", width: 23 },
-      { key: "adaKet", width: 13 },
-      { key: "tanpaKet", width: 13 },
-      { key: "lembur", width: 11 },
-      { key: "cuti", width: 11 },
-      { key: "sakitSrt", width: 13 },
-      { key: "sakitNoSrt", width: 14 },
-      { key: "jumlahHC", width: 12 },
-    ];
-
-    sheet.pageSetup = {
-      paperSize: 9,
-      orientation: "landscape",
-      fitToPage: true,
-      fitToWidth: 1,
-      fitToHeight: 0,
-      margins: {
-        left: 0.2,
-        right: 0.2,
-        top: 0.35,
-        bottom: 0.35,
-        header: 0.15,
-        footer: 0.15,
-      },
-    };
-
-    sheet.printArea = "A1:Q" + (signatureRow + 1);
-
-    // Sheet kedua mengikuti struktur workbook HRD: rincian harian per karyawan.
-    const dailySheet = workbook.addWorksheet("Data Harian", {
-      views: [{ state: "frozen", ySplit: 6, xSplit: 2 }],
-    });
-    dailySheet.showGridLines = false;
-    dailySheet.properties.defaultRowHeight = 20;
-
-    const dailyLastCol = 2 + jumlahHari;
-    const dailyLastColLetter = excelColumnName(dailyLastCol);
-    dailySheet.mergeCells("A1:" + dailyLastColLetter + "1");
-    dailySheet.getCell("A1").value =
-      "DATA HARIAN KEHADIRAN — Periode " +
-      formatTanggalIndonesia(tanggalAwal) +
-      " s.d. " +
-      formatTanggalIndonesia(tanggalAkhir);
-    dailySheet.getCell("A1").font = {
-      name: "Aptos Display",
-      size: 14,
-      bold: true,
-      color: { argb: COLORS.white },
-    };
-    dailySheet.getCell("A1").fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: COLORS.navy },
-    };
-    dailySheet.getCell("A1").alignment = { horizontal: "center", vertical: "middle" };
-    dailySheet.getRow(1).height = 26;
-
-    dailySheet.mergeCells("A2:" + dailyLastColLetter + "2");
-    dailySheet.getCell("A2").value =
-      "Kode: H = Hadir tepat waktu | T = Hadir terlambat | I = Izin | A = Alpha/tanpa keterangan | S = Sakit ada surat | SX = Sakit tanpa surat | C = Cuti | L = Libur | kosong = tidak ada data.";
-    dailySheet.getCell("A2").font = {
-      name: "Aptos",
-      size: 9,
-      color: { argb: COLORS.text },
-    };
-    dailySheet.getCell("A2").alignment = { horizontal: "left", vertical: "middle", wrapText: true };
-    dailySheet.getCell("A2").fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: COLORS.lightBlue },
-    };
-    dailySheet.getRow(2).height = 30;
-
-    dailySheet.getCell("A4").value = "NO";
-    dailySheet.getCell("B4").value = "NAMA";
-    dailySheet.getCell("A5").value = "";
-    dailySheet.getCell("B5").value = "";
-    dailySheet.getCell("A6").value = "";
-    dailySheet.getCell("B6").value = "";
-
-    tanggalList.forEach((tanggal, index) => {
-      const col = index + 3;
-      const bagian = bagianWaktuWIB(tanggal);
-      const namaBulan = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"][bagian.bulan - 1];
-      const namaHari = ["Min","Sen","Sel","Rab","Kam","Jum","Sab"][tanggal.getUTCDay()];
-      dailySheet.getCell(4, col).value = namaBulan;
-      dailySheet.getCell(5, col).value = bagian.hari;
-      dailySheet.getCell(6, col).value = namaHari;
-    });
-
-    for (const range of ["A4:A6", "B4:B6"]) dailySheet.mergeCells(range);
-
-    for (let rowNum = 4; rowNum <= 6; rowNum += 1) {
-      for (let col = 1; col <= dailyLastCol; col += 1) {
-        const cell = dailySheet.getCell(rowNum, col);
-        cell.font = {
-          name: "Aptos",
-          size: 9.5,
-          bold: true,
-          color: { argb: COLORS.white },
-        };
-        cell.fill = {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: { argb: COLORS.navy },
-        };
-        cell.border = border;
-        cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-      }
-    }
-
-    dailySheet.getRow(4).height = 22;
-    dailySheet.getRow(5).height = 22;
-    dailySheet.getRow(6).height = 22;
-
-    detailHarianPerKaryawan.forEach((item, index) => {
-      const rowNum = dataStartRow + index;
-      dailySheet.getCell(rowNum, 1).value = {
-        formula: "='Rekap Absensi'!A" + rowNum,
-        result: index + 1,
-      };
-      dailySheet.getCell(rowNum, 2).value = {
-        formula: "='Rekap Absensi'!B" + rowNum,
-        result: item.nama || "-",
-      };
-      item.kodeHarian.forEach((kode, offset) => {
-        dailySheet.getCell(rowNum, offset + 3).value = kode || null;
-      });
-
-      for (let col = 1; col <= dailyLastCol; col += 1) {
-        const cell = dailySheet.getCell(rowNum, col);
-        cell.font = {
-          name: "Aptos",
-          size: col <= 2 ? 10 : 9.5,
-          bold: col <= 2,
-          color: { argb: COLORS.text },
-        };
-        cell.fill = {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: index % 2 === 0 ? COLORS.white : COLORS.lightBlue,
-        };
-        cell.border = border;
-        cell.alignment = {
-          horizontal: col === 2 ? "left" : "center",
-          vertical: "middle",
-          wrapText: false,
-        };
-      }
-      dailySheet.getRow(rowNum).height = 21;
-    });
-
-    dailySheet.columns = [
-      { key: "no", width: 7 },
-      { key: "nama", width: 30 },
-      ...tanggalList.map(() => ({ width: 6 })),
-    ];
-    dailySheet.pageSetup = {
-      paperSize: 9,
-      orientation: "landscape",
-      fitToPage: true,
-      fitToWidth: 1,
-      fitToHeight: 0,
-      margins: {
-        left: 0.2,
-        right: 0.2,
-        top: 0.35,
-        bottom: 0.35,
-        header: 0.15,
-        footer: 0.15,
-      },
-    };
-    dailySheet.printArea = "A1:" + dailyLastColLetter + (dataStartRow + detailHarianPerKaryawan.length - 1);
-
-    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    res.setHeader("Content-Disposition", "attachment; filename=\"Rekap_Absensi_" + formatTanggalFile(tanggalAwal) + "-" + formatTanggalFile(tanggalAkhir) + ".xlsx\"");
-    res.setHeader("Cache-Control", "no-store, private");
-    await workbook.xlsx.write(res);
-    return res.end();
-  } catch (error) {
-    console.error("Gagal export rekap absensi:", error);
-    return res.status(500).json({ pesan: "Gagal membuat rekap absensi. Silakan coba lagi." });
-  }
-}
-module.exports = {
-  exportRekapAbsensi,
-};
