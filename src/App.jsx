@@ -186,9 +186,7 @@ function RuteTerproteksi({ pengguna, peranDiizinkan, children }) {
   return children;
 }
 
-function AdminContextBar({ tanggal, onTanggalChange, onRekapRefresh, belumAbsen, loadingBelumAbsen, onBelumAbsenChange }) {
-  const navigate = useNavigate();
-  const location = useLocation();
+function AdminContextBar({ tanggal, onTanggalChange, onRekapRefresh, belumAbsen, loadingBelumAbsen, onBelumAbsenChange, pathname, onNavigate }) {
   const [tab, setTab] = useState(() => {
     try {
       return sessionStorage.getItem("admin-tab") || "rekap";
@@ -253,16 +251,16 @@ function AdminContextBar({ tanggal, onTanggalChange, onRekapRefresh, belumAbsen,
     return () => target.removeEventListener("scroll", ketikaScroll);
   }, [tab]);
 
-  if (location.pathname === "/admin/arsip" || location.pathname === "/admin/edit-karyawan") return null;
+  if (pathname === "/admin/arsip" || pathname === "/admin/edit-karyawan") return null;
 
   let label = "";
   let aksi = null;
   if (tab === "karyawan") {
     label = "Edit Karyawan";
-    aksi = () => navigate("/admin/edit-karyawan");
+    aksi = () => onNavigate("/admin/edit-karyawan");
   } else if (tab === "gaji" || tab === "gaji-massal") {
     label = "Arsip & Data";
-    aksi = () => navigate("/admin/arsip");
+    aksi = () => onNavigate("/admin/arsip");
   }
 
   async function aturStatusTanpaAbsensi(id) {
@@ -372,10 +370,8 @@ function AdminContextBar({ tanggal, onTanggalChange, onRekapRefresh, belumAbsen,
   ) : null;
 }
 
-function AdminShell({ pengguna, onLogout }) {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const arsipTerbuka = location.pathname === "/admin/arsip";
+function AdminShell({ pengguna, onLogout, pathname, onNavigate }) {
+  const arsipTerbuka = pathname === "/admin/arsip";
   const hariIni = tanggalHariIniWIB();
   const [tanggalRekap, setTanggalRekap] = useState(() => {
     try {
@@ -423,6 +419,8 @@ function AdminShell({ pengguna, onLogout }) {
           belumAbsen={belumAbsenRekap}
           loadingBelumAbsen={loadingBelumAbsenRekap}
           onBelumAbsenChange={setBelumAbsenRekap}
+          pathname={pathname}
+          onNavigate={onNavigate}
         />
       )}
       <DashboardAdmin
@@ -435,7 +433,7 @@ function AdminShell({ pengguna, onLogout }) {
       />
       {arsipTerbuka && (
         <div className="admin-page-archive" style={styles.arsipOverlay} role="dialog" aria-modal="true" aria-label="Arsip dan Cleanup Absensi">
-          <div style={styles.arsipOverlayInner}><AdminArsip kembaliKeDashboard={() => navigate("/admin")} /></div>
+          <div style={styles.arsipOverlayInner}><AdminArsip kembaliKeDashboard={() => onNavigate("/admin")} /></div>
         </div>
       )}
     </div>
@@ -444,6 +442,7 @@ function AdminShell({ pengguna, onLogout }) {
 
 function RuteAplikasi({ pengguna, setPengguna, onLogout }) {
   const navigate = useNavigate();
+  const location = useLocation();
   return (
     <Suspense fallback={<MemuatHalaman penuh />}>
       <Routes>
@@ -456,7 +455,7 @@ function RuteAplikasi({ pengguna, setPengguna, onLogout }) {
         <Route path="/karyawan/registrasi-wajah" element={<RuteTerproteksi pengguna={pengguna} peranDiizinkan={["karyawan"]}><RegistrasiWajah kembali={() => navigate("/karyawan")} pengguna={pengguna} /></RuteTerproteksi>} />
         <Route path="/ganti-password" element={<RuteTerproteksi pengguna={pengguna}><GantiPassword kembali={() => navigate(pengguna?.peran === "admin" ? "/admin" : "/karyawan")} /></RuteTerproteksi>} />
         <Route path="/admin/edit-karyawan" element={<RuteTerproteksi pengguna={pengguna} peranDiizinkan={["admin"]}><div className="admin-page-edit-karyawan"><AdminEditKaryawan /></div></RuteTerproteksi>} />
-        <Route path="/admin/*" element={<RuteTerproteksi pengguna={pengguna} peranDiizinkan={["admin"]}><Routes><Route path="*" element={<AdminShell pengguna={pengguna} onLogout={onLogout} />} /></Routes></RuteTerproteksi>} />
+        <Route path="/admin/*" element={<RuteTerproteksi pengguna={pengguna} peranDiizinkan={["admin"]}><Routes><Route path="*" element={<AdminShell pengguna={pengguna} onLogout={onLogout} pathname={location.pathname} onNavigate={navigate} />} /></Routes></RuteTerproteksi>} />
         <Route path="*" element={<Navigate to={pengguna ? (pengguna.peran === "admin" ? "/admin" : "/karyawan") : "/login"} replace />} />
       </Routes>
     </Suspense>
