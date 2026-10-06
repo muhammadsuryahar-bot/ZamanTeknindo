@@ -1,3 +1,4 @@
+const jwt = require("jsonwebtoken");
 const prisma = require("../utils/prismaClient");
 const { buatSignedUrlFotoBatch } = require("../utils/supabaseStorage");
 const FACE_THRESHOLD = 0.5;
@@ -5,9 +6,11 @@ const FACE_THRESHOLD = 0.5;
 const JAM_MASUK_MAX = process.env.JAM_MASUK_MAX || "08:10";
 const JAM_PULANG_MIN = process.env.JAM_PULANG_MIN || "17:00";
 const TOLERANSI_MENIT = 120;
-const TESTING_MODE = /^(1|true|yes)$/i.test(
-  String(process.env.KIOSK_TESTING_MODE || "false").trim(),
-);
+const TESTING_MODE =
+  process.env.NODE_ENV !== "production" &&
+  /^(1|true|yes)$/i.test(
+    String(process.env.KIOSK_TESTING_MODE || "false").trim(),
+  );
 
 function euclidean(a, b) {
   let sum = 0;
@@ -85,55 +88,131 @@ const getConfigKiosk = async (req, res) => {
   }
 };
 
-const checkKioskKey = (req, res, next) => {
-  const key =
-    req.headers["x-kiosk-key"] || req.body?.kioskKey || req.query.kioskKey;
-  if (!process.env.KIOSK_SECRET_KEY || key === process.env.KIOSK_SECRET_KEY)
-    return next();
-  return res.status(401).json({ message: "Kiosk key tidak valid" });
+function buatKioskToken(scope, payload = {}, expiresIn = "30m") {
+  const secret = String(process.env.JWT_SECRET || "").trim();
+  if (!secret) {
+    throw new Error("JWT_SECRET belum dikonfigurasi untuk Kiosk.");
+  }
+  return jwt.sign({ ...payload, scope }, secret, { expiresIn });
+}
+
+function getBearerToken(req) {
+  const authHeader = String(req.headers.authorization || "");
+  const bagian = authHeader.split(" ");
+  if (bagian.length !== 2 || bagian[0] !== "Bearer" || !bagian[1]) {
+    return null;
+  }
+  return bagian[1];
+}
+
+function verifikasiKioskToken(req, scope) {
+  const token = getBearerToken(req);
+  if (!token) return null;
+
+  const secret = String(process.env.JWT_SECRET || "").trim();
+  if (!secret) return null;
+
+  try {
+    const decoded = jwt.verify(token, secret);
+    if (decoded?.scope !== scope) return null;
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
+const checkKioskAdminSession = (req, res, next) => {
+  const session = verifikasiKioskToken(req, "kiosk-admin");
+  if (!session) {
+    return res.status(401).json({
+      message: "Sesi Admin Kiosk tidak valid atau sudah kedaluwarsa.",
+    });
+  }
+  req.kioskAdmin = session;
+  return next();
+};
+
+const checkKioskAttendanceToken = (req, res, next) => {
+  const session = verifikasiKioskToken(req, "kiosk-attendance");
+  if (!session?.penggunaId) {
+    return res.status(401).json({
+      message: "Verifikasi wajah sudah kedaluwarsa. Silakan scan wajah lagi.",
+    });
+  }
+
+  const penggunaId = Number(req.body?.penggunaId);
+  if (!penggunaId || Number(session.penggunaId) !== penggunaId) {
+    return res.status(403).json({
+      message: "Token verifikasi wajah tidak cocok dengan karyawan yang dipilih.",
+    });
+  }
+
+  req.kioskAttendance = session;
+  return next();
 };
 
 const verifyAdminPin = async (req, res) => {
   try {
-    const { pin } = req.body;
-    const inputPin = String(pin || "").trim();
+    const inputPin = String(req.body?.pin || "").trim();
 
     if (!inputPin) {
       return res.status(400).json({ message: "PIN tidak boleh kosong" });
     }
 
-    // Coba ambil PIN dari database, fallback ke env var atau default
-    let ADMIN_PIN = process.env.ADMIN_KIOSK_PIN || process.env.KIOSK_ADMIN_PIN || "246810";
+    let adminPin = String(
+      process.env.ADMIN_KIOSK_PIN || process.env.KIOSK_ADMIN_PIN || "",
+    ).trim();
+
     try {
-      let pengaturan = await prisma.pengaturanPotongan.findUnique({ where: { id: 1 } });
-      if (!pengaturan) {
-        pengaturan = await prisma.pengaturanPotongan.create({
-          data: { id: 1 }
-        });
-      }
-      if (pengaturan.kioskPin) {
-        ADMIN_PIN = String(pengaturan.kioskPin).trim();
+      const pengaturan = await prisma.pengaturanPotongan.findUnique({
+        where: { id: 1 },
+        select: { kioskPin: true },
+      });
+      if (pengaturan?.kioskPin) {
+        adminPin = String(pengaturan.kioskPin).trim();
       }
     } catch (dbErr) {
-      console.warn("[PIN] DB tidak bisa dijangkau, pakai PIN dari env/default:", dbErr.message);
+      console.warn(
+        "[PIN] Gagal mengambil PIN Kiosk dari DB:",
+        dbErr?.message || dbErr,
+      );
     }
 
-    console.log(`[PIN CHECK] Input length: ${inputPin.length} | Match: ${inputPin === ADMIN_PIN}`);
-
-    if (inputPin === ADMIN_PIN) {
-      return res.json({ ok: true, message: "PIN benar" });
+    if (!adminPin) {
+      return res.status(503).json({
+        message: "PIN Admin Kiosk belum dikonfigurasi.",
+      });
     }
-    return res.status(401).json({
-      message: "PIN admin salah.",
+
+    if (inputPin !== adminPin) {
+      return res.status(401).json({
+        message: "PIN admin salah.",
+      });
+    }
+
+    let token;
+    try {
+      token = buatKioskToken("kiosk-admin", {}, "30m");
+    } catch (tokenError) {
+      console.error("[PIN] Gagal membuat session Kiosk:", tokenError);
+      return res.status(503).json({
+        message: "Session Admin Kiosk belum siap di server.",
+      });
+    }
+
+    return res.json({
+      ok: true,
+      message: "PIN benar",
+      token,
+      expiresInSeconds: 30 * 60,
     });
   } catch (e) {
     console.error("verifyAdminPin error:", e);
-    return res
-      .status(500)
-      .json({ message: "Error verifikasi PIN: " + e.message });
+    return res.status(500).json({
+      message: "Gagal memverifikasi PIN Kiosk.",
+    });
   }
 };
-
 
 const getPenggunaListKiosk = async (req, res) => {
   try {
@@ -320,7 +399,26 @@ const recognize = async (req, res) => {
           peran: true,
         },
       });
-      return res.json({ matched: true, distance: bestDist, pengguna });
+      let attendanceToken;
+      try {
+        attendanceToken = buatKioskToken(
+          "kiosk-attendance",
+          { penggunaId: pengguna.id },
+          "5m",
+        );
+      } catch (tokenError) {
+        console.error("[KIOSK] Gagal membuat token verifikasi wajah:", tokenError);
+        return res.status(503).json({
+          message: "Verifikasi wajah belum siap di server.",
+        });
+      }
+
+      return res.json({
+        matched: true,
+        distance: bestDist,
+        pengguna,
+        attendanceToken,
+      });
     } else {
       return res.json({ matched: false, distance: bestDist });
     }
@@ -681,7 +779,8 @@ const hapusFace = async (req, res) => {
 };
 
 module.exports = {
-  checkKioskKey,
+  checkKioskAdminSession,
+  checkKioskAttendanceToken,
   getAllFaces,
   getFacesDetailed,
   hapusFace,
