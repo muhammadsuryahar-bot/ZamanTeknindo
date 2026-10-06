@@ -446,23 +446,33 @@ async function statusHariIni(req, res) {
     const penggunaId = req.user.id;
     const { wibDateStr, start, end, tanggalDate } = getWIBTodayRange();
 
-    const absensi = await prisma.absensi.findFirst({
-      where: { penggunaId, tanggal: tanggalDate },
-      select: {
-        id: true,
-        tanggal: true,
-        jamMasuk: true,
-        jamPulang: true,
-        statusOtomatis: true,
-        statusFinal: true,
-      },
-      orderBy: { id: "desc" },
-    });
-
-    // Cek manual pending hari ini (kiosk fallback tanpa PIN)
-    let manualPending = null;
-    try {
-      manualPending = await prisma.manualAbsenRequest.findFirst({
+    // Tiga data status tidak saling bergantung. Ambil semuanya
+    // secara paralel agar load dashboard lebih cepat, sementara query manual
+    // tetap aman bila tabel belum tersedia pada environment lama.
+    const [absensi, pengajuanDisetujui, manualPending] = await Promise.all([
+      prisma.absensi.findFirst({
+        where: { penggunaId, tanggal: tanggalDate },
+        select: {
+          id: true,
+          tanggal: true,
+          jamMasuk: true,
+          jamPulang: true,
+          statusOtomatis: true,
+          statusFinal: true,
+        },
+        orderBy: { id: "desc" },
+      }),
+      prisma.pengajuanIzin.findFirst({
+        where: { penggunaId, tanggal: tanggalDate, status: "disetujui" },
+        select: {
+          id: true,
+          jenis: true,
+          tanggal: true,
+          keterangan: true,
+          status: true,
+        },
+      }),
+      prisma.manualAbsenRequest.findFirst({
         where: {
           penggunaId,
           status: "PENDING",
@@ -470,24 +480,12 @@ async function statusHariIni(req, res) {
         },
         orderBy: { requestedAt: "desc" },
         select: { id: true, tipe: true, requestedAt: true, attemptMenit: true, keterangan: true },
-      });
-    } catch (e) {
-      // tabel belum ada? abaikan
-      console.warn("manualAbsenRequest check failed:", e.message);
-    }
-
-    // PengajuanIzin.tanggal bertipe PostgreSQL DATE. Gunakan tanggal operasional
-    // WIB yang sama persis agar tidak ada pergeseran timezone.
-    const pengajuanDisetujui = await prisma.pengajuanIzin.findFirst({
-      where: { penggunaId, tanggal: tanggalDate, status: "disetujui" },
-      select: {
-        id: true,
-        jenis: true,
-        tanggal: true,
-        keterangan: true,
-        status: true,
-      },
-    });
+      }).catch((error) => {
+        // Tabel manual boleh belum tersedia pada environment lama.
+        console.warn("manualAbsenRequest check failed:", error?.message || error);
+        return null;
+      }),
+    ]);
 
     if (pengajuanDisetujui) {
       return res.json({
