@@ -302,14 +302,28 @@ if (typeof window !== 'undefined' && !window.__zamanGeolocationFallbackTerpasang
 // boleh diambil. Ini mencegah race: foto diambil -> tracker lokasi langsung
 // dihentikan -> koordinat tidak pernah sempat masuk -> tombol Kirim Absen macet.
 if (typeof window !== 'undefined' && !window.__kameraAmbilFotoGuardTerpasang) {
+  let kameraSectionTampil = false
+  let waktuMulaiSesiKamera = 0
+
   const rapikanStatusLokasi = () => {
     const cameraSections = document.querySelectorAll('.cameraSection')
     const adaKamera = cameraSections.length > 0
 
     if (!adaKamera) {
+      kameraSectionTampil = false
+      waktuMulaiSesiKamera = 0
       window.__zamanLokasiSesiAktif = false
       window.__zamanLokasiSudahDitemukan = false
       return
+    }
+
+    // Setiap elemen kamera muncul kembali, mulai sesi lokasi baru.
+    // Lokasi dari sesi kamera sebelumnya tidak boleh mengaktifkan tombol.
+    if (!kameraSectionTampil) {
+      kameraSectionTampil = true
+      waktuMulaiSesiKamera = Date.now()
+      window.__zamanLokasiSesiAktif = true
+      window.__zamanLokasiSudahDitemukan = false
     }
 
     const lokasiTerakhir = window.__zamanLokasiTerakhir
@@ -318,12 +332,10 @@ if (typeof window !== 'undefined' && !window.__kameraAmbilFotoGuardTerpasang) {
       Number.isFinite(lokasiTerakhir.latitude) &&
       Number.isFinite(lokasiTerakhir.longitude) &&
       Number.isFinite(lokasiTerakhir.accuracy) &&
+      lokasiTerakhir.pada >= waktuMulaiSesiKamera &&
       Date.now() - lokasiTerakhir.pada <= 120000
 
-    if (!window.__zamanLokasiSesiAktif) {
-      window.__zamanLokasiSesiAktif = true
-      window.__zamanLokasiSudahDitemukan = Boolean(lokasiMasihFresh)
-    }
+    window.__zamanLokasiSudahDitemukan = Boolean(lokasiMasihFresh)
 
     for (const section of cameraSections) {
       const video = section.querySelector('video')
@@ -352,7 +364,6 @@ if (typeof window !== 'undefined' && !window.__kameraAmbilFotoGuardTerpasang) {
   const interval = window.setInterval(rapikanStatusLokasi, 250)
   document.addEventListener('visibilitychange', rapikanStatusLokasi)
   window.addEventListener('pageshow', rapikanStatusLokasi)
-  window.addEventListener('pagehide', () => window.clearInterval(interval), { once: true })
   window.__kameraAmbilFotoGuardTerpasang = true
 }
 
