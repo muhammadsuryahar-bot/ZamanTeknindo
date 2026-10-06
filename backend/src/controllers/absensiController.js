@@ -23,6 +23,15 @@ const OFFLINE_SYNC_HEADER_VALUE = "offline-sync";
 const MAX_OFFLINE_CLOCK_DRIFT_MS = 24 * 60 * 60 * 1000;
 const MAKS_AKURASI_LOKASI_METER = 100;
 const BATAS_ABSEN_MASUK_WIB = 12 * 60; // Mulai 12:00 WIB, absen masuk ditutup dan hanya absen pulang yang tersedia.
+const JAM_PULANG_MIN_DEFAULT = "17:00:00";
+
+function ambilBatasPulangWIB() {
+  const raw = String(process.env.JAM_PULANG_MIN || JAM_PULANG_MIN_DEFAULT).trim();
+  const match = /^(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d)?$/.exec(raw);
+  if (!match) return 17 * 60;
+  const [jam, menit] = raw.split(":").map(Number);
+  return jam * 60 + menit;
+}
 
 function koordinatDariRequest(latitude, longitude) {
   const latitudeRaw = String(latitude ?? "").trim();
@@ -303,6 +312,18 @@ async function absenPulang(req, res) {
 
     const waktuPulang = waktuAbsensiDariRequest(req);
     const menitPulangWIB = menitSekarangWIB(waktuPulang);
+    const batasPulangWIB = ambilBatasPulangWIB();
+
+    if (menitPulangWIB < batasPulangWIB) {
+      await hapusFotoJikaPerlu();
+      const batasJam = String(Math.floor(batasPulangWIB / 60)).padStart(2, "0");
+      const batasMenit = String(batasPulangWIB % 60).padStart(2, "0");
+      return res.status(400).json({
+        pesan: "Belum jam pulang. Absen pulang baru tersedia mulai " + batasJam + ":" + batasMenit + " WIB.",
+        kode: "BELUM_JAM_PULANG",
+        batasAbsenPulangWIB: batasJam + ":" + batasMenit,
+      });
+    }
 
     // Tanpa absen masuk hanya diperbolehkan sebagai fallback setelah
     // batas 12:00 WIB. Sebelum itu, alur pulang normal wajib punya jam masuk.
