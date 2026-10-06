@@ -360,15 +360,6 @@ async function exportRekapAbsensi(req, res) {
 
     const ExcelJS = require("exceljs");
 
-    const tanggalList = daftarTanggal(tanggalMulai, tanggalSelesai);
-    const hariKerjaList = tanggalList.filter((tanggal) => {
-      const tanggalKey = tanggal.toISOString().slice(0, 10);
-      const hari = tanggal.getUTCDay();
-      return hari !== 0 && hari !== 6 && !setHariLibur.has(tanggalKey);
-    });
-    const jumlahHariKerja = hariKerjaList.length;
-    const jumlahHariLibur = Math.max(jumlahHari - jumlahHariKerja, 0);
-
     // Data Harian menjadi sumber detail. Hari kosong tidak dipaksa menjadi
     // alpha karena database tidak punya bukti bahwa karyawan memang alpha.
     // Status alpha yang memang dicatat Admin tetap menjadi "A".
@@ -638,8 +629,7 @@ async function exportRekapAbsensi(req, res) {
     const lastDailyColLetter = excelColumnName(2 + jumlahHari);
     let rowNumber = dataStartRow;
 
-    ringkasanPerKaryawanPlaceholder: {
-      for (let index = 0; index < detailHarianPerKaryawan.length; index += 1) {
+    for (let index = 0; index < detailHarianPerKaryawan.length; index += 1) {
         const item = detailHarianPerKaryawan[index];
         const row = sheet.getRow(rowNumber);
         const dailyRow = dataStartRow + index;
@@ -727,8 +717,7 @@ async function exportRekapAbsensi(req, res) {
           };
         }
 
-        rowNumber += 1;
-      }
+      rowNumber += 1;
     }
 
     const adaDataKaryawan = detailHarianPerKaryawan.length > 0;
