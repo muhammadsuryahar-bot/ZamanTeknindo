@@ -41,6 +41,18 @@ async function cekLogin(req, res, next) {
     });
   }
 
+  if (
+    dataToken?.scope ||
+    dataToken?.id === undefined ||
+    dataToken?.id === null ||
+    !Number.isFinite(Number(dataToken.id))
+  ) {
+    return res.status(401).json({
+      pesan: "Token sesi tidak valid untuk endpoint ini.",
+      kode: "TOKEN_SCOPE_INVALID",
+    });
+  }
+
   let pengguna;
 
   try {
