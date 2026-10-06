@@ -245,6 +245,29 @@ const getStatusKiosk = async (req, res) => {
     const { wibDateStr, tanggalOnly } = getWIBTodayRange();
     const { totalMenit, jamStr } = getWIBTimeInfo();
     const jamMasukStandar = await ambilBatasJamKiosk();
+
+    const latitudeNumber = Number(latitude);
+    const longitudeNumber = Number(longitude);
+    const akurasiNumber = Number(akurasi);
+
+    if (
+      !Number.isFinite(latitudeNumber) ||
+      latitudeNumber < -90 ||
+      latitudeNumber > 90 ||
+      !Number.isFinite(longitudeNumber) ||
+      longitudeNumber < -180 ||
+      longitudeNumber > 180 ||
+      latitudeNumber === 0 ||
+      longitudeNumber === 0 ||
+      !Number.isFinite(akurasiNumber) ||
+      akurasiNumber <= 0 ||
+      akurasiNumber > 100
+    ) {
+      return res.status(400).json({
+        message:
+          "Lokasi GPS tidak valid. Aktifkan lokasi presisi tinggi dan coba lagi.",
+      });
+    }
     const batasMasuk = parseJam(jamMasukStandar);
     const batasPulang = parseJam(JAM_PULANG_MIN);
     const absen = await prisma.absensi.findFirst({
@@ -503,19 +526,12 @@ const kioskAbsen = async (req, res) => {
       const wibDateStrForCreate = now.toLocaleDateString("en-CA", {
         timeZone: "Asia/Jakarta",
       });
-      const kantorQuery = await prisma.pengguna.findUnique({
-        where: { id: Number(penggunaId) },
-        include: { kantor: true },
-      });
-      const kantor = kantorQuery?.kantor;
-      
-      const isGpsMissing = latitude == null || longitude == null || latitude === 0 || longitude === 0;
-      const finalLatitude = isGpsMissing && kantor ? kantor.latitude : latitude;
-      const finalLongitude = isGpsMissing && kantor ? kantor.longitude : longitude;
+      const finalLatitude = latitudeNumber;
+      const finalLongitude = longitudeNumber;
       const rawAlamat = alamat
-        ? `${alamat}${akurasi ? ` (akurasi ±${Math.round(Number(akurasi))}m)` : ''}`
-        : kantor ? `${kantor.namaKantor}${kantor.alamat ? `, ${kantor.alamat}` : ''}` : null;
-      const finalAlamat = rawAlamat ? `Absensi via kiosk: ${rawAlamat}` : null;
+        ? \`\${alamat} (akurasi ±\${Math.round(akurasiNumber)}m)\`
+        : \`Koordinat GPS \${latitudeNumber.toFixed(6)}, \${longitudeNumber.toFixed(6)} (akurasi ±\${Math.round(akurasiNumber)}m)\`;
+      const finalAlamat = rawAlamat ? \`Absensi via kiosk: \${rawAlamat}\` : null;
 
       const tanggalOnlyForCreate = new Date(`${wibDateStrForCreate}T00:00:00.000Z`);
       const data = absen
@@ -567,19 +583,12 @@ const kioskAbsen = async (req, res) => {
           message: `Belum jam pulang. Pulang mulai jam ${JAM_PULANG_MIN}. Sisa ${sisaJam > 0 ? sisaJam + " jam " : ""}${sisaMenit} menit lagi. Sekarang ${jamStr} WIB`,
         });
       }
-      const kantorQuery = await prisma.pengguna.findUnique({
-        where: { id: Number(penggunaId) },
-        include: { kantor: true },
-      });
-      const kantor = kantorQuery?.kantor;
-
-      const isGpsMissing = latitude == null || longitude == null || latitude === 0 || longitude === 0;
-      const finalLatitude = isGpsMissing && kantor ? kantor.latitude : latitude;
-      const finalLongitude = isGpsMissing && kantor ? kantor.longitude : longitude;
+      const finalLatitude = latitudeNumber;
+      const finalLongitude = longitudeNumber;
       const rawAlamat = alamat
-        ? `${alamat}${akurasi ? ` (akurasi ±${Math.round(Number(akurasi))}m)` : ''}`
-        : kantor ? `${kantor.namaKantor}${kantor.alamat ? `, ${kantor.alamat}` : ''}` : null;
-      const finalAlamat = rawAlamat ? `Absensi via kiosk: ${rawAlamat}` : null;
+        ? \`\${alamat} (akurasi ±\${Math.round(akurasiNumber)}m)\`
+        : \`Koordinat GPS \${latitudeNumber.toFixed(6)}, \${longitudeNumber.toFixed(6)} (akurasi ±\${Math.round(akurasiNumber)}m)\`;
+      const finalAlamat = rawAlamat ? \`Absensi via kiosk: \${rawAlamat}\` : null;
 
       const data = await prisma.absensi.update({
         where: { id: absen.id },
