@@ -220,7 +220,27 @@ const getStatusKiosk = async (req, res) => {
 
 const enrollFace = async (req, res) => {
   try {
-    const targetId = Number(req.body.penggunaId || req.user?.id);
+    const requestedTargetId = req.body?.penggunaId != null ? Number(req.body.penggunaId) : null;
+    const authenticatedUserId = req.user?.id != null ? Number(req.user.id) : null;
+
+    if (
+      authenticatedUserId !== null &&
+      req.user?.peran !== "admin" &&
+      requestedTargetId !== null &&
+      requestedTargetId !== authenticatedUserId
+    ) {
+      return res.status(403).json({
+        message: "Anda hanya dapat mendaftarkan wajah untuk akun sendiri.",
+      });
+    }
+
+    const targetId =
+      authenticatedUserId !== null
+        ? req.user?.peran === "admin"
+          ? requestedTargetId || authenticatedUserId
+          : authenticatedUserId
+        : requestedTargetId;
+
     const descriptors = validasiDescriptors(req.body?.descriptors);
     const rawSample = req.body?.fotoSample || req.body?.foto || null;
     const sample =
