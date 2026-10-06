@@ -3,6 +3,16 @@ import { createRoot } from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
 import './index.css'
 import App from './App.jsx'
+
+// Pasang mode scrollbar halaman Karyawan sebelum React first paint.
+// Ini mencegah viewport sempat berubah ukuran saat reload.
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  const jalurKaryawanAwal = window.location.pathname.startsWith('/karyawan')
+  if (jalurKaryawanAwal) {
+    document.documentElement.classList.add('karyawan-scroll-hidden')
+    document.body?.classList.add('karyawan-scroll-hidden')
+  }
+}
 import { pasangPenerjemahSesiKedaluwarsa, getToken, getPenggunaLogin, API_URL } from './utils/api.js'
 import { jumlahAntrian, sinkronkanAntrian, verifikasiDanBersihkanAntrian } from './utils/antrianOffline.js'
 
