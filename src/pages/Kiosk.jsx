@@ -870,7 +870,11 @@ export default function Kiosk() {
         akurasi = null;
       try {
         const p = await new Promise((res, rej) =>
-          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 2000 }),
+          navigator.geolocation.getCurrentPosition(res, rej, {
+            enableHighAccuracy: true,
+            timeout: 8000,
+            maximumAge: 0,
+          }),
         );
         lat = p.coords.latitude;
         lng = p.coords.longitude;
