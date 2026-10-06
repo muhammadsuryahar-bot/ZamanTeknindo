@@ -3,7 +3,6 @@ import * as faceapi from "face-api.js";
 import { warna, font } from "../styles/theme";
 
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
-const KIOSK_KEY = import.meta.env.VITE_KIOSK_KEY || "kiosk_rahasia_zaman_2025";
 
 const POPUP_DURATION_SECONDS = 15;
 
@@ -107,6 +106,8 @@ export default function Kiosk() {
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState("");
   const [unlocked, setUnlocked] = useState(false);
+  const [adminToken, setAdminToken] = useState("");
+  const [recognitionToken, setRecognitionToken] = useState("");
   const [selected, setSelected] = useState(null);
   const [enrollStep, setEnrollStep] = useState(0);
   const [stableProgress, setStableProgress] = useState(0);
@@ -122,7 +123,6 @@ export default function Kiosk() {
   const [toastCountdown, setToastCountdown] = useState(POPUP_DURATION_SECONDS);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [offlineQueueCount, setOfflineQueueCount] = useState(0);
-  const cachedFacesRef = useRef([]);
 
   const [showFallback, setShowFallback] = useState(false);
   const [fallbackCari, setFallbackCari] = useState("");
@@ -150,7 +150,6 @@ export default function Kiosk() {
     (async () => {
       try {
         const response = await fetch(API_BASE + "/kiosk/config", {
-          headers: { "x-kiosk-key": KIOSK_KEY },
           cache: "no-store",
         });
         if (!response.ok) return;
@@ -290,10 +289,12 @@ export default function Kiosk() {
           .withFaceDescriptor();
 
         if (det) {
-          const pengguna = await recognizeDescriptor(det.descriptor);
-          setDetectedUser(pengguna);
+          const result = await recognizeDescriptor(det.descriptor);
+          setDetectedUser(result?.pengguna || null);
+          setRecognitionToken(result?.token || "");
         } else {
           setDetectedUser(null);
+          setRecognitionToken("");
         }
       } catch {
         // quiet error
@@ -357,11 +358,16 @@ export default function Kiosk() {
           const endpoint = item.isManual
             ? `${API_BASE}/kiosk/manual-fallback`
             : `${API_BASE}/kiosk/absen`;
+          const authToken = item.isManual
+            ? item.adminToken
+            : item.recognitionToken;
+          if (!authToken) continue;
+
           const r = await fetch(endpoint, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "x-kiosk-key": KIOSK_KEY,
+              Authorization: `Bearer ${authToken}`,
               "X-Zaman-Background": "offline-sync",
             },
             body: JSON.stringify(item.payload),
@@ -417,107 +423,89 @@ export default function Kiosk() {
     };
   }, []);
 
-  useEffect(() => {
+  async function loadUsers(token = adminToken) {
+    if (!token) {
+      setUsers([]);
+      return;
+    }
+
     try {
-      const cached = JSON.parse(
-        localStorage.getItem("kiosk_cached_users") || "[]",
-      );
-      if (Array.isArray(cached)) setUsers(cached);
-      cachedFacesRef.current = JSON.parse(
-        localStorage.getItem("kiosk_cached_faces") || "[]",
-      );
+      const response = await fetch(`${API_BASE}/kiosk/pengguna-list`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      });
+
+      if (response.status === 401) {
+        setUnlocked(false);
+        setAdminToken("");
+        setUsers([]);
+        return;
+      }
+
+      if (!response.ok) return;
+      const data = await response.json();
+      const list = Array.isArray(data) ? data : data.data || [];
+      setUsers(list);
     } catch {
-      cachedFacesRef.current = [];
+      // Bisa dimuat ulang setelah koneksi pulih.
     }
-    void loadUsers();
-  }, []);
-  async function loadUsers() {
-    const usersPromise = fetch(`${API_BASE}/kiosk/pengguna-list`, {
-      headers: { "x-kiosk-key": KIOSK_KEY },
-    });
-    const facesPromise = fetch(`${API_BASE}/kiosk/faces`, {
-      headers: { "x-kiosk-key": KIOSK_KEY },
-    });
-
-    try {
-      const usersResponse = await usersPromise;
-      if (usersResponse.ok) {
-        const d = await usersResponse.json();
-        const list = Array.isArray(d) ? d : d.data || [];
-        setUsers(list);
-        localStorage.setItem("kiosk_cached_users", JSON.stringify(list));
-      }
-    } catch {}
-
-    try {
-      const facesResponse = await facesPromise;
-      if (facesResponse.ok) {
-        const faces = await facesResponse.json();
-        cachedFacesRef.current = Array.isArray(faces) ? faces : [];
-        localStorage.setItem("kiosk_cached_faces", JSON.stringify(cachedFacesRef.current));
-      }
-    } catch {}
-  }
-
-  function recognizeFromCache(descriptor) {
-    let bestFace = null;
-    let bestDistance = Infinity;
-    for (const face of cachedFacesRef.current) {
-      for (const savedDescriptor of face.descriptors || []) {
-        if (!Array.isArray(savedDescriptor) || savedDescriptor.length !== descriptor.length) continue;
-        const distance = faceapi.euclideanDistance(descriptor, savedDescriptor);
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          bestFace = face;
-        }
-      }
-    }
-    if (!bestFace || bestDistance >= 0.5) return null;
-    return users.find((user) => user.id === bestFace.penggunaId) || null;
   }
 
   async function recognizeDescriptor(descriptor) {
     const descriptorArray = Array.from(descriptor);
-    if (!navigator.onLine) return recognizeFromCache(descriptorArray);
+    if (!navigator.onLine) return null;
 
     try {
       const response = await fetch(`${API_BASE}/kiosk/recognize`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-kiosk-key": KIOSK_KEY,
         },
         body: JSON.stringify({ descriptor: descriptorArray }),
       });
-      if (!response.ok) throw new Error("Pengenalan wajah gagal");
+
+      if (!response.ok) return null;
       const result = await response.json();
-      return result.matched ? result.pengguna : null;
+      if (!result.matched || !result.pengguna || !result.attendanceToken) {
+        return null;
+      }
+
+      return {
+        pengguna: result.pengguna,
+        token: result.attendanceToken,
+      };
     } catch {
-      return recognizeFromCache(descriptorArray);
+      return null;
     }
   }
+
   async function verifyPin() {
     if (!pin.trim()) {
       setPinError("PIN tidak boleh kosong");
       return;
     }
+
     try {
       const r = await fetch(`${API_BASE}/kiosk/verify-admin-pin`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-kiosk-key": KIOSK_KEY,
         },
         body: JSON.stringify({ pin }),
       });
-      if (r.ok) {
+      const data = await r.json().catch(() => ({}));
+
+      if (r.ok && data.token) {
+        setAdminToken(data.token);
         setUnlocked(true);
         setShowPin(false);
         setPin("");
         setPinError("");
-        loadUsers();
+        void loadUsers(data.token);
       } else {
-        setPinError("PIN salah!");
+        setPinError(data.message || "PIN salah!");
         setPin("");
       }
     } catch {
@@ -594,7 +582,7 @@ export default function Kiosk() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-kiosk-key": KIOSK_KEY,
+          Authorization: `Bearer ${adminToken}`,
         },
         body: JSON.stringify({ penggunaId: selected.id, descriptors, fotoSample }),
       });
@@ -607,7 +595,7 @@ export default function Kiosk() {
           detail: "3 pose berhasil - siap presensi",
         });
         setSelected(null);
-        loadUsers();
+        void loadUsers();
       }
     } catch (e) {
       alert(e.message);
@@ -626,6 +614,7 @@ export default function Kiosk() {
       setStatus("Scanning & Verifikasi Biometrik...");
 
       let pengguna = detectedUser;
+      let token = recognitionToken;
 
       if (!pengguna) {
         // FAST: inputSize 224, scoreThreshold 0.5
@@ -654,14 +643,18 @@ export default function Kiosk() {
           return;
         }
 
-        pengguna = await recognizeDescriptor(det.descriptor);
-        if (!pengguna) {
+        const hasil = await recognizeDescriptor(det.descriptor);
+        pengguna = hasil?.pengguna || null;
+        token = hasil?.token || "";
+        if (!pengguna || !token) {
           const elapsed = Date.now() - startTime;
           if (elapsed < 900) await new Promise((r) => setTimeout(r, 900 - elapsed));
           setHasilAbsen({
             type: "tidak_dikenal",
             message: "Wajah tidak dikenali!",
-            detail: "Daftarkan wajah terlebih dahulu di menu Kiosk",
+            detail: navigator.onLine
+              ? "Wajah tidak dikenali atau verifikasi server gagal."
+              : "Koneksi internet diperlukan untuk verifikasi wajah.",
             status: "tidak_dikenal",
           });
           setShowHasil(true);
@@ -696,13 +689,27 @@ export default function Kiosk() {
       ctx.drawImage(videoRef.current, 0, 0, 320, 240);
       const foto = canvas.toDataURL("image/jpeg", 0.5);
 
+      if (!token) {
+        setHasilAbsen({
+          type: "error",
+          message: "Verifikasi wajah kedaluwarsa",
+          detail: "Scan wajah lagi sebelum melakukan absensi.",
+          status: "gagal",
+        });
+        setShowHasil(true);
+        setDetectedUser(null);
+        setRecognitionToken("");
+        setLoadingAbsen(false);
+        return;
+      }
+
       let r2;
       try {
         r2 = await fetch(`${API_BASE}/kiosk/absen`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-kiosk-key": KIOSK_KEY,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             penggunaId: pengguna.id,
@@ -763,6 +770,7 @@ export default function Kiosk() {
         });
         setShowHasil(true);
         setDetectedUser(null);
+        setRecognitionToken("");
         setLoadingAbsen(false);
         return;
       }
@@ -808,9 +816,11 @@ export default function Kiosk() {
   }
 
   async function checkFallbackUserStatus(userId) {
+    if (!adminToken) return null;
     try {
       const r = await fetch(`${API_BASE}/kiosk/status/${userId}`, {
-        headers: { "x-kiosk-key": KIOSK_KEY },
+        headers: { Authorization: `Bearer ${adminToken}` },
+        cache: "no-store",
       });
       if (r.ok) {
         const d = await r.json();
@@ -834,6 +844,12 @@ export default function Kiosk() {
   }
 
   async function handleFallbackAbsen() {
+    if (!adminToken) {
+      setShowFallback(false);
+      setShowPin(true);
+      setFallbackError("Masukkan PIN Admin Kiosk terlebih dahulu.");
+      return;
+    }
     if (!fallbackSelected) {
       setFallbackError("Pilih karyawan dulu");
       return;
@@ -866,7 +882,6 @@ export default function Kiosk() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-kiosk-key": KIOSK_KEY,
           },
           body: JSON.stringify({
             penggunaId: fallbackSelected.id,
@@ -886,6 +901,7 @@ export default function Kiosk() {
         const itemOffline = {
           id: Date.now(),
           isManual: true,
+          adminToken,
           payload: {
             penggunaId: fallbackSelected.id,
             foto,
@@ -2357,7 +2373,7 @@ export default function Kiosk() {
                   onClick={() => {
                     setShowHasil(false);
                     setShowFallback(true);
-                    loadUsers();
+        void loadUsers();
                   }}
                   style={{
                     width: "100%",
