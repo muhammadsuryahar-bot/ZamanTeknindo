@@ -136,12 +136,14 @@ async function main() {
   };
   output.getHeader = (key) => headers[String(key).toLowerCase()];
 
-  await exportRekapAbsensi(req, output);
-  await new Promise((resolve, reject) => {
-    if (output.readableEnded) return resolve();
+  const selesaiMenulis = new Promise((resolve, reject) => {
+    if (output.writableFinished || output.readableEnded) return resolve();
     output.once("finish", resolve);
     output.once("error", reject);
   });
+
+  await exportRekapAbsensi(req, output);
+  await selesaiMenulis;
   assert.ok(chunks.length > 0, "Controller harus menghasilkan file XLSX");
 
   const workbook = new ExcelJS.Workbook();
