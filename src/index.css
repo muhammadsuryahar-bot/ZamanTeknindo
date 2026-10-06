@@ -18,6 +18,22 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Mode scrollbar Karyawan harus tersedia sejak stylesheet awal dimuat.
+   Jangan hanya didefinisikan di <style> dalam DashboardKaryawan karena itu
+   baru masuk DOM setelah render pertama dan bisa memicu layout shift/flicker. */
+html.karyawan-scroll-hidden,
+body.karyawan-scroll-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html.karyawan-scroll-hidden::-webkit-scrollbar,
+body.karyawan-scroll-hidden::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 body {
   margin: 0;
   padding: 0;
