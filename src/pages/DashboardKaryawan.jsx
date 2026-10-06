@@ -360,15 +360,11 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
   useEffect(() => {
     mountedRef.current = true;
-    document.documentElement.classList.add("karyawan-scroll-hidden");
-    document.body.classList.add("karyawan-scroll-hidden");
     void ambilStatusHariIni();
     void cobaSinkronAntrian({ refreshStatus: false });
 
     return () => {
       mountedRef.current = false;
-      document.documentElement.classList.remove("karyawan-scroll-hidden");
-      document.body.classList.remove("karyawan-scroll-hidden");
       hentikanKamera();
       hentikanPelacakanLokasi();
     };
