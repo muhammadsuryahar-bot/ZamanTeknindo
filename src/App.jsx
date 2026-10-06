@@ -1,5 +1,5 @@
 import { useEffect, useState, lazy, Suspense, Component } from "react";
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import Login from "./pages/Login";
 import { API_URL, getPenggunaLogin, getToken, hapusSesiLogin } from "./utils/api";
 import { pasangWebPushOtomatis } from "./utils/webPush";
@@ -539,9 +539,7 @@ function App() {
   if (pengguna === undefined) return <MemuatHalaman penuh />;
   return (
     <BatasKesalahanAplikasi>
-      <BrowserRouter>
-        <RuteAplikasi pengguna={pengguna} setPengguna={setPengguna} onLogout={handleLogout} />
-      </BrowserRouter>
+      <RuteAplikasi pengguna={pengguna} setPengguna={setPengguna} onLogout={handleLogout} />
     </BatasKesalahanAplikasi>
   );
 }
