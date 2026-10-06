@@ -247,7 +247,7 @@ if (typeof window !== 'undefined' && !window.__zamanGeolocationFallbackTerpasang
         },
       )
 
-      // Coba lokasi network/cache lebih awal, tanpa menunggu GPS presisi tinggi.
+      // Coba provider lokasi network lebih awal, tanpa memakai posisi cache lama.
       record.fallbackTimer = window.setTimeout(() => {
         if (!record.aktif) return
         currentAsli(
@@ -256,7 +256,7 @@ if (typeof window !== 'undefined' && !window.__zamanGeolocationFallbackTerpasang
           {
             ...options,
             enableHighAccuracy: false,
-            maximumAge: 30000,
+            maximumAge: 0,
             timeout: 8000,
           },
         )
@@ -272,7 +272,7 @@ if (typeof window !== 'undefined' && !window.__zamanGeolocationFallbackTerpasang
           {
             ...options,
             enableHighAccuracy: false,
-            maximumAge: 60000,
+            maximumAge: 0,
             timeout: 7000,
           },
         )
