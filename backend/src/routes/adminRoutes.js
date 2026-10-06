@@ -43,7 +43,6 @@ const {
   lihatLaporanBulanan,
 } = require("../controllers/hitungGajiController");
 const { exportLaporanExcel } = require("../controllers/exportGajiController");
-const { exportRekapAbsensi } = require("../controllers/exportRekapAbsensiController");
 
 // NEW - Manual Verifikasi Controller
 const {
@@ -150,7 +149,18 @@ router.put("/karyawan/:id/reset-password", batasResetPassword, resetPasswordOleh
 router.get("/rekap-hari-ini", rekapHariIniFixed);
 router.get("/rekap-tanggal", ambilRekapTanggal);
 router.post("/rekap-foto-url", ambilUrlFotoRekap);
-router.get("/rekap-absensi/export", exportRekapAbsensi);
+router.get("/rekap-absensi/export", async (req, res, next) => {
+  try {
+    const { exportRekapAbsensi } = require("../controllers/exportRekapAbsensiController");
+    return exportRekapAbsensi(req, res, next);
+  } catch (error) {
+    console.error("Gagal memuat controller export rekap:", error);
+    if (res.headersSent) return next(error);
+    return res.status(500).json({
+      pesan: "Fitur export rekap sedang bermasalah. Fitur absensi lainnya tetap dapat digunakan.",
+    });
+  }
+});
 router.put("/absensi/tanggal/:tanggal/pengguna/:penggunaId/status", validasiEditStatusAbsensi, ubahStatusTanpaAbsensi);
 router.get("/ringkasan", ringkasanDashboardFixed);
 router.put("/absensi/:id/edit-status", editStatusAbsensiFixed);
