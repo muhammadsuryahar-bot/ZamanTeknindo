@@ -7,7 +7,7 @@
     "dev": "vite",
     "dev:backend": "nodemon backend/src/server.js",
     "build": "vite build",
-    "vercel-build": "npx prisma generate --schema=backend/prisma/schema.prisma && vite build",
+    "vercel-build": "node scripts/validate-backend-syntax.cjs && npx prisma generate --schema=backend/prisma/schema.prisma && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "prisma:generate": "prisma generate --schema=backend/prisma/schema.prisma",
