@@ -246,28 +246,6 @@ const getStatusKiosk = async (req, res) => {
     const { totalMenit, jamStr } = getWIBTimeInfo();
     const jamMasukStandar = await ambilBatasJamKiosk();
 
-    const latitudeNumber = Number(latitude);
-    const longitudeNumber = Number(longitude);
-    const akurasiNumber = Number(akurasi);
-
-    if (
-      !Number.isFinite(latitudeNumber) ||
-      latitudeNumber < -90 ||
-      latitudeNumber > 90 ||
-      !Number.isFinite(longitudeNumber) ||
-      longitudeNumber < -180 ||
-      longitudeNumber > 180 ||
-      latitudeNumber === 0 ||
-      longitudeNumber === 0 ||
-      !Number.isFinite(akurasiNumber) ||
-      akurasiNumber <= 0 ||
-      akurasiNumber > 100
-    ) {
-      return res.status(400).json({
-        message:
-          "Lokasi GPS tidak valid. Aktifkan lokasi presisi tinggi dan coba lagi.",
-      });
-    }
     const batasMasuk = parseJam(jamMasukStandar);
     const batasPulang = parseJam(JAM_PULANG_MIN);
     const absen = await prisma.absensi.findFirst({
@@ -465,6 +443,29 @@ const kioskAbsen = async (req, res) => {
     const { start, end, tanggalOnly } = getWIBTodayRange(now);
     const { totalMenit, jamStr } = getWIBTimeInfo(now);
     const jamMasukStandar = await ambilBatasJamKiosk();
+
+    const latitudeNumber = Number(latitude);
+    const longitudeNumber = Number(longitude);
+    const akurasiNumber = Number(akurasi);
+
+    if (
+      !Number.isFinite(latitudeNumber) ||
+      latitudeNumber < -90 ||
+      latitudeNumber > 90 ||
+      !Number.isFinite(longitudeNumber) ||
+      longitudeNumber < -180 ||
+      longitudeNumber > 180 ||
+      latitudeNumber === 0 ||
+      longitudeNumber === 0 ||
+      !Number.isFinite(akurasiNumber) ||
+      akurasiNumber <= 0 ||
+      akurasiNumber > 100
+    ) {
+      return res.status(400).json({
+        message:
+          "Lokasi GPS tidak valid. Aktifkan lokasi presisi tinggi dan coba lagi.",
+      });
+    }
 
     const penggunaAktif = await prisma.pengguna.findFirst({
       where: {
