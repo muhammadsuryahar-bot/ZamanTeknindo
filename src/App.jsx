@@ -542,3 +542,5 @@ function App() {
     </BatasKesalahanAplikasi>
   );
 }
+
+export default App;
