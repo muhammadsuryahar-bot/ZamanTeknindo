@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState, lazy, Suspense, Component } from "react";
+import { useEffect, useState, lazy, Suspense, Component } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import Login from "./pages/Login";
 import { API_URL, getPenggunaLogin, getToken, hapusSesiLogin } from "./utils/api";
@@ -524,18 +524,6 @@ if (typeof document !== "undefined") {
   }
 }
 
-export default function SinkronkanModeScrollKaryawan() {
-  const location = useLocation();
-
-  useLayoutEffect(() => {
-    const aktif = location.pathname.startsWith("/karyawan");
-    document.documentElement.classList.toggle("karyawan-scroll-hidden", aktif);
-    document.body?.classList.toggle("karyawan-scroll-hidden", aktif);
-  }, [location.pathname]);
-
-  return null;
-}
-
 function App() {
   const [pengguna, setPengguna] = useState(undefined);
   useEffect(() => {
@@ -552,7 +540,6 @@ function App() {
   return (
     <BatasKesalahanAplikasi>
       <BrowserRouter>
-        <SinkronkanModeScrollKaryawan />
         <RuteAplikasi pengguna={pengguna} setPengguna={setPengguna} onLogout={handleLogout} />
       </BrowserRouter>
     </BatasKesalahanAplikasi>
