@@ -136,9 +136,12 @@ async function main() {
   };
   output.getHeader = (key) => headers[String(key).toLowerCase()];
 
-  const resultPromise = exportRekapAbsensi(req, output);
-  const result = await resultPromise;
-  assert.strictEqual(result, undefined, "Controller export harus selesai tanpa error");
+  await exportRekapAbsensi(req, output);
+  await new Promise((resolve, reject) => {
+    if (output.readableEnded) return resolve();
+    output.once("finish", resolve);
+    output.once("error", reject);
+  });
   assert.ok(chunks.length > 0, "Controller harus menghasilkan file XLSX");
 
   const workbook = new ExcelJS.Workbook();
