@@ -1,30 +1,35 @@
 const express = require('express');
 const router = express.Router();
 const kioskController = require('../controllers/kioskController');
-const { checkKioskKey } = kioskController;
 const { batasKioskPin } = require('../middleware/rateLimiter');
 
-// Config
-router.get('/config', checkKioskKey, kioskController.getConfigKiosk);
+const {
+  checkKioskAdminSession,
+  checkKioskAttendanceToken,
+} = kioskController;
 
-// List & Status
-router.get('/pengguna-list', checkKioskKey, kioskController.getPenggunaListKiosk);
-router.get('/status/:penggunaId', checkKioskKey, kioskController.getStatusKiosk);
-router.get('/faces', checkKioskKey, kioskController.getAllFaces);
-router.get('/faces-detailed', checkKioskKey, kioskController.getFacesDetailed);
+// Public: configuration + server-side face recognition.
+// The browser no longer receives a kiosk secret or the face-descriptor database.
+router.get('/config', kioskController.getConfigKiosk);
+router.post('/recognize', kioskController.recognize);
 
-// Absen
-router.post('/enroll', checkKioskKey, kioskController.enrollFace);
-router.post('/recognize', checkKioskKey, kioskController.recognize);
-router.post('/absen', checkKioskKey, kioskController.kioskAbsen);
-router.post('/absen-via-kiosk', checkKioskKey, kioskController.kioskAbsen);
-router.post('/manual-fallback', checkKioskKey, kioskController.submitManualFallback);
+// Attendance requires a short-lived token issued by /recognize.
+// This prevents arbitrary penggunaId submissions from the public kiosk.
+router.post('/absen', checkKioskAttendanceToken, kioskController.kioskAbsen);
+router.post('/absen-via-kiosk', checkKioskAttendanceToken, kioskController.kioskAbsen);
 
-// PIN - tanpa checkKioskKey biar gak dobel error
-router.post('/verify-admin-pin', checkKioskKey, batasKioskPin, kioskController.verifyAdminPin);
-router.post('/verify-pin', checkKioskKey, batasKioskPin, kioskController.verifyAdminPin);
+// Admin session: employee list, attendance status, face data and maintenance.
+router.get('/pengguna-list', checkKioskAdminSession, kioskController.getPenggunaListKiosk);
+router.get('/status/:penggunaId', checkKioskAdminSession, kioskController.getStatusKiosk);
+router.get('/faces', checkKioskAdminSession, kioskController.getAllFaces);
+router.get('/faces-detailed', checkKioskAdminSession, kioskController.getFacesDetailed);
+router.post('/enroll', checkKioskAdminSession, kioskController.enrollFace);
+router.post('/manual-fallback', checkKioskAdminSession, kioskController.submitManualFallback);
+router.delete('/face/:penggunaId', checkKioskAdminSession, kioskController.hapusFace);
 
-// Hapus wajah - INI YANG BIKIN 404 KEMARIN, sekarang ada
-router.delete('/face/:penggunaId', checkKioskKey, kioskController.hapusFace);
+// PIN is the only public gate to obtain a short-lived admin session.
+// Rate limiting remains active.
+router.post('/verify-admin-pin', batasKioskPin, kioskController.verifyAdminPin);
+router.post('/verify-pin', batasKioskPin, kioskController.verifyAdminPin);
 
 module.exports = router;
