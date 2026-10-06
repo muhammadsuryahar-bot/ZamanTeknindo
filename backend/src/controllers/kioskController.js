@@ -529,9 +529,9 @@ const kioskAbsen = async (req, res) => {
       const finalLatitude = latitudeNumber;
       const finalLongitude = longitudeNumber;
       const rawAlamat = alamat
-        ? \`\${alamat} (akurasi ±\${Math.round(akurasiNumber)}m)\`
-        : \`Koordinat GPS \${latitudeNumber.toFixed(6)}, \${longitudeNumber.toFixed(6)} (akurasi ±\${Math.round(akurasiNumber)}m)\`;
-      const finalAlamat = rawAlamat ? \`Absensi via kiosk: \${rawAlamat}\` : null;
+        ? `${alamat} (akurasi ±${Math.round(akurasiNumber)}m)`
+        : `Koordinat GPS ${latitudeNumber.toFixed(6)}, ${longitudeNumber.toFixed(6)} (akurasi ±${Math.round(akurasiNumber)}m)`;
+      const finalAlamat = rawAlamat ? `Absensi via kiosk: ${rawAlamat}` : null;
 
       const tanggalOnlyForCreate = new Date(`${wibDateStrForCreate}T00:00:00.000Z`);
       const data = absen
@@ -586,9 +586,9 @@ const kioskAbsen = async (req, res) => {
       const finalLatitude = latitudeNumber;
       const finalLongitude = longitudeNumber;
       const rawAlamat = alamat
-        ? \`\${alamat} (akurasi ±\${Math.round(akurasiNumber)}m)\`
-        : \`Koordinat GPS \${latitudeNumber.toFixed(6)}, \${longitudeNumber.toFixed(6)} (akurasi ±\${Math.round(akurasiNumber)}m)\`;
-      const finalAlamat = rawAlamat ? \`Absensi via kiosk: \${rawAlamat}\` : null;
+        ? `${alamat} (akurasi ±${Math.round(akurasiNumber)}m)`
+        : `Koordinat GPS ${latitudeNumber.toFixed(6)}, ${longitudeNumber.toFixed(6)} (akurasi ±${Math.round(akurasiNumber)}m)`;
+      const finalAlamat = rawAlamat ? `Absensi via kiosk: ${rawAlamat}` : null;
 
       const data = await prisma.absensi.update({
         where: { id: absen.id },
