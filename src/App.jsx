@@ -1,12 +1,13 @@
 import { useEffect, useState, lazy, Suspense, Component } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import Login from "./pages/Login";
+import DashboardKaryawan from "./pages/DashboardKaryawan";
 import { API_URL, getPenggunaLogin, getToken, hapusSesiLogin } from "./utils/api";
 import { pasangWebPushOtomatis } from "./utils/webPush";
 import { warna } from "./styles/theme";
 
 const Daftar = lazy(() => import("./pages/Daftar"));
-const DashboardKaryawan = lazy(() => import("./pages/DashboardKaryawan"));
+
 const RiwayatAbsensi = lazy(() => import("./pages/RiwayatAbsensi"));
 const PengajuanIzin = lazy(() => import("./pages/PengajuanIzin"));
 const RegistrasiWajah = lazy(() => import("./pages/RegistrasiWajah"));
