@@ -296,57 +296,9 @@ if (typeof window !== 'undefined' && !window.__zamanGeolocationFallbackTerpasang
   }
 }
 
-// Pada versi DashboardKaryawan saat ini, status "kamera siap" disimpan di ref
-// agar callback kamera tidak memicu render ulang. Atribut disabled pada tombol
-// Ambil Foto ikut berasal dari ref tersebut sehingga React tidak selalu merender
-// ulang ketika preview kamera benar-benar sudah siap.
-// Guard di bawah sekarang juga mewajibkan koordinat sudah didapat sebelum foto
-// boleh diambil. Ini mencegah race: foto diambil -> tracker lokasi langsung
-// dihentikan -> koordinat tidak pernah sempat masuk -> tombol Kirim Absen macet.
-if (typeof window !== 'undefined' && !window.__kameraAmbilFotoGuardTerpasang) {
-  let kameraSectionTampil = false
-
-  const rapikanStatusKamera = () => {
-    const cameraSections = document.querySelectorAll('.cameraSection')
-    const adaKamera = cameraSections.length > 0
-
-    if (!adaKamera) {
-      kameraSectionTampil = false
-      return
-    }
-
-    if (!kameraSectionTampil) {
-      kameraSectionTampil = true
-    }
-
-    for (const section of cameraSections) {
-      const video = section.querySelector('video')
-      const tombol = Array.from(section.querySelectorAll('button[type="button"]')).find((button) =>
-        button.textContent?.includes('Ambil Foto'),
-      )
-
-      if (!(tombol instanceof HTMLButtonElement)) continue
-
-      const videoSiap =
-        video instanceof HTMLVideoElement &&
-        video.videoWidth > 0 &&
-        video.videoHeight > 0
-
-      // GPS berjalan terpisah dari kamera. Jangan membuat karyawan menunggu
-      // lokasi sebelum bisa mengambil foto; lokasi tetap dikumpulkan setelah
-      // kamera ditutup sampai data valid tersedia untuk pengiriman.
-      tombol.disabled = !videoSiap
-      tombol.title = !videoSiap
-        ? 'Menyiapkan kamera...'
-        : ''
-    }
-  }
-
-  const interval = window.setInterval(rapikanStatusKamera, 250)
-  document.addEventListener('visibilitychange', rapikanStatusKamera)
-  window.addEventListener('pageshow', rapikanStatusKamera)
-  window.__kameraAmbilFotoGuardTerpasang = true
-}
+// Guard UI kamera dipasang sekali agar tombol Ambil Foto hanya menunggu
+// preview kamera benar-benar siap. GPS dikelola terpisah oleh DashboardKaryawan
+// dan tetap berjalan setelah foto diambil sampai koordinat valid tersedia.
 // Dipasang SEKALI di sini, sebelum aplikasi mulai render, supaya berlaku
 // untuk semua pemanggilan fetch() dari halaman manapun.
 pasangPenerjemahSesiKedaluwarsa()
