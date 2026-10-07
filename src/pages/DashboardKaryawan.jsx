@@ -710,10 +710,10 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     if (lokasiFallbackFinishRef.current) { clearTimeout(lokasiFallbackFinishRef.current); lokasiFallbackFinishRef.current = null; }
   }
 
-  function hentikanKamera() {
+  function hentikanKamera({ hentikanLokasi = true } = {}) {
     kameraSesiRef.current += 1;
     hentikanStreamKamera();
-    hentikanPelacakanLokasi();
+    if (hentikanLokasi) hentikanPelacakanLokasi();
     if (videoRef.current) videoRef.current.srcObject = null;
     if (mountedRef.current) { setKameraAktif(false); setKameraMembuka(false); }
   }
@@ -731,7 +731,9 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       const blob = await kompresFotoUntukUpload(canvas);
       if (!mountedRef.current) return;
       setFotoTerambil(blob);
-      hentikanKamera();
+      // Kamera boleh ditutup setelah foto diambil, tetapi GPS tetap berjalan
+      // sampai koordinat valid tersedia untuk tombol Kirim Absen.
+      hentikanKamera({ hentikanLokasi: false });
     } catch (err) { console.error("Gagal mengompres foto:", err); if (mountedRef.current) setPesan("Foto gagal diproses. Silakan coba lagi."); }
   }
 
@@ -806,7 +808,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     const sesi = lokasiSesiRef.current;
     let posisiTerbaik = null;
     let sudahSelesai = false;
-    const sesiMasihAktif = () => mountedRef.current && sesi === lokasiSesiRef.current && kameraSiapRef.current;
+    const sesiMasihAktif = () => mountedRef.current && sesi === lokasiSesiRef.current;
 
     const selesaikan = async () => {
       if (sudahSelesai || !sesiMasihAktif()) return;
