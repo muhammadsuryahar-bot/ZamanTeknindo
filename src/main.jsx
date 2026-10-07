@@ -296,9 +296,9 @@ if (typeof window !== 'undefined' && !window.__zamanGeolocationFallbackTerpasang
   }
 }
 
-// Guard UI kamera dipasang sekali agar tombol Ambil Foto hanya menunggu
-// preview kamera benar-benar siap. GPS dikelola terpisah oleh DashboardKaryawan
-// dan tetap berjalan setelah foto diambil sampai koordinat valid tersedia.
+// DashboardKaryawan memakai state React `kameraSiap` sebagai satu-satunya
+// sumber kebenaran tombol Ambil Foto. Tidak ada lagi manipulasi DOM global
+// yang ikut menunggu GPS; tracker lokasi berjalan terpisah dari kamera.
 // Dipasang SEKALI di sini, sebelum aplikasi mulai render, supaya berlaku
 // untuk semua pemanggilan fetch() dari halaman manapun.
 pasangPenerjemahSesiKedaluwarsa()
