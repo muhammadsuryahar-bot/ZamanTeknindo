@@ -39,6 +39,7 @@ const TAHAP_VALID = new Set([
 const STATUS_CACHE_VERSION = 4; // FIX: bump biar cache lama belum_masuk kehapus, sinkron sama kiosk
 const STATUS_REQUEST_TIMEOUT_MS = 8000;
 const ABSENSI_REQUEST_TIMEOUT_MS = 15000;
+const BATAS_ABSEN_MASUK_WIB = 12 * 60;
 const LOKASI_REQUEST_TIMEOUT_MS = 20000;
 const MAX_UPLOAD_BYTES = 1.5 * 1024 * 1024;
 const MAX_UPLOAD_WIDTH = 1280;
@@ -63,6 +64,29 @@ function tanggalLokalISO() {
   }
 
   return `${hasil.year}-${hasil.month}-${hasil.day}`;
+}
+
+function menitSekarangWIB() {
+  const waktuWIB = new Intl.DateTimeFormat("en-GB", {
+    timeZone: TIMEZONE_WIB,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date());
+
+  const [jam, menit] = waktuWIB.split(":").map(Number);
+  if (!Number.isFinite(jam) || !Number.isFinite(menit)) return 0;
+  return jam * 60 + menit;
+}
+
+function normalisasiTahapBerdasarkanWaktu(tahap) {
+  if (
+    tahap === "belum_masuk" &&
+    menitSekarangWIB() >= BATAS_ABSEN_MASUK_WIB
+  ) {
+    return "langsung_pulang";
+  }
+  return tahap;
 }
 
 function kunciStatusHariIni(pengguna) {
@@ -381,7 +405,9 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       setSedangSinkron(false);
       setStatusVerifikasiSedang(false);
       const tahapTersimpan = bacaCacheStatusHariIni(pengguna);
-      if (tahapTersimpan) setTahap(tahapTersimpan);
+      if (tahapTersimpan) {
+        setTahap(normalisasiTahapBerdasarkanWaktu(tahapTersimpan));
+      }
     };
     setIsOnline(navigator.onLine);
     window.addEventListener("online", ketikaOnline);
@@ -401,17 +427,9 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     const cekBatasAbsenMasuk = () => {
       if (!mountedRef.current || tahap !== "belum_masuk") return;
 
-      const waktuWIB = new Intl.DateTimeFormat("en-GB", {
-        timeZone: TIMEZONE_WIB,
-        hour: "2-digit",
-        minute: "2-digit",
-        hourCycle: "h23",
-      }).format(new Date());
+      const menitSekarang = menitSekarangWIB();
 
-      const [jam, menit] = waktuWIB.split(":").map(Number);
-      const menitSekarang = jam * 60 + menit;
-
-      if (menitSekarang < 12 * 60) return;
+      if (menitSekarang < BATAS_ABSEN_MASUK_WIB) return;
 
       if (navigator.onLine) {
         void ambilStatusHariIni({ pertahankanVerifikasiSaatFallback: true });
@@ -519,7 +537,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     const requestId = ++statusRequestRef.current;
     const tahapCacheAwal = bacaCacheStatusHariIni(pengguna);
     if (tahapCacheAwal) {
-      setTahap(tahapCacheAwal);
+      setTahap(normalisasiTahapBerdasarkanWaktu(tahapCacheAwal));
       setLoadingStatus(false);
     } else {
       setLoadingStatus(true);
@@ -528,7 +546,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       const tahapTersimpan = bacaCacheStatusHariIni(pengguna);
       if (!tahapTersimpan) return false;
       if (requestId !== statusRequestRef.current || !mountedRef.current) return true;
-      setTahap(tahapTersimpan);
+      setTahap(normalisasiTahapBerdasarkanWaktu(tahapTersimpan));
       if (!pertahankanVerifikasiSaatFallback) setStatusTerverifikasi(false);
       if (pesanFallback) setPesan(pesanFallback);
       return true;
@@ -565,7 +583,8 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         if (!berhasilPakaiCache) { setTahap("belum_terverifikasi"); setStatusTerverifikasi(false); setPesan("Status absensi dari server tidak valid."); }
         return;
       }
-      setTahap(data.tahap);
+      const tahapEfektif = normalisasiTahapBerdasarkanWaktu(data.tahap);
+      setTahap(tahapEfektif);
       setPengajuanHariIni(data.pengajuanIzin || null);
       setManualPending(data.manualPending || null);
       // FIX: simpan info pending kiosk manual fallback
@@ -574,7 +593,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       } else {
         localStorage.removeItem(`zaman-teknindo:manual-pending:${pengguna.id}:${tanggalLokalISO()}`);
       }
-      simpanCacheStatusHariIni(pengguna, data.tahap);
+      simpanCacheStatusHariIni(pengguna, tahapEfektif);
       setStatusTerverifikasi(true);
       setPesan("");
       // DEBUG: log biar keliatan sudah_masuk dari kiosk
@@ -868,12 +887,22 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       hourCycle: "h23",
     }).format(new Date());
     const [jamSekarang, menitSekarang] = waktuSekarangWIB.split(":").map(Number);
-    const lewatBatasAbsenMasuk = (jamSekarang * 60 + menitSekarang) >= 12 * 60;
+    const lewatBatasAbsenMasuk =
+      (jamSekarang * 60 + menitSekarang) >= BATAS_ABSEN_MASUK_WIB;
     const endpoint =
       tahap === "langsung_pulang" ||
       (tahap === "belum_masuk" && lewatBatasAbsenMasuk)
         ? "pulang"
         : "masuk";
+
+    if (endpoint === "masuk" && lewatBatasAbsenMasuk) {
+      const tahapAman = "langsung_pulang";
+      setTahap(tahapAman);
+      simpanCacheStatusHariIni(pengguna, tahapAman);
+      setStatusVerifikasiSedang(false);
+      setPesan("Sudah lewat 12:00 WIB. Absen masuk pagi tidak dapat dilakukan lagi; gunakan Absen Pulang.");
+      return;
+    }
     const simpanOffline = async () => {
       await simpanKeAntrian({ foto: fotoTerambil, penggunaId: pengguna.id, latitude: lokasi.latitude, longitude: lokasi.longitude, akurasi: lokasi.akurasi, alamat: formData.get("alamat"), waktuAsli, endpoint });
       const sisa = await jumlahAntrian(pengguna.id);

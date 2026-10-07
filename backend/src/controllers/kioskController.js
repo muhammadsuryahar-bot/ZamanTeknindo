@@ -2,16 +2,11 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const prisma = require("../utils/prismaClient");
 const { buatSignedUrlFotoBatch } = require("../utils/supabaseStorage");
+const { BATAS_ABSEN_MASUK_WIB } = require("../utils/waktuIndonesia");
 const FACE_THRESHOLD = 0.5;
 
 const JAM_MASUK_MAX = process.env.JAM_MASUK_MAX || "08:10";
 const JAM_PULANG_MIN = process.env.JAM_PULANG_MIN || "17:00";
-const TOLERANSI_MENIT = 120;
-const TESTING_MODE =
-  process.env.NODE_ENV !== "production" &&
-  /^(1|true|yes)$/i.test(
-    String(process.env.KIOSK_TESTING_MODE || "false").trim(),
-  );
 
 function euclidean(a, b) {
   let sum = 0;
@@ -290,14 +285,15 @@ const getStatusKiosk = async (req, res) => {
       batasMasukMenit: batasMasuk,
       batasPulang: JAM_PULANG_MIN,
       batasPulangMenit: batasPulang,
-      bolehMasuk: totalMenit <= batasMasuk + 120,
+      bolehMasuk: totalMenit < BATAS_ABSEN_MASUK_WIB,
       bolehPulang: totalMenit >= batasPulang,
     };
     if (!absen)
       return res.json({
         wibDateStr,
         sudahMasuk: false,
-        tipeSelanjutnya: "masuk",
+        tipeSelanjutnya:
+          totalMenit >= BATAS_ABSEN_MASUK_WIB ? "pulang" : "masuk",
         jamInfo,
       });
     if (absen.jamMasuk && !absen.jamPulang)
@@ -522,28 +518,24 @@ const kioskAbsen = async (req, res) => {
       orderBy: { id: "desc" },
     });
     if (!tipe || tipe === "auto") {
-      if (!absen || !absen.jamMasuk) tipe = "masuk";
-      else if (!absen.jamPulang) tipe = "pulang";
-      else
+      if (!absen || !absen.jamMasuk) {
+        tipe = totalMenit >= BATAS_ABSEN_MASUK_WIB ? "pulang" : "masuk";
+      } else if (!absen.jamPulang) {
+        tipe = "pulang";
+      } else {
         return res
           .status(400)
           .json({ message: "Sudah absen lengkap hari ini" });
+      }
     }
     if (tipe === "masuk") {
       if (absen?.jamMasuk)
         return res.status(400).json({ message: "Sudah absen masuk" });
-      console.log(
-        `[KIOSK TESTING TELAT] Jam sekarang: ${jamStr} (${totalMenit} menit), batas: ${JAM_MASUK_MAX} (${batasMasuk} menit), max+toleransi: ${batasMasuk + TOLERANSI_MENIT}, TESTING_MODE=${TESTING_MODE}`,
-      );
-      if (!TESTING_MODE && totalMenit > batasMasuk + TOLERANSI_MENIT) {
+      if (totalMenit >= BATAS_ABSEN_MASUK_WIB) {
         return res.status(400).json({
-          message: `Absen masuk ditutup. Maksimal jam ${jamMasukStandar} (toleransi sampai ${String(Math.floor((batasMasuk + TOLERANSI_MENIT) / 60)).padStart(2, "0")}:${String((batasMasuk + TOLERANSI_MENIT) % 60).padStart(2, "0")}). Sekarang ${jamStr} WIB`,
+          code: "ABSEN_MASUK_CUTOFF",
+          message: `Absen masuk ditutup setelah 12:00 WIB. Gunakan Absen Pulang. Sekarang ${jamStr} WIB`,
         });
-      }
-      if (TESTING_MODE && totalMenit > batasMasuk + TOLERANSI_MENIT) {
-        console.log(
-          `[KIOSK TESTING TELAT] Loloskan meski lewat tutup, tapi akan dihitung TELAT`,
-        );
       }
       let statusOtomatis = "tepat_waktu";
       let keterangan = null;
@@ -604,8 +596,7 @@ const kioskAbsen = async (req, res) => {
         jamMasuk: jamStr,
       });
     } else {
-      if (!absen) return res.status(400).json({ message: "Belum absen masuk" });
-      if (absen.jamPulang)
+      if (absen?.jamPulang)
         return res.status(400).json({ message: "Sudah absen pulang" });
       if (totalMenit < batasPulang) {
         const sisa = batasPulang - totalMenit;
@@ -622,16 +613,28 @@ const kioskAbsen = async (req, res) => {
         : `Koordinat GPS ${latitudeNumber.toFixed(6)}, ${longitudeNumber.toFixed(6)} (akurasi ±${Math.round(akurasiNumber)}m)`;
       const finalAlamat = rawAlamat ? `Absensi via kiosk: ${rawAlamat}` : null;
 
-      const data = await prisma.absensi.update({
-        where: { id: absen.id },
-        data: {
-          jamPulang: now,
-          fotoPulang: foto,
-          latitudePulang: finalLatitude,
-          longitudePulang: finalLongitude,
-          alamatPulang: finalAlamat,
-        },
-      });
+      const data = absen
+        ? await prisma.absensi.update({
+            where: { id: absen.id },
+            data: {
+              jamPulang: now,
+              fotoPulang: foto,
+              latitudePulang: finalLatitude,
+              longitudePulang: finalLongitude,
+              alamatPulang: finalAlamat,
+            },
+          })
+        : await prisma.absensi.create({
+            data: {
+              penggunaId: Number(penggunaId),
+              tanggal: tanggalOnly,
+              jamPulang: now,
+              fotoPulang: foto,
+              latitudePulang: finalLatitude,
+              longitudePulang: finalLongitude,
+              alamatPulang: finalAlamat,
+            },
+          });
       return res.json({
         message: "Absen pulang berhasil",
         data,
@@ -759,15 +762,19 @@ const submitManualFallback = async (req, res) => {
       return res.status(400).json({ message: `Pengajuan verifikasi sudah ada pada pukul ${jam} WIB.` });
     }
 
-    let tipeFinal = tipe;
-    if (!tipeFinal || tipeFinal === "auto") {
-      if (!absenHariIni ||!absenHariIni.jamMasuk) tipeFinal = "masuk";
-      else if (!absenHariIni.jamPulang) tipeFinal = "pulang";
-      else return res.status(400).json({ message: "Presensi hari ini telah lengkap." });
-    }
-
     const attemptWIB = new Date(attemptDate.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
     const attemptMenit = attemptWIB.getHours()*60 + attemptWIB.getMinutes();
+
+    let tipeFinal = tipe;
+    if (!tipeFinal || tipeFinal === "auto") {
+      if (!absenHariIni || !absenHariIni.jamMasuk) {
+        tipeFinal = attemptMenit >= BATAS_ABSEN_MASUK_WIB ? "pulang" : "masuk";
+      } else if (!absenHariIni.jamPulang) {
+        tipeFinal = "pulang";
+      } else {
+        return res.status(400).json({ message: "Presensi hari ini telah lengkap." });
+      }
+    }
     const alasanBersih = (alasan || "Deteksi wajah tidak tersedia").trim();
 
     // INSERT pakai snake_case, tanpa updated_at biar gak error P2022

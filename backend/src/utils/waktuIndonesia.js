@@ -1,6 +1,7 @@
 // utils/waktuIndonesia.js - FIX FINAL 08:10 & 17:00 + tanggalHariIniWIB (fondasi tetap)
 const JAM_MASUK_STANDAR_DEFAULT = process.env.JAM_MASUK_STANDAR || "08:10";
 const JAM_PULANG_STANDAR_DEFAULT = process.env.JAM_PULANG_STANDAR || "17:00";
+const BATAS_ABSEN_MASUK_WIB = 12 * 60;
 
 function getWIBDateParts(date = new Date()) {
   const wibDateStr = date.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
@@ -72,6 +73,15 @@ function getWIBNow() {
   return new Date(wibStr);
 }
 
+function totalMenitWIB(date = new Date()) {
+  const { jam, menit } = getWIBDateParts(date);
+  return jam * 60 + menit;
+}
+
+function sudahLewatBatasAbsenMasukWIB(date = new Date()) {
+  return totalMenitWIB(date) >= BATAS_ABSEN_MASUK_WIB;
+}
+
 function getWIBTimeInfo() {
   const { jam, menit } = getWIBDateParts();
   const totalMenit = jam * 60 + menit;
@@ -134,4 +144,7 @@ module.exports = {
   getWIBTimeInfo,
   getWIBDateParts,
   bagianWaktuWIB,
+  BATAS_ABSEN_MASUK_WIB,
+  totalMenitWIB,
+  sudahLewatBatasAbsenMasukWIB,
 };
