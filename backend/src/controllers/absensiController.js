@@ -3,6 +3,7 @@ const {
   tanggalHariIniWIB,
   getWIBDateParts,
   parseJam,
+  BATAS_ABSEN_MASUK_WIB,
 } = require("../utils/waktuIndonesia");
 
 function getWIBTodayRange() {
@@ -22,7 +23,6 @@ const HEADER_OFFLINE_SYNC = "X-Zaman-Background";
 const OFFLINE_SYNC_HEADER_VALUE = "offline-sync";
 const MAX_OFFLINE_CLOCK_DRIFT_MS = 24 * 60 * 60 * 1000;
 const MAKS_AKURASI_LOKASI_METER = 100;
-const BATAS_ABSEN_MASUK_WIB = 12 * 60; // Mulai 12:00 WIB, absen masuk ditutup dan hanya absen pulang yang tersedia.
 const JAM_PULANG_MIN_DEFAULT = "17:00:00";
 
 function ambilBatasPulangWIB() {
