@@ -60,6 +60,11 @@ function formatTanggalRekapPilihan(tanggal) {
   });
 }
 
+
+function formatTanggalIndonesia(tanggal) {
+  return formatTanggalRekapPilihan(tanggal);
+}
+
 function formatTanggalInput(tanggal) {
   if (!tanggal) return "";
   return new Date(`${tanggal}T00:00:00.000Z`).toLocaleDateString("id-ID", {
