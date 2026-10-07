@@ -1,4 +1,5 @@
 const prisma = require("../utils/prismaClient");
+const bcrypt = require("bcryptjs");
 const { JAM_MASUK_STANDAR_DEFAULT } = require("../utils/waktuIndonesia");
 
 const STATUS_FINAL_VALID = new Set([
@@ -142,7 +143,8 @@ async function ambilPengaturanPotonganFixed(req, res) {
       },
     });
 
-    return res.json({ data });
+    const { kioskPin, ...dataAman } = data;
+    return res.json({ data: dataAman });
   } catch (error) {
     console.error("Gagal mengambil pengaturan potongan:", error);
     return res.status(500).json({
@@ -164,14 +166,20 @@ async function ubahPengaturanPotonganFixed(req, res) {
       select: { kioskPin: true },
     });
     const kioskPinDikirim = req.body?.kioskPin != null;
-    const kioskPin = kioskPinDikirim
+    const kioskPinInput = kioskPinDikirim
       ? String(req.body.kioskPin).trim()
-      : String(pengaturanLama?.kioskPin || "").trim();
+      : "";
+    const kioskPinLama = String(pengaturanLama?.kioskPin || "").trim();
 
-    if (kioskPinDikirim && kioskPin && !/^\d{4,12}$/.test(kioskPin)) {
+    if (kioskPinDikirim && kioskPinInput && !/^\d{4,12}$/.test(kioskPinInput)) {
       return res.status(400).json({
         pesan: "PIN Kiosk harus berupa 4-12 digit angka.",
       });
+    }
+
+    let kioskPin = kioskPinDikirim ? kioskPinInput : kioskPinLama;
+    if (kioskPinDikirim && kioskPinInput) {
+      kioskPin = await bcrypt.hash(kioskPinInput, 12);
     }
 
     if (potonganTelat === null || potonganAlpha === null) {
@@ -203,9 +211,10 @@ async function ubahPengaturanPotonganFixed(req, res) {
       },
     });
 
+    const { kioskPin: _kioskPin, ...dataAman } = pengaturan;
     return res.json({
       pesan: "Pengaturan potongan berhasil diperbarui.",
-      data: pengaturan,
+      data: dataAman,
     });
   } catch (error) {
     console.error("Gagal mengubah pengaturan potongan:", error);

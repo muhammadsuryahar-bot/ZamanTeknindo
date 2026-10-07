@@ -44,6 +44,20 @@ assert(
   "Kiosk JWT wajib divalidasi berdasarkan scope.",
 );
 assert(
+  kioskRoutes.includes(
+    "router.post('/recognize', batasKioskRecognition, kioskController.recognize);",
+  ),
+  "Route face recognition Kiosk wajib memiliki rate limit.",
+);
+assert(
+  kioskController.includes('bcrypt.compare(inputPin, adminPin)'),
+  "Verifikasi PIN Kiosk wajib mendukung hash bcrypt.",
+);
+assert(
+  !kioskController.includes('return res.json({ data });'),
+  "Controller Kiosk tidak boleh mengembalikan pengaturan sensitif mentah.",
+);
+assert(
   authMiddleware.includes('dataToken?.scope'),
   "JWT berscope Kiosk wajib ditolak oleh auth aplikasi biasa.",
 );
@@ -71,6 +85,18 @@ for (const secret of forbiddenLegacySecrets) {
 assert(
   !adminFinance.includes('"246810"') && !adminFinance.includes("'246810'"),
   "Fallback PIN Kiosk 246810 tidak boleh ada di controller Admin.",
+);
+assert(
+  adminFinance.includes("await bcrypt.hash(kioskPinInput, 12)"),
+  "PIN Kiosk baru wajib disimpan sebagai hash bcrypt.",
+);
+assert(
+  adminFinance.includes("const { kioskPin, ...dataAman } = data;"),
+  "GET pengaturan tidak boleh mengembalikan PIN Kiosk.",
+);
+assert(
+  kioskRoutes.includes("batasKioskRecognition"),
+  "Rate limiter face recognition harus terpasang di route Kiosk.",
 );
 assert(
   schema.includes('kioskPin        String   @map("kiosk_pin")') &&

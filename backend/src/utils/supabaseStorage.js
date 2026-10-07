@@ -117,6 +117,7 @@ async function deleteFotoAbsensi(filePath) {
       const { error } = await supabase.storage.from(bucket).remove([filePath]);
       if (!error) {
         berhasilHapus = true;
+        break;
       } else {
         console.error(
           `[foto] Gagal hapus ${bucket}/${filePath}:`,

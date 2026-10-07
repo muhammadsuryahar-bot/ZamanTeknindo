@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const bcrypt = require("bcryptjs");
 const prisma = require("../utils/prismaClient");
 const { buatSignedUrlFotoBatch } = require("../utils/supabaseStorage");
 const FACE_THRESHOLD = 0.5;
@@ -162,6 +163,7 @@ const verifyAdminPin = async (req, res) => {
     let adminPin = String(
       process.env.ADMIN_KIOSK_PIN || process.env.KIOSK_ADMIN_PIN || "",
     ).trim();
+    let sumberPin = "env";
 
     try {
       const pengaturan = await prisma.pengaturanPotongan.findUnique({
@@ -170,6 +172,7 @@ const verifyAdminPin = async (req, res) => {
       });
       if (pengaturan?.kioskPin) {
         adminPin = String(pengaturan.kioskPin).trim();
+        sumberPin = "db";
       }
     } catch (dbErr) {
       console.warn(
@@ -184,10 +187,38 @@ const verifyAdminPin = async (req, res) => {
       });
     }
 
-    if (inputPin !== adminPin) {
+    let pinBenar = false;
+    const pinTerlihatSepertiBcrypt = /^\$2[aby]\$\d{2}\$/.test(adminPin);
+
+    try {
+      pinBenar = pinTerlihatSepertiBcrypt
+        ? await bcrypt.compare(inputPin, adminPin)
+        : inputPin === adminPin;
+    } catch (compareError) {
+      console.error("[PIN] Gagal memverifikasi PIN Kiosk:", compareError);
+      return res.status(503).json({
+        message: "Verifikasi PIN Kiosk belum siap di server.",
+      });
+    }
+
+    if (!pinBenar) {
       return res.status(401).json({
         message: "PIN admin salah.",
       });
+    }
+
+    // Migrasikan PIN lama yang masih plaintext menjadi bcrypt setelah
+    // verifikasi pertama. PIN dari environment tidak pernah ditulis kembali ke DB.
+    if (sumberPin === "db" && !pinTerlihatSepertiBcrypt) {
+      try {
+        const kioskPinHash = await bcrypt.hash(inputPin, 12);
+        await prisma.pengaturanPotongan.update({
+          where: { id: 1 },
+          data: { kioskPin: kioskPinHash },
+        });
+      } catch (upgradeError) {
+        console.warn("[PIN] Upgrade hash PIN Kiosk gagal:", upgradeError?.message || upgradeError);
+      }
     }
 
     let token;
