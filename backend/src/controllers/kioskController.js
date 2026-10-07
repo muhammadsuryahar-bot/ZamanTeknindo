@@ -7,7 +7,6 @@ const FACE_THRESHOLD = 0.5;
 
 const JAM_MASUK_MAX = process.env.JAM_MASUK_MAX || "08:10";
 const JAM_PULANG_MIN = process.env.JAM_PULANG_MIN || "17:00";
-const BATAS_ABSEN_MASUK_WIB = 12 * 60;
 
 function euclidean(a, b) {
   let sum = 0;
