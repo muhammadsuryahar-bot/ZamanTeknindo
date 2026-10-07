@@ -50,10 +50,19 @@ const batasKioskPin = rateLimit({
   legacyHeaders: false,
 });
 
+const batasKioskRecognition = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  message: { message: "Terlalu banyak permintaan verifikasi wajah Kiosk. Coba lagi sebentar." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 module.exports = {
   batasLogin,
   batasDaftar,
   batasResetPassword,
   batasGantiPassword,
   batasKioskPin,
+  batasKioskRecognition,
 };
