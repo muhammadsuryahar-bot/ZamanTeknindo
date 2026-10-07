@@ -58,8 +58,10 @@ function useWIBClock(jamMasukStr = "08:10", jamPulangStr = "17:00") {
     month: "long",
     year: "numeric",
   }).format(now);
-  const isTerlambat = menit > jamMasukMax && menit <= jamMasukMax + 120;
-  const isMasukDitutup = menit > jamMasukMax + 120 && menit < jamPulangMin;
+  const isTerlambat =
+    menit > jamMasukMax && menit < BATAS_ABSEN_MASUK_WIB;
+  const isMasukDitutup =
+    menit >= BATAS_ABSEN_MASUK_WIB && menit < jamPulangMin;
   const isPulang = menit >= jamPulangMin;
   const statusJam = isTerlambat
     ? `TERLAMBAT • Lewat ${jamMasukStr}`
@@ -82,6 +84,8 @@ function useWIBClock(jamMasukStr = "08:10", jamPulangStr = "17:00") {
     jamPulangMin,
   };
 }
+
+const BATAS_ABSEN_MASUK_WIB = 12 * 60;
 
 const POSE = [
   { label: "HADAP DEPAN", sub: "Lihat lurus", icon: "◉" },
@@ -1010,11 +1014,13 @@ export default function Kiosk() {
   const currentPose = POSE[enrollStep] || POSE[0];
   const buttonColor = selected
     ? "#2563EB"
-    : isTerlambat
-      ? "#EAB308"
-      : isMasukDitutup
-        ? "#6b7280"
-        : "#0B6E45";
+    : isPulang
+      ? "#2563EB"
+      : isTerlambat
+        ? "#EAB308"
+        : isMasukDitutup
+          ? "#6b7280"
+          : "#0B6E45";
 
   // Warna popup sesuai status kehadiran
   const getStatusColor = (status) => {
@@ -2020,9 +2026,11 @@ export default function Kiosk() {
                 ? "PROSES..."
                 : isTerlambat
                   ? "MULAI PRESENSI • TERLAMBAT"
-                  : isMasukDitutup
-                    ? "MASUK DITUTUP"
-                    : "MULAI PRESENSI"}
+                  : isMasukDitutup && !isPulang
+                    ? `ABSEN PULANG • MULAI ${jamPulangKiosk}`
+                    : isPulang
+                      ? "MULAI PRESENSI PULANG"
+                      : "MULAI PRESENSI"}
             </button>
           )}
         </div>
