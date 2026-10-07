@@ -44,6 +44,20 @@ assert(
   "Kiosk JWT wajib divalidasi berdasarkan scope.",
 );
 assert(
+  kioskRoutes.includes(
+    "router.post('/recognize', batasKioskRecognition, kioskController.recognize);",
+  ),
+  "Route face recognition Kiosk wajib memiliki rate limit.",
+);
+assert(
+  kioskController.includes('bcrypt.compare(inputPin, adminPin)'),
+  "Verifikasi PIN Kiosk wajib mendukung hash bcrypt.",
+);
+assert(
+  !kioskController.includes('return res.json({ data });'),
+  "Controller Kiosk tidak boleh mengembalikan pengaturan sensitif mentah.",
+);
+assert(
   authMiddleware.includes('dataToken?.scope'),
   "JWT berscope Kiosk wajib ditolak oleh auth aplikasi biasa.",
 );
