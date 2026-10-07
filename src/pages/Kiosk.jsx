@@ -893,6 +893,7 @@ export default function Kiosk() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${adminToken}`,
           },
           body: JSON.stringify({
             penggunaId: fallbackSelected.id,
