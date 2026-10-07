@@ -420,7 +420,7 @@ async function exportRekapAbsensi(req, res) {
         jumlahUangMakan: Math.max(jumlahKehadiran - jumlahTelat, 0),
         jumlahAdaKeterangan,
         jumlahTanpaKeterangan,
-        lembur: 0,
+        lembur: null,
         cuti: jumlahCuti,
         sakitAdaSurat: jumlahSakitAdaSurat,
         sakitTanpaSurat: jumlahSakitTanpaSurat,
@@ -664,7 +664,7 @@ async function exportRekapAbsensi(req, res) {
           formula: "COUNTIF(" + dailyRange + ",\"A\")",
           result: item.jumlahTanpaKeterangan,
         };
-        row.getCell(13).value = Number(item.lembur || 0);
+        row.getCell(13).value = null;
         row.getCell(14).value = {
           formula: "COUNTIF(" + dailyRange + ",\"C\")",
           result: item.cuti,
@@ -754,10 +754,7 @@ async function exportRekapAbsensi(req, res) {
           detailHarianPerKaryawan.reduce((sum, item) => sum + item.jumlahTelat, 0),
       ),
     };
-    sheet.getCell("M" + totalRow).value = {
-      formula: "SUM(M" + dataStartRow + ":M" + lastDataRow + ")",
-      result: detailHarianPerKaryawan.reduce((sum, item) => sum + item.lembur, 0),
-    };
+    sheet.getCell("M" + totalRow).value = null;
 
     for (let col = 1; col <= 17; col += 1) {
       const cell = sheet.getCell(totalRow, col);
