@@ -109,7 +109,7 @@ model PengaturanPotongan {
   potonganTelat   Decimal  @default(10000.00) @map("potongan_telat") @db.Decimal(12, 2)
   potonganAlpha   Decimal  @default(15000.00) @map("potongan_alpha") @db.Decimal(12, 2)
   jamMasukStandar String   @default("08:10:00") @map("jam_masuk_standar")
-  kioskPin        String   @default("246810") @map("kiosk_pin")
+  kioskPin        String   @map("kiosk_pin")
   diubahPada      DateTime @updatedAt @map("diubah_pada")
 
   @@map("pengaturan_potongan")
