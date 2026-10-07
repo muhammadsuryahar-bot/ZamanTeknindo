@@ -41,6 +41,8 @@ const STATUS_REQUEST_TIMEOUT_MS = 8000;
 const ABSENSI_REQUEST_TIMEOUT_MS = 15000;
 const BATAS_ABSEN_MASUK_WIB = 12 * 60;
 const LOKASI_REQUEST_TIMEOUT_MS = 20000;
+const LOKASI_AKURASI_FALLBACK_METER = 100;
+const LOKASI_FALLBACK_FINISH_MS = 3000;
 const MAX_UPLOAD_BYTES = 1.5 * 1024 * 1024;
 const MAX_UPLOAD_WIDTH = 1280;
 const MAX_UPLOAD_HEIGHT = 1280;
@@ -376,6 +378,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   const streamRef = useRef(null);
   const lokasiTimerRef = useRef(null);
   const lokasiWatchRef = useRef(null);
+  const lokasiFallbackFinishRef = useRef(null);
   const lokasiSesiRef = useRef(0);
   const statusRequestRef = useRef(0);
   const mountedRef = useRef(true);
@@ -704,6 +707,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     lokasiSesiRef.current += 1;
     if (lokasiWatchRef.current !== null) { navigator.geolocation?.clearWatch(lokasiWatchRef.current); lokasiWatchRef.current = null; }
     if (lokasiTimerRef.current) { clearTimeout(lokasiTimerRef.current); lokasiTimerRef.current = null; }
+    if (lokasiFallbackFinishRef.current) { clearTimeout(lokasiFallbackFinishRef.current); lokasiFallbackFinishRef.current = null; }
   }
 
   function hentikanKamera() {
@@ -836,7 +840,20 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
           setLokasi((prev) => ({ latitude, longitude, akurasi, alamat: prev?.alamat || null }));
           setStatusLokasi("ditemukan");
         }
-        if (akurasi <= 20) void selesaikan();
+        if (akurasi <= 20) {
+          void selesaikan();
+        } else if (
+          akurasi <= LOKASI_AKURASI_FALLBACK_METER &&
+          !lokasiFallbackFinishRef.current
+        ) {
+          // Posisi <=100 m sudah memenuhi batas server. Beri GPS beberapa
+          // detik untuk memperbaiki posisi, tetapi jangan memaksa karyawan
+          // menunggu sampai timeout 20 detik hanya demi mencapai <=20 m.
+          lokasiFallbackFinishRef.current = window.setTimeout(() => {
+            lokasiFallbackFinishRef.current = null;
+            void selesaikan();
+          }, LOKASI_FALLBACK_FINISH_MS);
+        }
       },
       (error) => {
         if (!sesiMasihAktif() || sudahSelesai) return;
