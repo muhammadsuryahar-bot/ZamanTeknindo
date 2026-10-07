@@ -2,6 +2,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const prisma = require("../utils/prismaClient");
 const { buatSignedUrlFotoBatch } = require("../utils/supabaseStorage");
+const { BATAS_ABSEN_MASUK_WIB } = require("../utils/waktuIndonesia");
 const FACE_THRESHOLD = 0.5;
 
 const JAM_MASUK_MAX = process.env.JAM_MASUK_MAX || "08:10";
@@ -762,15 +763,19 @@ const submitManualFallback = async (req, res) => {
       return res.status(400).json({ message: `Pengajuan verifikasi sudah ada pada pukul ${jam} WIB.` });
     }
 
-    let tipeFinal = tipe;
-    if (!tipeFinal || tipeFinal === "auto") {
-      if (!absenHariIni ||!absenHariIni.jamMasuk) tipeFinal = "masuk";
-      else if (!absenHariIni.jamPulang) tipeFinal = "pulang";
-      else return res.status(400).json({ message: "Presensi hari ini telah lengkap." });
-    }
-
     const attemptWIB = new Date(attemptDate.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
     const attemptMenit = attemptWIB.getHours()*60 + attemptWIB.getMinutes();
+
+    let tipeFinal = tipe;
+    if (!tipeFinal || tipeFinal === "auto") {
+      if (!absenHariIni || !absenHariIni.jamMasuk) {
+        tipeFinal = attemptMenit >= BATAS_ABSEN_MASUK_WIB ? "pulang" : "masuk";
+      } else if (!absenHariIni.jamPulang) {
+        tipeFinal = "pulang";
+      } else {
+        return res.status(400).json({ message: "Presensi hari ini telah lengkap." });
+      }
+    }
     const alasanBersih = (alasan || "Deteksi wajah tidak tersedia").trim();
 
     // INSERT pakai snake_case, tanpa updated_at biar gak error P2022
