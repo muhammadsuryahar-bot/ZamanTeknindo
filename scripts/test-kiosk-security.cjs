@@ -87,6 +87,18 @@ assert(
   "Fallback PIN Kiosk 246810 tidak boleh ada di controller Admin.",
 );
 assert(
+  adminFinance.includes("await bcrypt.hash(kioskPinInput, 12)"),
+  "PIN Kiosk baru wajib disimpan sebagai hash bcrypt.",
+);
+assert(
+  adminFinance.includes("const { kioskPin, ...dataAman } = data;"),
+  "GET pengaturan tidak boleh mengembalikan PIN Kiosk.",
+);
+assert(
+  kioskRoutes.includes("batasKioskRecognition"),
+  "Rate limiter face recognition harus terpasang di route Kiosk.",
+);
+assert(
   schema.includes('kioskPin        String   @map("kiosk_pin")') &&
     !schema.includes('@default("246810")'),
   "Schema Kiosk PIN tidak boleh memiliki default PIN lemah.",
