@@ -12,6 +12,20 @@ const REQUEST_TIMEOUT_MS = 15000;
 const HEADER_BACKGROUND = "X-Zaman-Background";
 const TIMEZONE_WIB = "Asia/Jakarta";
 
+const BATAS_ABSEN_MASUK_WIB_OFFLINE = 12 * 60;
+
+function menitSekarangWIB() {
+  const waktuWIB = new Intl.DateTimeFormat("en-GB", {
+    timeZone: TIMEZONE_WIB,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date());
+  const [jam, menit] = waktuWIB.split(":").map(Number);
+  if (!Number.isFinite(jam) || !Number.isFinite(menit)) return 0;
+  return jam * 60 + menit;
+}
+
 function tanggalWIBDariISO(waktu) {
   if (!waktu) return null;
   const date = new Date(waktu);
@@ -106,7 +120,9 @@ export async function jumlahAntrian(penggunaId = null) {
   if (penggunaId == null) {
     return semua.filter((item) => {
       const tanggalItem = item.tanggalAbsensi || tanggalWIBDariISO(item.waktuAsli);
-      return Number.isInteger(Number(item.penggunaId)) && tanggalItem === tanggalHariIni;
+      if (!Number.isInteger(Number(item.penggunaId)) || tanggalItem !== tanggalHariIni) return false;
+      if (item.endpoint === "masuk" && menitSekarangWIB() >= BATAS_ABSEN_MASUK_WIB_OFFLINE) return false;
+      return true;
     }).length;
   }
 
@@ -114,7 +130,9 @@ export async function jumlahAntrian(penggunaId = null) {
   if (!Number.isInteger(aktif) || aktif <= 0) return 0;
   return semua.filter((item) => {
     const tanggalItem = item.tanggalAbsensi || tanggalWIBDariISO(item.waktuAsli);
-    return Number(item.penggunaId) === aktif && tanggalItem === tanggalHariIni;
+    if (Number(item.penggunaId) !== aktif || tanggalItem !== tanggalHariIni) return false;
+    if (item.endpoint === "masuk" && menitSekarangWIB() >= BATAS_ABSEN_MASUK_WIB_OFFLINE) return false;
+    return true;
   }).length;
 }
 
@@ -280,6 +298,23 @@ export async function sinkronkanAntrian({ apiUrl, getToken, penggunaId }) {
     }
 
     const token = getToken();
+    let tahapServerAwal = null;
+    try {
+      const statusResponse = await fetchDenganTimeout(apiUrl + "/absensi/status-hari-ini", {
+        headers: {
+          Authorization: "Bearer " + token,
+          [HEADER_BACKGROUND]: "offline-reconciliation",
+        },
+      });
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json();
+        tahapServerAwal = statusData?.tahap || null;
+      }
+    } catch (error) {
+      console.warn("Status awal antrean offline belum berhasil dibaca:", error);
+    }
+
+    const waktuSekarangMenit = menitSekarangWIB();
 
     for (const item of semua) {
       if (Number(item.penggunaId) !== penggunaIdAktif) {
@@ -291,6 +326,19 @@ export async function sinkronkanAntrian({ apiUrl, getToken, penggunaId }) {
       if (tanggalItem !== tanggalHariIni) {
         kedaluwarsa++;
         await tandaiStatusItem(item.id, "STALE_DATE");
+        continue;
+      }
+
+      const statusSudahTidakMembutuhkanMasuk = ["langsung_pulang", "sudah_masuk", "selesai", "tidak_perlu_absen"].includes(tahapServerAwal);
+      if (item.endpoint === "masuk" && (waktuSekarangMenit >= BATAS_ABSEN_MASUK_WIB_OFFLINE || statusSudahTidakMembutuhkanMasuk)) {
+        await hapusDariAntrian(item.id);
+        kedaluwarsa++;
+        continue;
+      }
+
+      if (item.endpoint === "pulang" && tahapServerAwal === "selesai") {
+        await hapusDariAntrian(item.id);
+        kedaluwarsa++;
         continue;
       }
 
