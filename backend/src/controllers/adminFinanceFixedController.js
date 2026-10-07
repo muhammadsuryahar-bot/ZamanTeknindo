@@ -138,7 +138,7 @@ async function ambilPengaturanPotonganFixed(req, res) {
         potonganTelat: 10000,
         potonganAlpha: 15000,
         jamMasukStandar: JAM_MASUK_STANDAR_DEFAULT,
-        kioskPin: "246810",
+        kioskPin: "",
       },
     });
 
@@ -163,9 +163,16 @@ async function ubahPengaturanPotonganFixed(req, res) {
       where: { id: 1 },
       select: { kioskPin: true },
     });
-    const kioskPin = req.body?.kioskPin != null
+    const kioskPinDikirim = req.body?.kioskPin != null;
+    const kioskPin = kioskPinDikirim
       ? String(req.body.kioskPin).trim()
-      : String(pengaturanLama?.kioskPin || "246810").trim();
+      : String(pengaturanLama?.kioskPin || "").trim();
+
+    if (kioskPinDikirim && kioskPin && !/^\d{4,12}$/.test(kioskPin)) {
+      return res.status(400).json({
+        pesan: "PIN Kiosk harus berupa 4-12 digit angka.",
+      });
+    }
 
     if (potonganTelat === null || potonganAlpha === null) {
       return res.status(400).json({
