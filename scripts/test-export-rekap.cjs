@@ -165,6 +165,11 @@ async function main() {
 
   assert.strictEqual(rekap.getCell("A4").value, "NO");
   assert.strictEqual(rekap.getCell("B4").value, "NAMA");
+  assert.strictEqual(rekap.getCell("C4").value, "TMK");
+  assert.strictEqual(rekap.getCell("E4").value, "JUMLAH HAK CUTI");
+  assert.strictEqual(rekap.getCell("E5").value, "HC\n2024/2025");
+  assert.strictEqual(rekap.getCell("F5").value, "HC\n2025/2026");
+  assert.strictEqual(rekap.getCell("G5").value, "JLH HC SDH\nDIJALANI/DIPINJAM");
   assert.strictEqual(rekap.getCell("H4").value, "JLH KEHADIRAN");
   assert.strictEqual(rekap.getCell("J4").value, "JLH UANG MAKAN\nYANG DIBAYARKAN");
   assert.strictEqual(rekap.getCell("Q4").value, "JLH HC");
@@ -191,6 +196,12 @@ async function main() {
   assert.strictEqual(rekap.getCell("N7").value.result, 1);
   assert.strictEqual(rekap.getCell("O7").value.result, 1);
   assert.strictEqual(rekap.getCell("P7").value.result, 1);
+  assert.strictEqual(rekap.getCell("D7").value, null);
+  assert.strictEqual(rekap.getCell("E7").value, null);
+  assert.strictEqual(rekap.getCell("F7").value, null);
+  assert.strictEqual(rekap.getCell("G7").value, null);
+  assert.strictEqual(rekap.getCell("M7").value, null);
+  assert.match(String(rekap.getCell("Q7").value.formula), /SUM\(H7,K7:L7,N7:P7\)/);
 
   // 17 September harus ditandai L ketika tidak ada data.
   const sep17Index = 22; // 26 Aug + 22 hari = 17 Sep
