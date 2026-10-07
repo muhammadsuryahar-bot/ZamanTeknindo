@@ -305,39 +305,19 @@ if (typeof window !== 'undefined' && !window.__zamanGeolocationFallbackTerpasang
 // dihentikan -> koordinat tidak pernah sempat masuk -> tombol Kirim Absen macet.
 if (typeof window !== 'undefined' && !window.__kameraAmbilFotoGuardTerpasang) {
   let kameraSectionTampil = false
-  let waktuMulaiSesiKamera = 0
 
-  const rapikanStatusLokasi = () => {
+  const rapikanStatusKamera = () => {
     const cameraSections = document.querySelectorAll('.cameraSection')
     const adaKamera = cameraSections.length > 0
 
     if (!adaKamera) {
       kameraSectionTampil = false
-      waktuMulaiSesiKamera = 0
-      window.__zamanLokasiSesiAktif = false
-      window.__zamanLokasiSudahDitemukan = false
       return
     }
 
-    // Setiap elemen kamera muncul kembali, mulai sesi lokasi baru.
-    // Lokasi dari sesi kamera sebelumnya tidak boleh mengaktifkan tombol.
     if (!kameraSectionTampil) {
       kameraSectionTampil = true
-      waktuMulaiSesiKamera = Date.now()
-      window.__zamanLokasiSesiAktif = true
-      window.__zamanLokasiSudahDitemukan = false
     }
-
-    const lokasiTerakhir = window.__zamanLokasiTerakhir
-    const lokasiMasihFresh =
-      lokasiTerakhir &&
-      Number.isFinite(lokasiTerakhir.latitude) &&
-      Number.isFinite(lokasiTerakhir.longitude) &&
-      Number.isFinite(lokasiTerakhir.accuracy) &&
-      lokasiTerakhir.pada >= waktuMulaiSesiKamera &&
-      Date.now() - lokasiTerakhir.pada <= 120000
-
-    window.__zamanLokasiSudahDitemukan = Boolean(lokasiMasihFresh)
 
     for (const section of cameraSections) {
       const video = section.querySelector('video')
@@ -352,23 +332,21 @@ if (typeof window !== 'undefined' && !window.__kameraAmbilFotoGuardTerpasang) {
         video.videoWidth > 0 &&
         video.videoHeight > 0
 
-      const lokasiSiap = window.__zamanLokasiSudahDitemukan === true
-      tombol.disabled = !videoSiap || !lokasiSiap
-      tombol.title =
-        !videoSiap
-          ? 'Menyiapkan kamera...'
-          : !lokasiSiap
-            ? 'Menunggu lokasi perangkat ditemukan...'
-            : ''
+      // GPS berjalan terpisah dari kamera. Jangan membuat karyawan menunggu
+      // lokasi sebelum bisa mengambil foto; lokasi tetap dikumpulkan setelah
+      // kamera ditutup sampai data valid tersedia untuk pengiriman.
+      tombol.disabled = !videoSiap
+      tombol.title = !videoSiap
+        ? 'Menyiapkan kamera...'
+        : ''
     }
   }
 
-  const interval = window.setInterval(rapikanStatusLokasi, 250)
-  document.addEventListener('visibilitychange', rapikanStatusLokasi)
-  window.addEventListener('pageshow', rapikanStatusLokasi)
+  const interval = window.setInterval(rapikanStatusKamera, 250)
+  document.addEventListener('visibilitychange', rapikanStatusKamera)
+  window.addEventListener('pageshow', rapikanStatusKamera)
   window.__kameraAmbilFotoGuardTerpasang = true
 }
-
 // Dipasang SEKALI di sini, sebelum aplikasi mulai render, supaya berlaku
 // untuk semua pemanggilan fetch() dari halaman manapun.
 pasangPenerjemahSesiKedaluwarsa()
