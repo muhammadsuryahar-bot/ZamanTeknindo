@@ -1,6 +1,8 @@
 const prisma = require("../utils/prismaClient");
 const {
   JAM_MASUK_STANDAR_DEFAULT,
+  JAM_PULANG_STANDAR_DEFAULT,
+  BATAS_ABSEN_MASUK_WIB,
   parseJam,
 } = require("../utils/waktuIndonesia");
 
@@ -128,6 +130,11 @@ const approveManual = async (req, res) => {
     const finalAlamat = kantor ? `Absen via Kiosk: ${kantor.namaKantor}${kantor.alamat ? ` - ${kantor.alamat}` : ''}` : null;
 
     if(reqData.tipe === "masuk"){
+      if (attemptMenit >= BATAS_ABSEN_MASUK_WIB) {
+        return res.status(400).json({
+          message: "Pengajuan absen masuk tidak dapat disetujui karena waktu percobaan sudah melewati 12:00 WIB. Silakan gunakan alur Absen Pulang.",
+        });
+      }
       if(absen?.jamMasuk) return res.status(400).json({ message: "Sudah ada absen masuk" });
       if(absen){
         await prisma.absensi.update({
@@ -160,18 +167,40 @@ const approveManual = async (req, res) => {
         });
       }
     } else {
-      if(!absen) return res.status(400).json({ message: "Belum absen masuk" });
-      if(absen.jamPulang) return res.status(400).json({ message: "Sudah pulang" });
-      await prisma.absensi.update({
-        where: { id: absen.id },
-        data: {
-          jamPulang: attemptDate,
-          fotoPulang: reqData.fotoBukti,
-          latitudePulang: absen.latitudePulang == null || absen.latitudePulang === 0 ? finalLatitude : absen.latitudePulang,
-          longitudePulang: absen.longitudePulang == null || absen.longitudePulang === 0 ? finalLongitude : absen.longitudePulang,
-          alamatPulang: absen.alamatPulang || finalAlamat
-        }
-      });
+      const batasPulangMenit = parseJam(
+        process.env.JAM_PULANG_MIN || JAM_PULANG_STANDAR_DEFAULT,
+      );
+      if (attemptMenit < batasPulangMenit) {
+        return res.status(400).json({
+          message: "Pengajuan absen pulang belum dapat disetujui karena waktu percobaan masih sebelum jam pulang.",
+        });
+      }
+      if(absen?.jamPulang) return res.status(400).json({ message: "Sudah pulang" });
+
+      if (absen) {
+        await prisma.absensi.update({
+          where: { id: absen.id },
+          data: {
+            jamPulang: attemptDate,
+            fotoPulang: reqData.fotoBukti,
+            latitudePulang: absen.latitudePulang == null || absen.latitudePulang === 0 ? finalLatitude : absen.latitudePulang,
+            longitudePulang: absen.longitudePulang == null || absen.longitudePulang === 0 ? finalLongitude : absen.longitudePulang,
+            alamatPulang: absen.alamatPulang || finalAlamat
+          }
+        });
+      } else {
+        await prisma.absensi.create({
+          data: {
+            penggunaId: reqData.penggunaId,
+            tanggal: tanggalDate,
+            jamPulang: attemptDate,
+            fotoPulang: reqData.fotoBukti,
+            latitudePulang: finalLatitude,
+            longitudePulang: finalLongitude,
+            alamatPulang: finalAlamat,
+          },
+        });
+      }
     }
 
     try {
