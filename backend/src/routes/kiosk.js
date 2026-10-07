@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const kioskController = require('../controllers/kioskController');
-const { batasKioskPin } = require('../middleware/rateLimiter');
+const { batasKioskPin, batasKioskRecognition } = require('../middleware/rateLimiter');
 
 const {
   checkKioskAdminSession,
@@ -11,7 +11,7 @@ const {
 // Public: configuration + server-side face recognition.
 // The browser no longer receives a kiosk secret or the face-descriptor database.
 router.get('/config', kioskController.getConfigKiosk);
-router.post('/recognize', kioskController.recognize);
+router.post('/recognize', batasKioskRecognition, kioskController.recognize);
 
 // Attendance requires a short-lived token issued by /recognize.
 // This prevents arbitrary penggunaId submissions from the public kiosk.
