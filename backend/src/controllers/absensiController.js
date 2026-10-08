@@ -310,16 +310,10 @@ async function absenPulang(req, res) {
     }
 
     const waktuPulang = waktuAbsensiDariRequest(req);
-    const menitPulangWIB = menitSekarangWIB(waktuPulang);
-    const batasPulangWIB = ambilBatasPulangWIB();
 
-
-    // Tanpa absen masuk hanya diperbolehkan sebagai fallback setelah
-    // batas 12:00 WIB. Sebelum itu, alur pulang normal wajib punya jam masuk.
     // Mode testing: absen pulang boleh dicatat kapan pun.
     // Bila jam masuk sudah ada, waktu pulang tetap harus >= jam masuk.
-    // Bila jam masuk belum ada, record pulang tetap boleh dibuat untuk
-    // memudahkan pengujian alur pengiriman tanpa menunggu batas jam.
+    // Bila jam masuk belum ada, record pulang tetap boleh dibuat.
 
     const koordinat = koordinatDariRequest(latitude, longitude);
     if (!koordinat) {
@@ -529,6 +523,7 @@ async function statusHariIni(req, res) {
     return res.json({
       tahap,
       tanggal: wibDateStr,
+      menitServerWIB: menitSekarangWIB(new Date()),
       data: absensi,
       pengajuanIzin: null,
       manualPending,
