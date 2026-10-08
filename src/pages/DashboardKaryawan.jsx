@@ -430,21 +430,28 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   // saat request benar-benar dikirim.
   useEffect(() => {
     const cekBatasAbsenMasuk = () => {
-      if (!mountedRef.current || tahap !== "belum_masuk") return;
+      if (!mountedRef.current) return;
 
       const menitSekarang = menitSekarangWIB();
 
       if (menitSekarang < BATAS_ABSEN_MASUK_WIB) return;
 
-      if (navigator.onLine) {
+      // Setelah 12:00, cache "belum_masuk" tidak boleh menjadi sumber
+      // kebenaran permanen. Terutama bila request status sebelumnya gagal,
+      // kita harus terus memberi kesempatan server mengembalikan "sudah_masuk"
+      // untuk karyawan yang memang sudah absen pagi.
+      if (navigator.onLine && !statusTerverifikasi &&
+        (tahap === "belum_masuk" || tahap === "langsung_pulang")) {
         void ambilStatusHariIni({ pertahankanVerifikasiSaatFallback: true });
         return;
       }
 
-      // Saat offline, tampilkan alur yang benar secara UI. Backend akan
-      // tetap memvalidasi waktu saat sinkronisasi sehingga tidak ada bypass.
-      setTahap("langsung_pulang");
-      simpanCacheStatusHariIni(pengguna, "langsung_pulang");
+      if (tahap === "belum_masuk" && !navigator.onLine) {
+        // Saat offline, tampilkan alur yang benar secara UI. Backend akan
+        // tetap memvalidasi waktu saat sinkronisasi sehingga tidak ada bypass.
+        setTahap("langsung_pulang");
+        simpanCacheStatusHariIni(pengguna, "langsung_pulang");
+      }
     };
 
     cekBatasAbsenMasuk();
@@ -452,7 +459,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
     return () => window.clearInterval(intervalId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tahap, pengguna]);
+  }, [tahap, pengguna, statusTerverifikasi]);
 
   useEffect(() => {
     const ketikaTerlihat = () => {
