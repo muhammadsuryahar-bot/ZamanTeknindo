@@ -26,29 +26,42 @@ async function ambilRekapTanggal(req, res) { try { const hariIni = normalisasiTa
     // Karena itu filter harus exact-date, bukan range timestamp WIB.
     // Range DateTime sebelumnya berpotensi membuat tanggal yang tampil
     // bergeser/tercampur ketika PostgreSQL melakukan konversi tipe.
-    const data = await prisma.absensi.findMany({
-      where: { tanggal: tanggalDate },
-      include: {
-        pengguna: {
-          select: {
-            id: true,
-            nama: true,
-            jabatan: true,
-            divisi: true,
-            kantor: {
-              select: {
-                id: true,
-                namaKantor: true,
-                alamat: true,
-                latitude: true,
-                longitude: true,
+    const [data, karyawanAktif] = await Promise.all([
+      prisma.absensi.findMany({
+        where: { tanggal: tanggalDate },
+        include: {
+          pengguna: {
+            select: {
+              id: true,
+              nama: true,
+              jabatan: true,
+              divisi: true,
+              kantor: {
+                select: {
+                  id: true,
+                  namaKantor: true,
+                  alamat: true,
+                  latitude: true,
+                  longitude: true,
+                },
               },
             },
           },
         },
-      },
-      orderBy: [{ jamMasuk: "asc" }, { id: "asc" }],
-    }); const karyawanAktif = await prisma.pengguna.findMany({ where: { peran: "karyawan", statusAkun: "aktif" }, select: { id: true, nama: true, jabatan: true, divisi: true, kantor: { select: { id: true, namaKantor: true } } }, orderBy: { nama: "asc" } }); const pengaturan = await prisma.pengaturanPotongan.findUnique({ where: { id: 1 } }); const pengaturanAman = pengaturan || { id: 1, potonganTelat: 10000, potonganAlpha: 15000, jamMasukStandar: JAM_MASUK_STANDAR_DEFAULT }; const pengajuanDisetujui = await prisma.pengajuanIzin.findMany({
+        orderBy: [{ jamMasuk: "asc" }, { id: "asc" }],
+      }),
+      prisma.pengguna.findMany({
+        where: { peran: "karyawan", statusAkun: "aktif" },
+        select: {
+          id: true,
+          nama: true,
+          jabatan: true,
+          divisi: true,
+          kantor: { select: { id: true, namaKantor: true } },
+        },
+        orderBy: { nama: "asc" },
+      }),
+    ]); const pengaturan = await prisma.pengaturanPotongan.findUnique({ where: { id: 1 } }); const pengaturanAman = pengaturan || { id: 1, potonganTelat: 10000, potonganAlpha: 15000, jamMasukStandar: JAM_MASUK_STANDAR_DEFAULT }; const pengajuanDisetujui = await prisma.pengajuanIzin.findMany({
       // PengajuanIzin.tanggal juga bertipe DATE, jadi gunakan tanggal yang
       // sama persis dengan tanggal rekap.
       where: {
