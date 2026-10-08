@@ -313,16 +313,6 @@ async function absenPulang(req, res) {
     const menitPulangWIB = menitSekarangWIB(waktuPulang);
     const batasPulangWIB = ambilBatasPulangWIB();
 
-    if (menitPulangWIB < batasPulangWIB) {
-      await hapusFotoJikaPerlu();
-      const batasJam = String(Math.floor(batasPulangWIB / 60)).padStart(2, "0");
-      const batasMenit = String(batasPulangWIB % 60).padStart(2, "0");
-      return res.status(400).json({
-        pesan: "Belum jam pulang. Absen pulang baru tersedia mulai " + batasJam + ":" + batasMenit + " WIB.",
-        kode: "BELUM_JAM_PULANG",
-        batasAbsenPulangWIB: batasJam + ":" + batasMenit,
-      });
-    }
 
     // Tanpa absen masuk hanya diperbolehkan sebagai fallback setelah
     // batas 12:00 WIB. Sebelum itu, alur pulang normal wajib punya jam masuk.
