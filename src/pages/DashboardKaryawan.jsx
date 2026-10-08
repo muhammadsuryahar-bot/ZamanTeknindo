@@ -360,6 +360,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   const [kameraAktif, setKameraAktif] = useState(false);
   const [kameraMembuka, setKameraMembuka] = useState(false);
   const [kameraSiap, setKameraSiap] = useState(false);
+  const [kameraStreamVersi, setKameraStreamVersi] = useState(0);
   const [fotoTerambil, setFotoTerambil] = useState(null);
   const [fotoPreview, setFotoPreview] = useState(null);
   const [lokasi, setLokasi] = useState(null);
@@ -672,6 +673,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       }
       if (!mountedRef.current || kameraSesiRef.current !== sesiKamera) { stream.getTracks().forEach((track) => track.stop()); return; }
       streamRef.current = stream;
+      setKameraStreamVersi((nilai) => nilai + 1);
       setFotoTerambil(null);
       setLokasi(null);
       setStatusLokasi("mencari");
@@ -691,25 +693,123 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
   useEffect(() => {
     if (!kameraAktif || !streamRef.current || !videoRef.current) return;
+
     const video = videoRef.current;
+    const stream = streamRef.current;
     const sesiKamera = kameraSesiRef.current;
+    let timerRetryPlay = null;
+    let timerValidasiPreview = null;
+    let dibersihkan = false;
+
     kameraSiapRef.current = false;
     setKameraSiap(false);
-    video.srcObject = streamRef.current;
-    const mulaiVideo = () => {
-      if (!mountedRef.current || kameraSesiRef.current !== sesiKamera) return;
-      kameraSiapRef.current = true;
-      setKameraSiap(true);
-      video.play().catch((err) => console.warn("Preview kamera belum dapat diputar otomatis:", err));
-      jadwalkanLokasiSetelahKameraSiap(sesiKamera);
+
+    // Properti ini dipasang ulang setiap sesi karena beberapa browser mobile
+    // tidak selalu mempertahankan konfigurasi video setelah srcObject diganti.
+    video.autoplay = true;
+    video.muted = true;
+    video.playsInline = true;
+    video.setAttribute("autoplay", "");
+    video.setAttribute("muted", "");
+    video.setAttribute("playsinline", "");
+    video.srcObject = stream;
+
+    const siapDanPutar = async () => {
+      if (
+        dibersihkan ||
+        !mountedRef.current ||
+        kameraSesiRef.current !== sesiKamera ||
+        video.srcObject !== stream
+      ) {
+        return;
+      }
+
+      const trackVideo = stream.getVideoTracks?.()[0];
+      if (!trackVideo || trackVideo.readyState !== "live") return;
+
+      try {
+        await video.play();
+      } catch (err) {
+        console.warn("Preview kamera belum dapat diputar otomatis:", err);
+        if (!dibersihkan) {
+          timerRetryPlay = window.setTimeout(() => void siapDanPutar(), 300);
+        }
+        return;
+      }
+
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        kameraSiapRef.current = true;
+        setKameraSiap(true);
+        jadwalkanLokasiSetelahKameraSiap(sesiKamera);
+      }
     };
-    if (video.readyState >= 1) mulaiVideo();
-    else video.addEventListener("loadedmetadata", mulaiVideo, { once: true });
+
+    const ketikaMetadataSiap = () => void siapDanPutar();
+    const ketikaCanPlay = () => void siapDanPutar();
+    const ketikaPlaying = () => {
+      if (
+        !dibersihkan &&
+        mountedRef.current &&
+        kameraSesiRef.current === sesiKamera &&
+        video.videoWidth > 0 &&
+        video.videoHeight > 0
+      ) {
+        kameraSiapRef.current = true;
+        setKameraSiap(true);
+        jadwalkanLokasiSetelahKameraSiap(sesiKamera);
+      }
+    };
+    const ketikaTrackBerakhir = () => {
+      if (dibersihkan || !mountedRef.current || kameraSesiRef.current !== sesiKamera) return;
+      kameraSiapRef.current = false;
+      setKameraSiap(false);
+      setPesan("Kamera terputus. Tekan Foto Ulang untuk menyalakan kamera kembali.");
+    };
+
+    video.addEventListener("loadedmetadata", ketikaMetadataSiap);
+    video.addEventListener("loadeddata", ketikaMetadataSiap);
+    video.addEventListener("canplay", ketikaCanPlay);
+    video.addEventListener("playing", ketikaPlaying);
+
+    for (const track of stream.getVideoTracks?.() || []) {
+      track.addEventListener("ended", ketikaTrackBerakhir);
+    }
+
+    timerValidasiPreview = window.setTimeout(() => {
+      void siapDanPutar();
+      if (
+        mountedRef.current &&
+        kameraSesiRef.current === sesiKamera &&
+        !kameraSiapRef.current &&
+        video.videoWidth === 0
+      ) {
+        setPesan("Preview kamera belum muncul. Coba tunggu sebentar atau tekan Foto Ulang.");
+      }
+    }, 1800);
+
+    void siapDanPutar();
+
     return () => {
-      video.removeEventListener("loadedmetadata", mulaiVideo);
-      video.srcObject = null;
+      dibersihkan = true;
+      if (timerRetryPlay) window.clearTimeout(timerRetryPlay);
+      if (timerValidasiPreview) window.clearTimeout(timerValidasiPreview);
+
+      video.removeEventListener("loadedmetadata", ketikaMetadataSiap);
+      video.removeEventListener("loadeddata", ketikaMetadataSiap);
+      video.removeEventListener("canplay", ketikaCanPlay);
+      video.removeEventListener("playing", ketikaPlaying);
+
+      for (const track of stream.getVideoTracks?.() || []) {
+        track.removeEventListener("ended", ketikaTrackBerakhir);
+      }
+
+      if (video.srcObject === stream) {
+        video.pause();
+        video.srcObject = null;
+        video.load();
+      }
     };
-  }, [kameraAktif]);
+  }, [kameraAktif, kameraStreamVersi]);
 
   function hentikanPelacakanLokasi() {
     lokasiSesiRef.current += 1;
@@ -750,7 +850,11 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     setFotoTerambil(null);
     setLokasi(null);
     setStatusLokasi("mencari");
-    await bukaKamera();
+
+    // Pastikan React sempat melepas sesi kamera lama sebelum stream baru
+    // dipasang, sehingga srcObject tidak tertinggal pada elemen video lama.
+    await new Promise((resolve) => window.requestAnimationFrame(resolve));
+    if (mountedRef.current) await bukaKamera();
   }
 
   async function ambilKotaKecamatanBigDataCloud(latitude, longitude) {
@@ -996,7 +1100,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
           {!loadingStatus && tahap !== "memuat" && tahap !== "belum_terverifikasi" && tahap !== "tidak_perlu_absen" && <DialJamKerja tahap={tahap} />}
           {tahap === "belum_terverifikasi" && <div style={styles.unverifiedBox}><div style={styles.unverifiedIcon}><WifiOff size={24} /></div><h2 style={styles.sectionTitle}>Status absensi belum tersedia</h2><p style={styles.sectionDescription}>Sistem belum berhasil memastikan status absensi hari ini. Untuk keamanan, tombol absensi tidak ditampilkan sampai status berhasil diverifikasi.</p><button onClick={() => void ambilStatusHariIni()} style={styles.secondaryButton} type="button" disabled={!isOnline || loadingStatus}><RefreshCcw size={17} />{loadingStatus ? "Memuat..." : "Coba Muat Status"}</button></div>}
           {tahap === "selesai" && <div style={styles.successBox}><div style={styles.successIcon}><CheckCircle2 size={28} /></div><h2 style={styles.sectionTitle}>Absensi Hari Ini Selesai</h2><p style={styles.sectionDescription}>Absen masuk dan pulang kamu sudah tercatat. Terima kasih, sampai jumpa besok.</p></div>}
-          {(tahap === "belum_masuk" || tahap === "langsung_pulang" || tahap === "sudah_masuk") && <><div style={styles.actionHeading}><div><p style={styles.actionEyebrow}>{tahap === "belum_masuk" ? "LANGKAH 1 · ABSEN MASUK" : "LANGKAH 1 · ABSEN PULANG"}</p><h2 style={styles.sectionTitle}>Ambil foto untuk mencatat kehadiran</h2><p style={styles.statusVerificationHint}>{statusVerifikasiSedang ? "Memverifikasi status absensi terbaru..." : statusTerverifikasi ? "Status absensi sudah diverifikasi." : "Status absensi belum terverifikasi."}</p></div></div>{tahap === "langsung_pulang" && <div style={{ marginBottom: 14, padding: "11px 13px", borderRadius: 12, border: "1px solid " + warna.peringatan, background: warna.peringatanLembut, color: warna.tinta, fontSize: 12, lineHeight: 1.55 }}><strong>Sudah lewat 12:00 WIB.</strong> Absen masuk pagi tidak dapat dilakukan lagi. Sistem hanya menyediakan <strong>Absen Pulang</strong>.</div>}{!kameraAktif && !fotoTerambil && <div style={styles.startPanel}><div style={styles.cameraIconCircle}><Camera size={28} /></div><p style={styles.startTitle}>Siapkan kamera</p><p style={styles.startDescription}>Pastikan wajah terlihat jelas dan izinkan kamera serta lokasi pada browser HP kamu.</p>{jumlahTertunda > 0 && <p style={styles.pendingActionNote}>{jumlahTertunda} absensi masih menunggu sinkronisasi. Selesaikan sinkronisasi terlebih dahulu agar tidak terjadi absensi ganda.</p>}<button onClick={() => void bukaKamera()} style={styles.primaryButton} type="button" disabled={kameraMembuka || sedangSinkron || jumlahTertunda > 0} title={jumlahTertunda > 0 ? "Tunggu absensi yang tersimpan offline selesai disinkronkan." : undefined}><Camera size={18} />{kameraMembuka ? "Menyiapkan Kamera..." : jumlahTertunda > 0 ? "Menunggu Sinkronisasi" : "Buka Kamera"}</button></div>}{kameraAktif && <div style={styles.cameraSection}><div style={styles.cameraTopbar} className="cameraTopbar"><div><p style={styles.cameraEyebrow}>KAMERA AKTIF</p><p style={styles.cameraTitle} className="cameraTitle">Posisikan wajah di tengah panduan</p></div><div style={styles.cameraReadyBadge} className="cameraReadyBadge"><span style={styles.cameraReadyDot} />{kameraSiap ? "Siap" : "Menyiapkan..."}</div></div><div style={styles.cameraFrame}><video ref={videoRef} autoPlay playsInline muted style={styles.video} /><div style={styles.cameraOverlay}><div style={styles.faceGuide} /><div style={styles.faceGuideHint} className="faceGuideHint">Wajah berada di tengah</div></div><div style={styles.cameraLocationBadge} className="cameraLocationBadge"><MapPin size={12} /><span>{statusLokasi === "mencari" && "Mencari lokasi..."}{statusLokasi === "ditemukan" && "Lokasi ditemukan"}{statusLokasi === "gagal" && "Lokasi belum ditemukan"}</span></div></div><div style={styles.cameraHelpRow} className="cameraHelpRow"><ShieldCheck size={14} color={warna.aksen} /><span>Foto diproses untuk pencatatan absensi.</span></div><button onClick={ambilFoto} style={styles.primaryButton} type="button" disabled={!kameraSiap}><Camera size={18} />Ambil Foto</button></div>}{fotoTerambil && <div style={styles.previewSection}><div style={styles.previewFrame}><img src={fotoPreview} alt="Foto absen" style={styles.previewImage} /></div><div style={styles.locationCard}><div style={styles.locationHeader}><div style={styles.locationIcon}><MapPin size={17} /></div><div style={styles.locationMain}><div style={styles.locationTitleRow}><p style={styles.locationTitle}>Lokasi Absensi</p>{statusLokasi === "ditemukan" && <span style={{ ...styles.locationAccuracyBadge, ...(lokasi?.akurasi <= 50 ? styles.locationAccuracyGood : lokasi?.akurasi <= 100 ? styles.locationAccuracyMedium : styles.locationAccuracyWeak) }}>{lokasi?.akurasi <= 50 ? "Akurat" : lokasi?.akurasi <= 100 ? "Cukup" : "Kurang presisi"}</span>}</div><p style={styles.locationStatus}>{statusLokasi === "mencari" && "Sedang mencari lokasi terbaik..."}{statusLokasi === "ditemukan" && (lokasi?.alamat || "Lokasi ditemukan, membaca alamat...")}{statusLokasi === "gagal" && "Lokasi tidak terdeteksi. Tekan Foto Ulang lalu pastikan GPS dan izin lokasi aktif."}</p></div></div>{statusLokasi === "ditemukan" && lokasi?.akurasi && <div style={styles.locationMeta}><span>Akurasi ±{lokasi.akurasi} meter</span><span style={styles.locationDot} /><span>Koordinat berhasil diperoleh</span></div>}{statusLokasi === "ditemukan" && lokasi?.latitude !== undefined && lokasi?.longitude !== undefined && <div style={styles.locationActions}><a href={`https://www.google.com/maps?q=${lokasi.latitude},${lokasi.longitude}`} target="_blank" rel="noopener noreferrer" style={styles.mapsLink}><Navigation size={14} />Lihat lokasi di Google Maps</a></div>}</div><div style={styles.actionButtons} className="karyawan-action-buttons"><button onClick={fotoUlang} style={styles.secondaryButton} type="button" disabled={loading}><RefreshCcw size={17} />Foto Ulang</button><button onClick={kirimAbsen} style={styles.primaryButton} type="button" disabled={loading}>{loading ? "Mengirim..." : "Kirim Absen"}</button></div></div>}</>}
+          {(tahap === "belum_masuk" || tahap === "langsung_pulang" || tahap === "sudah_masuk") && <><div style={styles.actionHeading}><div><p style={styles.actionEyebrow}>{tahap === "belum_masuk" ? "LANGKAH 1 · ABSEN MASUK" : "LANGKAH 1 · ABSEN PULANG"}</p><h2 style={styles.sectionTitle}>Ambil foto untuk mencatat kehadiran</h2><p style={styles.statusVerificationHint}>{statusVerifikasiSedang ? "Memverifikasi status absensi terbaru..." : statusTerverifikasi ? "Status absensi sudah diverifikasi." : "Status absensi belum terverifikasi."}</p></div></div>{tahap === "langsung_pulang" && <div style={{ marginBottom: 14, padding: "11px 13px", borderRadius: 12, border: "1px solid " + warna.peringatan, background: warna.peringatanLembut, color: warna.tinta, fontSize: 12, lineHeight: 1.55 }}><strong>Sudah lewat 12:00 WIB.</strong> Absen masuk pagi tidak dapat dilakukan lagi. Sistem hanya menyediakan <strong>Absen Pulang</strong>.</div>}{!kameraAktif && !fotoTerambil && <div style={styles.startPanel}><div style={styles.cameraIconCircle}><Camera size={28} /></div><p style={styles.startTitle}>Siapkan kamera</p><p style={styles.startDescription}>Pastikan wajah terlihat jelas dan izinkan kamera serta lokasi pada browser HP kamu.</p>{jumlahTertunda > 0 && <p style={styles.pendingActionNote}>{jumlahTertunda} absensi masih menunggu sinkronisasi. Selesaikan sinkronisasi terlebih dahulu agar tidak terjadi absensi ganda.</p>}<button onClick={() => void bukaKamera()} style={styles.primaryButton} type="button" disabled={kameraMembuka || sedangSinkron || jumlahTertunda > 0} title={jumlahTertunda > 0 ? "Tunggu absensi yang tersimpan offline selesai disinkronkan." : undefined}><Camera size={18} />{kameraMembuka ? "Menyiapkan Kamera..." : jumlahTertunda > 0 ? "Menunggu Sinkronisasi" : "Buka Kamera"}</button></div>}{kameraAktif && <div style={styles.cameraSection}><div style={styles.cameraTopbar} className="cameraTopbar"><div><p style={styles.cameraEyebrow}>KAMERA AKTIF</p><p style={styles.cameraTitle} className="cameraTitle">Posisikan wajah di tengah panduan</p></div><div style={styles.cameraReadyBadge} className="cameraReadyBadge"><span style={styles.cameraReadyDot} />{kameraSiap ? "Siap" : "Menyiapkan..."}</div></div><div style={styles.cameraFrame}><video ref={videoRef} autoPlay playsInline muted style={styles.video} /><div style={styles.cameraOverlay}><div style={styles.faceGuide} />{!kameraSiap && <div style={styles.cameraPreparing}>Menyiapkan preview kamera...</div>}<div style={styles.faceGuideHint} className="faceGuideHint">Wajah berada di tengah</div></div><div style={styles.cameraLocationBadge} className="cameraLocationBadge"><MapPin size={12} /><span>{statusLokasi === "mencari" && "Mencari lokasi..."}{statusLokasi === "ditemukan" && "Lokasi ditemukan"}{statusLokasi === "gagal" && "Lokasi belum ditemukan"}</span></div></div><div style={styles.cameraHelpRow} className="cameraHelpRow"><ShieldCheck size={14} color={warna.aksen} /><span>Foto diproses untuk pencatatan absensi.</span></div><button onClick={ambilFoto} style={styles.primaryButton} type="button" disabled={!kameraSiap}><Camera size={18} />Ambil Foto</button></div>}{fotoTerambil && <div style={styles.previewSection}><div style={styles.previewFrame}><img src={fotoPreview} alt="Foto absen" style={styles.previewImage} /></div><div style={styles.locationCard}><div style={styles.locationHeader}><div style={styles.locationIcon}><MapPin size={17} /></div><div style={styles.locationMain}><div style={styles.locationTitleRow}><p style={styles.locationTitle}>Lokasi Absensi</p>{statusLokasi === "ditemukan" && <span style={{ ...styles.locationAccuracyBadge, ...(lokasi?.akurasi <= 50 ? styles.locationAccuracyGood : lokasi?.akurasi <= 100 ? styles.locationAccuracyMedium : styles.locationAccuracyWeak) }}>{lokasi?.akurasi <= 50 ? "Akurat" : lokasi?.akurasi <= 100 ? "Cukup" : "Kurang presisi"}</span>}</div><p style={styles.locationStatus}>{statusLokasi === "mencari" && "Sedang mencari lokasi terbaik..."}{statusLokasi === "ditemukan" && (lokasi?.alamat || "Lokasi ditemukan, membaca alamat...")}{statusLokasi === "gagal" && "Lokasi tidak terdeteksi. Tekan Foto Ulang lalu pastikan GPS dan izin lokasi aktif."}</p></div></div>{statusLokasi === "ditemukan" && lokasi?.akurasi && <div style={styles.locationMeta}><span>Akurasi ±{lokasi.akurasi} meter</span><span style={styles.locationDot} /><span>Koordinat berhasil diperoleh</span></div>}{statusLokasi === "ditemukan" && lokasi?.latitude !== undefined && lokasi?.longitude !== undefined && <div style={styles.locationActions}><a href={`https://www.google.com/maps?q=${lokasi.latitude},${lokasi.longitude}`} target="_blank" rel="noopener noreferrer" style={styles.mapsLink}><Navigation size={14} />Lihat lokasi di Google Maps</a></div>}</div><div style={styles.actionButtons} className="karyawan-action-buttons"><button onClick={fotoUlang} style={styles.secondaryButton} type="button" disabled={loading}><RefreshCcw size={17} />Foto Ulang</button><button onClick={kirimAbsen} style={styles.primaryButton} type="button" disabled={loading}>{loading ? "Mengirim..." : "Kirim Absen"}</button></div></div>}</>}
           {pesan && <div style={styles.messageBox} role="alert">{pesan}</div>}
         </section>
         <div style={styles.footerNote}><ShieldCheck size={14} /><span>Gunakan koneksi internet yang stabil saat mengirim absensi.</span></div>
@@ -1020,5 +1124,5 @@ const styles = {
   // Tinggi minimum disamakan dengan keadaan konten absensi normal agar
   // pergantian state saat reload tidak membuat footer meloncat/kedip.
   mainCard: { background: warna.panel, borderRadius: 18, padding: "22px 18px 20px", border: `1px solid ${warna.garis}`, boxShadow: "0 8px 30px rgba(22,35,61,0.05)", minHeight: 420 },
-  loadingState: { minHeight: 374, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: warna.tintaLembut, fontSize: 13 }, actionHeading: { marginBottom: 18, textAlign: "center" }, statusVerificationHint: { margin: "6px 0 0", fontSize: 11.5, color: warna.tintaSamar }, actionEyebrow: { margin: 0, fontSize: 10.5, fontWeight: 800, letterSpacing: "0.08em", color: warna.tintaSamar }, sectionTitle: { margin: "5px 0 0", fontSize: 20, lineHeight: 1.2, fontWeight: 750, color: warna.tinta }, sectionDescription: { margin: "8px auto 0", maxWidth: 420, color: warna.tintaLembut, fontSize: 13, lineHeight: 1.65 }, startPanel: { textAlign: "center", padding: "18px 10px 4px" }, cameraIconCircle: { width: 68, height: 68, margin: "0 auto 14px", borderRadius: "50%", background: warna.aksenLembut, color: warna.aksen, display: "flex", alignItems: "center", justifyContent: "center" }, startTitle: { margin: 0, fontSize: 15, fontWeight: 700, color: warna.tinta }, startDescription: { margin: "7px auto 16px", maxWidth: 430, fontSize: 12.5, lineHeight: 1.65, color: warna.tintaLembut }, pendingActionNote: { maxWidth: 430, margin: "-4px auto 14px", padding: "8px 10px", borderRadius: 10, background: warna.peringatanLembut, border: `1px solid ${warna.garis}`, color: warna.tintaLembut, fontSize: 11.5, lineHeight: 1.5 }, primaryButton: { width: "100%", minHeight: 48, padding: "12px 16px", background: warna.aksen, color: "#fff", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }, secondaryButton: { width: "100%", minHeight: 48, padding: "12px 16px", background: warna.panelAlt, color: warna.tinta, border: `1px solid ${warna.garis}`, borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }, cameraSection: { width: "100%" }, cameraTopbar: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }, cameraEyebrow: { margin: 0, fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", color: warna.aksen }, cameraTitle: { margin: "3px 0 0", fontSize: 12, color: warna.tintaLembut }, cameraReadyBadge: { display: "inline-flex", alignItems: "center", gap: 6, minHeight: 28, padding: "5px 9px", borderRadius: 999, background: warna.suksesLembut, color: warna.sukses, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }, cameraReadyDot: { width: 7, height: 7, borderRadius: "50%", background: warna.sukses }, faceGuideHint: { position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, calc(-50% + 98px))", padding: "6px 10px", borderRadius: 999, background: "rgba(0,0,0,0.42)", color: "#fff", fontSize: 10.5, fontWeight: 600, whiteSpace: "nowrap", backdropFilter: "blur(6px)" }, cameraLocationBadge: { position: "absolute", left: 12, top: 12, display: "inline-flex", alignItems: "center", gap: 6, maxWidth: "calc(100% - 24px)", minHeight: 30, padding: "6px 9px", borderRadius: 999, background: "rgba(0,0,0,0.46)", color: "#fff", fontSize: 10, fontWeight: 600, backdropFilter: "blur(7px)" }, cameraHelpRow: { display: "flex", alignItems: "center", justifyContent: "center", gap: 7, margin: "10px 0 12px", color: warna.tintaLembut, fontSize: 11.5, textAlign: "center" }, cameraFrame: { position: "relative", width: "100%", overflow: "hidden", borderRadius: 16, background: "#0B1110", border: `1px solid ${warna.garis}`, aspectRatio: "3 / 4", maxHeight: 560 }, video: { width: "100%", height: "100%", objectFit: "cover", display: "block", transform: "scaleX(-1)" }, cameraOverlay: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }, faceGuide: { width: "58%", height: "56%", border: "2px solid rgba(255,255,255,0.82)", borderRadius: "42%", boxShadow: "0 0 0 999px rgba(0,0,0,0.12)" }, previewSection: { width: "100%" }, previewFrame: { width: "100%", borderRadius: 16, overflow: "hidden", background: "#0B1110", border: `1px solid ${warna.garis}`, aspectRatio: "3 / 4", maxHeight: 560 }, previewImage: { width: "100%", height: "100%", objectFit: "cover", display: "block" }, locationCard: { marginTop: 12, padding: 14, background: warna.panelAlt, border: `1px solid ${warna.garis}`, borderRadius: 14, textAlign: "left" }, locationHeader: { display: "flex", alignItems: "flex-start", gap: 10 }, locationMain: { minWidth: 0, flex: 1 }, locationTitleRow: { display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }, locationAccuracyBadge: { display: "inline-flex", alignItems: "center", minHeight: 22, padding: "3px 7px", borderRadius: 999, fontSize: 9.5, fontWeight: 700 }, locationAccuracyGood: { color: warna.sukses, background: warna.suksesLembut }, locationAccuracyMedium: { color: warna.aksen, background: warna.aksenLembut }, locationAccuracyWeak: { color: warna.peringatan, background: warna.peringatanLembut }, locationIcon: { width: 34, height: 34, borderRadius: 10, background: warna.aksenLembut, color: warna.aksen, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }, locationTitle: { margin: 0, fontSize: 12, fontWeight: 750, color: warna.tinta }, locationStatus: { margin: "3px 0 0", fontSize: 12, lineHeight: 1.55, color: warna.tintaLembut, wordBreak: "break-word" }, locationMeta: { display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", marginTop: 9, fontSize: 10.5, fontFamily: font.mono, color: warna.tintaSamar }, locationDot: { width: 3, height: 3, borderRadius: "50%", background: warna.tintaSamar }, locationActions: { marginTop: 9, paddingTop: 9, borderTop: `1px solid ${warna.garis}` }, mapsLink: { display: "inline-flex", alignItems: "center", gap: 6, marginTop: 0, color: warna.aksen, fontSize: 11.5, fontWeight: 700, textDecoration: "none" }, actionButtons: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }, unverifiedBox: { textAlign: "center", padding: "6px 4px 12px", maxWidth: 520, margin: "0 auto" }, unverifiedIcon: { width: 64, height: 64, margin: "0 auto 14px", borderRadius: "50%", background: warna.peringatanLembut, color: warna.peringatan, display: "flex", alignItems: "center", justifyContent: "center" }, successBox: { textAlign: "center", padding: "4px 0 10px" }, successIcon: { width: 64, height: 64, margin: "0 auto 14px", borderRadius: "50%", background: warna.suksesLembut, color: warna.sukses, display: "flex", alignItems: "center", justifyContent: "center" }, messageBox: { marginTop: 14, padding: "11px 12px", borderRadius: 12, borderLeft: `3px solid ${warna.aksen}`, background: warna.panelAlt, color: warna.tinta, fontSize: 12.5, lineHeight: 1.55, textAlign: "left" }, footerNote: { display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "14px 4px 4px", color: warna.tintaSamar, fontSize: 10.5, textAlign: "center" },
+  loadingState: { minHeight: 374, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: warna.tintaLembut, fontSize: 13 }, actionHeading: { marginBottom: 18, textAlign: "center" }, statusVerificationHint: { margin: "6px 0 0", fontSize: 11.5, color: warna.tintaSamar }, actionEyebrow: { margin: 0, fontSize: 10.5, fontWeight: 800, letterSpacing: "0.08em", color: warna.tintaSamar }, sectionTitle: { margin: "5px 0 0", fontSize: 20, lineHeight: 1.2, fontWeight: 750, color: warna.tinta }, sectionDescription: { margin: "8px auto 0", maxWidth: 420, color: warna.tintaLembut, fontSize: 13, lineHeight: 1.65 }, startPanel: { textAlign: "center", padding: "18px 10px 4px" }, cameraIconCircle: { width: 68, height: 68, margin: "0 auto 14px", borderRadius: "50%", background: warna.aksenLembut, color: warna.aksen, display: "flex", alignItems: "center", justifyContent: "center" }, startTitle: { margin: 0, fontSize: 15, fontWeight: 700, color: warna.tinta }, startDescription: { margin: "7px auto 16px", maxWidth: 430, fontSize: 12.5, lineHeight: 1.65, color: warna.tintaLembut }, pendingActionNote: { maxWidth: 430, margin: "-4px auto 14px", padding: "8px 10px", borderRadius: 10, background: warna.peringatanLembut, border: `1px solid ${warna.garis}`, color: warna.tintaLembut, fontSize: 11.5, lineHeight: 1.5 }, primaryButton: { width: "100%", minHeight: 48, padding: "12px 16px", background: warna.aksen, color: "#fff", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }, secondaryButton: { width: "100%", minHeight: 48, padding: "12px 16px", background: warna.panelAlt, color: warna.tinta, border: `1px solid ${warna.garis}`, borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }, cameraSection: { width: "100%" }, cameraTopbar: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }, cameraEyebrow: { margin: 0, fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", color: warna.aksen }, cameraTitle: { margin: "3px 0 0", fontSize: 12, color: warna.tintaLembut }, cameraReadyBadge: { display: "inline-flex", alignItems: "center", gap: 6, minHeight: 28, padding: "5px 9px", borderRadius: 999, background: warna.suksesLembut, color: warna.sukses, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }, cameraReadyDot: { width: 7, height: 7, borderRadius: "50%", background: warna.sukses }, faceGuideHint: { position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, calc(-50% + 98px))", padding: "6px 10px", borderRadius: 999, background: "rgba(0,0,0,0.42)", color: "#fff", fontSize: 10.5, fontWeight: 600, whiteSpace: "nowrap", backdropFilter: "blur(6px)" }, cameraLocationBadge: { position: "absolute", left: 12, top: 12, display: "inline-flex", alignItems: "center", gap: 6, maxWidth: "calc(100% - 24px)", minHeight: 30, padding: "6px 9px", borderRadius: 999, background: "rgba(0,0,0,0.46)", color: "#fff", fontSize: 10, fontWeight: 600, backdropFilter: "blur(7px)" }, cameraHelpRow: { display: "flex", alignItems: "center", justifyContent: "center", gap: 7, margin: "10px 0 12px", color: warna.tintaLembut, fontSize: 11.5, textAlign: "center" }, cameraFrame: { position: "relative", width: "100%", overflow: "hidden", borderRadius: 16, background: "#0B1110", border: `1px solid ${warna.garis}`, aspectRatio: "3 / 4", maxHeight: 560 }, video: { width: "100%", height: "100%", objectFit: "cover", display: "block", transform: "scaleX(-1)", background: "#0B1110" }, cameraPreparing: { position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", padding: "7px 11px", borderRadius: 999, background: "rgba(0,0,0,0.56)", color: "#fff", fontSize: 10.5, fontWeight: 650, whiteSpace: "nowrap", backdropFilter: "blur(6px)" }, cameraOverlay: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }, faceGuide: { width: "58%", height: "56%", border: "2px solid rgba(255,255,255,0.82)", borderRadius: "42%", boxShadow: "0 0 0 999px rgba(0,0,0,0.12)" }, previewSection: { width: "100%" }, previewFrame: { width: "100%", borderRadius: 16, overflow: "hidden", background: "#0B1110", border: `1px solid ${warna.garis}`, aspectRatio: "3 / 4", maxHeight: 560 }, previewImage: { width: "100%", height: "100%", objectFit: "cover", display: "block" }, locationCard: { marginTop: 12, padding: 14, background: warna.panelAlt, border: `1px solid ${warna.garis}`, borderRadius: 14, textAlign: "left" }, locationHeader: { display: "flex", alignItems: "flex-start", gap: 10 }, locationMain: { minWidth: 0, flex: 1 }, locationTitleRow: { display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }, locationAccuracyBadge: { display: "inline-flex", alignItems: "center", minHeight: 22, padding: "3px 7px", borderRadius: 999, fontSize: 9.5, fontWeight: 700 }, locationAccuracyGood: { color: warna.sukses, background: warna.suksesLembut }, locationAccuracyMedium: { color: warna.aksen, background: warna.aksenLembut }, locationAccuracyWeak: { color: warna.peringatan, background: warna.peringatanLembut }, locationIcon: { width: 34, height: 34, borderRadius: 10, background: warna.aksenLembut, color: warna.aksen, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }, locationTitle: { margin: 0, fontSize: 12, fontWeight: 750, color: warna.tinta }, locationStatus: { margin: "3px 0 0", fontSize: 12, lineHeight: 1.55, color: warna.tintaLembut, wordBreak: "break-word" }, locationMeta: { display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", marginTop: 9, fontSize: 10.5, fontFamily: font.mono, color: warna.tintaSamar }, locationDot: { width: 3, height: 3, borderRadius: "50%", background: warna.tintaSamar }, locationActions: { marginTop: 9, paddingTop: 9, borderTop: `1px solid ${warna.garis}` }, mapsLink: { display: "inline-flex", alignItems: "center", gap: 6, marginTop: 0, color: warna.aksen, fontSize: 11.5, fontWeight: 700, textDecoration: "none" }, actionButtons: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }, unverifiedBox: { textAlign: "center", padding: "6px 4px 12px", maxWidth: 520, margin: "0 auto" }, unverifiedIcon: { width: 64, height: 64, margin: "0 auto 14px", borderRadius: "50%", background: warna.peringatanLembut, color: warna.peringatan, display: "flex", alignItems: "center", justifyContent: "center" }, successBox: { textAlign: "center", padding: "4px 0 10px" }, successIcon: { width: 64, height: 64, margin: "0 auto 14px", borderRadius: "50%", background: warna.suksesLembut, color: warna.sukses, display: "flex", alignItems: "center", justifyContent: "center" }, messageBox: { marginTop: 14, padding: "11px 12px", borderRadius: 12, borderLeft: `3px solid ${warna.aksen}`, background: warna.panelAlt, color: warna.tinta, fontSize: 12.5, lineHeight: 1.55, textAlign: "left" }, footerNote: { display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "14px 4px 4px", color: warna.tintaSamar, fontSize: 10.5, textAlign: "center" },
 };
