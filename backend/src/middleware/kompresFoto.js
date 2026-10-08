@@ -24,26 +24,49 @@ const LEBAR_MAKS_PX = 1280;
 const HEADER_OFFLINE_SYNC = "X-Zaman-Background";
 const OFFLINE_SYNC_HEADER_VALUE = "offline-sync";
 
-function menitSekarangWIB() {
+function menitValidasiWIB(req) {
+  const offlineSync = req.get(HEADER_OFFLINE_SYNC) === OFFLINE_SYNC_HEADER_VALUE;
+  if (!offlineSync) return totalMenitWIB(new Date());
+
+  const raw = String(req.body?.waktuAsli || "").trim();
+  const kandidat = new Date(raw);
+  if (raw && !Number.isNaN(kandidat.getTime())) return totalMenitWIB(kandidat);
+
   return totalMenitWIB(new Date());
 }
 
 async function validasiSebelumUpload(req, res) {
-  // Sinkronisasi offline menggunakan waktu asli saat tombol diklik.
-  // Preflight waktu server tidak boleh memblokir data yang memang sudah
-  // tersimpan offline dan sedang menunggu sinkronisasi.
-  if (req.get(HEADER_OFFLINE_SYNC) === OFFLINE_SYNC_HEADER_VALUE) return true;
-
+  // Validasi dilakukan setelah Multer membaca body tetapi SEBELUM foto
+  // diunggah ke Supabase. Ini mencegah tombol "Mengirim..." tertahan
+  // hanya untuk akhirnya ditolak karena belum waktunya.
   const route = String(req.path || "").replace(/\/$/, "");
   if (!req.user?.id || !["/masuk", "/pulang"].includes(route)) return true;
 
   const penggunaId = req.user.id;
   const { tanggalDate: tanggal } = getWIBTodayRange();
-  const menitSekarang = menitSekarangWIB();
+  const menitValidasi = menitValidasiWIB(req);
 
   try {
+    const pengajuanDisetujui = await prisma.pengajuanIzin.findFirst({
+      where: { penggunaId, tanggal, status: "disetujui" },
+      select: { id: true, jenis: true },
+    });
+
+    if (pengajuanDisetujui) {
+      res.status(400).json({
+        pesan: "Absensi tidak diperlukan. Pengajuan " + pengajuanDisetujui.jenis + " kamu untuk hari ini sudah disetujui Admin.",
+        jenisPengajuan: pengajuanDisetujui.jenis,
+      });
+      return false;
+    }
+
+    const absensi = await prisma.absensi.findUnique({
+      where: { penggunaId_tanggal: { penggunaId, tanggal } },
+      select: { jamMasuk: true, jamPulang: true },
+    });
+
     if (route === "/masuk") {
-      if (menitSekarang >= BATAS_ABSEN_MASUK_WIB) {
+      if (menitValidasi >= BATAS_ABSEN_MASUK_WIB) {
         res.status(409).json({
           pesan: "Waktu absen masuk sudah lewat 12:00 WIB. Absen masuk pagi tidak dapat dilakukan lagi. Silakan gunakan Absen Pulang.",
           kode: "BATAS_ABSEN_MASUK_LEWAT",
@@ -51,11 +74,6 @@ async function validasiSebelumUpload(req, res) {
         });
         return false;
       }
-
-      const absensi = await prisma.absensi.findUnique({
-        where: { penggunaId_tanggal: { penggunaId, tanggal } },
-        select: { jamMasuk: true },
-      });
 
       if (absensi?.jamMasuk) {
         res.status(409).json({
@@ -67,11 +85,18 @@ async function validasiSebelumUpload(req, res) {
       return true;
     }
 
+    if (absensi?.jamPulang) {
+      res.status(409).json({
+        pesan: "Anda sudah melakukan absen pulang hari ini.",
+      });
+      return false;
+    }
+
     const batasPulangWIB = parseJam(
       process.env.JAM_PULANG_MIN || JAM_PULANG_STANDAR_DEFAULT,
     );
 
-    if (menitSekarang < batasPulangWIB) {
+    if (menitValidasi < batasPulangWIB) {
       const jam = String(Math.floor(batasPulangWIB / 60)).padStart(2, "0");
       const menit = String(batasPulangWIB % 60).padStart(2, "0");
       res.status(400).json({
@@ -82,19 +107,7 @@ async function validasiSebelumUpload(req, res) {
       return false;
     }
 
-    const absensi = await prisma.absensi.findUnique({
-      where: { penggunaId_tanggal: { penggunaId, tanggal } },
-      select: { jamMasuk: true, jamPulang: true },
-    });
-
-    if (absensi?.jamPulang) {
-      res.status(409).json({
-        pesan: "Anda sudah melakukan absen pulang hari ini.",
-      });
-      return false;
-    }
-
-    if (!absensi?.jamMasuk && menitSekarang < BATAS_ABSEN_MASUK_WIB) {
+    if (!absensi?.jamMasuk && menitValidasi < BATAS_ABSEN_MASUK_WIB) {
       res.status(400).json({
         pesan: "Anda belum melakukan absen masuk hari ini. Absen pulang tanpa absen masuk hanya tersedia mulai 12:00 WIB.",
         kode: "BELUM_ABSEN_MASUK",
