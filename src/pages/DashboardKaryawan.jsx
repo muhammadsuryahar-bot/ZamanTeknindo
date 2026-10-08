@@ -40,6 +40,7 @@ const STATUS_CACHE_VERSION = 4; // FIX: bump biar cache lama belum_masuk kehapus
 const STATUS_REQUEST_TIMEOUT_MS = 8000;
 const ABSENSI_REQUEST_TIMEOUT_MS = 15000;
 const BATAS_ABSEN_MASUK_WIB = 12 * 60;
+const BATAS_ABSEN_PULANG_WIB = 17 * 60;
 const LOKASI_REQUEST_TIMEOUT_MS = 20000;
 const LOKASI_AKURASI_FALLBACK_METER = 100;
 const LOKASI_FALLBACK_FINISH_MS = 3000;
@@ -891,6 +892,41 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       return;
     }
 
+    const waktuSekarangWIB = new Intl.DateTimeFormat("en-GB", {
+      timeZone: TIMEZONE_WIB,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    }).format(new Date());
+    const [jamSekarang, menitSekarang] = waktuSekarangWIB.split(":").map(Number);
+    const totalMenitSekarang = jamSekarang * 60 + menitSekarang;
+    const lewatBatasAbsenMasuk = totalMenitSekarang >= BATAS_ABSEN_MASUK_WIB;
+    const endpoint =
+      tahap === "langsung_pulang" ||
+      (tahap === "belum_masuk" && lewatBatasAbsenMasuk)
+        ? "pulang"
+        : "masuk";
+
+    // Validasi waktu harus terjadi SEBELUM loading dikunci. Sebelumnya
+    // return pada cabang ini terjadi setelah setLoading(true), sehingga
+    // tombol bisa tertahan permanen di "Mengirim...".
+    if (endpoint === "masuk" && lewatBatasAbsenMasuk) {
+      const tahapAman = "langsung_pulang";
+      setTahap(tahapAman);
+      simpanCacheStatusHariIni(pengguna, tahapAman);
+      setStatusVerifikasiSedang(false);
+      setPesan("Sudah lewat 12:00 WIB. Absen masuk pagi tidak dapat dilakukan lagi; gunakan Absen Pulang.");
+      return;
+    }
+
+    if (endpoint === "pulang" && totalMenitSekarang < BATAS_ABSEN_PULANG_WIB) {
+      const jamPulang = String(Math.floor(BATAS_ABSEN_PULANG_WIB / 60)).padStart(2, "0");
+      const menitPulang = String(BATAS_ABSEN_PULANG_WIB % 60).padStart(2, "0");
+      setPesan(`Belum jam pulang. Absen pulang baru tersedia mulai ${jamPulang}:${menitPulang} WIB.`);
+      return;
+    }
+
     sesiKirimRef.current = true;
     setLoading(true);
     setPesan("");
@@ -903,30 +939,6 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     formData.append("akurasi", String(lokasi.akurasi));
     const alamatDasar = lokasi.alamat || `${lokasi.latitude}, ${lokasi.longitude}`;
     formData.append("alamat", formatAlamatPresensi(alamatDasar, lokasi.akurasi));
-    const waktuSekarangWIB = new Intl.DateTimeFormat("en-GB", {
-      timeZone: TIMEZONE_WIB,
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hourCycle: "h23",
-    }).format(new Date());
-    const [jamSekarang, menitSekarang] = waktuSekarangWIB.split(":").map(Number);
-    const lewatBatasAbsenMasuk =
-      (jamSekarang * 60 + menitSekarang) >= BATAS_ABSEN_MASUK_WIB;
-    const endpoint =
-      tahap === "langsung_pulang" ||
-      (tahap === "belum_masuk" && lewatBatasAbsenMasuk)
-        ? "pulang"
-        : "masuk";
-
-    if (endpoint === "masuk" && lewatBatasAbsenMasuk) {
-      const tahapAman = "langsung_pulang";
-      setTahap(tahapAman);
-      simpanCacheStatusHariIni(pengguna, tahapAman);
-      setStatusVerifikasiSedang(false);
-      setPesan("Sudah lewat 12:00 WIB. Absen masuk pagi tidak dapat dilakukan lagi; gunakan Absen Pulang.");
-      return;
-    }
     const simpanOffline = async () => {
       await simpanKeAntrian({ foto: fotoTerambil, penggunaId: pengguna.id, latitude: lokasi.latitude, longitude: lokasi.longitude, akurasi: lokasi.akurasi, alamat: formData.get("alamat"), waktuAsli, endpoint });
       const sisa = await jumlahAntrian(pengguna.id);
