@@ -40,7 +40,7 @@ const STATUS_CACHE_VERSION = 4; // FIX: bump biar cache lama belum_masuk kehapus
 const STATUS_REQUEST_TIMEOUT_MS = 8000;
 const ABSENSI_REQUEST_TIMEOUT_MS = 15000;
 const BATAS_ABSEN_MASUK_WIB = 12 * 60;
-// Testing mode: absen pulang tidak dibatasi jam minimum.\nconst BATAS_ABSEN_PULANG_WIB = 0;
+// Testing mode: absen pulang tidak dibatasi jam minimum.\n
 const LOKASI_REQUEST_TIMEOUT_MS = 20000;
 const LOKASI_AKURASI_FALLBACK_METER = 100;
 const LOKASI_FALLBACK_FINISH_MS = 3000;
