@@ -23,7 +23,7 @@ const HEADER_OFFLINE_SYNC = "X-Zaman-Background";
 const OFFLINE_SYNC_HEADER_VALUE = "offline-sync";
 const MAX_OFFLINE_CLOCK_DRIFT_MS = 24 * 60 * 60 * 1000;
 const MAKS_AKURASI_LOKASI_METER = 100;
-const JAM_PULANG_MIN_DEFAULT = "17:00:00";
+// Testing mode: absen pulang tidak dibatasi jam minimum.\nconst JAM_PULANG_MIN_DEFAULT = "00:00:00";
 
 function ambilBatasPulangWIB() {
   const raw = String(process.env.JAM_PULANG_MIN || JAM_PULANG_MIN_DEFAULT).trim();
@@ -327,14 +327,10 @@ async function absenPulang(req, res) {
 
     // Tanpa absen masuk hanya diperbolehkan sebagai fallback setelah
     // batas 12:00 WIB. Sebelum itu, alur pulang normal wajib punya jam masuk.
-    if (!absensiHariIni?.jamMasuk && menitPulangWIB < BATAS_ABSEN_MASUK_WIB) {
-      await hapusFotoJikaPerlu();
-      return res.status(400).json({
-        pesan: "Anda belum melakukan absen masuk hari ini. Absen pulang tanpa absen masuk hanya tersedia mulai 12:00 WIB.",
-        kode: "BELUM_ABSEN_MASUK",
-        batasAbsenPulangTanpaMasukWIB: "12:00",
-      });
-    }
+    // Mode testing: absen pulang boleh dicatat kapan pun.
+    // Bila jam masuk sudah ada, waktu pulang tetap harus >= jam masuk.
+    // Bila jam masuk belum ada, record pulang tetap boleh dibuat untuk
+    // memudahkan pengujian alur pengiriman tanpa menunggu batas jam.
 
     const koordinat = koordinatDariRequest(latitude, longitude);
     if (!koordinat) {
