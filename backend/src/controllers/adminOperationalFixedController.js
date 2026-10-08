@@ -184,21 +184,22 @@ async function notifikasiAdminFixed(req, res) {
   }
 
   try {
-    const jumlahAkunBaru = await prisma.pengguna.count({
-      where: {
-        peran: "karyawan",
-        statusAkun: "menunggu_konfirmasi",
-      },
-    });
-
-    const jumlahIzinMenunggu = await prisma.pengajuanIzin.count({
-      where: { status: "menunggu" },
-    });
-
-    // NEW - Manual Pending (Backup Kiosk tanpa PIN + jam asli klik)
-    const jumlahManualPending = await prisma.manualAbsenRequest.count({
-      where: { status: "PENDING" },
-    });
+    const [jumlahAkunBaru, jumlahIzinMenunggu, jumlahManualPending] =
+      await Promise.all([
+        prisma.pengguna.count({
+          where: {
+            peran: "karyawan",
+            statusAkun: "menunggu_konfirmasi",
+          },
+        }),
+        prisma.pengajuanIzin.count({
+          where: { status: "menunggu" },
+        }),
+        // NEW - Manual Pending (Backup Kiosk tanpa PIN + jam asli klik)
+        prisma.manualAbsenRequest.count({
+          where: { status: "PENDING" },
+        }),
+      ]);
 
     const data = {
       akunBaru: jumlahAkunBaru,
