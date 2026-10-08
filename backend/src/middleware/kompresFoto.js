@@ -5,6 +5,14 @@ try {
   sharp = null;
 }
 const crypto = require("crypto");
+const prisma = require("../utils/prismaClient");
+const {
+  getWIBTodayRange,
+  totalMenitWIB,
+  parseJam,
+  JAM_PULANG_STANDAR_DEFAULT,
+  BATAS_ABSEN_MASUK_WIB,
+} = require("../utils/waktuIndonesia");
 
 const {
   uploadFotoAbsensi,
@@ -13,6 +21,98 @@ const {
 
 const TARGET_MAKS_BYTES = 200 * 1024;
 const LEBAR_MAKS_PX = 1280;
+const HEADER_OFFLINE_SYNC = "X-Zaman-Background";
+const OFFLINE_SYNC_HEADER_VALUE = "offline-sync";
+
+function menitSekarangWIB() {
+  return totalMenitWIB(new Date());
+}
+
+async function validasiSebelumUpload(req, res) {
+  // Sinkronisasi offline menggunakan waktu asli saat tombol diklik.
+  // Preflight waktu server tidak boleh memblokir data yang memang sudah
+  // tersimpan offline dan sedang menunggu sinkronisasi.
+  if (req.get(HEADER_OFFLINE_SYNC) === OFFLINE_SYNC_HEADER_VALUE) return true;
+
+  const route = String(req.path || "").replace(/\/$/, "");
+  if (!req.user?.id || !["/masuk", "/pulang"].includes(route)) return true;
+
+  const penggunaId = req.user.id;
+  const { tanggalDate: tanggal } = getWIBTodayRange();
+  const menitSekarang = menitSekarangWIB();
+
+  try {
+    if (route === "/masuk") {
+      if (menitSekarang >= BATAS_ABSEN_MASUK_WIB) {
+        res.status(409).json({
+          pesan: "Waktu absen masuk sudah lewat 12:00 WIB. Absen masuk pagi tidak dapat dilakukan lagi. Silakan gunakan Absen Pulang.",
+          kode: "BATAS_ABSEN_MASUK_LEWAT",
+          batasAbsenMasukWIB: "12:00",
+        });
+        return false;
+      }
+
+      const absensi = await prisma.absensi.findUnique({
+        where: { penggunaId_tanggal: { penggunaId, tanggal } },
+        select: { jamMasuk: true },
+      });
+
+      if (absensi?.jamMasuk) {
+        res.status(409).json({
+          pesan: "Anda sudah melakukan absen masuk hari ini.",
+        });
+        return false;
+      }
+
+      return true;
+    }
+
+    const batasPulangWIB = parseJam(
+      process.env.JAM_PULANG_MIN || JAM_PULANG_STANDAR_DEFAULT,
+    );
+
+    if (menitSekarang < batasPulangWIB) {
+      const jam = String(Math.floor(batasPulangWIB / 60)).padStart(2, "0");
+      const menit = String(batasPulangWIB % 60).padStart(2, "0");
+      res.status(400).json({
+        pesan: "Belum jam pulang. Absen pulang baru tersedia mulai " + jam + ":" + menit + " WIB.",
+        kode: "BELUM_JAM_PULANG",
+        batasAbsenPulangWIB: jam + ":" + menit,
+      });
+      return false;
+    }
+
+    const absensi = await prisma.absensi.findUnique({
+      where: { penggunaId_tanggal: { penggunaId, tanggal } },
+      select: { jamMasuk: true, jamPulang: true },
+    });
+
+    if (absensi?.jamPulang) {
+      res.status(409).json({
+        pesan: "Anda sudah melakukan absen pulang hari ini.",
+      });
+      return false;
+    }
+
+    if (!absensi?.jamMasuk && menitSekarang < BATAS_ABSEN_MASUK_WIB) {
+      res.status(400).json({
+        pesan: "Anda belum melakukan absen masuk hari ini. Absen pulang tanpa absen masuk hanya tersedia mulai 12:00 WIB.",
+        kode: "BELUM_ABSEN_MASUK",
+        batasAbsenPulangTanpaMasukWIB: "12:00",
+      });
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Preflight absensi gagal:", error);
+    res.status(503).json({
+      pesan: "Server belum dapat memeriksa status absensi. Silakan coba lagi.",
+      kode: "STATUS_ABSENSI_TIDAK_TERSEDIA",
+    });
+    return false;
+  }
+}
 
 function buatPathStorage(penggunaId, ekstensi = "jpg") {
   const sekarang = new Date();
@@ -26,6 +126,9 @@ function buatPathStorage(penggunaId, ekstensi = "jpg") {
 async function kompresFoto(req, res, next) {
   try {
     if (!req.file) return next();
+
+    const bolehUpload = await validasiSebelumUpload(req, res);
+    if (!bolehUpload) return;
 
     // Lampiran surat boleh PDF. PDF tidak boleh dilewatkan ke Sharp karena
     // Sharp hanya dipakai untuk gambar. Upload PDF langsung ke Storage.
