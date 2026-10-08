@@ -23,15 +23,6 @@ const HEADER_OFFLINE_SYNC = "X-Zaman-Background";
 const OFFLINE_SYNC_HEADER_VALUE = "offline-sync";
 const MAX_OFFLINE_CLOCK_DRIFT_MS = 24 * 60 * 60 * 1000;
 const MAKS_AKURASI_LOKASI_METER = 100;
-// Testing mode: absen pulang tidak dibatasi jam minimum.\nconst JAM_PULANG_MIN_DEFAULT = "00:00:00";
-
-function ambilBatasPulangWIB() {
-  // TESTING MODE: absen pulang tidak memiliki batas jam minimum.
-  // Jangan membaca JAM_PULANG_MIN dari environment agar konfigurasi lama
-  // seperti 17:00 tidak kembali memblokir pengujian.
-  return 0;
-}
-
 function koordinatDariRequest(latitude, longitude) {
   const latitudeRaw = String(latitude ?? "").trim();
   const longitudeRaw = String(longitude ?? "").trim();
@@ -520,6 +511,7 @@ async function statusHariIni(req, res) {
       }
     }
 
+    res.set("Cache-Control", "private, no-store");
     return res.json({
       tahap,
       tanggal: wibDateStr,
