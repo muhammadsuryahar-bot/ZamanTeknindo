@@ -26,11 +26,10 @@ const MAKS_AKURASI_LOKASI_METER = 100;
 // Testing mode: absen pulang tidak dibatasi jam minimum.\nconst JAM_PULANG_MIN_DEFAULT = "00:00:00";
 
 function ambilBatasPulangWIB() {
-  const raw = String(process.env.JAM_PULANG_MIN || JAM_PULANG_MIN_DEFAULT).trim();
-  const match = /^(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d)?$/.exec(raw);
-  if (!match) return 17 * 60;
-  const [jam, menit] = raw.split(":").map(Number);
-  return jam * 60 + menit;
+  // TESTING MODE: absen pulang tidak memiliki batas jam minimum.
+  // Jangan membaca JAM_PULANG_MIN dari environment agar konfigurasi lama
+  // seperti 17:00 tidak kembali memblokir pengujian.
+  return 0;
 }
 
 function koordinatDariRequest(latitude, longitude) {
