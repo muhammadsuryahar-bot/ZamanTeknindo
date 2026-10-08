@@ -441,8 +441,10 @@ async function statusHariIni(req, res) {
     // secara paralel agar load dashboard lebih cepat, sementara query manual
     // tetap aman bila tabel belum tersedia pada environment lama.
     const [absensi, pengajuanDisetujui, manualPending] = await Promise.all([
-      prisma.absensi.findFirst({
-        where: { penggunaId, tanggal: tanggalDate },
+      prisma.absensi.findUnique({
+        where: {
+          penggunaId_tanggal: { penggunaId, tanggal: tanggalDate },
+        },
         select: {
           id: true,
           tanggal: true,
@@ -451,7 +453,6 @@ async function statusHariIni(req, res) {
           statusOtomatis: true,
           statusFinal: true,
         },
-        orderBy: { id: "desc" },
       }),
       prisma.pengajuanIzin.findFirst({
         where: { penggunaId, tanggal: tanggalDate, status: "disetujui" },
