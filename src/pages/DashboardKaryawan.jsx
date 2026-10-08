@@ -1063,12 +1063,6 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       return;
     }
 
-    if (endpoint === "pulang" && totalMenitSekarang < BATAS_ABSEN_PULANG_WIB) {
-      const jamPulang = String(Math.floor(BATAS_ABSEN_PULANG_WIB / 60)).padStart(2, "0");
-      const menitPulang = String(BATAS_ABSEN_PULANG_WIB % 60).padStart(2, "0");
-      setPesan(`Belum jam pulang. Absen pulang baru tersedia mulai ${jamPulang}:${menitPulang} WIB.`);
-      return;
-    }
 
     sesiKirimRef.current = true;
     setLoading(true);
