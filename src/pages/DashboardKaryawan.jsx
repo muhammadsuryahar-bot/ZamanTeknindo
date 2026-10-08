@@ -370,6 +370,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [jumlahTertunda, setJumlahTertunda] = useState(0);
   const [menitWaktuSekarang, setMenitWaktuSekarang] = useState(() => menitSekarangWIB());
+  const [menitServerWIB, setMenitServerWIB] = useState(null);
   const [isOnline, setIsOnline] = useState(() => typeof navigator === "undefined" ? true : navigator.onLine);
   const [sedangSinkron, setSedangSinkron] = useState(false);
   const [statusTerverifikasi, setStatusTerverifikasi] = useState(false);
@@ -612,6 +613,8 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         return;
       }
       const tahapEfektif = normalisasiTahapBerdasarkanWaktu(data.tahap);
+      const menitServer = Number(data.menitServerWIB);
+      if (Number.isFinite(menitServer)) setMenitServerWIB(menitServer);
       setTahap(tahapEfektif);
       setPengajuanHariIni(data.pengajuanIzin || null);
       setManualPending(data.manualPending || null);
@@ -1043,7 +1046,9 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       hourCycle: "h23",
     }).format(new Date());
     const [jamSekarang, menitSekarang] = waktuSekarangWIB.split(":").map(Number);
-    const totalMenitSekarang = jamSekarang * 60 + menitSekarang;
+    const totalMenitPerangkat = jamSekarang * 60 + menitSekarang;
+    const totalMenitSekarang =
+      Number.isFinite(menitServerWIB) ? menitServerWIB : totalMenitPerangkat;
     const lewatBatasAbsenMasuk = totalMenitSekarang >= BATAS_ABSEN_MASUK_WIB;
     const endpoint =
       tahapTampilan === "langsung_pulang" ||
@@ -1100,8 +1105,11 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
   // Gunakan tahap tampilan berbasis jam agar halaman tidak tetap berada
   // di mode "Absensi Masuk" setelah melewati batas 12:00.
+  const menitAcuan =
+    Number.isFinite(menitServerWIB) ? menitServerWIB : menitWaktuSekarang;
+
   const tahapTampilan =
-    tahap === "belum_masuk" && menitWaktuSekarang >= BATAS_ABSEN_MASUK_WIB
+    tahap === "belum_masuk" && menitAcuan >= BATAS_ABSEN_MASUK_WIB
       ? "langsung_pulang"
       : tahap;
 
