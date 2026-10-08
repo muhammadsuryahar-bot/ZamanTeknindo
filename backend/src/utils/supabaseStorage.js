@@ -8,7 +8,49 @@ if (!supabaseUrl || !supabaseKey) {
   console.warn('SUPABASE_URL atau KEY belum di set di .env');
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const STORAGE_REQUEST_TIMEOUT_MS = 10000;
+
+// Supabase Storage dipanggil dari serverless Vercel. Tanpa batas waktu,
+// request upload yang macet dapat membuat tombol absensi terlihat terus
+// "Mengirim..." sampai runtime function dihentikan platform.
+function fetchSupabaseDenganTimeout(input, options = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(new Error("Supabase Storage request timeout")),
+    STORAGE_REQUEST_TIMEOUT_MS,
+  );
+
+  const signalAsli = options?.signal;
+  const teruskanAbort = () => {
+    try {
+      controller.abort(signalAsli?.reason);
+    } catch {
+      controller.abort();
+    }
+  };
+
+  if (signalAsli) {
+    if (signalAsli.aborted) {
+      teruskanAbort();
+    } else {
+      signalAsli.addEventListener("abort", teruskanAbort, { once: true });
+    }
+  }
+
+  return fetch(input, {
+    ...options,
+    signal: controller.signal,
+  }).finally(() => {
+    clearTimeout(timer);
+    signalAsli?.removeEventListener("abort", teruskanAbort);
+  });
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  global: {
+    fetch: fetchSupabaseDenganTimeout,
+  },
+});
 
 // Bucket production proyek adalah `absensi`; nama lama tetap didukung.
 const CANDIDATE_BUCKETS = [
