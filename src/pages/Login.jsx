@@ -22,7 +22,7 @@ function tokenResetDariHash() {
   return new URLSearchParams(window.location.hash.slice(1)).get("resetToken") || "";
 }
 
-export default function Login({ onLoginBerhasil, kePendaftaran }) {
+export default function Login({ onLoginBerhasil, onPasswordResetBerhasil, kePendaftaran }) {
   const [email, setEmail] = useState("");
   const [kataSandi, setKataSandi] = useState("");
   const [mode, setMode] = useState(() => tokenResetDariHash() ? "set-password" : "login");
@@ -177,6 +177,7 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
         throw new Error(data?.pesan || "Password belum berhasil diperbarui.");
       }
 
+      onPasswordResetBerhasil?.();
       setMode("login");
       setResetToken("");
       setKataSandi("");
