@@ -10,6 +10,8 @@ function assert(ok, message) {
 }
 
 const controller = read("backend/src/controllers/authController.js");
+const authMiddleware = read("backend/src/middleware/authMiddleware.js");
+const changePasswordUi = read("src/pages/GantiPassword.jsx");
 const routes = read("backend/src/routes/authRoutes.js");
 const rateLimiter = read("backend/src/middleware/rateLimiter.js");
 const schema = read("backend/prisma/schema.prisma");
@@ -30,6 +32,11 @@ assert(routes.includes('router.post("/reset-password", batasResetPasswordMandiri
 assert(rateLimiter.includes("max: 5") && rateLimiter.includes("max: 10"), "Endpoint reset wajib memiliki pembatasan percobaan.");
 assert(schema.includes('password_reset_token_hash') && schema.includes('password_reset_token_expires_at') && schema.includes('password_reset_requested_at'), "Field token reset wajib ada di Prisma schema.");
 assert(migration.includes("ADD COLUMN IF NOT EXISTS") && migration.includes("CREATE INDEX IF NOT EXISTS"), "Migrasi reset password wajib aman dijalankan ulang.");
+assert(schema.includes('versi_sesi') && migration.includes('"versi_sesi" INTEGER NOT NULL DEFAULT 0'), "Kolom versi sesi wajib kompatibel dengan akun yang sudah ada.");
+assert(controller.includes("versiSesi: pengguna.versiSesi ?? 0"), "JWT login wajib menyertakan versi sesi.");
+assert((controller.match(/versiSesi: \\{ increment: 1 \\}/g) || []).length >= 3, "Ganti password, reset mandiri, dan reset Admin wajib menaikkan versi sesi.");
+assert(authMiddleware.includes("versiSesi: true") && authMiddleware.includes('kode: "SESSION_REVOKED"'), "Middleware wajib menolak JWT dari versi sesi lama.");
+assert(changePasswordUi.includes("onPasswordChanged?.()") && changePasswordUi.includes("pesanSetelahLogout"), "UI ganti password wajib mengakhiri sesi sesudah password berubah.");
 assert(login.includes("/auth/lupa-password") && login.includes("/auth/reset-password"), "UI login wajib terhubung ke kedua endpoint.");
 assert(login.includes("resetToken") && login.includes("konfirmasiKataSandiBaru"), "UI reset wajib mendukung token email dan konfirmasi password.");
 assert(app.includes('new URLSearchParams(window.location.hash.slice(1)).has("resetToken")'), "Aplikasi wajib mengenali tautan reset sebelum token dihapus dari URL.");
