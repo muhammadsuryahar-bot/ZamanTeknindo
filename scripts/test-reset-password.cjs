@@ -34,11 +34,12 @@ assert(schema.includes('password_reset_token_hash') && schema.includes('password
 assert(migration.includes("ADD COLUMN IF NOT EXISTS") && migration.includes("CREATE INDEX IF NOT EXISTS"), "Migrasi reset password wajib aman dijalankan ulang.");
 assert(schema.includes('versi_sesi') && migration.includes('"versi_sesi" INTEGER NOT NULL DEFAULT 0'), "Kolom versi sesi wajib kompatibel dengan akun yang sudah ada.");
 assert(controller.includes("versiSesi: pengguna.versiSesi ?? 0"), "JWT login wajib menyertakan versi sesi.");
-assert((controller.match(/versiSesi: \\{ increment: 1 \\}/g) || []).length >= 3, "Ganti password, reset mandiri, dan reset Admin wajib menaikkan versi sesi.");
+assert(controller.split("versiSesi: { increment: 1 }").length - 1 >= 3, "Ganti password, reset mandiri, dan reset Admin wajib menaikkan versi sesi.");
 assert(authMiddleware.includes("versiSesi: true") && authMiddleware.includes('kode: "SESSION_REVOKED"'), "Middleware wajib menolak JWT dari versi sesi lama.");
 assert(changePasswordUi.includes("onPasswordChanged?.()") && changePasswordUi.includes("pesanSetelahLogout"), "UI ganti password wajib mengakhiri sesi sesudah password berubah.");
 assert(login.includes("/auth/lupa-password") && login.includes("/auth/reset-password"), "UI login wajib terhubung ke kedua endpoint.");
 assert(login.includes("resetToken") && login.includes("konfirmasiKataSandiBaru"), "UI reset wajib mendukung token email dan konfirmasi password.");
+assert(login.includes("onPasswordResetBerhasil?.()") && app.includes("onPasswordResetBerhasil={() =>"), "UI reset wajib menghapus sesi lama setelah reset berhasil.");
 assert(app.includes('new URLSearchParams(window.location.hash.slice(1)).has("resetToken")'), "Aplikasi wajib mengenali tautan reset sebelum token dihapus dari URL.");
 assert(app.includes("pengguna && !aksesResetPassword"), "Pengguna dengan sesi lama tetap harus bisa membuka halaman reset melalui tautan yang valid.");
 console.log("Password reset security regression test: PASS");
