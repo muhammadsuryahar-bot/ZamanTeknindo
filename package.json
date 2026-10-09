@@ -7,7 +7,7 @@
     "dev": "vite",
     "dev:backend": "nodemon backend/src/server.js",
     "build": "vite build",
-    "vercel-build": "node scripts/validate-backend-syntax.cjs && node scripts/test-kiosk-security.cjs && node scripts/test-absensi-cutoff.cjs && node scripts/test-absensi-performance-pwa.cjs && npx prisma generate --schema=backend/prisma/schema.prisma && node scripts/test-export-rekap.cjs && vite build",
+    "vercel-build": "node scripts/validate-backend-syntax.cjs && node scripts/test-karyawan-day-rollover.mjs && node scripts/test-kiosk-security.cjs && node scripts/test-absensi-cutoff.cjs && node scripts/test-absensi-performance-pwa.cjs && npx prisma generate --schema=backend/prisma/schema.prisma && node scripts/test-export-rekap.cjs && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "prisma:generate": "prisma generate --schema=backend/prisma/schema.prisma",
