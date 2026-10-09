@@ -9,8 +9,6 @@ const prisma = require("../utils/prismaClient");
 const {
   getWIBTodayRange,
   totalMenitWIB,
-  parseJam,
-  JAM_PULANG_STANDAR_DEFAULT,
   BATAS_ABSEN_MASUK_WIB,
 } = require("../utils/waktuIndonesia");
 
@@ -47,10 +45,16 @@ async function validasiSebelumUpload(req, res) {
   const menitValidasi = menitValidasiWIB(req);
 
   try {
-    const pengajuanDisetujui = await prisma.pengajuanIzin.findFirst({
-      where: { penggunaId, tanggal, status: "disetujui" },
-      select: { id: true, jenis: true },
-    });
+    const [pengajuanDisetujui, absensi] = await Promise.all([
+      prisma.pengajuanIzin.findFirst({
+        where: { penggunaId, tanggal, status: "disetujui" },
+        select: { id: true, jenis: true },
+      }),
+      prisma.absensi.findUnique({
+        where: { penggunaId_tanggal: { penggunaId, tanggal } },
+        select: { id: true, jamMasuk: true, jamPulang: true },
+      }),
+    ]);
 
     if (pengajuanDisetujui) {
       res.status(400).json({
@@ -59,11 +63,6 @@ async function validasiSebelumUpload(req, res) {
       });
       return false;
     }
-
-    const absensi = await prisma.absensi.findUnique({
-      where: { penggunaId_tanggal: { penggunaId, tanggal } },
-      select: { jamMasuk: true, jamPulang: true },
-    });
 
     if (route === "/masuk") {
       if (menitValidasi >= BATAS_ABSEN_MASUK_WIB) {
@@ -82,27 +81,13 @@ async function validasiSebelumUpload(req, res) {
         return false;
       }
 
+      req.absensiPreflight = { penggunaId, tanggal, absensi, route };
       return true;
     }
 
     if (absensi?.jamPulang) {
       res.status(409).json({
         pesan: "Anda sudah melakukan absen pulang hari ini.",
-      });
-      return false;
-    }
-
-    const batasPulangWIB = parseJam(
-      process.env.JAM_PULANG_MIN || JAM_PULANG_STANDAR_DEFAULT,
-    );
-
-    if (menitValidasi < batasPulangWIB) {
-      const jam = String(Math.floor(batasPulangWIB / 60)).padStart(2, "0");
-      const menit = String(batasPulangWIB % 60).padStart(2, "0");
-      res.status(400).json({
-        pesan: "Belum jam pulang. Absen pulang baru tersedia mulai " + jam + ":" + menit + " WIB.",
-        kode: "BELUM_JAM_PULANG",
-        batasAbsenPulangWIB: jam + ":" + menit,
       });
       return false;
     }
@@ -116,6 +101,7 @@ async function validasiSebelumUpload(req, res) {
       return false;
     }
 
+    req.absensiPreflight = { penggunaId, tanggal, absensi, route };
     return true;
   } catch (error) {
     console.error("Preflight absensi gagal:", error);
