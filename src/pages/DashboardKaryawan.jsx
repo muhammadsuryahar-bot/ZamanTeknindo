@@ -399,19 +399,13 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   }
 
   useEffect(() => {
-    tandaiSesiAbsensiAktif(kameraAktif || Boolean(fotoTerambil) || loading);
-    return () => {
-      tandaiSesiAbsensiAktif(false);
-    };
-  }, [kameraAktif, fotoTerambil, loading]);
-
-  useEffect(() => {
     mountedRef.current = true;
     void ambilStatusHariIni();
     void cobaSinkronAntrian({ refreshStatus: false });
 
     return () => {
       mountedRef.current = false;
+      tandaiSesiAbsensiAktif(false);
       hentikanKamera();
       hentikanPelacakanLokasi();
     };
@@ -504,6 +498,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
           hentikanStreamKamera();
           hentikanPelacakanLokasi();
           setKameraAktif(false);
+          tandaiSesiAbsensiAktif(false);
           setStatusLokasi("gagal");
           setPesan("Kamera terputus setelah aplikasi kembali aktif. Tekan Foto Ulang untuk menyalakan kamera lagi.");
         }
