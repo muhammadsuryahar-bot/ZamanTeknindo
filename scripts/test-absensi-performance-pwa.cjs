@@ -27,7 +27,7 @@ assert(!middleware.includes("JAM_PULANG_STANDAR_DEFAULT"), "Middleware tidak bol
 assert(middleware.includes("menitValidasi < BATAS_ABSEN_MASUK_WIB"), "Aturan clock-out tanpa absen masuk sebelum 12:00 tetap harus dijaga.");
 
 assert(controller.includes("preflightMasuk.absensi"), "Controller masuk harus memakai snapshot preflight untuk mengurangi query berulang.");
-assert(controller.includes("preflightPulang?.absensi"), "Controller pulang harus memakai snapshot preflight untuk mengurangi query berulang.");
+assert(controller.includes("preflightPulang.absensi"), "Controller pulang harus memakai snapshot preflight untuk mengurangi query berulang.");
 assert(controller.includes("waktuServerEpochMs: waktuServerSekarang.getTime()"), "Status API harus menyediakan timestamp server presisi.");
 
 assert(karyawan.includes("window.__zamanAbsensiSedangBerlangsung"), "Halaman Karyawan harus mengunci update saat sesi absensi aktif.");
