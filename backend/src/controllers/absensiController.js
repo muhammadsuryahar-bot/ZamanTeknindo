@@ -225,24 +225,21 @@ async function absenMasuk(req, res) {
     tahap = "simpan-absensi";
     let absensi;
     if (sudahAbsen) {
-      const hasilUpdate = await prisma.absensi.updateMany({
-        where: {
-          id: sudahAbsen.id,
-          jamMasuk: null,
-        },
-        data,
-      });
-
-      if (hasilUpdate.count !== 1) {
-        await hapusFotoJikaPerlu();
-        return res.status(409).json({
-          pesan: "Absensi masuk sudah tercatat. Silakan periksa status hari ini.",
+      try {
+        // Satu query atomik sekaligus mengambil record yang diperbarui.
+        absensi = await prisma.absensi.update({
+          where: { id: sudahAbsen.id, jamMasuk: null },
+          data,
         });
+      } catch (error) {
+        if (error?.code === "P2025") {
+          await hapusFotoJikaPerlu();
+          return res.status(409).json({
+            pesan: "Absensi masuk sudah tercatat. Silakan periksa status hari ini.",
+          });
+        }
+        throw error;
       }
-
-      absensi = await prisma.absensi.findUnique({
-        where: { id: sudahAbsen.id },
-      });
     } else {
       try {
         absensi = await prisma.absensi.create({ data: { penggunaId, tanggal, ...data } });
@@ -357,24 +354,21 @@ async function absenPulang(req, res) {
 
     let absensi;
     if (absensiHariIni) {
-      const hasilUpdate = await prisma.absensi.updateMany({
-        where: {
-          id: absensiHariIni.id,
-          jamPulang: null,
-        },
-        data: dataPulang,
-      });
-
-      if (hasilUpdate.count !== 1) {
-        await hapusFotoJikaPerlu();
-        return res.status(409).json({
-          pesan: "Absensi pulang sudah tercatat. Silakan periksa status hari ini.",
+      try {
+        // Update bersyarat mengembalikan record dalam satu round-trip dan tetap mencegah double-submit.
+        absensi = await prisma.absensi.update({
+          where: { id: absensiHariIni.id, jamPulang: null },
+          data: dataPulang,
         });
+      } catch (error) {
+        if (error?.code === "P2025") {
+          await hapusFotoJikaPerlu();
+          return res.status(409).json({
+            pesan: "Absensi pulang sudah tercatat. Silakan periksa status hari ini.",
+          });
+        }
+        throw error;
       }
-
-      absensi = await prisma.absensi.findUnique({
-        where: { id: absensiHariIni.id },
-      });
     } else {
       try {
         absensi = await prisma.absensi.create({
