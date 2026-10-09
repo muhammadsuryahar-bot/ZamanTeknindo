@@ -26,6 +26,7 @@ import {
   simpanKeAntrian,
 } from "../utils/antrianOffline";
 import { formatAlamatPresensi } from "../utils/alamatPresensi";
+import { perluSinkronStatusHarian } from "../utils/statusHarian";
 
 let dataProvinsiCache = null;
 
@@ -391,6 +392,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   const kameraSiapRef = useRef(false);
   const sesiKirimRef = useRef(false);
   const statusTerverifikasiAtRef = useRef(0);
+  const tanggalAktifRef = useRef(tanggalLokalISO());
 
   function tandaiSesiAbsensiAktif(aktif) {
     if (typeof window !== "undefined") {
@@ -448,6 +450,52 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     const intervalId = window.setInterval(sinkronkanJam, 5000);
     return () => window.clearInterval(intervalId);
   }, []);
+
+  // Sinkronkan status saat tanggal WIB berganti meskipun halaman tetap terbuka.
+  // Sesi kirim yang sedang berlangsung dibiarkan selesai; foto/kamera lama dibatalkan.
+  useEffect(() => {
+    const periksaPerubahanHari = () => {
+      const tanggalSekarang = tanggalLokalISO();
+      const sedangMengirim = loading || sesiKirimRef.current;
+      if (!perluSinkronStatusHarian(tanggalAktifRef.current, tanggalSekarang, sedangMengirim)) {
+        return;
+      }
+
+      const sesiKameraPerluDiakhiri = kameraAktif || kameraMembuka || Boolean(fotoTerambil);
+      tanggalAktifRef.current = tanggalSekarang;
+
+      if (sesiKameraPerluDiakhiri) {
+        hentikanKamera();
+        setFotoTerambil(null);
+        setLokasi(null);
+        setStatusLokasi("mencari");
+        tandaiSesiAbsensiAktif(false);
+      }
+
+      setTahap("memuat");
+      setPengajuanHariIni(null);
+      setManualPending(null);
+      setStatusTerverifikasi(false);
+      setStatusVerifikasiSedang(false);
+      setWaktuServerEpochMs(null);
+      waktuServerDiterimaAtRef.current = 0;
+      statusTerverifikasiAtRef.current = 0;
+      setPesan("");
+      setPesanSinkronisasi("");
+
+      void (async () => {
+        await ambilStatusHariIni();
+        if (sesiKameraPerluDiakhiri && mountedRef.current) {
+          setPesan("Tanggal sudah berganti. Ambil foto dan lokasi baru untuk mencatat absensi hari ini.");
+        }
+      })();
+      void cobaSinkronAntrian({ refreshStatus: false });
+    };
+
+    const intervalId = window.setInterval(periksaPerubahanHari, 15000);
+    return () => window.clearInterval(intervalId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kameraAktif, kameraMembuka, fotoTerambil, loading, pengguna?.id]);
 
   // Cutoff 12:00 WIB harus berlaku juga saat halaman Karyawan
   // dibiarkan terbuka dari pagi tanpa reload. UI boleh berpindah lebih dulu
