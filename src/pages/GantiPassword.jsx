@@ -3,7 +3,7 @@ import { API_URL, getToken } from "../utils/api";
 import { warna, font } from "../styles/theme";
 import TopbarHijau from "../components/TopbarHijau";
 
-export default function GantiPassword({ kembali }) {
+export default function GantiPassword({ kembali, onPasswordChanged }) {
   const [passwordLama, setPasswordLama] = useState("");
   const [passwordBaru, setPasswordBaru] = useState("");
   const [konfirmasiPasswordBaru, setKonfirmasiPasswordBaru] = useState("");
@@ -42,11 +42,15 @@ export default function GantiPassword({ kembali }) {
         return;
       }
 
-      setPesanTipe("sukses");
-      setPesan("Password berhasil diubah. Gunakan password baru untuk login berikutnya.");
+      try {
+        sessionStorage.setItem("pesanSetelahLogout", "Password berhasil diubah. Silakan login kembali menggunakan password baru.");
+      } catch (storageError) {
+        console.warn("Pesan konfirmasi logout tidak dapat disimpan:", storageError);
+      }
       setPasswordLama("");
       setPasswordBaru("");
       setKonfirmasiPasswordBaru("");
+      onPasswordChanged?.();
     } catch (err) {
       console.error(err);
       setPesanTipe("error");
