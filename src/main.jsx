@@ -104,12 +104,15 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
     return false
   }
 
+  const sesiAbsensiMasihBerlangsung = () =>
+    window.__zamanAbsensiSedangBerlangsung === true || kameraMasihAktif()
+
   const terapkanPembaruanJikaAman = () => {
     if (!pembaruanTertunda || typeof updatePWA !== 'function') return
 
-    // Jangan reload ketika kamera masih live. Setelah kamera dilepas,
-    // pembaruan diterapkan otomatis tanpa perlu karyawan memasang ulang PWA.
-    if (kameraMasihAktif()) {
+    // Tahan update selama kamera live, foto sudah diambil, atau pengiriman absensi berjalan.
+    // Setelah absensi berhasil disimpan atau sesi dibatalkan, update diterapkan otomatis.
+    if (sesiAbsensiMasihBerlangsung()) {
       if (penjagaPembaruan !== null) return
       penjagaPembaruan = window.setInterval(() => {
         if (!kameraMasihAktif()) {
@@ -155,6 +158,10 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
         terapkanPembaruanJikaAman()
       })
       window.addEventListener('pageshow', () => {
+        void periksaUpdatePWA()
+        terapkanPembaruanJikaAman()
+      })
+      window.addEventListener('focus', () => {
         void periksaUpdatePWA()
         terapkanPembaruanJikaAman()
       })
