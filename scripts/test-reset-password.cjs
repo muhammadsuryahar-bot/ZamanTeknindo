@@ -15,6 +15,7 @@ const rateLimiter = read("backend/src/middleware/rateLimiter.js");
 const schema = read("backend/prisma/schema.prisma");
 const migration = read("backend/prisma/migrations/20261009095000_self_service_password_reset/migration.sql");
 const login = read("src/pages/Login.jsx");
+const app = read("src/App.jsx");
 
 assert(controller.includes('crypto.randomBytes(32).toString("hex")'), "Token reset harus dibuat memakai random bytes kriptografis.");
 assert(controller.includes('crypto.createHash("sha256").update(token).digest("hex")'), "Database hanya boleh menyimpan hash token.");
@@ -31,4 +32,6 @@ assert(schema.includes('password_reset_token_hash') && schema.includes('password
 assert(migration.includes("ADD COLUMN IF NOT EXISTS") && migration.includes("CREATE INDEX IF NOT EXISTS"), "Migrasi reset password wajib aman dijalankan ulang.");
 assert(login.includes("/auth/lupa-password") && login.includes("/auth/reset-password"), "UI login wajib terhubung ke kedua endpoint.");
 assert(login.includes("resetToken") && login.includes("konfirmasiKataSandiBaru"), "UI reset wajib mendukung token email dan konfirmasi password.");
+assert(app.includes('new URLSearchParams(window.location.hash.slice(1)).has("resetToken")'), "Aplikasi wajib mengenali tautan reset sebelum token dihapus dari URL.");
+assert(app.includes("pengguna && !aksesResetPassword"), "Pengguna dengan sesi lama tetap harus bisa membuka halaman reset melalui tautan yang valid.");
 console.log("Password reset security regression test: PASS");
