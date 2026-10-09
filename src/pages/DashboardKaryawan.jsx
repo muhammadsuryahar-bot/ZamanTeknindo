@@ -1321,6 +1321,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       setPesan("Tidak bisa terhubung ke server, dan gagal menyimpan absen secara offline. Coba lagi.");
     } finally {
       sesiKirimRef.current = false;
+      tandaiSesiAbsensiAktif(false);
       if (mountedRef.current) setLoading(false);
     }
   }
