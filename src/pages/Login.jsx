@@ -17,9 +17,18 @@ import AuthLayout from "../components/AuthLayout";
 const KUNCI_INGAT_SAYA = "zaman-teknindo:ingat-saya";
 const KUNCI_EMAIL_TERSIMPAN = "zaman-teknindo:email-login";
 
+function tokenResetDariHash() {
+  if (typeof window === "undefined") return "";
+  return new URLSearchParams(window.location.hash.slice(1)).get("resetToken") || "";
+}
+
 export default function Login({ onLoginBerhasil, kePendaftaran }) {
   const [email, setEmail] = useState("");
   const [kataSandi, setKataSandi] = useState("");
+  const [mode, setMode] = useState(() => tokenResetDariHash() ? "set-password" : "login");
+  const [resetToken, setResetToken] = useState(() => tokenResetDariHash());
+  const [kataSandiBaru, setKataSandiBaru] = useState("");
+  const [konfirmasiKataSandiBaru, setKonfirmasiKataSandiBaru] = useState("");
   const [ingatSaya, setIngatSaya] = useState(() => {
     try {
       return localStorage.getItem(KUNCI_INGAT_SAYA) === "1";
@@ -37,6 +46,14 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
 
   useEffect(() => {
     try {
+      // Token berada di URL fragment agar tidak ikut dikirim ke server/log akses.
+      if (tokenResetDariHash()) {
+        window.history.replaceState(
+          window.history.state,
+          "",
+          window.location.pathname + window.location.search,
+        );
+      }
       const emailTersimpan = localStorage.getItem(KUNCI_EMAIL_TERSIMPAN);
       if (emailTersimpan) setEmail(emailTersimpan);
 
@@ -96,6 +113,98 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
     }
   }
 
+
+  async function handleMintaResetPassword(e) {
+    e.preventDefault();
+    setPesanError("");
+    setPesanInfo("");
+
+    const emailBersih = email.trim().toLowerCase();
+    if (!emailBersih) {
+      setPesanError("Email akun wajib diisi.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch(API_URL + "/auth/lupa-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailBersih }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.pesan || "Permintaan reset password belum berhasil.");
+      }
+      setPesanInfo(
+        data?.pesan ||
+          "Jika email terdaftar, instruksi reset akan dikirim. Periksa kotak masuk dan spam.",
+      );
+    } catch (error) {
+      setPesanError(error?.message || "Tidak bisa meminta reset password. Coba lagi nanti.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleResetPassword(e) {
+    e.preventDefault();
+    setPesanError("");
+    setPesanInfo("");
+
+    if (!resetToken) {
+      setPesanError("Token reset tidak ditemukan. Minta tautan reset baru.");
+      return;
+    }
+    if (kataSandiBaru.length < 8) {
+      setPesanError("Password baru minimal 8 karakter.");
+      return;
+    }
+    if (kataSandiBaru !== konfirmasiKataSandiBaru) {
+      setPesanError("Konfirmasi password baru belum sama.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch(API_URL + "/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: resetToken, passwordBaru: kataSandiBaru }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.pesan || "Password belum berhasil diperbarui.");
+      }
+
+      setMode("login");
+      setResetToken("");
+      setKataSandi("");
+      setKataSandiBaru("");
+      setKonfirmasiKataSandiBaru("");
+      setPesanInfo(data?.pesan || "Password berhasil diperbarui. Silakan login.");
+    } catch (error) {
+      setPesanError(error?.message || "Password belum berhasil diperbarui. Coba minta tautan baru.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleKembaliLogin() {
+    setMode("login");
+    setResetToken("");
+    setKataSandiBaru("");
+    setKonfirmasiKataSandiBaru("");
+    setPesanError("");
+    setPesanInfo("");
+  }
+
+  function handleSubmit(e) {
+    if (mode === "request-reset") return handleMintaResetPassword(e);
+    if (mode === "set-password") return handleResetPassword(e);
+    return handleLogin(e);
+  }
+
   const infoAdalahPeringatan = Boolean(
     pesanInfo && /dinonaktifkan|tidak aktif|menunggu/i.test(pesanInfo),
   );
@@ -103,75 +212,139 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
   return (
     <AuthLayout
       tagline="Kelola kehadiran karyawan dengan lebih tertib, cepat, dan terintegrasi — di mana pun karyawan bertugas."
-      formTitle="Masuk ke Akun"
-      formSubtitle="Gunakan email dan password akun kamu untuk mengakses sistem absensi."
+      formTitle={mode === "login" ? "Masuk ke Akun" : mode === "request-reset" ? "Lupa Password" : "Buat Password Baru"}
+      formSubtitle={mode === "login" ? "Gunakan email dan password akun kamu untuk mengakses sistem absensi." : mode === "request-reset" ? "Masukkan email akun terdaftar untuk meminta tautan reset password." : "Buat password baru yang minimal terdiri dari 8 karakter."}
     >
-      <form onSubmit={handleLogin} noValidate name="login" className="login-form">
-        <div className="field">
-          <label htmlFor="email" className="field-label">Email</label>
-          <div className={`input-wrap ${emailFokus ? "focused" : ""}`}>
-            <Mail size={18} className="input-icon" />
-            <input
-              id="email"
-              name="username"
-              type="email"
-              value={email}
-              onChange={(e) => { setEmail(e.target.value); setPesanError(""); }}
-              onFocus={() => setEmailFokus(true)}
-              onBlur={() => setEmailFokus(false)}
-              placeholder="nama@perusahaan.com"
-              className="auth-input auth-input-tanpa-tombol"
-              autoComplete="username"
-              inputMode="email"
-              disabled={loading}
-              required
-            />
+      <form onSubmit={handleSubmit} noValidate name={mode === "login" ? "login" : "reset-password"} className="login-form">
+        {mode !== "set-password" && (
+          <div className="field">
+            <label htmlFor="email" className="field-label">{mode === "request-reset" ? "Email Akun Terdaftar" : "Email"}</label>
+            <div className={emailFokus ? "input-wrap focused" : "input-wrap"}>
+              <Mail size={18} className="input-icon" />
+              <input
+                id="email"
+                name="username"
+                type="email"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); setPesanError(""); setPesanInfo(""); }}
+                onFocus={() => setEmailFokus(true)}
+                onBlur={() => setEmailFokus(false)}
+                placeholder={mode === "request-reset" ? "Email yang digunakan saat login" : "nama@perusahaan.com"}
+                className="auth-input auth-input-tanpa-tombol"
+                autoComplete="username"
+                inputMode="email"
+                disabled={loading}
+                required
+              />
+            </div>
           </div>
-        </div>
+        )}
 
-        <div className="field">
-          <label htmlFor="kataSandi" className="field-label">Password</label>
-          <div className={`input-wrap ${passwordFokus ? "focused" : ""}`}>
-            <LockKeyhole size={18} className="input-icon" />
+        {mode === "login" && (
+          <div className="field">
+            <label htmlFor="kataSandi" className="field-label">Password</label>
+            <div className={passwordFokus ? "input-wrap focused" : "input-wrap"}>
+              <LockKeyhole size={18} className="input-icon" />
+              <input
+                id="kataSandi"
+                name="current-password"
+                type={lihatPassword ? "text" : "password"}
+                value={kataSandi}
+                onChange={(e) => { setKataSandi(e.target.value); setPesanError(""); setPesanInfo(""); }}
+                onFocus={() => setPasswordFokus(true)}
+                onBlur={() => setPasswordFokus(false)}
+                placeholder="Masukkan password"
+                className="auth-input"
+                autoComplete="current-password"
+                disabled={loading}
+                required
+              />
+              <button
+                type="button"
+                className="password-button"
+                onClick={() => setLihatPassword((n) => !n)}
+                disabled={loading}
+                title={lihatPassword ? "Sembunyikan password" : "Tampilkan password"}
+                aria-label={lihatPassword ? "Sembunyikan password" : "Tampilkan password"}
+              >
+                {lihatPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {mode === "set-password" && (
+          <>
+            <div className="field">
+              <label htmlFor="kataSandiBaru" className="field-label">Password Baru</label>
+              <div className="input-wrap">
+                <LockKeyhole size={18} className="input-icon" />
+                <input
+                  id="kataSandiBaru"
+                  name="new-password"
+                  type="password"
+                  value={kataSandiBaru}
+                  onChange={(e) => { setKataSandiBaru(e.target.value); setPesanError(""); setPesanInfo(""); }}
+                  placeholder="Minimal 8 karakter"
+                  className="auth-input"
+                  autoComplete="new-password"
+                  minLength={8}
+                  maxLength={64}
+                  disabled={loading}
+                  required
+                />
+              </div>
+            </div>
+            <div className="field">
+              <label htmlFor="konfirmasiKataSandiBaru" className="field-label">Ulangi Password Baru</label>
+              <div className="input-wrap">
+                <LockKeyhole size={18} className="input-icon" />
+                <input
+                  id="konfirmasiKataSandiBaru"
+                  name="confirm-password"
+                  type="password"
+                  value={konfirmasiKataSandiBaru}
+                  onChange={(e) => { setKonfirmasiKataSandiBaru(e.target.value); setPesanError(""); setPesanInfo(""); }}
+                  placeholder="Masukkan ulang password baru"
+                  className="auth-input"
+                  autoComplete="new-password"
+                  minLength={8}
+                  maxLength={64}
+                  disabled={loading}
+                  required
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+        {mode === "login" && (
+          <label className="remember-login">
             <input
-              id="kataSandi"
-              name="current-password"
-              type={lihatPassword ? "text" : "password"}
-              value={kataSandi}
-              onChange={(e) => { setKataSandi(e.target.value); setPesanError(""); }}
-              onFocus={() => setPasswordFokus(true)}
-              onBlur={() => setPasswordFokus(false)}
-              placeholder="Masukkan password"
-              className="auth-input"
-              autoComplete="current-password"
+              type="checkbox"
+              checked={ingatSaya}
+              onChange={(e) => setIngatSaya(e.target.checked)}
               disabled={loading}
-              required
             />
+            <span>Ingat saya di perangkat ini</span>
+          </label>
+        )}
+
+        {mode === "login" && (
+          <div className="auth-reset-link-wrap">
             <button
               type="button"
-              className="password-button"
-              onClick={() => setLihatPassword((n) => !n)}
+              className="auth-switch-button"
+              onClick={() => { setMode("request-reset"); setPesanError(""); setPesanInfo(""); }}
               disabled={loading}
-              title={lihatPassword ? "Sembunyikan password" : "Tampilkan password"}
-              aria-label={lihatPassword ? "Sembunyikan password" : "Tampilkan password"}
             >
-              {lihatPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              Lupa password?
             </button>
           </div>
-        </div>
-
-        <label className="remember-login">
-          <input
-            type="checkbox"
-            checked={ingatSaya}
-            onChange={(e) => setIngatSaya(e.target.checked)}
-            disabled={loading}
-          />
-          <span>Ingat saya di perangkat ini</span>
-        </label>
+        )}
 
         {pesanInfo && (
-          <div className={`message ${infoAdalahPeringatan ? "message-warning" : "message-info"}`} role="alert">
+          <div className={infoAdalahPeringatan ? "message message-warning" : "message message-info"} role="alert">
             {infoAdalahPeringatan ? <AlertCircle size={18} /> : <Info size={18} />}
             <span>{pesanInfo}</span>
           </div>
@@ -188,7 +361,17 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
           {loading ? (
             <>
               <LoaderCircle size={18} className="auth-loading-icon" />
-              Memproses login...
+              {mode === "login" ? "Memproses login..." : mode === "request-reset" ? "Meminta tautan..." : "Menyimpan password..."}
+            </>
+          ) : mode === "request-reset" ? (
+            <>
+              Kirim Tautan Reset
+              <ArrowRight size={18} />
+            </>
+          ) : mode === "set-password" ? (
+            <>
+              Simpan Password Baru
+              <ArrowRight size={18} />
             </>
           ) : (
             <>
@@ -200,10 +383,18 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
       </form>
 
       <div className="auth-switch-area">
-        Belum punya akun?
-        <button type="button" className="auth-switch-button" onClick={kePendaftaran} disabled={loading}>
-          Daftar di sini
-        </button>
+        {mode === "login" ? (
+          <>
+            Belum punya akun?
+            <button type="button" className="auth-switch-button" onClick={kePendaftaran} disabled={loading}>
+              Daftar di sini
+            </button>
+          </>
+        ) : (
+          <button type="button" className="auth-switch-button" onClick={handleKembaliLogin} disabled={loading}>
+            Kembali ke Login
+          </button>
+        )}
       </div>
 
       <div className="auth-security-note">
@@ -242,6 +433,15 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
         }
         .remember-login span {
           font: inherit;
+        }
+        .auth-reset-link-wrap {
+          display: flex;
+          justify-content: flex-end;
+          margin: -8px 0 16px;
+        }
+        .auth-reset-link-wrap .auth-switch-button {
+          margin-left: 0;
+          padding: 5px 0;
         }
       `}</style>
     </AuthLayout>
