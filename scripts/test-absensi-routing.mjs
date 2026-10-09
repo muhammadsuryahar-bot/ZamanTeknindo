@@ -45,6 +45,16 @@ assert.equal(perluKonfirmasiPulangSaja("belum_masuk", 800), false);
 assert.match(dashboard, /tentukanEndpointAbsensi\(tahapKirim, menitAcuanKirim\)/);
 assert.match(dashboard, /perluKonfirmasiPulangSaja\(tahapKirim, menitAcuanKirim\)/);
 assert.match(dashboard, /window\.confirm\(PESAN_KONFIRMASI_PULANG_SAJA\)/);
-assert.match(dashboard, /async function bacaAbsensiTersimpan\(endpoint\)/);
+assert.match(dashboard, /async function bacaAbsensiTersimpan\\(endpoint\\)/);
+
+const kirimMulai = dashboard.indexOf("  async function kirimAbsen()");
+const tampilanMulai = dashboard.indexOf("\\n\\n  // Gunakan tahap tampilan", kirimMulai);
+assert.ok(kirimMulai >= 0 && tampilanMulai > kirimMulai, "Blok kirimAbsen harus dapat ditemukan.");
+const blokKirim = dashboard.slice(kirimMulai, tampilanMulai);
+assert.match(
+  blokKirim,
+  /finally\\s*\\{\\s*sesiKirimRef\\.current = false;\\s*tandaiSesiAbsensiAktif\\(false\\);/,
+  "Penanda proses absensi wajib dibersihkan setelah berhasil, gagal, atau dibatalkan."
+);
 
 console.log("Absensi route + 12:00–17:00 confirmation regression test: PASS");
