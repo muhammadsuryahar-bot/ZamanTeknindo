@@ -513,10 +513,12 @@ async function statusHariIni(req, res) {
     }
 
     res.set("Cache-Control", "private, no-store");
+    const waktuServerSekarang = new Date();
     return res.json({
       tahap,
       tanggal: wibDateStr,
-      menitServerWIB: menitSekarangWIB(new Date()),
+      menitServerWIB: menitSekarangWIB(waktuServerSekarang),
+      waktuServerEpochMs: waktuServerSekarang.getTime(),
       data: absensi,
       pengajuanIzin: null,
       manualPending,
