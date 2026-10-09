@@ -371,6 +371,8 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   const [jumlahTertunda, setJumlahTertunda] = useState(0);
   const [menitWaktuSekarang, setMenitWaktuSekarang] = useState(() => menitSekarangWIB());
   const [menitServerWIB, setMenitServerWIB] = useState(null);
+  const [waktuServerEpochMs, setWaktuServerEpochMs] = useState(null);
+  const waktuServerDiterimaAtRef = useRef(0);
   const [isOnline, setIsOnline] = useState(() => typeof navigator === "undefined" ? true : navigator.onLine);
   const [sedangSinkron, setSedangSinkron] = useState(false);
   const [statusTerverifikasi, setStatusTerverifikasi] = useState(false);
@@ -390,6 +392,19 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   const kameraSiapRef = useRef(false);
   const sesiKirimRef = useRef(false);
   const statusTerverifikasiAtRef = useRef(0);
+
+  function tandaiSesiAbsensiAktif(aktif) {
+    if (typeof window !== "undefined") {
+      window.__zamanAbsensiSedangBerlangsung = Boolean(aktif);
+    }
+  }
+
+  useEffect(() => {
+    tandaiSesiAbsensiAktif(kameraAktif || Boolean(fotoTerambil) || loading);
+    return () => {
+      tandaiSesiAbsensiAktif(false);
+    };
+  }, [kameraAktif, fotoTerambil, loading]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -616,6 +631,11 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       const tahapEfektif = normalisasiTahapBerdasarkanWaktu(data.tahap);
       const menitServer = Number(data.menitServerWIB);
       if (Number.isFinite(menitServer)) setMenitServerWIB(menitServer);
+      const epochServer = Number(data.waktuServerEpochMs);
+      if (Number.isFinite(epochServer) && epochServer > 0) {
+        setWaktuServerEpochMs(epochServer);
+        waktuServerDiterimaAtRef.current = Date.now();
+      }
       setTahap(tahapEfektif);
       setPengajuanHariIni(data.pengajuanIzin || null);
       setManualPending(data.manualPending || null);
@@ -644,75 +664,6 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     }
   }
 
-  async function segarkanStatusUntukKirim() {
-    if (!navigator.onLine) {
-      return {
-        ok: statusTerverifikasi,
-        tahap: tahapTampilan,
-        menitServerWIB: Number.isFinite(menitServerWIB) ? menitServerWIB : menitWaktuSekarang,
-      };
-    }
-
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), STATUS_REQUEST_TIMEOUT_MS);
-
-    try {
-      const res = await fetch(`${API_URL}/absensi/status-hari-ini`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-        signal: controller.signal,
-      });
-
-      let data = {};
-      try {
-        data = await res.json();
-      } catch (parseError) {
-        console.warn("Respons status absensi bukan JSON saat kirim:", parseError);
-      }
-
-      if (!res.ok || !TAHAP_VALID.has(data.tahap)) {
-        throw new Error(data.pesan || "Status absensi terbaru tidak valid.");
-      }
-
-      const serverMinutes = Number(data.menitServerWIB);
-      const menitAcuanKirim = Number.isFinite(serverMinutes)
-        ? serverMinutes
-        : menitWaktuSekarang;
-
-      const tahapServer = normalisasiTahapBerdasarkanWaktu(data.tahap);
-      const tahapKirim =
-        tahapServer === "belum_masuk" && menitAcuanKirim >= BATAS_ABSEN_MASUK_WIB
-          ? "langsung_pulang"
-          : tahapServer;
-
-      if (!mountedRef.current) {
-        return { ok: false, tahap: tahapKirim, menitServerWIB: menitAcuanKirim };
-      }
-
-      setTahap(tahapKirim);
-      setMenitServerWIB(menitAcuanKirim);
-      setPengajuanHariIni(data.pengajuanIzin || null);
-      setManualPending(data.manualPending || null);
-      simpanCacheStatusHariIni(pengguna, tahapKirim);
-      setStatusTerverifikasi(true);
-      statusTerverifikasiAtRef.current = Date.now();
-      setPesan("");
-
-      return {
-        ok: true,
-        tahap: tahapKirim,
-        menitServerWIB: menitAcuanKirim,
-      };
-    } catch (error) {
-      console.error("Gagal menyegarkan status sebelum kirim:", error);
-      return {
-        ok: false,
-        tahap: tahapTampilan,
-        menitServerWIB: Number.isFinite(menitServerWIB) ? menitServerWIB : menitWaktuSekarang,
-      };
-    } finally {
-      window.clearTimeout(timeoutId);
-    }
-  }
 
   function hentikanStreamKamera() {
     if (streamRef.current) {
@@ -744,7 +695,16 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   }
 
   async function bukaKamera() {
+    tandaiSesiAbsensiAktif(true);
     setPesan("");
+    if (
+      navigator.onLine &&
+      (!statusTerverifikasi ||
+        !statusTerverifikasiAtRef.current ||
+        Date.now() - statusTerverifikasiAtRef.current > 30000)
+    ) {
+      void ambilStatusHariIni({ pertahankanVerifikasiSaatFallback: true });
+    }
     if (!navigator.mediaDevices?.getUserMedia) { setPesan("Browser ini tidak mendukung akses kamera."); return; }
     if (kameraMembuka || kameraAktif) return;
     setKameraMembuka(true);
@@ -934,6 +894,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   }
 
   async function ambilFoto() {
+    tandaiSesiAbsensiAktif(true);
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas || !video.videoWidth || !video.videoHeight) { setPesan("Kamera belum siap. Tunggu sebentar lalu coba lagi."); return; }
@@ -1096,6 +1057,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
   async function kirimAbsen() {
     if (sesiKirimRef.current || loading) return;
+    tandaiSesiAbsensiAktif(true);
     if (!fotoTerambil) {
       setPesan("Silakan ambil foto terlebih dahulu.");
       return;
@@ -1125,27 +1087,17 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         return;
       }
 
-      let tahapKirim = tahapTampilan;
-      let menitAcuanKirim = Number.isFinite(menitServerWIB)
-        ? menitServerWIB
-        : menitWaktuSekarang;
-
-      const statusMasihSegar =
-        statusTerverifikasi &&
-        statusTerverifikasiAtRef.current > 0 &&
-        Date.now() - statusTerverifikasiAtRef.current < 20000;
-
-      if (navigator.onLine && (!statusMasihSegar || statusVerifikasiSedang)) {
-        setPesan("Memeriksa status absensi terbaru...");
-        const hasilStatus = await segarkanStatusUntukKirim();
-        if (!hasilStatus.ok) {
-          setStatusTerverifikasi(false);
-          setPesan("Status absensi belum berhasil diverifikasi. Coba kirim lagi setelah status selesai dimuat.");
-          return;
-        }
-        tahapKirim = hasilStatus.tahap;
-        menitAcuanKirim = hasilStatus.menitServerWIB;
-      }
+      const tahapKirim = tahapTampilan;
+      const epochServerSaatIni =
+        Number.isFinite(waktuServerEpochMs) && waktuServerDiterimaAtRef.current > 0
+          ? waktuServerEpochMs + Math.max(0, Date.now() - waktuServerDiterimaAtRef.current)
+          : null;
+      // Pakai jam server yang terus berjalan, bukan menit lama dari saat status pertama kali dimuat.
+      // Dengan begitu tombol Kirim tidak menunggu request GET kedua sebelum mengirim foto.
+      const menitAcuanKirim =
+        epochServerSaatIni !== null
+          ? menitSekarangWIB(new Date(epochServerSaatIni))
+          : menitWaktuSekarang;
 
       if (!TAHAP_VALID.has(tahapKirim) || tahapKirim === "selesai" || tahapKirim === "tidak_perlu_absen") {
         setPesan("Status absensi hari ini sudah selesai atau belum siap untuk dikirim.");
@@ -1195,6 +1147,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
           setFotoTerambil(null);
           setLokasi(null);
           setStatusLokasi("mencari");
+          tandaiSesiAbsensiAktif(false);
         }
       };
 
@@ -1244,6 +1197,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       setFotoTerambil(null);
       setLokasi(null);
       setStatusLokasi("mencari");
+      tandaiSesiAbsensiAktif(false);
     } catch (error) {
       console.error("Pengiriman/simpan offline gagal:", error);
       setPesan("Tidak bisa terhubung ke server, dan gagal menyimpan absen secara offline. Coba lagi.");
@@ -1256,8 +1210,14 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
   // Gunakan tahap tampilan berbasis jam agar halaman tidak tetap berada
   // di mode "Absensi Masuk" setelah melewati batas 12:00.
+  const epochServerTampilan =
+    Number.isFinite(waktuServerEpochMs) && waktuServerDiterimaAtRef.current > 0
+      ? waktuServerEpochMs + Math.max(0, Date.now() - waktuServerDiterimaAtRef.current)
+      : null;
   const menitAcuan =
-    Number.isFinite(menitServerWIB) ? menitServerWIB : menitWaktuSekarang;
+    epochServerTampilan !== null
+      ? menitSekarangWIB(new Date(epochServerTampilan))
+      : menitWaktuSekarang;
 
   const tahapTampilan =
     tahap === "belum_masuk" && menitAcuan >= BATAS_ABSEN_MASUK_WIB
