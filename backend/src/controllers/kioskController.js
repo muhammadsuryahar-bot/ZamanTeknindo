@@ -110,7 +110,7 @@ function verifikasiKioskToken(req, scope) {
 
   try {
     const decoded = jwt.verify(token, secret);
-    if (decoded?.scope !== scope && decoded?.peran !== 'admin') return null;
+    if (decoded?.scope !== scope) return null;
     return decoded;
   } catch {
     return null;
@@ -475,17 +475,23 @@ const kioskAbsen = async (req, res) => {
     const longitudeNumber = Number(longitude);
     const akurasiNumber = Number(akurasi);
 
-    // Toleransi jika perangkat Kiosk tidak memiliki GPS atau diblokir
-    if (latitudeNumber !== 0 && longitudeNumber !== 0 && akurasiNumber > 0) {
-      if (
-        !Number.isFinite(latitudeNumber) || latitudeNumber < -90 || latitudeNumber > 90 ||
-        !Number.isFinite(longitudeNumber) || longitudeNumber < -180 || longitudeNumber > 180 ||
-        !Number.isFinite(akurasiNumber) || akurasiNumber > 50000
-      ) {
-        return res.status(400).json({
-          message: "Lokasi GPS yang dikirim tidak valid.",
-        });
-      }
+    if (
+      !Number.isFinite(latitudeNumber) ||
+      latitudeNumber < -90 ||
+      latitudeNumber > 90 ||
+      !Number.isFinite(longitudeNumber) ||
+      longitudeNumber < -180 ||
+      longitudeNumber > 180 ||
+      latitudeNumber === 0 ||
+      longitudeNumber === 0 ||
+      !Number.isFinite(akurasiNumber) ||
+      akurasiNumber <= 0 ||
+      akurasiNumber > 100
+    ) {
+      return res.status(400).json({
+        message:
+          "Lokasi GPS tidak valid. Aktifkan lokasi presisi tinggi dan coba lagi.",
+      });
     }
 
     const penggunaAktif = await prisma.pengguna.findFirst({
@@ -548,9 +554,7 @@ const kioskAbsen = async (req, res) => {
       const finalLongitude = longitudeNumber;
       const rawAlamat = alamat
         ? `${alamat} (akurasi ±${Math.round(akurasiNumber)}m)`
-        : (latitudeNumber === 0 
-            ? `Jalan Permadani Raya II, Delima, Pekanbaru, Riau (akurasi ±21m)`
-            : `Koordinat GPS ${latitudeNumber.toFixed(6)}, ${longitudeNumber.toFixed(6)} (akurasi ±${Math.round(akurasiNumber)}m)`);
+        : `Koordinat GPS ${latitudeNumber.toFixed(6)}, ${longitudeNumber.toFixed(6)} (akurasi ±${Math.round(akurasiNumber)}m)`;
       const finalAlamat = rawAlamat ? `Absensi via kiosk: ${rawAlamat}` : null;
 
       const tanggalOnlyForCreate = new Date(`${wibDateStrForCreate}T00:00:00.000Z`);
@@ -606,9 +610,7 @@ const kioskAbsen = async (req, res) => {
       const finalLongitude = longitudeNumber;
       const rawAlamat = alamat
         ? `${alamat} (akurasi ±${Math.round(akurasiNumber)}m)`
-        : (latitudeNumber === 0 
-            ? `Jalan Permadani Raya II, Delima, Pekanbaru, Riau (akurasi ±21m)`
-            : `Koordinat GPS ${latitudeNumber.toFixed(6)}, ${longitudeNumber.toFixed(6)} (akurasi ±${Math.round(akurasiNumber)}m)`);
+        : `Koordinat GPS ${latitudeNumber.toFixed(6)}, ${longitudeNumber.toFixed(6)} (akurasi ±${Math.round(akurasiNumber)}m)`;
       const finalAlamat = rawAlamat ? `Absensi via kiosk: ${rawAlamat}` : null;
 
       const data = absen
