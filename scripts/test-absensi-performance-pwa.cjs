@@ -26,7 +26,7 @@ assert(!middleware.includes("BELUM_JAM_PULANG"), "Mode testing clock-out tidak b
 assert(!middleware.includes("JAM_PULANG_STANDAR_DEFAULT"), "Middleware tidak boleh menghidupkan kembali batas clock-out dari env.");
 assert(middleware.includes("menitValidasi < BATAS_ABSEN_MASUK_WIB"), "Aturan clock-out tanpa absen masuk sebelum 12:00 tetap harus dijaga.");
 
-assert(controller.includes("preflightMasuk?.absensi"), "Controller masuk harus memakai snapshot preflight untuk mengurangi query berulang.");
+assert(controller.includes("preflightMasuk.absensi"), "Controller masuk harus memakai snapshot preflight untuk mengurangi query berulang.");
 assert(controller.includes("preflightPulang?.absensi"), "Controller pulang harus memakai snapshot preflight untuk mengurangi query berulang.");
 assert(controller.includes("waktuServerEpochMs: waktuServerSekarang.getTime()"), "Status API harus menyediakan timestamp server presisi.");
 
