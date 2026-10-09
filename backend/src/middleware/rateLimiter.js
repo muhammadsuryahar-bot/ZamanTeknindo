@@ -42,6 +42,23 @@ const batasGantiPassword = rateLimit({
   legacyHeaders: false,
 });
 
+
+const batasLupaPassword = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { pesan: "Terlalu banyak permintaan reset password. Coba lagi dalam 15 menit." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const batasResetPasswordMandiri = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { pesan: "Terlalu banyak percobaan reset password. Minta tautan baru atau coba lagi nanti." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 const batasKioskPin = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
@@ -62,6 +79,8 @@ module.exports = {
   batasLogin,
   batasDaftar,
   batasResetPassword,
+  batasLupaPassword,
+  batasResetPasswordMandiri,
   batasGantiPassword,
   batasKioskPin,
   batasKioskRecognition,

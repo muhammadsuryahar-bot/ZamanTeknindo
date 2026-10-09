@@ -8,6 +8,7 @@ Sistem absensi & penggajian karyawan berbasis web — absen pakai kamera + verif
 - Absen masuk/pulang dengan foto kamera + verifikasi lokasi GPS
 - Antrian absen offline otomatis (kalau internet mati saat absen, foto & data tetap tersimpan di HP dan otomatis terkirim begitu internet kembali)
 - Riwayat absensi & pengajuan izin/sakit/cuti (dengan lampiran surat)
+- Lupa password melalui tautan email sekali pakai yang kedaluwarsa otomatis
 - Bisa di-*install* sebagai app (PWA) di HP
 
 **Admin**
@@ -75,13 +76,15 @@ api/index.js             Pintu masuk serverless function Vercel (re-export Expre
    npm run prisma:deploy
    ```
 
-4. Jalankan backend & frontend (2 terminal terpisah):
+4. Untuk mengaktifkan email reset password di production, isi `RESEND_API_KEY` dan `RESET_PASSWORD_FROM` di Vercel (Environment Variables). Alamat pengirim harus diverifikasi di Resend. Jika variabel belum tersedia, alur reset menampilkan pesan agar karyawan menghubungi Admin dan tidak mengaku email sudah dikirim.
+
+5. Jalankan backend & frontend (2 terminal terpisah):
    ```bash
    npm run dev:backend   # Express di localhost:5000
    npm run dev            # Vite di localhost:5173, proxy /api ke backend
    ```
 
-5. Buka `http://localhost:5173`.
+6. Buka `http://localhost:5173`.
 
 ## Database (Prisma)
 

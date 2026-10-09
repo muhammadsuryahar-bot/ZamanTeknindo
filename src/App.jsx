@@ -444,17 +444,46 @@ function AdminShell({ pengguna, onLogout, pathname, onNavigate }) {
 function RuteAplikasi({ pengguna, setPengguna, onLogout }) {
   const navigate = useNavigate();
   const location = useLocation();
+  // Simpan status tautan reset sejak render pertama karena Login menghapus token dari URL.
+  const [aksesResetPassword, setAksesResetPassword] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.hash.slice(1)).has("resetToken");
+  });
+  useEffect(() => {
+    if (location.pathname !== "/login" && aksesResetPassword) {
+      setAksesResetPassword(false);
+    }
+  }, [location.pathname, aksesResetPassword]);
   return (
     <Suspense fallback={<MemuatHalaman penuh />}>
       <Routes>
         <Route path="/kiosk" element={<Kiosk />} />
-        <Route path="/login" element={pengguna ? <Navigate to={pengguna.peran === "admin" ? "/admin" : "/karyawan"} replace /> : <Login onLoginBerhasil={(data) => { setPengguna(data); navigate(data.peran === "admin" ? "/admin" : "/karyawan", { replace: true }); }} kePendaftaran={() => navigate("/daftar")} />} />
+        <Route
+          path="/login"
+          element={
+            pengguna && !aksesResetPassword ? (
+              <Navigate to={pengguna.peran === "admin" ? "/admin" : "/karyawan"} replace />
+            ) : (
+              <Login
+                onLoginBerhasil={(data) => {
+                  setPengguna(data);
+                  navigate(data.peran === "admin" ? "/admin" : "/karyawan", { replace: true });
+                }}
+                onPasswordResetBerhasil={() => {
+                  onLogout();
+                  setAksesResetPassword(false);
+                }}
+                kePendaftaran={() => navigate("/daftar")}
+              />
+            )
+          }
+        />
         <Route path="/daftar" element={pengguna ? <Navigate to={pengguna.peran === "admin" ? "/admin" : "/karyawan"} replace /> : <Daftar keLogin={() => navigate("/login")} />} />
         <Route path="/karyawan" element={<RuteTerproteksi pengguna={pengguna} peranDiizinkan={["karyawan"]}><DashboardKaryawan pengguna={pengguna} onLogout={onLogout} /></RuteTerproteksi>} />
         <Route path="/karyawan/riwayat" element={<RuteTerproteksi pengguna={pengguna} peranDiizinkan={["karyawan"]}><RiwayatAbsensi kembali={() => navigate("/karyawan")} /></RuteTerproteksi>} />
         <Route path="/karyawan/izin" element={<RuteTerproteksi pengguna={pengguna} peranDiizinkan={["karyawan"]}><PengajuanIzin kembali={() => navigate("/karyawan")} /></RuteTerproteksi>} />
         <Route path="/karyawan/registrasi-wajah" element={<RuteTerproteksi pengguna={pengguna} peranDiizinkan={["karyawan"]}><RegistrasiWajah kembali={() => navigate("/karyawan")} pengguna={pengguna} /></RuteTerproteksi>} />
-        <Route path="/ganti-password" element={<RuteTerproteksi pengguna={pengguna}><GantiPassword kembali={() => navigate(pengguna?.peran === "admin" ? "/admin" : "/karyawan")} /></RuteTerproteksi>} />
+        <Route path="/ganti-password" element={<RuteTerproteksi pengguna={pengguna}><GantiPassword kembali={() => navigate(pengguna?.peran === "admin" ? "/admin" : "/karyawan")} onPasswordChanged={onLogout} /></RuteTerproteksi>} />
         <Route path="/admin/edit-karyawan" element={<RuteTerproteksi pengguna={pengguna} peranDiizinkan={["admin"]}><div className="admin-page-edit-karyawan"><AdminEditKaryawan /></div></RuteTerproteksi>} />
         <Route path="/admin/*" element={<RuteTerproteksi pengguna={pengguna} peranDiizinkan={["admin"]}><Routes><Route path="*" element={<AdminShell pengguna={pengguna} onLogout={onLogout} pathname={location.pathname} onNavigate={navigate} />} /></Routes></RuteTerproteksi>} />
         <Route path="*" element={<Navigate to={pengguna ? (pengguna.peran === "admin" ? "/admin" : "/karyawan") : "/login"} replace />} />

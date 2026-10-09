@@ -26,6 +26,10 @@ model Pengguna {
   nama              String
   email             String               @unique
   kataSandi         String               @map("kata_sandi")
+  versiSesi        Int                  @default(0) @map("versi_sesi")
+  passwordResetTokenHash      String?   @map("password_reset_token_hash") @db.VarChar(64)
+  passwordResetTokenExpiresAt DateTime? @map("password_reset_token_expires_at") @db.Timestamp(3)
+  passwordResetRequestedAt    DateTime? @map("password_reset_requested_at") @db.Timestamp(3)
   peran             Peran                @default(karyawan)
   jabatan           String?
   divisi            String?
@@ -44,6 +48,7 @@ model Pengguna {
   manualAbsens      ManualAbsenRequest[]
 
   @@index([kantorId])
+  @@index([passwordResetTokenHash])
   @@map("pengguna")
 }
 
