@@ -27,6 +27,11 @@ import {
 } from "../utils/antrianOffline";
 import { formatAlamatPresensi } from "../utils/alamatPresensi";
 import { perluSinkronStatusHarian } from "../utils/statusHarian";
+import {
+  tentukanEndpointAbsensi,
+  perluKonfirmasiPulangSaja,
+  PESAN_KONFIRMASI_PULANG_SAJA,
+} from "../utils/alurAbsensi";
 
 let dataProvinsiCache = null;
 
@@ -1192,17 +1197,28 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         return;
       }
 
-      const lewatBatasAbsenMasuk = menitAcuanKirim >= BATAS_ABSEN_MASUK_WIB;
-      const endpoint =
-        tahapKirim === "langsung_pulang" ||
-        (tahapKirim === "belum_masuk" && lewatBatasAbsenMasuk)
-          ? "pulang"
-          : "masuk";
+      // Status server menentukan tahap; menit WIB terbaru menentukan cutoff.
+      // Tahap "sudah_masuk" wajib diarahkan ke /pulang, bukan /masuk.
+      const endpoint = tentukanEndpointAbsensi(tahapKirim, menitAcuanKirim);
 
-      if (endpoint === "masuk" && lewatBatasAbsenMasuk) {
-        const tahapAman = "langsung_pulang";
-        setTahap(tahapAman);
-        simpanCacheStatusHariIni(pengguna, tahapAman);
+      if (!endpoint) {
+        setPesan("Status absensi belum valid. Muat ulang status absensi sebelum mengirim.");
+        return;
+      }
+
+      if (
+        perluKonfirmasiPulangSaja(tahapKirim, menitAcuanKirim) &&
+        !window.confirm(PESAN_KONFIRMASI_PULANG_SAJA)
+      ) {
+        setPesan("Absensi dibatalkan. Tidak ada data yang dikirim.");
+        return;
+      }
+
+      // Pertahanan tambahan untuk mencegah absen masuk setelah cutoff,
+      // sekalipun tahap tampilan berubah sesaat sebelum pengiriman.
+      if (endpoint === "masuk" && menitAcuanKirim >= BATAS_ABSEN_MASUK_WIB) {
+        setTahap("langsung_pulang");
+        simpanCacheStatusHariIni(pengguna, "langsung_pulang");
         setPesan("Sudah lewat 12:00 WIB. Absen masuk pagi tidak dapat dilakukan lagi; gunakan Absen Pulang.");
         return;
       }
