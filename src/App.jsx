@@ -479,7 +479,7 @@ function RuteAplikasi({ pengguna, setPengguna, onLogout }) {
         <Route path="/karyawan/riwayat" element={<RuteTerproteksi pengguna={pengguna} peranDiizinkan={["karyawan"]}><RiwayatAbsensi kembali={() => navigate("/karyawan")} /></RuteTerproteksi>} />
         <Route path="/karyawan/izin" element={<RuteTerproteksi pengguna={pengguna} peranDiizinkan={["karyawan"]}><PengajuanIzin kembali={() => navigate("/karyawan")} /></RuteTerproteksi>} />
         <Route path="/karyawan/registrasi-wajah" element={<RuteTerproteksi pengguna={pengguna} peranDiizinkan={["karyawan"]}><RegistrasiWajah kembali={() => navigate("/karyawan")} pengguna={pengguna} /></RuteTerproteksi>} />
-        <Route path="/ganti-password" element={<RuteTerproteksi pengguna={pengguna}><GantiPassword kembali={() => navigate(pengguna?.peran === "admin" ? "/admin" : "/karyawan")} /></RuteTerproteksi>} />
+        <Route path="/ganti-password" element={<RuteTerproteksi pengguna={pengguna}><GantiPassword kembali={() => navigate(pengguna?.peran === "admin" ? "/admin" : "/karyawan")} onPasswordChanged={onLogout} /></RuteTerproteksi>} />
         <Route path="/admin/edit-karyawan" element={<RuteTerproteksi pengguna={pengguna} peranDiizinkan={["admin"]}><div className="admin-page-edit-karyawan"><AdminEditKaryawan /></div></RuteTerproteksi>} />
         <Route path="/admin/*" element={<RuteTerproteksi pengguna={pengguna} peranDiizinkan={["admin"]}><Routes><Route path="*" element={<AdminShell pengguna={pengguna} onLogout={onLogout} pathname={location.pathname} onNavigate={navigate} />} /></Routes></RuteTerproteksi>} />
         <Route path="*" element={<Navigate to={pengguna ? (pengguna.peran === "admin" ? "/admin" : "/karyawan") : "/login"} replace />} />
