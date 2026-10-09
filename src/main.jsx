@@ -115,7 +115,7 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
     if (sesiAbsensiMasihBerlangsung()) {
       if (penjagaPembaruan !== null) return
       penjagaPembaruan = window.setInterval(() => {
-        if (!kameraMasihAktif()) {
+        if (!sesiAbsensiMasihBerlangsung()) {
           if (penjagaPembaruan !== null) {
             window.clearInterval(penjagaPembaruan)
             penjagaPembaruan = null
