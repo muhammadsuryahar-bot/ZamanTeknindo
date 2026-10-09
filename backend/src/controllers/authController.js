@@ -67,7 +67,7 @@ async function login(req, res) {
     if (!cocok) return res.status(400).json({ pesan: "Email atau kata sandi salah." });
 
     const durasiToken = ingatSaya === true ? "30d" : "8h";
-    const token = jwt.sign({ id: pengguna.id, peran: pengguna.peran, nama: pengguna.nama }, process.env.JWT_SECRET, { expiresIn: durasiToken });
+    const token = jwt.sign({ id: pengguna.id, peran: pengguna.peran, nama: pengguna.nama, versiSesi: pengguna.versiSesi ?? 0 }, process.env.JWT_SECRET, { expiresIn: durasiToken });
 
     return res.json({ pesan: "Login berhasil.", token, pengguna: { id: pengguna.id, nama: pengguna.nama, email: pengguna.email, peran: pengguna.peran, jabatan: pengguna.jabatan, divisi: pengguna.divisi } });
   } catch (error) { console.error(error); return res.status(500).json({ pesan: "Terjadi kesalahan pada server." }); }
@@ -84,7 +84,7 @@ async function gantiPassword(req, res) {
     const cocok = await bcrypt.compare(passwordLama, pengguna.kataSandi);
     if (!cocok) return res.status(400).json({ pesan: "Password lama yang Anda masukkan salah." });
     const passwordBaruHash = await bcrypt.hash(passwordBaru, 10);
-    await prisma.pengguna.update({ where: { id: penggunaId }, data: { kataSandi: passwordBaruHash, passwordResetTokenHash: null, passwordResetTokenExpiresAt: null, passwordResetRequestedAt: null } });
+    await prisma.pengguna.update({ where: { id: penggunaId }, data: { kataSandi: passwordBaruHash, versiSesi: { increment: 1 }, passwordResetTokenHash: null, passwordResetTokenExpiresAt: null, passwordResetRequestedAt: null } });
     return res.json({ pesan: "Password berhasil diubah." });
   } catch (error) { console.error(error); return res.status(500).json({ pesan: "Terjadi kesalahan pada server." }); }
 }
@@ -315,6 +315,7 @@ async function resetPasswordDenganToken(req, res) {
       },
       data: {
         kataSandi: passwordHashBaru,
+        versiSesi: { increment: 1 },
         passwordResetTokenHash: null,
         passwordResetTokenExpiresAt: null,
         passwordResetRequestedAt: null,
@@ -360,7 +361,7 @@ async function resetPasswordOlehAdmin(req, res) {
 
     const passwordSementara = buatPasswordSementara();
     const passwordBaruHash = await bcrypt.hash(passwordSementara, 10);
-    await prisma.pengguna.update({ where: { id: penggunaId }, data: { kataSandi: passwordBaruHash, passwordResetTokenHash: null, passwordResetTokenExpiresAt: null, passwordResetRequestedAt: null } });
+    await prisma.pengguna.update({ where: { id: penggunaId }, data: { kataSandi: passwordBaruHash, versiSesi: { increment: 1 }, passwordResetTokenHash: null, passwordResetTokenExpiresAt: null, passwordResetRequestedAt: null } });
 
     // Password sementara dikirim sekali ke Admin untuk disampaikan ke karyawan.
     // Jangan izinkan browser/CDN/cache menyimpan response sensitif ini.
