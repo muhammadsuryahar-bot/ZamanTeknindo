@@ -165,7 +165,7 @@ function antrianNominatim(fn) {
   const hasil = _nominatimQueue.then(fn);
   // Tambahkan delay 1.1 detik SETELAH request selesai agar tidak kena rate-limit
   _nominatimQueue = hasil
-    .catch(() => {})
+    .catch(() => { })
     .then(() => new Promise((r) => window.setTimeout(r, 1100)));
   return hasil;
 }
@@ -229,7 +229,7 @@ async function alamatDariKoordinat(latitude, longitude) {
         ].filter(Boolean);
         if (bagian.length) hasil = bagian.join(", ");
       }
-    } catch {} finally {
+    } catch { } finally {
       window.clearTimeout(timeoutId);
     }
   }
@@ -669,7 +669,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
       const pinRes = await fetch(`${API_URL}/admin/pengaturan-potongan`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       if (pinRes.ok) {
         const pinDataJson = await pinRes.json();
         setKioskPin(pinDataJson.data?.kioskPin || "246810");
@@ -691,7 +691,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
             id: u.id,
             penggunaId: u.id,
             pengguna: u,
-            descriptors: [{},{},{}],
+            descriptors: [{}, {}, {}],
             quality: "KIOSK",
             createdAt: new Date().toISOString()
           }));
@@ -742,9 +742,9 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
       });
       const text = await r.text();
       let j;
-      try { j = JSON.parse(text); } catch { 
-        console.error("Response bukan JSON:", text.slice(0,200));
-        throw new Error(`Server mengembalikan HTML, bukan JSON. Status ${r.status}. Pastikan route DELETE /kiosk/face/:id ada di backend.`); 
+      try { j = JSON.parse(text); } catch {
+        console.error("Response bukan JSON:", text.slice(0, 200));
+        throw new Error(`Server mengembalikan HTML, bukan JSON. Status ${r.status}. Pastikan route DELETE /kiosk/face/:id ada di backend.`);
       }
       if (r.ok) {
         setPesanSukses(j.message || `Wajah ${target.nama || ""} berhasil dihapus, karyawan harus daftar ulang di Kiosk.`);
@@ -753,9 +753,9 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
       } else {
         setPesan(j.message || `Gagal hapus wajah (status ${r.status})`);
       }
-    } catch (e) { 
+    } catch (e) {
       console.error(e);
-      setPesan(e.message); 
+      setPesan(e.message);
     }
     setFaceHapusId(null);
   }
@@ -931,7 +931,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
           if (item.response.status === 401 || item.response.status === 403) {
             throw new Error(
               dataError?.pesan ||
-                "Sesi login tidak valid atau Anda tidak memiliki akses.",
+              "Sesi login tidak valid atau Anda tidak memiliki akses.",
             );
           }
 
@@ -1284,13 +1284,13 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
         lama.map((item) =>
           item.id === id
             ? {
-                ...item,
-                ...(absensiBaru || {}),
-                pengguna: item.pengguna,
-                statusFinal: absensiBaru?.statusFinal ?? formEditStatus.statusFinal,
-                statusEfektif: absensiBaru?.statusFinal ?? formEditStatus.statusFinal,
-                catatanAdmin: absensiBaru?.catatanAdmin ?? formEditStatus.catatanAdmin.trim(),
-              }
+              ...item,
+              ...(absensiBaru || {}),
+              pengguna: item.pengguna,
+              statusFinal: absensiBaru?.statusFinal ?? formEditStatus.statusFinal,
+              statusEfektif: absensiBaru?.statusFinal ?? formEditStatus.statusFinal,
+              catatanAdmin: absensiBaru?.catatanAdmin ?? formEditStatus.catatanAdmin.trim(),
+            }
             : item,
         ),
       );
@@ -3018,28 +3018,28 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                   </div>
                   <button onClick={() => { setWajahSudahDimuat(false); muatWajah(); }} style={{ height: 36, padding: "0 14px", borderRadius: 8, border: "1px solid #e5e7eb", background: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>↻ Refresh</button>
                 </div>
-                              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginTop: 16 }}>
-                <div onClick={()=>setTabWajah("sudah")} style={{ background: tabWajah==="sudah" ? "#0B6E45" : "#E4F3EA", borderRadius: 12, padding: 14, border: `1px solid ${tabWajah==="sudah" ? "#0B6E45" : "#c6e2d3"}`, cursor:"pointer", transition:"all 0.2s", boxShadow: tabWajah==="sudah" ? "0 4px 12px rgba(11,110,69,0.25)" : "none" }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: tabWajah==="sudah" ? "#fff" : "#0B6E45" }}>SUDAH DAFTAR WAJAH</div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: tabWajah==="sudah" ? "#fff" : "#0B6E45", marginTop: 4 }}>{faces.length}</div>
-                  <div style={{ fontSize: 10, color: tabWajah==="sudah" ? "rgba(255,255,255,0.8)" : "#065F46", marginTop:4 }}>{tabWajah==="sudah" ? "● Sedang dilihat" : "Klik untuk lihat • Bisa presensi"}</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginTop: 16 }}>
+                  <div onClick={() => setTabWajah("sudah")} style={{ background: tabWajah === "sudah" ? "#0B6E45" : "#E4F3EA", borderRadius: 12, padding: 14, border: `1px solid ${tabWajah === "sudah" ? "#0B6E45" : "#c6e2d3"}`, cursor: "pointer", transition: "all 0.2s", boxShadow: tabWajah === "sudah" ? "0 4px 12px rgba(11,110,69,0.25)" : "none" }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: tabWajah === "sudah" ? "#fff" : "#0B6E45" }}>SUDAH DAFTAR WAJAH</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: tabWajah === "sudah" ? "#fff" : "#0B6E45", marginTop: 4 }}>{faces.length}</div>
+                    <div style={{ fontSize: 10, color: tabWajah === "sudah" ? "rgba(255,255,255,0.8)" : "#065F46", marginTop: 4 }}>{tabWajah === "sudah" ? "● Sedang dilihat" : "Klik untuk lihat • Bisa presensi"}</div>
+                  </div>
+                  <div onClick={() => setTabWajah("belum")} style={{ background: tabWajah === "belum" ? "#C0392B" : "#FBE7E4", borderRadius: 12, padding: 14, border: `1px solid ${tabWajah === "belum" ? "#C0392B" : "#f5c6c1"}`, cursor: "pointer", transition: "all 0.2s", boxShadow: tabWajah === "belum" ? "0 4px 12px rgba(192,57,43,0.25)" : "none" }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: tabWajah === "belum" ? "#fff" : "#C0392B" }}>BELUM DAFTAR</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: tabWajah === "belum" ? "#fff" : "#C0392B", marginTop: 4 }}>{karyawan.filter(k => !faces.find(f => f.penggunaId === k.id)).length}</div>
+                    <div style={{ fontSize: 10, color: tabWajah === "belum" ? "rgba(255,255,255,0.8)" : "#991B1B", marginTop: 4 }}>{tabWajah === "belum" ? "● Sedang dilihat" : "Klik untuk lihat • Harus daftar"}</div>
+                  </div>
+                  <div onClick={() => setTabWajah("total")} style={{ background: tabWajah === "total" ? "#2980B9" : "#D6EAF8", borderRadius: 12, padding: 14, border: `1px solid ${tabWajah === "total" ? "#2980B9" : "#a9cce3"}`, cursor: "pointer", transition: "all 0.2s", boxShadow: tabWajah === "total" ? "0 4px 12px rgba(41,128,185,0.25)" : "none" }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: tabWajah === "total" ? "#fff" : "#2980B9" }}>TOTAL KARYAWAN</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: tabWajah === "total" ? "#fff" : "#2980B9", marginTop: 4 }}>{karyawan.length || jumlahKaryawanAktif || 0}</div>
+                    <div style={{ fontSize: 10, color: tabWajah === "total" ? "rgba(255,255,255,0.8)" : "#1E40AF", marginTop: 4 }}>{tabWajah === "total" ? "● Sedang dilihat" : "Klik untuk lihat semua"}</div>
+                  </div>
                 </div>
-                <div onClick={()=>setTabWajah("belum")} style={{ background: tabWajah==="belum" ? "#C0392B" : "#FBE7E4", borderRadius: 12, padding: 14, border: `1px solid ${tabWajah==="belum" ? "#C0392B" : "#f5c6c1"}`, cursor:"pointer", transition:"all 0.2s", boxShadow: tabWajah==="belum" ? "0 4px 12px rgba(192,57,43,0.25)" : "none" }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: tabWajah==="belum" ? "#fff" : "#C0392B" }}>BELUM DAFTAR</div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: tabWajah==="belum" ? "#fff" : "#C0392B", marginTop: 4 }}>{karyawan.filter(k => !faces.find(f => f.penggunaId === k.id)).length}</div>
-                  <div style={{ fontSize: 10, color: tabWajah==="belum" ? "rgba(255,255,255,0.8)" : "#991B1B", marginTop:4 }}>{tabWajah==="belum" ? "● Sedang dilihat" : "Klik untuk lihat • Harus daftar"}</div>
-                </div>
-                <div onClick={()=>setTabWajah("total")} style={{ background: tabWajah==="total" ? "#2980B9" : "#D6EAF8", borderRadius: 12, padding: 14, border: `1px solid ${tabWajah==="total" ? "#2980B9" : "#a9cce3"}`, cursor:"pointer", transition:"all 0.2s", boxShadow: tabWajah==="total" ? "0 4px 12px rgba(41,128,185,0.25)" : "none" }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: tabWajah==="total" ? "#fff" : "#2980B9" }}>TOTAL KARYAWAN</div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: tabWajah==="total" ? "#fff" : "#2980B9", marginTop: 4 }}>{karyawan.length || jumlahKaryawanAktif || 0}</div>
-                  <div style={{ fontSize: 10, color: tabWajah==="total" ? "rgba(255,255,255,0.8)" : "#1E40AF", marginTop:4 }}>{tabWajah==="total" ? "● Sedang dilihat" : "Klik untuk lihat semua"}</div>
-                </div>
-              </div>
                 <div style={{ marginTop: 16, display: "flex", gap: 16, alignItems: "center" }}>
                   <div style={{ display: "flex", gap: 8, flex: 2 }}>
                     <input value={cariWajah} onChange={e => setCariWajah(e.target.value)} placeholder="Cari nama, jabatan, email..." style={{ flex: 1, height: 40, borderRadius: 10, border: "1px solid #e5e7eb", padding: "0 14px", fontSize: 13, boxSizing: "border-box" }} />
                   </div>
-                  
+
                   <div style={{ flex: 1, display: "flex", gap: 8, alignItems: "center", background: "#f9fafb", padding: "4px 8px 4px 12px", borderRadius: 10, border: "1px solid #e5e7eb" }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>PIN Kiosk Admin:</div>
                     <input value={kioskPin} onChange={e => setKioskPin(e.target.value)} placeholder="PIN" style={{ flex: 1, height: 32, borderRadius: 6, border: "1px solid #d1d5db", padding: "0 10px", fontSize: 13, width: 80 }} />
@@ -3048,11 +3048,11 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                 </div>
               </div>
               <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e5e7eb", overflow: "hidden" }}>
-                
-              <div style={{ padding: "14px 20px", borderBottom: "1px solid #e5e7eb", fontWeight: 700, fontSize: 13, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                <span>{tabWajah==="sudah" ? `Daftar Wajah Terdaftar (${faces.filter(f => { if(!cariWajah) return true; const q=cariWajah.toLowerCase(); return f.pengguna?.nama?.toLowerCase().includes(q) || f.pengguna?.email?.toLowerCase().includes(q) || f.pengguna?.jabatan?.toLowerCase().includes(q); }).length})` : tabWajah==="belum" ? `Daftar Belum Daftar Wajah (${karyawan.filter(k => !faces.find(f => f.penggunaId === k.id)).filter(k => { if(!cariWajah) return true; const q=cariWajah.toLowerCase(); return k.nama?.toLowerCase().includes(q) || k.email?.toLowerCase().includes(q) || k.jabatan?.toLowerCase().includes(q); }).length})` : `Daftar Semua Karyawan (${karyawan.filter(k => { if(!cariWajah) return true; const q=cariWajah.toLowerCase(); return k.nama?.toLowerCase().includes(q) || k.email?.toLowerCase().includes(q) || k.jabatan?.toLowerCase().includes(q); }).length})`}</span>
-                <span style={{ fontSize:11, color:"#6b7280", fontWeight:400 }}>{tabWajah==="sudah" ? "Sudah bisa presensi di Kiosk" : tabWajah==="belum" ? "Harus daftar wajah di Kiosk" : "Total semua karyawan"}</span>
-              </div>
+
+                <div style={{ padding: "14px 20px", borderBottom: "1px solid #e5e7eb", fontWeight: 700, fontSize: 13, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span>{tabWajah === "sudah" ? `Daftar Wajah Terdaftar (${faces.filter(f => { if (!cariWajah) return true; const q = cariWajah.toLowerCase(); return f.pengguna?.nama?.toLowerCase().includes(q) || f.pengguna?.email?.toLowerCase().includes(q) || f.pengguna?.jabatan?.toLowerCase().includes(q); }).length})` : tabWajah === "belum" ? `Daftar Belum Daftar Wajah (${karyawan.filter(k => !faces.find(f => f.penggunaId === k.id)).filter(k => { if (!cariWajah) return true; const q = cariWajah.toLowerCase(); return k.nama?.toLowerCase().includes(q) || k.email?.toLowerCase().includes(q) || k.jabatan?.toLowerCase().includes(q); }).length})` : `Daftar Semua Karyawan (${karyawan.filter(k => { if (!cariWajah) return true; const q = cariWajah.toLowerCase(); return k.nama?.toLowerCase().includes(q) || k.email?.toLowerCase().includes(q) || k.jabatan?.toLowerCase().includes(q); }).length})`}</span>
+                  <span style={{ fontSize: 11, color: "#6b7280", fontWeight: 400 }}>{tabWajah === "sudah" ? "Sudah bisa presensi di Kiosk" : tabWajah === "belum" ? "Harus daftar wajah di Kiosk" : "Total semua karyawan"}</span>
+                </div>
 
                 {loadingFaces ? (
                   <div style={{ padding: 40, textAlign: "center", color: "#6b7280" }}>Memuat data wajah...</div>
@@ -3069,7 +3069,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                         </tr>
                       </thead>
                       <tbody>
-                        {(tabWajah==="sudah" ? faces.filter(f => { if(!cariWajah) return true; const q=cariWajah.toLowerCase(); return f.pengguna?.nama?.toLowerCase().includes(q) || f.pengguna?.email?.toLowerCase().includes(q) || f.pengguna?.jabatan?.toLowerCase().includes(q); }) : tabWajah==="belum" ? karyawan.filter(k => !faces.find(f => f.penggunaId === k.id)).filter(k => { if(!cariWajah) return true; const q=cariWajah.toLowerCase(); return k.nama?.toLowerCase().includes(q) || k.email?.toLowerCase().includes(q) || k.jabatan?.toLowerCase().includes(q); }).map(k => ({ penggunaId: k.id, pengguna: k, isBelum: true, createdAt: k.createdAt })) : karyawan.filter(k => { if(!cariWajah) return true; const q=cariWajah.toLowerCase(); return k.nama?.toLowerCase().includes(q) || k.email?.toLowerCase().includes(q) || k.jabatan?.toLowerCase().includes(q); }).map(k => { const hasFace = !!faces.find(f => f.penggunaId === k.id); const faceData = faces.find(f => f.penggunaId === k.id); return { penggunaId: k.id, pengguna: k, isBelum: !hasFace, createdAt: faceData?.createdAt || k.createdAt, descriptors: faceData?.descriptors, fotoSample: faceData?.fotoSample }; })).map(f => (
+                        {(tabWajah === "sudah" ? faces.filter(f => { if (!cariWajah) return true; const q = cariWajah.toLowerCase(); return f.pengguna?.nama?.toLowerCase().includes(q) || f.pengguna?.email?.toLowerCase().includes(q) || f.pengguna?.jabatan?.toLowerCase().includes(q); }) : tabWajah === "belum" ? karyawan.filter(k => !faces.find(f => f.penggunaId === k.id)).filter(k => { if (!cariWajah) return true; const q = cariWajah.toLowerCase(); return k.nama?.toLowerCase().includes(q) || k.email?.toLowerCase().includes(q) || k.jabatan?.toLowerCase().includes(q); }).map(k => ({ penggunaId: k.id, pengguna: k, isBelum: true, createdAt: k.createdAt })) : karyawan.filter(k => { if (!cariWajah) return true; const q = cariWajah.toLowerCase(); return k.nama?.toLowerCase().includes(q) || k.email?.toLowerCase().includes(q) || k.jabatan?.toLowerCase().includes(q); }).map(k => { const hasFace = !!faces.find(f => f.penggunaId === k.id); const faceData = faces.find(f => f.penggunaId === k.id); return { penggunaId: k.id, pengguna: k, isBelum: !hasFace, createdAt: faceData?.createdAt || k.createdAt, descriptors: faceData?.descriptors, fotoSample: faceData?.fotoSample }; })).map(f => (
                           <tr key={f.penggunaId} style={{ borderTop: "1px solid #f3f4f6" }}>
                             <td style={{ padding: "12px 16px" }}>
                               <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -3102,7 +3102,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                             </td>
                             <td style={{ padding: "12px 16px", fontSize: 11, color: "#6b7280" }}>{f.createdAt ? new Date(f.createdAt).toLocaleDateString("id-ID") : "-"}</td>
                             <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                              {f.isBelum ? <span style={{ fontSize:11, color:"#6b7280" }}>Daftar di Kiosk</span> : <button onClick={() => setModalHapusWajah({ penggunaId: f.penggunaId, nama: f.pengguna?.nama, email: f.pengguna?.email, jabatan: f.pengguna?.jabatan, divisi: f.pengguna?.divisi, fotoSample: f.fotoSample })} disabled={faceHapusId === f.penggunaId} style={{ height: 28, padding: "0 10px", borderRadius: 6, border: 0, background: faceHapusId === f.penggunaId ? "#9ca3af" : "#C0392B", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{faceHapusId === f.penggunaId ? "..." : "Hapus"}</button>}
+                              {f.isBelum ? <span style={{ fontSize: 11, color: "#6b7280" }}>Daftar di Kiosk</span> : <button onClick={() => setModalHapusWajah({ penggunaId: f.penggunaId, nama: f.pengguna?.nama, email: f.pengguna?.email, jabatan: f.pengguna?.jabatan, divisi: f.pengguna?.divisi, fotoSample: f.fotoSample })} disabled={faceHapusId === f.penggunaId} style={{ height: 28, padding: "0 10px", borderRadius: 6, border: 0, background: faceHapusId === f.penggunaId ? "#9ca3af" : "#C0392B", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{faceHapusId === f.penggunaId ? "..." : "Hapus"}</button>}
                             </td>
                           </tr>
                         ))}

@@ -617,6 +617,20 @@ export default function Kiosk() {
       setLoadingAbsen(true);
       setStatus("Scanning & Verifikasi Biometrik...");
 
+      let foto = null;
+      try {
+        if (videoRef.current) {
+          const canvas = document.createElement("canvas");
+          canvas.width = 320;
+          canvas.height = 240;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(videoRef.current, 0, 0, 320, 240);
+          foto = canvas.toDataURL("image/jpeg", 0.5);
+        }
+      } catch (errSnap) {
+        console.error("Gagal capture foto presensi:", errSnap);
+      }
+
       let pengguna = detectedUser;
       let token = recognitionToken;
 
@@ -680,7 +694,7 @@ export default function Kiosk() {
         const p = await new Promise((res, rej) =>
           navigator.geolocation.getCurrentPosition(res, rej, {
             enableHighAccuracy: true,
-            timeout: 8000,
+            timeout: 4500,
             maximumAge: 0,
           }),
         );
@@ -689,13 +703,6 @@ export default function Kiosk() {
         akurasi = Number.isFinite(p.coords.accuracy) ? Math.round(p.coords.accuracy) : null;
       } catch {}
       const alamat = lat !== null && lng !== null ? await ambilAlamatKiosk(lat, lng) : null;
-
-      const canvas = document.createElement("canvas");
-      canvas.width = 320;
-      canvas.height = 240;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(videoRef.current, 0, 0, 320, 240);
-      const foto = canvas.toDataURL("image/jpeg", 0.5);
 
       if (!token) {
         setHasilAbsen({
