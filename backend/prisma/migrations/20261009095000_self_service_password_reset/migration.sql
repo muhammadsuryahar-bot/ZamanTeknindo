@@ -3,7 +3,8 @@
 ALTER TABLE "public"."pengguna"
   ADD COLUMN IF NOT EXISTS "password_reset_token_hash" VARCHAR(64),
   ADD COLUMN IF NOT EXISTS "password_reset_token_expires_at" TIMESTAMP(3),
-  ADD COLUMN IF NOT EXISTS "password_reset_requested_at" TIMESTAMP(3);
+  ADD COLUMN IF NOT EXISTS "password_reset_requested_at" TIMESTAMP(3),
+  ADD COLUMN IF NOT EXISTS "versi_sesi" INTEGER NOT NULL DEFAULT 0;
 
 CREATE INDEX IF NOT EXISTS "pengguna_password_reset_token_hash_idx"
   ON "public"."pengguna" ("password_reset_token_hash");
