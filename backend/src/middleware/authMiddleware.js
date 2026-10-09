@@ -65,6 +65,7 @@ async function cekLogin(req, res, next) {
         nama: true,
         peran: true,
         statusAkun: true,
+        versiSesi: true,
       },
     });
   } catch (error) {
@@ -78,6 +79,16 @@ async function cekLogin(req, res, next) {
   if (!pengguna) {
     return res.status(401).json({
       pesan: "Akun tidak ditemukan. Silakan login ulang.",
+    });
+  }
+
+  // Password reset/ganti password/admin reset menaikkan versi sesi.
+  // JWT lama (tanpa claim versiSesi) dianggap versi 0 selama masa transisi.
+  const versiToken = Number.isInteger(dataToken.versiSesi) ? dataToken.versiSesi : 0;
+  if (versiToken !== pengguna.versiSesi) {
+    return res.status(401).json({
+      pesan: "Password atau sesi akun telah diperbarui. Silakan login kembali.",
+      kode: "SESSION_REVOKED",
     });
   }
 
