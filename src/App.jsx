@@ -469,6 +469,10 @@ function RuteAplikasi({ pengguna, setPengguna, onLogout }) {
                   setPengguna(data);
                   navigate(data.peran === "admin" ? "/admin" : "/karyawan", { replace: true });
                 }}
+                onPasswordResetBerhasil={() => {
+                  onLogout();
+                  setAksesResetPassword(false);
+                }}
                 kePendaftaran={() => navigate("/daftar")}
               />
             )
