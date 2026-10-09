@@ -1099,6 +1099,50 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     lokasiTimerRef.current = setTimeout(() => { void selesaikan(); }, LOKASI_REQUEST_TIMEOUT_MS);
   }
 
+  // Setelah timeout atau respons konflik, cek status server sebelum meminta
+  // karyawan mengirim ulang. Request upload bisa sudah tersimpan di server
+  // meskipun responsnya terlambat sampai ke HP.
+  async function bacaAbsensiTersimpan(endpoint) {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), STATUS_REQUEST_TIMEOUT_MS);
+    try {
+      const response = await fetch(`${API_URL}/absensi/status-hari-ini`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+        signal: controller.signal,
+        cache: "no-store",
+      });
+      if (!response.ok) return null;
+      const status = await response.json();
+      const data = status?.data;
+      const waktuTersimpan = endpoint === "masuk" ? data?.jamMasuk : data?.jamPulang;
+      if (!waktuTersimpan) return null;
+      if (endpoint === "masuk" && !["sudah_masuk", "selesai"].includes(status?.tahap)) return null;
+      if (endpoint === "pulang" && status?.tahap !== "selesai") return null;
+      return status;
+    } catch (error) {
+      console.warn("Belum dapat memverifikasi status setelah pengiriman:", error);
+      return null;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  }
+
+  function tampilkanAbsensiTersimpan(status, endpoint) {
+    const tahapServer = TAHAP_VALID.has(status?.tahap) ? status.tahap : (endpoint === "masuk" ? "sudah_masuk" : "selesai");
+    setTahap(tahapServer);
+    setStatusTerverifikasi(true);
+    statusTerverifikasiAtRef.current = Date.now();
+    setStatusVerifikasiSedang(false);
+    simpanCacheStatusHariIni(pengguna, tahapServer);
+    setPesan(endpoint === "masuk"
+      ? "Absen masuk sudah tercatat di server. Tidak perlu mengirim ulang."
+      : "Absen pulang sudah tercatat di server. Tidak perlu mengirim ulang.");
+    setFotoTerambil(null);
+    setLokasi(null);
+    setStatusLokasi("mencari");
+    tandaiSesiAbsensiAktif(false);
+  }
+
   async function kirimAbsen() {
     if (sesiKirimRef.current || loading) return;
     if (!fotoTerambil) {
@@ -1212,7 +1256,12 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
           signal: controller.signal,
         });
       } catch (networkError) {
-        console.error(networkError);
+        console.error("Pengiriman absensi tidak menerima respons:", networkError);
+        const statusTersimpan = await bacaAbsensiTersimpan(endpoint);
+        if (statusTersimpan) {
+          tampilkanAbsensiTersimpan(statusTersimpan, endpoint);
+          return;
+        }
         await simpanOffline();
         return;
       } finally {
@@ -1227,6 +1276,15 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       }
 
       if (!res.ok) {
+        // Konflik/galat server dapat terjadi setelah request sebelumnya berhasil
+        // menyimpan data. Verifikasi dulu agar UI tidak menyuruh kirim dua kali.
+        if (res.status === 409 || res.status >= 500) {
+          const statusTersimpan = await bacaAbsensiTersimpan(endpoint);
+          if (statusTersimpan) {
+            tampilkanAbsensiTersimpan(statusTersimpan, endpoint);
+            return;
+          }
+        }
         setPesan(data.pesan || "Gagal mengirim absen.");
         return;
       }
