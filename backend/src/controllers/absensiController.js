@@ -162,9 +162,14 @@ async function absenMasuk(req, res) {
     }
 
     tahap = "cek-absensi-sebelumnya";
-    const sudahAbsen = await prisma.absensi.findUnique({
-      where: { penggunaId_tanggal: { penggunaId, tanggal } },
-    });
+    const preflightMasuk = req.absensiPreflight;
+    const sudahAbsen =
+      preflightMasuk?.penggunaId === penggunaId &&
+      preflightMasuk?.tanggal?.getTime?.() === tanggal.getTime()
+        ? preflightMasuk.absensi
+        : await prisma.absensi.findUnique({
+            where: { penggunaId_tanggal: { penggunaId, tanggal } },
+          });
     if (sudahAbsen && sudahAbsen.jamMasuk) {
       await hapusFotoJikaPerlu();
       return res.status(409).json({ pesan: "Anda sudah melakukan absen masuk hari ini." });
@@ -292,9 +297,14 @@ async function absenPulang(req, res) {
       });
     }
 
-    const absensiHariIni = await prisma.absensi.findUnique({
-      where: { penggunaId_tanggal: { penggunaId, tanggal } },
-    });
+    const preflightPulang = req.absensiPreflight;
+    const absensiHariIni =
+      preflightPulang?.penggunaId === penggunaId &&
+      preflightPulang?.tanggal?.getTime?.() === tanggal.getTime()
+        ? preflightPulang.absensi
+        : await prisma.absensi.findUnique({
+            where: { penggunaId_tanggal: { penggunaId, tanggal } },
+          });
     if (absensiHariIni?.jamPulang) {
       await hapusFotoJikaPerlu();
       return res.status(409).json({ pesan: "Anda sudah melakukan absen pulang hari ini." });
