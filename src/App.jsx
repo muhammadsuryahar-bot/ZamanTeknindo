@@ -449,11 +449,11 @@ function RuteAplikasi({ pengguna, setPengguna, onLogout }) {
     if (typeof window === "undefined") return false;
     return new URLSearchParams(window.location.hash.slice(1)).has("resetToken");
   });
-  const tanganiResetPasswordBerhasil = () => {
-    hapusSesiLogin();
-    setPengguna(null);
-    setAksesResetPassword(false);
-  };
+  useEffect(() => {
+    if (location.pathname !== "/login" && aksesResetPassword) {
+      setAksesResetPassword(false);
+    }
+  }, [location.pathname, aksesResetPassword]);
   return (
     <Suspense fallback={<MemuatHalaman penuh />}>
       <Routes>
@@ -469,7 +469,6 @@ function RuteAplikasi({ pengguna, setPengguna, onLogout }) {
                   setPengguna(data);
                   navigate(data.peran === "admin" ? "/admin" : "/karyawan", { replace: true });
                 }}
-                onPasswordResetBerhasil={tanganiResetPasswordBerhasil}
                 kePendaftaran={() => navigate("/daftar")}
               />
             )
