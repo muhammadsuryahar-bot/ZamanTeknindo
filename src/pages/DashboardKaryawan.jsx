@@ -370,7 +370,6 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [jumlahTertunda, setJumlahTertunda] = useState(0);
   const [menitWaktuSekarang, setMenitWaktuSekarang] = useState(() => menitSekarangWIB());
-  const [menitServerWIB, setMenitServerWIB] = useState(null);
   const [waktuServerEpochMs, setWaktuServerEpochMs] = useState(null);
   const waktuServerDiterimaAtRef = useRef(0);
   const [isOnline, setIsOnline] = useState(() => typeof navigator === "undefined" ? true : navigator.onLine);
@@ -629,8 +628,6 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         return;
       }
       const tahapEfektif = normalisasiTahapBerdasarkanWaktu(data.tahap);
-      const menitServer = Number(data.menitServerWIB);
-      if (Number.isFinite(menitServer)) setMenitServerWIB(menitServer);
       const epochServer = Number(data.waktuServerEpochMs);
       if (Number.isFinite(epochServer) && epochServer > 0) {
         setWaktuServerEpochMs(epochServer);
@@ -695,8 +692,11 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   }
 
   async function bukaKamera() {
-    tandaiSesiAbsensiAktif(true);
     setPesan("");
+    if (!navigator.mediaDevices?.getUserMedia) { setPesan("Browser ini tidak mendukung akses kamera."); return; }
+    if (kameraMembuka || kameraAktif) return;
+
+    // Status diperbarui selagi kamera/GPS mulai, bukan saat tombol Kirim sudah ditekan.
     if (
       navigator.onLine &&
       (!statusTerverifikasi ||
@@ -705,8 +705,8 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     ) {
       void ambilStatusHariIni({ pertahankanVerifikasiSaatFallback: true });
     }
-    if (!navigator.mediaDevices?.getUserMedia) { setPesan("Browser ini tidak mendukung akses kamera."); return; }
-    if (kameraMembuka || kameraAktif) return;
+
+    tandaiSesiAbsensiAktif(true);
     setKameraMembuka(true);
     hentikanStreamKamera();
     hentikanPelacakanLokasi();
@@ -739,6 +739,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       requestAnimationFrame(() => jadwalkanLokasiSetelahKameraSiap(sesiKamera));
     } catch (err) {
       console.error("Gagal membuka kamera:", err);
+      if (!kameraAktif && !fotoTerambil && !loading) tandaiSesiAbsensiAktif(false);
       if (!mountedRef.current) return;
       if (err?.name === "NotAllowedError" || err?.name === "SecurityError") setPesan("Akses kamera ditolak. Izinkan kamera untuk situs ini melalui pengaturan browser HP, lalu coba lagi.");
       else if (err?.name === "NotFoundError") setPesan("Kamera tidak ditemukan pada perangkat ini.");
@@ -1057,11 +1058,11 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
   async function kirimAbsen() {
     if (sesiKirimRef.current || loading) return;
-    tandaiSesiAbsensiAktif(true);
     if (!fotoTerambil) {
       setPesan("Silakan ambil foto terlebih dahulu.");
       return;
     }
+    tandaiSesiAbsensiAktif(true);
 
     // Klaim sesi kirim sejak awal agar klik cepat/dobel tidak membuat dua
     // proses berjalan bersamaan. Semua validasi berikut tetap berada di dalam
