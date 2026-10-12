@@ -447,7 +447,7 @@ function RuteAplikasi({ pengguna, setPengguna, onLogout }) {
   return (
     <Suspense fallback={<MemuatHalaman penuh />}>
       <Routes>
-        <Route path="/" element={<Navigate to="/kiosk" replace />} />
+        <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/kiosk" element={<Kiosk />} />
         <Route path="/login" element={pengguna ? <Navigate to={pengguna.peran === "admin" ? "/admin" : "/karyawan"} replace /> : <Login onLoginBerhasil={(data) => { setPengguna(data); navigate(data.peran === "admin" ? "/admin" : "/karyawan", { replace: true }); }} kePendaftaran={() => navigate("/daftar")} />} />
         <Route path="/daftar" element={pengguna ? <Navigate to={pengguna.peran === "admin" ? "/admin" : "/karyawan"} replace /> : <Daftar keLogin={() => navigate("/login")} />} />
