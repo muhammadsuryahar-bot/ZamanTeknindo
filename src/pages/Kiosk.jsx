@@ -874,6 +874,12 @@ export default function Kiosk() {
       return;
     }
 
+    if (!adminToken) {
+      setFallbackError("Masukkan PIN Admin Kiosk untuk mengirim backup manual.");
+      setShowPin(true);
+      return;
+    }
+
     setFallbackLoading(true);
     setFallbackError("");
     setFallbackConflict(null);
@@ -2061,7 +2067,7 @@ export default function Kiosk() {
           style={{
             position: "absolute",
             inset: 0,
-            zIndex: 50,
+            zIndex: showFallback ? 90 : 50,
             background: "rgba(0,0,0,0.7)",
             backdropFilter: "blur(12px)",
             display: "grid",

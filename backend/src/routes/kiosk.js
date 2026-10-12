@@ -24,7 +24,7 @@ router.get('/status/:penggunaId', kioskController.getStatusKiosk);
 router.get('/faces', checkKioskAdminSession, kioskController.getAllFaces);
 router.get('/faces-detailed', checkKioskAdminSession, kioskController.getFacesDetailed);
 router.post('/enroll', checkKioskAdminSession, kioskController.enrollFace);
-router.post('/manual-fallback', kioskController.submitManualFallback);
+router.post('/manual-fallback', checkKioskAdminSession, kioskController.submitManualFallback);
 router.delete('/face/:penggunaId', checkKioskAdminSession, kioskController.hapusFace);
 
 // PIN is the only public gate to obtain a short-lived admin session.

@@ -96,7 +96,7 @@ const prismaMock = {
 
 const originalLoad = Module._load;
 Module._load = function (request, parent, isMain) {
-  const parentFile = String(parent?.filename || "");
+  const parentFile = String(parent?.filename || "").replace(/\\/g, "/");
   if (
     parentFile.endsWith("backend/src/controllers/exportRekapAbsensiController.js") &&
     request === "../utils/prismaClient"
