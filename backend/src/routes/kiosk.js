@@ -18,13 +18,13 @@ router.post('/recognize', batasKioskRecognition, kioskController.recognize);
 router.post('/absen', checkKioskAttendanceToken, kioskController.kioskAbsen);
 router.post('/absen-via-kiosk', checkKioskAttendanceToken, kioskController.kioskAbsen);
 
-// Admin session: employee list, attendance status, face data and maintenance.
-router.get('/pengguna-list', checkKioskAdminSession, kioskController.getPenggunaListKiosk);
-router.get('/status/:penggunaId', checkKioskAdminSession, kioskController.getStatusKiosk);
+// Public / Fallback: employee list and user attendance status for kiosk fallback
+router.get('/pengguna-list', kioskController.getPenggunaListKiosk);
+router.get('/status/:penggunaId', kioskController.getStatusKiosk);
 router.get('/faces', checkKioskAdminSession, kioskController.getAllFaces);
 router.get('/faces-detailed', checkKioskAdminSession, kioskController.getFacesDetailed);
 router.post('/enroll', checkKioskAdminSession, kioskController.enrollFace);
-router.post('/manual-fallback', checkKioskAdminSession, kioskController.submitManualFallback);
+router.post('/manual-fallback', kioskController.submitManualFallback);
 router.delete('/face/:penggunaId', checkKioskAdminSession, kioskController.hapusFace);
 
 // PIN is the only public gate to obtain a short-lived admin session.

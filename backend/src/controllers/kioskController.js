@@ -253,14 +253,22 @@ const getPenggunaListKiosk = async (req, res) => {
         divisi: true,
       },
     });
-    const faces = await prisma.userFace.findMany({
-      where: {
-        user: { peran: "karyawan", statusAkun: "aktif" },
-      },
-      select: { penggunaId: true },
-    });
-    const faceIds = new Set(faces.map((f) => f.penggunaId));
-    res.json(users.map((u) => ({ ...u, hasFace: faceIds.has(u.id) })));
+
+    // Cek apakah request memiliki session admin Kiosk
+    const session = verifikasiKioskToken(req, "kiosk-admin");
+    if (session) {
+      const faces = await prisma.userFace.findMany({
+        where: {
+          user: { peran: "karyawan", statusAkun: "aktif" },
+        },
+        select: { penggunaId: true },
+      });
+      const faceIds = new Set(faces.map((f) => f.penggunaId));
+      return res.json(users.map((u) => ({ ...u, hasFace: faceIds.has(u.id) })));
+    }
+
+    // Jika dipanggil dari Kiosk publik (fallback backup absen manual tanpa login PIN admin)
+    return res.json(users.map((u) => ({ ...u, hasFace: false })));
   } catch (e) {
     res.status(500).json({ message: e.message });
   }

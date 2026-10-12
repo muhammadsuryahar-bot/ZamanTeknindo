@@ -134,7 +134,7 @@ export default function Kiosk() {
   const [fallbackAlasan, setFallbackAlasan] = useState(
     "Wajah tidak terdeteksi",
   );
-  const [fallbackPin, setFallbackPin] = useState("");
+  const [fallbackKeterangan, setFallbackKeterangan] = useState("");
   const [attemptAt, setAttemptAt] = useState(null); // Jam asli klik pertama - solusi telat 08.09 -> 08.11
   const [fallbackError, setFallbackError] = useState("");
   const [fallbackConflict, setFallbackConflict] = useState(null);
@@ -428,16 +428,14 @@ export default function Kiosk() {
   }, []);
 
   async function loadUsers(token = adminToken) {
-    if (!token) {
-      setUsers([]);
-      return;
-    }
-
     try {
+      const headers = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const response = await fetch(`${API_BASE}/kiosk/pengguna-list`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
         cache: "no-store",
       });
 
@@ -837,10 +835,11 @@ export default function Kiosk() {
   }
 
   async function checkFallbackUserStatus(userId) {
-    if (!adminToken) return null;
     try {
+      const headers = {};
+      if (adminToken) headers["Authorization"] = `Bearer ${adminToken}`;
       const r = await fetch(`${API_BASE}/kiosk/status/${userId}`, {
-        headers: { Authorization: `Bearer ${adminToken}` },
+        headers,
         cache: "no-store",
       });
       if (r.ok) {
@@ -865,16 +864,16 @@ export default function Kiosk() {
   }
 
   async function handleFallbackAbsen() {
-    if (!adminToken) {
-      setShowFallback(false);
-      setShowPin(true);
-      setFallbackError("Masukkan PIN Admin Kiosk terlebih dahulu.");
-      return;
-    }
     if (!fallbackSelected) {
-      setFallbackError("Pilih karyawan dulu");
+      setFallbackError("Pilih karyawan terlebih dahulu");
       return;
     }
+
+    if (fallbackAlasan === "Lainnya" && !fallbackKeterangan.trim()) {
+      setFallbackError("Keterangan wajib diisi jika memilih alasan Lainnya");
+      return;
+    }
+
     setFallbackLoading(true);
     setFallbackError("");
     setFallbackConflict(null);
@@ -900,15 +899,25 @@ export default function Kiosk() {
       canvas.height = 240;
       canvas.getContext("2d").drawImage(videoRef.current, 0, 0, 320, 240);
       const foto = canvas.toDataURL("image/jpeg", 0.5);
+
+      const alasanKirim =
+        fallbackAlasan === "Lainnya"
+          ? `Lainnya: ${fallbackKeterangan.trim()}`
+          : fallbackAlasan;
+
       // Kirim attemptAt = jam asli klik pertama, bukan jam sekarang (solusi 08.09 error -> 08.11 tetap tepat waktu)
+      const headers = {
+        "Content-Type": "application/json",
+      };
+      if (adminToken) {
+        headers["Authorization"] = `Bearer ${adminToken}`;
+      }
+
       let r;
       try {
         r = await fetch(`${API_BASE}/kiosk/manual-fallback`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${adminToken}`,
-          },
+          headers,
           body: JSON.stringify({
             penggunaId: fallbackSelected.id,
             foto,
@@ -916,7 +925,7 @@ export default function Kiosk() {
             longitude: lng,
             akurasi,
             alamat,
-            alasan: fallbackAlasan,
+            alasan: alasanKirim,
             attemptAt: attemptAt
               ? attemptAt.toISOString()
               : new Date().toISOString(),
@@ -935,7 +944,7 @@ export default function Kiosk() {
             longitude: lng,
             akurasi,
             alamat,
-            alasan: fallbackAlasan,
+            alasan: alasanKirim,
             attemptAt: attemptAt
               ? attemptAt.toISOString()
               : new Date().toISOString(),
@@ -989,6 +998,7 @@ export default function Kiosk() {
         setFallbackSelected(null);
         setFallbackCari("");
         setFallbackAlasan("Wajah tidak terdeteksi");
+        setFallbackKeterangan("");
         setFallbackStatusInfo(null);
         setFallbackConflict(null);
         setHasilAbsen({
@@ -1004,7 +1014,7 @@ export default function Kiosk() {
           tipe: j.data?.tipe || "masuk",
           data: j.data,
           isManualPending: true,
-          detail: `Diajukan jam ${attemptJam} WIB (asli klik) • Alasan: ${fallbackAlasan} • Menunggu verifikasi admin`,
+          detail: `Diajukan jam ${attemptJam} WIB (asli klik) • Alasan: ${alasanKirim} • Menunggu verifikasi admin`,
         });
         setShowHasil(true);
         setAttemptAt(null);
@@ -2749,6 +2759,44 @@ export default function Kiosk() {
                   • Ini yang akan dicatat
                 </div>
               )}
+              {fallbackAlasan === "Lainnya" && (
+                <div style={{ marginTop: 14 }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: "#0f172a",
+                      marginBottom: 6,
+                    }}
+                  >
+                    3. Keterangan Alasan
+                  </div>
+                  <textarea
+                    value={fallbackKeterangan}
+                    onChange={(e) => {
+                      setFallbackKeterangan(e.target.value);
+                      if (fallbackError) setFallbackError("");
+                    }}
+                    placeholder="Tuliskan keterangan alasan presensi manual..."
+                    rows={3}
+                    style={{
+                      width: "100%",
+                      borderRadius: 10,
+                      border: `1px solid ${fallbackError && !fallbackKeterangan.trim() ? "#dc2626" : "#e5e7eb"}`,
+                      padding: "10px 12px",
+                      fontSize: 13,
+                      boxSizing: "border-box",
+                      background: "#fff",
+                      fontFamily: "inherit",
+                      resize: "none",
+                    }}
+                  />
+                  <div style={{ fontSize: 10, color: "#64748b", marginTop: 4 }}>
+                    Jelaskan kendala yang dialami saat presensi.
+                  </div>
+                </div>
+              )}
+
               {fallbackError && (
                 <div
                   style={{
@@ -2775,8 +2823,8 @@ export default function Kiosk() {
                 }}
               >
                 Pengajuan akan jadi{" "}
-                <b>PENDING</b> dan admin verifikasi di dashboard. Foto bukti
-                otomatis diambil. Jika salah pilih user, admin bisa tolak.
+                <b>PENDING</b> dan diverifikasi admin di dashboard. Foto bukti
+                otomatis diambil.
               </div>
             </div>
             <div
@@ -2792,7 +2840,7 @@ export default function Kiosk() {
                 onClick={() => {
                   setShowFallback(false);
                   setFallbackSelected(null);
-                  setFallbackPin("");
+                  setFallbackKeterangan("");
                   setFallbackError("");
                 }}
                 style={{
