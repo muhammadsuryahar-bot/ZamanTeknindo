@@ -45,16 +45,15 @@ const isProduction =
   process.env.VERCEL_ENV === "production" ||
   process.env.NODE_ENV === "production";
 
-const allowedOrigins = new Set(
-  [
-    process.env.FRONTEND_URL,
-    process.env.VERCEL_PROJECT_PRODUCTION_URL,
-    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
-    process.env.VERCEL_BRANCH_URL ? `https://${process.env.VERCEL_BRANCH_URL}` : null,
-  ]
+const allowedOrigins = new Set([
+  ...String(process.env.FRONTEND_URL || "")
+    .split(",")
     .map(normalisasiOrigin)
     .filter(Boolean),
-);
+  normalisasiOrigin(process.env.VERCEL_PROJECT_PRODUCTION_URL),
+  normalisasiOrigin(process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null),
+  normalisasiOrigin(process.env.VERCEL_BRANCH_URL ? `https://${process.env.VERCEL_BRANCH_URL}` : null),
+].filter(Boolean));
 
 if (isProduction && process.env.VERCEL_PROJECT_PRODUCTION_URL) {
   allowedOrigins.add(

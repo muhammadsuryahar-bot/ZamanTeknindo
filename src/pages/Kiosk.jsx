@@ -874,12 +874,6 @@ export default function Kiosk() {
       return;
     }
 
-    if (!adminToken) {
-      setFallbackError("Masukkan PIN Admin Kiosk untuk mengirim backup manual.");
-      setShowPin(true);
-      return;
-    }
-
     setFallbackLoading(true);
     setFallbackError("");
     setFallbackConflict(null);

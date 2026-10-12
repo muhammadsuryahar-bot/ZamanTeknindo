@@ -24,14 +24,11 @@ const adminFinance = read("backend/src/controllers/adminFinanceFixedController.j
 const schema = read("backend/prisma/schema.prisma");
 
 assert(
-  kioskPage.includes('Authorization: `Bearer ${adminToken}`'),
-  "Manual fallback Kiosk wajib mengirim Bearer adminToken.",
-);
-assert(
   kioskRoutes.includes(
-    "router.post('/manual-fallback', checkKioskAdminSession, kioskController.submitManualFallback);",
-  ),
-  "Route manual fallback Kiosk wajib dilindungi checkKioskAdminSession.",
+    "router.post('/manual-fallback', kioskController.submitManualFallback);",
+  ) && kioskController.includes("'PENDING'") &&
+    kioskController.includes("Menunggu persetujuan administrator."),
+  "Manual fallback Kiosk harus dapat diajukan karyawan tanpa PIN dan tetap menunggu persetujuan admin.",
 );
 assert(
   kioskRoutes.includes(
