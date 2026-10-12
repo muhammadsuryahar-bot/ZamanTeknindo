@@ -1,11 +1,28 @@
 const { createClient } = require('@supabase/supabase-js');
 
 // Pakai SERVICE_ROLE biar bisa createSignedUrl
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+let supabase;
 
-if (!supabaseUrl || !supabaseKey) {
-  console.warn('SUPABASE_URL atau KEY belum di set di .env');
+function getSupabase() {
+  if (supabase) return supabase;
+
+  const supabaseUrl = String(process.env.SUPABASE_URL || "").trim();
+  const supabaseKey = String(
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || "",
+  ).trim();
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error(
+      "Supabase Storage belum dikonfigurasi. Set SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY di environment Vercel.",
+    );
+  }
+
+  supabase = createClient(supabaseUrl, supabaseKey, {
+    global: {
+      fetch: fetchSupabaseDenganTimeout,
+    },
+  });
+  return supabase;
 }
 
 const STORAGE_REQUEST_TIMEOUT_MS = 10000;
@@ -46,12 +63,6 @@ function fetchSupabaseDenganTimeout(input, options = {}) {
   });
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  global: {
-    fetch: fetchSupabaseDenganTimeout,
-  },
-});
-
 // Bucket production proyek adalah `absensi`; nama lama tetap didukung.
 const CANDIDATE_BUCKETS = [
   process.env.SUPABASE_BUCKET_FOTO,
@@ -61,7 +72,7 @@ const CANDIDATE_BUCKETS = [
 ].filter((bucket, index, buckets) => bucket && buckets.indexOf(bucket) === index);
 
 function getPublicUrl(bucket, path) {
-  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+  const { data } = getSupabase().storage.from(bucket).getPublicUrl(path);
   return data?.publicUrl || null;
 }
 
@@ -88,10 +99,11 @@ async function cariUrlFoto(path) {
   }
   const cached = ambilDariCache(path);
   if (cached) return cached;
+  const client = getSupabase();
   let foundUrl = null;
   for (const bucket of CANDIDATE_BUCKETS) {
     try {
-      const { data: signed, error: errSigned } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60 * 24 * 7);
+      const { data: signed, error: errSigned } = await client.storage.from(bucket).createSignedUrl(path, 60 * 60 * 24 * 7);
       if (!errSigned && signed?.signedUrl) {
         foundUrl = signed.signedUrl;
         break;
@@ -126,10 +138,11 @@ async function buatSignedUrlFotoBatch(paths) {
   return map;
 }
 async function uploadFotoAbsensi(buffer, filePath, mimeType = "image/jpeg") {
+  const client = getSupabase();
   let errorTerakhir = null;
 
   for (const bucket of CANDIDATE_BUCKETS) {
-    const { data, error } = await supabase.storage
+    const { data, error } = await client.storage
       .from(bucket)
       .upload(filePath, buffer, {
         contentType: mimeType,
@@ -156,7 +169,7 @@ async function deleteFotoAbsensi(filePath) {
   let berhasilHapus = false;
   for (const bucket of CANDIDATE_BUCKETS) {
     try {
-      const { error } = await supabase.storage.from(bucket).remove([filePath]);
+      const { error } = await getSupabase().storage.from(bucket).remove([filePath]);
       if (!error) {
         berhasilHapus = true;
         break;
