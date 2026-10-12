@@ -92,7 +92,7 @@ async function gantiPassword(req, res) {
 function buatPasswordSementara() {
   const karakter = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
   let hasil = "";
-  for (let i = 0; i < 8; i++) hasil += karakter[crypto.randomInt(0, karakter.length)];
+  for (let i = 0; i < 12; i++) hasil += karakter[crypto.randomInt(0, karakter.length)];
   return hasil;
 }
 
