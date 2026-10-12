@@ -177,7 +177,11 @@ async function absenMasuk(req, res) {
 
     tahap = "validasi-lokasi";
     const waktuServer = waktuAbsensiDariRequest(req);
-    const menitServerWIB = menitSekarangWIB(waktuServer);
+    const menitWaktuDicatatWIB = menitSekarangWIB(waktuServer);
+    // Cutoff tidak boleh ditentukan dari waktuAsli yang dikirim klien offline.
+    // Timestamp tersebut masih boleh dipakai untuk catatan waktu, tetapi izin
+    // melakukan absen masuk harus diputuskan berdasarkan jam server saat request.
+    const menitSekarangServerWIB = menitSekarangWIB(new Date());
     const batasTepatWaktu = await ambilBatasTepatWaktu();
     const koordinat = koordinatDariRequest(latitude, longitude);
 
@@ -198,7 +202,7 @@ async function absenMasuk(req, res) {
       });
     }
 
-    if (menitServerWIB >= BATAS_ABSEN_MASUK_WIB) {
+    if (menitSekarangServerWIB >= BATAS_ABSEN_MASUK_WIB) {
       await hapusFotoJikaPerlu();
       return res.status(409).json({
         pesan: "Waktu absen masuk sudah lewat 12:00 WIB. Absen masuk pagi tidak dapat dilakukan lagi. Silakan gunakan Absen Pulang.",
@@ -209,7 +213,7 @@ async function absenMasuk(req, res) {
 
     // Aturan berbasis MENIT: seluruh rentang 08:10:00-08:10:59
     // masih dianggap tepat waktu. Mulai 08:11:00 baru telat.
-    const statusOtomatis = menitServerWIB <= batasTepatWaktu ? "tepat_waktu" : "telat";
+    const statusOtomatis = menitWaktuDicatatWIB <= batasTepatWaktu ? "tepat_waktu" : "telat";
 
     const data = {
       jamMasuk: waktuServer,
