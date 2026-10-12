@@ -11,7 +11,7 @@ const middleware = baca("backend/src/middleware/kompresFoto.js");
 const controller = baca("backend/src/controllers/absensiController.js");
 
 const mulaiKirim = karyawan.indexOf("  async function kirimAbsen()");
-const akhirKirim = karyawan.indexOf("\n\n  // Gunakan tahap tampilan", mulaiKirim);
+const akhirKirim = karyawan.indexOf("// Gunakan tahap tampilan", mulaiKirim);
 assert(mulaiKirim >= 0 && akhirKirim > mulaiKirim, "Fungsi kirimAbsen harus tersedia untuk audit performa.");
 const alurKirim = karyawan.slice(mulaiKirim, akhirKirim);
 
