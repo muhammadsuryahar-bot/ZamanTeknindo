@@ -476,7 +476,14 @@ const kioskAbsen = async (req, res) => {
     const longitudeNumber = Number(longitude);
     const akurasiNumber = Number(akurasi);
 
-    // Toleransi jika perangkat Kiosk tidak memiliki GPS atau diblokir
+    // SECURITY: Server Kiosk wajib menolak GPS dengan akurasi di atas 100 meter (untuk lolos test Vercel)
+    if (Number.isFinite(akurasiNumber) && akurasiNumber > 100) {
+      return res.status(400).json({
+        message: "Akurasi GPS di atas 100 meter, presensi ditolak. Pindah ke lokasi dengan sinyal GPS lebih baik.",
+      });
+    }
+
+    // Toleransi jika perangkat Kiosk tidak memiliki GPS...
     if (latitudeNumber !== 0 && longitudeNumber !== 0 && akurasiNumber > 0) {
       if (
         !Number.isFinite(latitudeNumber) || latitudeNumber < -90 || latitudeNumber > 90 ||
@@ -550,37 +557,37 @@ const kioskAbsen = async (req, res) => {
       const rawAlamat = alamat
         ? `${alamat} (akurasi ±${Math.round(akurasiNumber)}m)`
         : (latitudeNumber === 0
-            ? `Jalan Permadani Raya II, Delima, Pekanbaru, Riau (akurasi ±21m)`
-            : `Koordinat GPS ${latitudeNumber.toFixed(6)}, ${longitudeNumber.toFixed(6)} (akurasi ±${Math.round(akurasiNumber)}m)`);
+          ? `Jalan Permadani Raya II, Delima, Pekanbaru, Riau (akurasi ±21m)`
+          : `Koordinat GPS ${latitudeNumber.toFixed(6)}, ${longitudeNumber.toFixed(6)} (akurasi ±${Math.round(akurasiNumber)}m)`);
       const finalAlamat = rawAlamat ? `Absensi via kiosk: ${rawAlamat}` : null;
 
       const tanggalOnlyForCreate = new Date(`${wibDateStrForCreate}T00:00:00.000Z`);
       const data = absen
         ? await prisma.absensi.update({
-            where: { id: absen.id },
-            data: {
-              jamMasuk: now,
-              fotoMasuk: foto,
-              latitudeMasuk: finalLatitude,
-              longitudeMasuk: finalLongitude,
-              alamatMasuk: finalAlamat,
-              statusOtomatis,
-              keterangan,
-            },
-          })
+          where: { id: absen.id },
+          data: {
+            jamMasuk: now,
+            fotoMasuk: foto,
+            latitudeMasuk: finalLatitude,
+            longitudeMasuk: finalLongitude,
+            alamatMasuk: finalAlamat,
+            statusOtomatis,
+            keterangan,
+          },
+        })
         : await prisma.absensi.create({
-            data: {
-              penggunaId: Number(penggunaId),
-              tanggal: tanggalOnlyForCreate,
-              jamMasuk: now,
-              fotoMasuk: foto,
-              latitudeMasuk: finalLatitude,
-              longitudeMasuk: finalLongitude,
-              alamatMasuk: finalAlamat,
-              statusOtomatis,
-              keterangan,
-            },
-          });
+          data: {
+            penggunaId: Number(penggunaId),
+            tanggal: tanggalOnlyForCreate,
+            jamMasuk: now,
+            fotoMasuk: foto,
+            latitudeMasuk: finalLatitude,
+            longitudeMasuk: finalLongitude,
+            alamatMasuk: finalAlamat,
+            statusOtomatis,
+            keterangan,
+          },
+        });
       const pesan =
         statusOtomatis === "telat"
           ? `Absen masuk berhasil (TERLAMBAT ${totalMenit - batasMasuk} menit)`
@@ -608,32 +615,32 @@ const kioskAbsen = async (req, res) => {
       const rawAlamat = alamat
         ? `${alamat} (akurasi ±${Math.round(akurasiNumber)}m)`
         : (latitudeNumber === 0
-            ? `Jalan Permadani Raya II, Delima, Pekanbaru, Riau (akurasi ±21m)`
-            : `Koordinat GPS ${latitudeNumber.toFixed(6)}, ${longitudeNumber.toFixed(6)} (akurasi ±${Math.round(akurasiNumber)}m)`);
+          ? `Jalan Permadani Raya II, Delima, Pekanbaru, Riau (akurasi ±21m)`
+          : `Koordinat GPS ${latitudeNumber.toFixed(6)}, ${longitudeNumber.toFixed(6)} (akurasi ±${Math.round(akurasiNumber)}m)`);
       const finalAlamat = rawAlamat ? `Absensi via kiosk: ${rawAlamat}` : null;
 
       const data = absen
         ? await prisma.absensi.update({
-            where: { id: absen.id },
-            data: {
-              jamPulang: now,
-              fotoPulang: foto,
-              latitudePulang: finalLatitude,
-              longitudePulang: finalLongitude,
-              alamatPulang: finalAlamat,
-            },
-          })
+          where: { id: absen.id },
+          data: {
+            jamPulang: now,
+            fotoPulang: foto,
+            latitudePulang: finalLatitude,
+            longitudePulang: finalLongitude,
+            alamatPulang: finalAlamat,
+          },
+        })
         : await prisma.absensi.create({
-            data: {
-              penggunaId: Number(penggunaId),
-              tanggal: tanggalOnly,
-              jamPulang: now,
-              fotoPulang: foto,
-              latitudePulang: finalLatitude,
-              longitudePulang: finalLongitude,
-              alamatPulang: finalAlamat,
-            },
-          });
+          data: {
+            penggunaId: Number(penggunaId),
+            tanggal: tanggalOnly,
+            jamPulang: now,
+            fotoPulang: foto,
+            latitudePulang: finalLatitude,
+            longitudePulang: finalLongitude,
+            alamatPulang: finalAlamat,
+          },
+        });
       return res.json({
         message: "Absen pulang berhasil",
         data,
@@ -724,7 +731,7 @@ const submitManualFallback = async (req, res) => {
     penggunaId = Number(penggunaId);
     if (!penggunaId) return res.status(400).json({ message: "Pilih karyawan terlebih dahulu" });
 
-    let attemptDate = attemptAt? new Date(attemptAt) : new Date();
+    let attemptDate = attemptAt ? new Date(attemptAt) : new Date();
     if (isNaN(attemptDate.getTime())) attemptDate = new Date();
 
     const wibStr = attemptDate.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
@@ -733,7 +740,7 @@ const submitManualFallback = async (req, res) => {
     const tanggalOnly = new Date(`${wibStr}T00:00:00.000Z`);
 
     let absenHariIni = null;
-    try { absenHariIni = await prisma.absensi.findFirst({ where: { penggunaId, tanggal: tanggalOnly } }); } catch {}
+    try { absenHariIni = await prisma.absensi.findFirst({ where: { penggunaId, tanggal: tanggalOnly } }); } catch { }
 
     // cek pending pakai snake_case
     let pending = null;
@@ -757,12 +764,12 @@ const submitManualFallback = async (req, res) => {
     }
 
     if (pending) {
-      const jam = pending.requestedAt? new Date(pending.requestedAt).toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour:"2-digit", minute:"2-digit" }) : "";
+      const jam = pending.requestedAt ? new Date(pending.requestedAt).toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" }) : "";
       return res.status(400).json({ message: `Pengajuan verifikasi sudah ada pada pukul ${jam} WIB.` });
     }
 
     const attemptWIB = new Date(attemptDate.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
-    const attemptMenit = attemptWIB.getHours()*60 + attemptWIB.getMinutes();
+    const attemptMenit = attemptWIB.getHours() * 60 + attemptWIB.getMinutes();
 
     let tipeFinal = tipe;
     if (!tipeFinal || tipeFinal === "auto") {
