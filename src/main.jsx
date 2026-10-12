@@ -13,6 +13,20 @@ if (typeof window !== 'undefined' && 'caches' in window) {
   void caches.delete('aset-halaman-lazy-v2').catch(() => {})
 }
 
+// Bersihkan SEMUA cache workbox satu kali per sesi untuk menghindari
+// service worker menjalankan chunk JS lama (200.js dll) yang menyebabkan error.
+if (typeof window !== 'undefined' && 'caches' in window) {
+  const KEY_CACHE_BERSIH = 'zaman-teknindo:cache-cleared-v3'
+  if (!sessionStorage.getItem(KEY_CACHE_BERSIH)) {
+    sessionStorage.setItem(KEY_CACHE_BERSIH, '1')
+    caches.keys().then((namaCache) => {
+      namaCache
+        .filter((nama) => /workbox|precache/i.test(nama))
+        .forEach((nama) => caches.delete(nama))
+    }).catch(() => {})
+  }
+}
+
 // Recovery khusus dynamic import/chunk PWA.
 // Jangan menangkap semua window.error karena error kamera/GPS/JS lain dapat
 // tertangkap secara keliru lalu memindahkan halaman pengguna.
