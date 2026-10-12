@@ -26,6 +26,12 @@ import {
   simpanKeAntrian,
 } from "../utils/antrianOffline";
 import { formatAlamatPresensi } from "../utils/alamatPresensi";
+import { perluSinkronStatusHarian } from "../utils/statusHarian";
+import {
+  tentukanEndpointAbsensi,
+  perluKonfirmasiPulangSaja,
+  PESAN_KONFIRMASI_PULANG_SAJA,
+} from "../utils/alurAbsensi";
 
 let dataProvinsiCache = null;
 
@@ -391,6 +397,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   const kameraSiapRef = useRef(false);
   const sesiKirimRef = useRef(false);
   const statusTerverifikasiAtRef = useRef(0);
+  const tanggalAktifRef = useRef(tanggalLokalISO());
 
   function tandaiSesiAbsensiAktif(aktif) {
     if (typeof window !== "undefined") {
@@ -448,6 +455,52 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     const intervalId = window.setInterval(sinkronkanJam, 5000);
     return () => window.clearInterval(intervalId);
   }, []);
+
+  // Sinkronkan status saat tanggal WIB berganti meskipun halaman tetap terbuka.
+  // Sesi kirim yang sedang berlangsung dibiarkan selesai; foto/kamera lama dibatalkan.
+  useEffect(() => {
+    const periksaPerubahanHari = () => {
+      const tanggalSekarang = tanggalLokalISO();
+      const sedangMengirim = loading || sesiKirimRef.current;
+      if (!perluSinkronStatusHarian(tanggalAktifRef.current, tanggalSekarang, sedangMengirim)) {
+        return;
+      }
+
+      const sesiKameraPerluDiakhiri = kameraAktif || kameraMembuka || Boolean(fotoTerambil);
+      tanggalAktifRef.current = tanggalSekarang;
+
+      if (sesiKameraPerluDiakhiri) {
+        hentikanKamera();
+        setFotoTerambil(null);
+        setLokasi(null);
+        setStatusLokasi("mencari");
+        tandaiSesiAbsensiAktif(false);
+      }
+
+      setTahap("memuat");
+      setPengajuanHariIni(null);
+      setManualPending(null);
+      setStatusTerverifikasi(false);
+      setStatusVerifikasiSedang(false);
+      setWaktuServerEpochMs(null);
+      waktuServerDiterimaAtRef.current = 0;
+      statusTerverifikasiAtRef.current = 0;
+      setPesan("");
+      setPesanSinkronisasi("");
+
+      void (async () => {
+        await ambilStatusHariIni();
+        if (sesiKameraPerluDiakhiri && mountedRef.current) {
+          setPesan("Tanggal sudah berganti. Ambil foto dan lokasi baru untuk mencatat absensi hari ini.");
+        }
+      })();
+      void cobaSinkronAntrian({ refreshStatus: false });
+    };
+
+    const intervalId = window.setInterval(periksaPerubahanHari, 15000);
+    return () => window.clearInterval(intervalId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kameraAktif, kameraMembuka, fotoTerambil, loading, pengguna?.id]);
 
   // Cutoff 12:00 WIB harus berlaku juga saat halaman Karyawan
   // dibiarkan terbuka dari pagi tanpa reload. UI boleh berpindah lebih dulu
@@ -1051,6 +1104,50 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     lokasiTimerRef.current = setTimeout(() => { void selesaikan(); }, LOKASI_REQUEST_TIMEOUT_MS);
   }
 
+  // Setelah timeout atau respons konflik, cek status server sebelum meminta
+  // karyawan mengirim ulang. Request upload bisa sudah tersimpan di server
+  // meskipun responsnya terlambat sampai ke HP.
+  async function bacaAbsensiTersimpan(endpoint) {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), STATUS_REQUEST_TIMEOUT_MS);
+    try {
+      const response = await fetch(`${API_URL}/absensi/status-hari-ini`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+        signal: controller.signal,
+        cache: "no-store",
+      });
+      if (!response.ok) return null;
+      const status = await response.json();
+      const data = status?.data;
+      const waktuTersimpan = endpoint === "masuk" ? data?.jamMasuk : data?.jamPulang;
+      if (!waktuTersimpan) return null;
+      if (endpoint === "masuk" && !["sudah_masuk", "selesai"].includes(status?.tahap)) return null;
+      if (endpoint === "pulang" && status?.tahap !== "selesai") return null;
+      return status;
+    } catch (error) {
+      console.warn("Belum dapat memverifikasi status setelah pengiriman:", error);
+      return null;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  }
+
+  function tampilkanAbsensiTersimpan(status, endpoint) {
+    const tahapServer = TAHAP_VALID.has(status?.tahap) ? status.tahap : (endpoint === "masuk" ? "sudah_masuk" : "selesai");
+    setTahap(tahapServer);
+    setStatusTerverifikasi(true);
+    statusTerverifikasiAtRef.current = Date.now();
+    setStatusVerifikasiSedang(false);
+    simpanCacheStatusHariIni(pengguna, tahapServer);
+    setPesan(endpoint === "masuk"
+      ? "Absen masuk sudah tercatat di server. Tidak perlu mengirim ulang."
+      : "Absen pulang sudah tercatat di server. Tidak perlu mengirim ulang.");
+    setFotoTerambil(null);
+    setLokasi(null);
+    setStatusLokasi("mencari");
+    tandaiSesiAbsensiAktif(false);
+  }
+
   async function kirimAbsen() {
     if (sesiKirimRef.current || loading) return;
     if (!fotoTerambil) {
@@ -1100,17 +1197,28 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         return;
       }
 
-      const lewatBatasAbsenMasuk = menitAcuanKirim >= BATAS_ABSEN_MASUK_WIB;
-      const endpoint =
-        tahapKirim === "langsung_pulang" ||
-        (tahapKirim === "belum_masuk" && lewatBatasAbsenMasuk)
-          ? "pulang"
-          : "masuk";
+      // Status server menentukan tahap; menit WIB terbaru menentukan cutoff.
+      // Tahap "sudah_masuk" wajib diarahkan ke /pulang, bukan /masuk.
+      const endpoint = tentukanEndpointAbsensi(tahapKirim, menitAcuanKirim);
 
-      if (endpoint === "masuk" && lewatBatasAbsenMasuk) {
-        const tahapAman = "langsung_pulang";
-        setTahap(tahapAman);
-        simpanCacheStatusHariIni(pengguna, tahapAman);
+      if (!endpoint) {
+        setPesan("Status absensi belum valid. Muat ulang status absensi sebelum mengirim.");
+        return;
+      }
+
+      if (
+        perluKonfirmasiPulangSaja(tahapKirim, menitAcuanKirim) &&
+        !window.confirm(PESAN_KONFIRMASI_PULANG_SAJA)
+      ) {
+        setPesan("Absensi dibatalkan. Tidak ada data yang dikirim.");
+        return;
+      }
+
+      // Pertahanan tambahan untuk mencegah absen masuk setelah cutoff,
+      // sekalipun tahap tampilan berubah sesaat sebelum pengiriman.
+      if (endpoint === "masuk" && menitAcuanKirim >= BATAS_ABSEN_MASUK_WIB) {
+        setTahap("langsung_pulang");
+        simpanCacheStatusHariIni(pengguna, "langsung_pulang");
         setPesan("Sudah lewat 12:00 WIB. Absen masuk pagi tidak dapat dilakukan lagi; gunakan Absen Pulang.");
         return;
       }
@@ -1164,7 +1272,12 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
           signal: controller.signal,
         });
       } catch (networkError) {
-        console.error(networkError);
+        console.error("Pengiriman absensi tidak menerima respons:", networkError);
+        const statusTersimpan = await bacaAbsensiTersimpan(endpoint);
+        if (statusTersimpan) {
+          tampilkanAbsensiTersimpan(statusTersimpan, endpoint);
+          return;
+        }
         await simpanOffline();
         return;
       } finally {
@@ -1179,6 +1292,15 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       }
 
       if (!res.ok) {
+        // Konflik/galat server dapat terjadi setelah request sebelumnya berhasil
+        // menyimpan data. Verifikasi dulu agar UI tidak menyuruh kirim dua kali.
+        if (res.status === 409 || res.status >= 500) {
+          const statusTersimpan = await bacaAbsensiTersimpan(endpoint);
+          if (statusTersimpan) {
+            tampilkanAbsensiTersimpan(statusTersimpan, endpoint);
+            return;
+          }
+        }
         setPesan(data.pesan || "Gagal mengirim absen.");
         return;
       }
@@ -1199,6 +1321,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       setPesan("Tidak bisa terhubung ke server, dan gagal menyimpan absen secara offline. Coba lagi.");
     } finally {
       sesiKirimRef.current = false;
+      tandaiSesiAbsensiAktif(false);
       if (mountedRef.current) setLoading(false);
     }
   }

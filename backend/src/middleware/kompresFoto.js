@@ -19,17 +19,10 @@ const {
 
 const TARGET_MAKS_BYTES = 200 * 1024;
 const LEBAR_MAKS_PX = 1280;
-const HEADER_OFFLINE_SYNC = "X-Zaman-Background";
-const OFFLINE_SYNC_HEADER_VALUE = "offline-sync";
-
-function menitValidasiWIB(req) {
-  const offlineSync = req.get(HEADER_OFFLINE_SYNC) === OFFLINE_SYNC_HEADER_VALUE;
-  if (!offlineSync) return totalMenitWIB(new Date());
-
-  const raw = String(req.body?.waktuAsli || "").trim();
-  const kandidat = new Date(raw);
-  if (raw && !Number.isNaN(kandidat.getTime())) return totalMenitWIB(kandidat);
-
+// Aturan batas jam adalah keputusan server. Jangan memakai waktuAsli dari
+// request offline untuk menentukan apakah /masuk atau pulang-tanpa-masuk masih
+// diizinkan; header offline-sync dapat dibuat ulang oleh klien dan bukan bukti waktu.
+function menitValidasiWIB() {
   return totalMenitWIB(new Date());
 }
 
@@ -42,7 +35,7 @@ async function validasiSebelumUpload(req, res) {
 
   const penggunaId = req.user.id;
   const { tanggalDate: tanggal } = getWIBTodayRange();
-  const menitValidasi = menitValidasiWIB(req);
+  const menitValidasi = menitValidasiWIB();
 
   try {
     const [pengajuanDisetujui, absensi] = await Promise.all([
