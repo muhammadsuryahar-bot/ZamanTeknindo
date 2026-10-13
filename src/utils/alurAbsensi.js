@@ -12,7 +12,7 @@ export function tentukanEndpointAbsensi(tahap, menitWIB) {
   if (!Number.isFinite(minitWIBAman(menitWIB))) return null;
 
   if (tahap === "sudah_masuk" || tahap === "langsung_pulang") {
-    return "pulang";
+    return menitWIB >= BATAS_ABSEN_MASUK_WIB ? "pulang" : null;
   }
 
   if (tahap === "belum_masuk") {
