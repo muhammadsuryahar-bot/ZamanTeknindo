@@ -291,7 +291,7 @@ async function main() {
   assert.equal(dbState.calls.successfulCreates, 0);
   assert.equal(storageDeleteCount >= 1, true, "Foto dari request yang kalah harus dibersihkan.");
 
-  console.log("Absensi live controller cutoff + repeat-send + concurrent-send integration test: PASS");
+  console.log("Absensi controller/middleware integration simulation (cutoff + repeat-send + concurrent-send): PASS");
 }
 
 main()
