@@ -37,6 +37,17 @@ async function validasiSebelumUpload(req, res) {
   const { tanggalDate: tanggal } = getWIBTodayRange();
   const menitValidasi = menitValidasiWIB();
 
+  // Aturan server: tidak ada clock-out yang boleh diproses sebelum 12:00 WIB,
+  // baik karyawan sudah absen masuk maupun belum. Tolak sebelum query/upload Storage.
+  if (route === "/pulang" && menitValidasi < BATAS_ABSEN_MASUK_WIB) {
+    res.status(409).json({
+      pesan: "Absen pulang hanya dapat dilakukan mulai pukul 12:00 WIB.",
+      kode: "ABSEN_PULANG_TERLALU_AWAL",
+      batasAbsenPulangWIB: "12:00",
+    });
+    return false;
+  }
+
   try {
     const [pengajuanDisetujui, absensi] = await Promise.all([
       prisma.pengajuanIzin.findFirst({
@@ -79,17 +90,12 @@ async function validasiSebelumUpload(req, res) {
     }
 
     if (absensi?.jamPulang) {
-      res.status(409).json({
-        pesan: "Anda sudah melakukan absen pulang hari ini.",
-      });
-      return false;
-    }
-
-    if (!absensi?.jamMasuk && menitValidasi < BATAS_ABSEN_MASUK_WIB) {
-      res.status(400).json({
-        pesan: "Anda belum melakukan absen masuk hari ini. Absen pulang tanpa absen masuk hanya tersedia mulai 12:00 WIB.",
-        kode: "BELUM_ABSEN_MASUK",
-        batasAbsenPulangTanpaMasukWIB: "12:00",
+      // Request ulang setelah pulang tersimpan dianggap sukses idempoten.
+      // Tidak perlu mengunggah foto kedua atau meminta pengguna mengirim lagi.
+      res.status(200).json({
+        tahap: "selesai",
+        pesan: "Absen pulang sudah tercatat. Tidak perlu dikirim ulang.",
+        data: absensi,
       });
       return false;
     }
