@@ -24,10 +24,12 @@ assert.equal(tentukanEndpointAbsensi("belum_masuk", 720), "pulang");
 assert.equal(tentukanEndpointAbsensi("belum_masuk", 1019), "pulang");
 assert.equal(tentukanEndpointAbsensi("belum_masuk", 1020), "pulang");
 
-// Sudah masuk harus selalu langsung mengarah ke pulang, termasuk rentang 12:00–17:00.
+// Sudah masuk pun tidak boleh clock-out sebelum 12:00; dari 12:00 ke atas langsung pulang.
+assert.equal(tentukanEndpointAbsensi("sudah_masuk", 719), null);
 assert.equal(tentukanEndpointAbsensi("sudah_masuk", 720), "pulang");
 assert.equal(tentukanEndpointAbsensi("sudah_masuk", 1019), "pulang");
 assert.equal(tentukanEndpointAbsensi("sudah_masuk", 1020), "pulang");
+assert.equal(tentukanEndpointAbsensi("langsung_pulang", 719), null);
 assert.equal(tentukanEndpointAbsensi("langsung_pulang", 720), "pulang");
 assert.equal(tentukanEndpointAbsensi("selesai", 800), null);
 assert.equal(tentukanEndpointAbsensi("tidak_perlu_absen", 800), null);
@@ -46,6 +48,8 @@ assert.match(dashboard, /tentukanEndpointAbsensi\(tahapKirim, menitAcuanKirim\)/
 assert.match(dashboard, /perluKonfirmasiPulangSaja\(tahapKirim, menitAcuanKirim\)/);
 assert.match(dashboard, /window\.confirm\(PESAN_KONFIRMASI_PULANG_SAJA\)/);
 assert.match(dashboard, /async function bacaAbsensiTersimpan\(endpoint\)/);
+assert.match(dashboard, /if \(sesiKirimRef\.current \|\| loading \|\| absensiTerkirimRef\.current\) return;/);
+assert.match(dashboard, /Absen Pulang Tersedia 12\.00 WIB/);
 
 const kirimMulai = dashboard.indexOf("  async function kirimAbsen()");
 const tampilanMulai = dashboard.indexOf("// Gunakan tahap tampilan", kirimMulai);
