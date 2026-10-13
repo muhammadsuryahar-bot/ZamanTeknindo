@@ -22,7 +22,8 @@ assert.strictEqual(sudahLewatBatasAbsenMasukWIB(dateWIB(11, 59)), false);
 assert.strictEqual(sudahLewatBatasAbsenMasukWIB(dateWIB(12, 0)), true);
 assert.strictEqual(sudahLewatBatasAbsenMasukWIB(dateWIB(17, 0)), true);
 
-// Keputusan cutoff harus memakai waktu server, bukan waktuAsli dari klien.
+// Masuk-pagi hanya sampai sebelum 12:00 WIB.
+// Jam pulang wajib memakai waktu server, bukan waktuAsli dari klien/offline.
 const middlewareAbsensi = baca("backend/src/middleware/kompresFoto.js");
 const controllerAbsensi = baca("backend/src/controllers/absensiController.js");
 const blokValidasiWaktu = middlewareAbsensi.slice(
@@ -33,9 +34,10 @@ assert(blockValidasiWaktuAda(blokValidasiWaktu), "Preflight cutoff wajib ada.");
 function blockValidasiWaktuAda(blok) {
   return blok.includes("return totalMenitWIB(new Date())") && !blok.includes("waktuAsli");
 }
+
 assert(
   controllerAbsensi.includes("const menitSekarangServerWIB = menitSekarangWIB(new Date());"),
-  "Controller harus menghitung waktu aktual server secara terpisah dari timestamp offline."
+  "Controller masuk harus menghitung waktu aktual server secara terpisah dari timestamp offline."
 );
 assert(
   controllerAbsensi.includes("if (menitSekarangServerWIB >= BATAS_ABSEN_MASUK_WIB)"),
@@ -46,8 +48,33 @@ assert(
   "Timestamp offline tidak boleh menjadi satu-satunya dasar cutoff."
 );
 assert(
-  !middlewareAbsensi.slice(middlewareAbsensi.indexOf("function menitValidasiWIB"), middlewareAbsensi.indexOf("async function validasiSebelumUpload")).includes("req.body"),
+  !middlewareAbsensi.slice(
+    middlewareAbsensi.indexOf("function menitValidasiWIB"),
+    middlewareAbsensi.indexOf("async function validasiSebelumUpload")
+  ).includes("req.body"),
   "Preflight tidak boleh mempercayai body klien untuk memutuskan cutoff."
+);
+
+// Regression: the server must reject /pulang before noon even when jamMasuk already exists.
+const blokPreflightPulang = middlewareAbsensi.indexOf(
+  'if (route === "/pulang" && menitValidasi < BATAS_ABSEN_MASUK_WIB)',
+);
+const queryPreflight = middlewareAbsensi.indexOf("const [pengajuanDisetujui, absensi] =");
+assert(
+  blokPreflightPulang >= 0 && queryPreflight > blokPreflightPulang,
+  "Semua request /pulang sebelum 12:00 harus ditolak sebelum pemeriksaan lanjutan/upload Storage."
+);
+
+const mulaiPulang = controllerAbsensi.indexOf("async function absenPulang");
+const akhirPulang = controllerAbsensi.indexOf("async function riwayatSaya", mulaiPulang);
+const blokPulang = controllerAbsensi.slice(mulaiPulang, akhirPulang);
+assert(
+  blokPulang.includes("if (menitSekarangWIB(new Date()) < BATAS_ABSEN_MASUK_WIB)"),
+  "Controller pulang wajib menerapkan cutoff server kedua untuk semua karyawan."
+);
+assert(
+  blokPulang.includes('kode: "ABSEN_PULANG_TERLALU_AWAL"'),
+  "Respons penolakan clock-out awal harus mempunyai kode yang bisa dikenali."
 );
 
 console.log("Absensi cutoff 12:00 WIB regression test: PASS");
