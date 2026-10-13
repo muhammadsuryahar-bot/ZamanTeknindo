@@ -285,6 +285,17 @@ async function absenPulang(req, res) {
     const { latitude, longitude, alamat, akurasi } = req.body;
     if (!req.file) return res.status(400).json({ pesan: "Foto absen wajib diunggah." });
 
+    // Pertahanan kedua: controller mengecek jam server aktual, bukan waktu klien
+    // atau waktu offline, agar pemanggilan endpoint langsung pun tidak bisa bypass cutoff.
+    if (menitSekarangWIB(new Date()) < BATAS_ABSEN_MASUK_WIB) {
+      await hapusFotoJikaPerlu();
+      return res.status(409).json({
+        pesan: "Absen pulang hanya dapat dilakukan mulai pukul 12:00 WIB.",
+        kode: "ABSEN_PULANG_TERLALU_AWAL",
+        batasAbsenPulangWIB: "12:00",
+      });
+    }
+
     const { tanggalDate: tanggal, end: tanggalEnd } = getWIBTodayRange();
     const pengajuanDisetujui = await prisma.pengajuanIzin.findFirst({
       where: { penggunaId, tanggal, status: "disetujui" },
@@ -308,7 +319,10 @@ async function absenPulang(req, res) {
           });
     if (absensiHariIni?.jamPulang) {
       await hapusFotoJikaPerlu();
-      return res.status(409).json({ pesan: "Anda sudah melakukan absen pulang hari ini." });
+      return res.status(200).json({
+        pesan: "Absen pulang sudah tercatat. Tidak perlu dikirim ulang.",
+        data: absensiHariIni,
+      });
     }
 
     const waktuPulang = waktuAbsensiDariRequest(req);
@@ -366,9 +380,22 @@ async function absenPulang(req, res) {
         });
       } catch (error) {
         if (error?.code === "P2025") {
+          // Request bersamaan bisa kalah pada update atomik. Baca row final;
+          // bila request lain sudah mencatat pulang, kembalikan hasil tersimpan
+          // sebagai sukses agar UI tidak meminta klik kedua.
+          const absensiFinal = await prisma.absensi.findUnique({
+            where: { penggunaId_tanggal: { penggunaId, tanggal } },
+          });
+          if (absensiFinal?.jamPulang) {
+            await hapusFotoJikaPerlu();
+            return res.status(200).json({
+              pesan: "Absen pulang sudah tercatat. Tidak perlu dikirim ulang.",
+              data: absensiFinal,
+            });
+          }
           await hapusFotoJikaPerlu();
           return res.status(409).json({
-            pesan: "Absensi pulang sudah tercatat. Silakan periksa status hari ini.",
+            pesan: "Status absen pulang berubah saat diproses. Muat status terbaru sebelum mencoba lagi.",
           });
         }
         throw error;
@@ -384,8 +411,18 @@ async function absenPulang(req, res) {
         });
       } catch (error) {
         if (error?.code === "P2002") {
+          const absensiFinal = await prisma.absensi.findUnique({
+            where: { penggunaId_tanggal: { penggunaId, tanggal } },
+          });
+          if (absensiFinal?.jamPulang) {
+            await hapusFotoJikaPerlu();
+            return res.status(200).json({
+              pesan: "Absen pulang sudah tercatat. Tidak perlu dikirim ulang.",
+              data: absensiFinal,
+            });
+          }
           await hapusFotoJikaPerlu();
-          return res.status(409).json({ pesan: "Absensi pulang sudah tercatat. Silakan periksa status hari ini." });
+          return res.status(409).json({ pesan: "Status absen pulang berubah saat diproses. Muat status terbaru sebelum mencoba lagi." });
         }
         throw error;
       }
