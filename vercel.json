@@ -77,5 +77,8 @@
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
+  ],
+  "regions": [
+    "icn1"
   ]
 }
