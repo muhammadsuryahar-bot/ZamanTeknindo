@@ -22,7 +22,7 @@ global.Date = FixedDate;
 
 function setNow(iso) {
   fixedNowMs = NativeDate.parse(iso);
-  assert.ok(Number.isFinite(fixedNowMs), \`Waktu uji tidak valid: \${iso}\`);
+  assert.ok(Number.isFinite(fixedNowMs), `Waktu uji tidak valid: ${iso}`);
 }
 
 function cloneRecord(record) {
@@ -30,7 +30,7 @@ function cloneRecord(record) {
 }
 
 function prismaError(code) {
-  const error = new Error(\`Mock Prisma \${code}\`);
+  const error = new Error(`Mock Prisma ${code}`);
   error.code = code;
   return error;
 }
@@ -105,7 +105,7 @@ installMock("backend/src/utils/prismaClient.js", prisma);
 installMock("backend/src/utils/supabaseStorage.js", {
   async uploadFotoAbsensi() {
     storageUploadCount += 1;
-    return \`mock-upload-\${storageUploadCount}.jpg\`;
+    return `mock-upload-${storageUploadCount}.jpg`;
   },
   async deleteFotoAbsensi() {
     storageDeleteCount += 1;
