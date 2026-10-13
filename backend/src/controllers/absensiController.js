@@ -327,9 +327,9 @@ async function absenPulang(req, res) {
 
     const waktuPulang = waktuAbsensiDariRequest(req);
 
-    // Mode testing: absen pulang boleh dicatat kapan pun.
-    // Bila jam masuk sudah ada, waktu pulang tetap harus >= jam masuk.
-    // Bila jam masuk belum ada, record pulang tetap boleh dibuat.
+    // Aturan cutoff 12:00 WIB sudah divalidasi di awal handler.
+    // Sesudah cutoff, clock-out boleh dibuat dengan atau tanpa jam masuk;
+    // bila jam masuk tersedia, waktu pulang tetap tidak boleh mendahuluinya.
 
     const koordinat = koordinatDariRequest(latitude, longitude);
     if (!koordinat) {
