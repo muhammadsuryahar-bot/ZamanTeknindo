@@ -396,6 +396,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   const kameraSesiRef = useRef(0);
   const kameraSiapRef = useRef(false);
   const sesiKirimRef = useRef(false);
+  const absensiTerkirimRef = useRef(false);
   const statusTerverifikasiAtRef = useRef(0);
   const tanggalAktifRef = useRef(tanggalLokalISO());
 
@@ -468,6 +469,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
       const sesiKameraPerluDiakhiri = kameraAktif || kameraMembuka || Boolean(fotoTerambil);
       tanggalAktifRef.current = tanggalSekarang;
+      absensiTerkirimRef.current = false;
 
       if (sesiKameraPerluDiakhiri) {
         hentikanKamera();
@@ -955,6 +957,8 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     try {
       const blob = await kompresFotoUntukUpload(canvas);
       if (!mountedRef.current) return;
+      // Foto baru membuat sesi pengiriman baru yang sah.
+      absensiTerkirimRef.current = false;
       setFotoTerambil(blob);
       // Kamera boleh ditutup setelah foto diambil, tetapi GPS tetap berjalan
       // sampai koordinat valid tersedia untuk tombol Kirim Absen.
@@ -1134,6 +1138,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
   function tampilkanAbsensiTersimpan(status, endpoint) {
     const tahapServer = TAHAP_VALID.has(status?.tahap) ? status.tahap : (endpoint === "masuk" ? "sudah_masuk" : "selesai");
+    absensiTerkirimRef.current = true;
     setTahap(tahapServer);
     setStatusTerverifikasi(true);
     statusTerverifikasiAtRef.current = Date.now();
@@ -1149,7 +1154,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   }
 
   async function kirimAbsen() {
-    if (sesiKirimRef.current || loading) return;
+    if (sesiKirimRef.current || loading || absensiTerkirimRef.current) return;
     if (!fotoTerambil) {
       setPesan("Silakan ambil foto terlebih dahulu.");
       return;
@@ -1201,6 +1206,14 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       // Tahap "sudah_masuk" wajib diarahkan ke /pulang, bukan /masuk.
       const endpoint = tentukanEndpointAbsensi(tahapKirim, menitAcuanKirim);
 
+      if (
+        (tahapKirim === "sudah_masuk" || tahapKirim === "langsung_pulang") &&
+        menitAcuanKirim < BATAS_ABSEN_MASUK_WIB
+      ) {
+        setPesan("Absen pulang hanya dapat dikirim mulai pukul 12.00 WIB.");
+        return;
+      }
+
       if (!endpoint) {
         setPesan("Status absensi belum valid. Muat ulang status absensi sebelum mengirim.");
         return;
@@ -1245,6 +1258,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
           endpoint,
         });
         const sisa = await jumlahAntrian(pengguna.id);
+        absensiTerkirimRef.current = true;
         if (mountedRef.current) {
           setJumlahTertunda(sisa);
           setPesan("Sinyal lagi tidak stabil. Absen kamu sudah tersimpan aman di HP dan akan otomatis terkirim begitu koneksi kembali normal — tidak perlu ulangi.");
@@ -1305,6 +1319,9 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         return;
       }
 
+      // Kunci langsung sebelum React menyelesaikan render. Klik cepat kedua
+      // memakai closure lama pun tidak boleh mengirim foto yang sama lagi.
+      absensiTerkirimRef.current = true;
       const tahapSetelahAbsen = endpoint === "masuk" ? "sudah_masuk" : "selesai";
       setTahap(tahapSetelahAbsen);
       setStatusTerverifikasi(true);
@@ -1383,10 +1400,19 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     !Number.isFinite(Number(lokasi?.longitude)) ||
     !Number.isFinite(Number(lokasi?.akurasi)) ||
     Number(lokasi?.akurasi) <= 0 ||
-    Number(lokasi?.akurasi) > 100
+    Number(lokasi?.akurasi) > 100 ||
+    ((tahapTampilan === "sudah_masuk" || tahapTampilan === "langsung_pulang") &&
+      menitAcuan < BATAS_ABSEN_MASUK_WIB)
   }
 >
-  {loading ? "Mengirim..." : statusVerifikasiSedang || !statusTerverifikasi ? "Memverifikasi..." : "Kirim Absen"}
+  {loading
+    ? "Mengirim..."
+    : ((tahapTampilan === "sudah_masuk" || tahapTampilan === "langsung_pulang") &&
+      menitAcuan < BATAS_ABSEN_MASUK_WIB)
+      ? "Absen Pulang Tersedia 12.00 WIB"
+      : statusVerifikasiSedang || !statusTerverifikasi
+        ? "Memverifikasi..."
+        : "Kirim Absen"}
 </button></div></div>}</>}
           {pesan && <div style={styles.messageBox} role="alert">{pesan}</div>}
         </section>
