@@ -21,7 +21,7 @@ assert(submit.includes("if (sesiKirimRef.current || loading || absensiTerkirimRe
   "Klik kedua saat request berjalan atau setelah sukses harus ditolak.");
 assert(submit.includes("absensiTerkirimRef.current = true;"),
   "Submit lock harus aktif secara sinkron setelah hasil tersimpan.");
-assert(submit.includes("absensiTerkirimRef.current = false;"),
+assert(dashboard.includes("absensiTerkirimRef.current = false;"),
   "Submit lock harus bisa di-reset untuk foto baru atau tanggal absensi berikutnya.");
 
 const clockoutGate = middleware.indexOf('if (route === "/pulang" && menitValidasi < BATAS_ABSEN_MASUK_WIB)');
