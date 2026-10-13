@@ -9,6 +9,7 @@ const karyawan = baca("src/pages/DashboardKaryawan.jsx");
 const main = baca("src/main.jsx");
 const middleware = baca("backend/src/middleware/kompresFoto.js");
 const controller = baca("backend/src/controllers/absensiController.js");
+const vercel = JSON.parse(baca("vercel.json"));
 
 const mulaiKirim = karyawan.indexOf("  async function kirimAbsen()");
 const akhirKirim = karyawan.indexOf("// Gunakan tahap tampilan", mulaiKirim);
@@ -19,6 +20,11 @@ assert(!alurKirim.includes("segarkanStatusUntukKirim"), "Kirim Absen tidak boleh
 assert(!alurKirim.includes("/status-hari-ini"), "Kirim Absen tidak boleh melakukan GET status sebelum upload foto.");
 assert(alurKirim.includes("waktuServerEpochMs"), "Pemilihan Masuk/Pulang harus memakai jam server yang berjalan.");
 assert(alurKirim.includes("${API_URL}/absensi/${endpoint}"), "Foto harus dikirim melalui endpoint absensi yang dipilih.");
+
+// Database and Storage for this project are in Supabase ap-northeast-2 (Seoul).
+// Keep Vercel's API functions in the matching Seoul region to avoid cross-region
+// latency on attendance requests. Hobby supports selecting a single region.
+assert.deepStrictEqual(vercel.regions, ["icn1"], "Vercel API harus tetap berada di Seoul (icn1), dekat Supabase ap-northeast-2.");
 
 assert(middleware.includes("Promise.all(["), "Pengecekan status sebelum upload harus paralel.");
 assert(middleware.includes("req.absensiPreflight = { penggunaId, tanggal, absensi, route }"), "Middleware harus meneruskan hasil preflight ke controller.");
