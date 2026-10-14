@@ -722,25 +722,6 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     if (mountedRef.current) setKameraSiap(false);
   }
 
-  function jadwalkanLokasiSetelahKameraSiap(sesiKamera) {
-    const mulai = () => {
-      if (!mountedRef.current || !kameraAktif || kameraSesiRef.current !== sesiKamera || !kameraSiapRef.current) return;
-      window.setTimeout(() => {
-        if (mountedRef.current && kameraAktif && kameraSesiRef.current === sesiKamera && kameraSiapRef.current) {
-          ambilLokasi();
-        }
-      }, 180);
-    };
-
-    const video = videoRef.current;
-    if (video?.readyState >= 2) {
-      mulai();
-      return;
-    }
-    if (video) video.addEventListener("canplay", mulai, { once: true });
-    window.setTimeout(mulai, 1200);
-  }
-
   async function bukaKamera() {
     setPesan("");
     if (!navigator.mediaDevices?.getUserMedia) { setPesan("Browser ini tidak mendukung akses kamera."); return; }
@@ -786,7 +767,9 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       setLokasi(null);
       setStatusLokasi("mencari");
       setKameraAktif(true);
-      requestAnimationFrame(() => jadwalkanLokasiSetelahKameraSiap(sesiKamera));
+      // Mulai GPS segera setelah izin kamera didapat, tanpa menunggu preview video siap.
+      // GPS dan preview kamera berjalan paralel; batas akurasi tetap sama.
+      ambilLokasi();
     } catch (err) {
       console.error("Gagal membuka kamera:", err);
       if (!kameraAktif && !fotoTerambil && !loading) tandaiSesiAbsensiAktif(false);
@@ -839,7 +822,6 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       frameTerlihat = true;
       kameraSiapRef.current = true;
       setKameraSiap(true);
-      jadwalkanLokasiSetelahKameraSiap(sesiKamera);
     };
 
     const ketikaFrame = () => {
