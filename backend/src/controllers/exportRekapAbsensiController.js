@@ -225,7 +225,7 @@ function isiWarnaStatus(cell, status) {
     fgColor: { argb: fill },
   };
   cell.font = {
-    name: "Aptos",
+    name: "Arial",
     size: 10,
     bold: true,
     color: { argb: WARNA.teks },
@@ -236,7 +236,7 @@ function gayaHeader(row, jumlahKolom) {
   for (let index = 1; index <= jumlahKolom; index += 1) {
     const cell = row.getCell(index);
     cell.font = {
-      name: "Aptos",
+      name: "Arial",
       size: 10,
       bold: true,
       color: { argb: WARNA.putih },
@@ -263,7 +263,7 @@ function gayaHeader(row, jumlahKolom) {
 
 function gayaData(cell, { horizontal = "left", wrapText = false, bold = false } = {}) {
   cell.font = {
-    name: "Aptos",
+    name: "Arial",
     size: 10,
     bold,
     color: { argb: WARNA.teks },
@@ -471,6 +471,9 @@ async function exportRekapAbsensi(req, res) {
 
     const COLORS = {
       navy: "FF2E4E7E",
+      titleNavy: "FF1F3864",
+      footerBlue: "FFEAF1FB",
+      dailyGrid: "FFBFC7D5",
       green: "FF2E7D32",
       blue: "FF1565C0",
       orange: "FFE65100",
@@ -478,8 +481,8 @@ async function exportRekapAbsensi(req, res) {
       red: "FFC62828",
       brown: "FF795548",
       teal: "FF00695C",
-      lightBlue: "FFE9F1F9",
-      lightGray: "FFE6E9ED",
+      lightBlue: "FFF2F5FA",
+      lightGray: "FFD9D9D9",
       grid: "FF808080",
       text: "FF1F2937",
       white: "FFFFFFFF",
@@ -504,7 +507,7 @@ async function exportRekapAbsensi(req, res) {
     sheet.mergeCells("A1:Q1");
     sheet.getCell("A1").value = "REKAP DATA KEHADIRAN KARYAWAN";
     sheet.getCell("A1").font = {
-      name: "Aptos Display",
+      name: "Arial",
       size: 16,
       bold: true,
       color: { argb: COLORS.white },
@@ -512,7 +515,7 @@ async function exportRekapAbsensi(req, res) {
     sheet.getCell("A1").fill = {
       type: "pattern",
       pattern: "solid",
-      fgColor: { argb: COLORS.navy },
+      fgColor: { argb: COLORS.titleNavy },
     };
     sheet.getCell("A1").alignment = {
       horizontal: "center",
@@ -536,15 +539,15 @@ async function exportRekapAbsensi(req, res) {
       jumlahHari +
       " Hari Kalender";
     sheet.getCell("A2").font = {
-      name: "Aptos",
-      size: 10.5,
+      name: "Arial",
+      size: 11,
       italic: true,
-      color: { argb: COLORS.white },
+      color: { argb: "FFD9E2F3" },
     };
     sheet.getCell("A2").fill = {
       type: "pattern",
       pattern: "solid",
-      fgColor: { argb: COLORS.navy },
+      fgColor: { argb: COLORS.titleNavy },
     };
     sheet.getCell("A2").alignment = {
       horizontal: "center",
@@ -558,7 +561,7 @@ async function exportRekapAbsensi(req, res) {
         sheet.getCell(rowNum, col).fill = {
           type: "pattern",
           pattern: "solid",
-          fgColor: { argb: COLORS.navy },
+          fgColor: { argb: COLORS.titleNavy },
         };
       }
     }
@@ -646,8 +649,8 @@ async function exportRekapAbsensi(req, res) {
           wrapText: true,
         };
         cell.font = {
-          name: "Aptos",
-          size: 9.5,
+          name: "Arial",
+          size: 10,
           bold: true,
           color: { argb: COLORS.white },
         };
@@ -731,16 +734,21 @@ async function exportRekapAbsensi(req, res) {
           result: item.jumlahHC,
         };
 
-        const fill = index % 2 === 0 ? COLORS.white : COLORS.lightBlue;
+        const fill = index % 2 === 0 ? COLORS.lightBlue : COLORS.white;
         row.height = 16.5;
 
         for (let col = 1; col <= 17; col += 1) {
           const cell = row.getCell(col);
+          const isLeaveEntitlement = col === 5 || col === 6;
+          const isHCColumn = col === 7 || col === 17;
           cell.font = {
-            name: "Aptos",
-            size: 10,
-            bold: false,
-            color: { argb: COLORS.text },
+            name: "Arial",
+            size: isLeaveEntitlement ? 9 : 10,
+            bold: col === 2 || isHCColumn,
+            italic: isLeaveEntitlement,
+            color: {
+              argb: isHCColumn ? "FFC00000" : isLeaveEntitlement ? "FF808080" : COLORS.text,
+            },
           };
           cell.fill = {
             type: "pattern",
@@ -806,7 +814,7 @@ async function exportRekapAbsensi(req, res) {
     const styleFooterBlock = (range, options = {}) => {
       const cell = sheet.getCell(range.split(":")[0]);
       cell.font = {
-        name: "Aptos",
+        name: "Arial",
         size: options.size || 10,
         bold: Boolean(options.bold),
         italic: Boolean(options.italic),
@@ -820,7 +828,15 @@ async function exportRekapAbsensi(req, res) {
       if (options.fill) {
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: options.fill } };
       }
-      cell.border = border;
+      if (options.border) {
+        const footerBorder = {
+          top: { style: "thin", color: { argb: "FFB0B0B0" } },
+          left: { style: "thin", color: { argb: "FFB0B0B0" } },
+          bottom: { style: "thin", color: { argb: "FFB0B0B0" } },
+          right: { style: "thin", color: { argb: "FFB0B0B0" } },
+        };
+        cell.border = footerBorder;
+      }
     };
 
     styleFooterBlock("A" + footerStart + ":D" + footerStart, { bold: true, horizontal: "center", wrapText: false });
@@ -828,11 +844,10 @@ async function exportRekapAbsensi(req, res) {
     styleFooterBlock("A" + (footerStart + 1) + ":D" + (footerStart + 1), { italic: true, horizontal: "center", wrapText: false });
     for (let index = 0; index < 3; index += 1) {
       const row = footerStart + index;
-      styleFooterBlock("E" + row + ":M" + row, { bold: true, color: COLORS.navy, fill: COLORS.lightBlue, wrapText: false });
-      styleFooterBlock("N" + row + ":O" + row, { bold: true, color: COLORS.red, fill: COLORS.lightBlue, horizontal: "center", wrapText: false });
+      styleFooterBlock("E" + row + ":M" + row, { bold: true, color: COLORS.titleNavy, fill: COLORS.footerBlue, wrapText: false, border: true });
+      styleFooterBlock("N" + row + ":O" + row, { bold: true, color: COLORS.red, fill: COLORS.footerBlue, horizontal: "center", wrapText: false, border: true });
     }
-    styleFooterBlock("E" + (footerStart + 3) + ":O" + (footerStart + 3), { italic: true, size: 9, color: COLORS.text, fill: COLORS.lightBlue, wrapText: false });
-    styleFooterBlock("E" + (footerStart + 4) + ":O" + (footerStart + 4), { fill: COLORS.lightBlue, wrapText: false });
+    styleFooterBlock("E" + (footerStart + 3) + ":O" + (footerStart + 3), { italic: true, size: 9, color: "FF595959", wrapText: false });
 
     const signatureNameRow = footerStart + 7;
     const signatureTitleRow = footerStart + 8;
@@ -846,18 +861,18 @@ async function exportRekapAbsensi(req, res) {
     sheet.getCell("P" + signatureTitleRow).value = "Manager Financial";
 
     for (const [cellRef, options] of [
-      ["A" + signatureNameRow, { bold: true, italic: true, horizontal: "center" }],
-      ["P" + signatureNameRow, { bold: true, italic: true, horizontal: "center" }],
-      ["A" + signatureTitleRow, { italic: true, size: 9.5, horizontal: "center" }],
-      ["P" + signatureTitleRow, { italic: true, size: 9.5, horizontal: "center" }],
+      ["A" + signatureNameRow, { bold: true, italic: true, size: 11, horizontal: "center" }],
+      ["P" + signatureNameRow, { bold: true, italic: true, size: 11, horizontal: "center" }],
+      ["A" + signatureTitleRow, { italic: true, size: 9, color: "FF595959", horizontal: "center" }],
+      ["P" + signatureTitleRow, { italic: true, size: 9, color: "FF595959", horizontal: "center" }],
     ]) {
       const cell = sheet.getCell(cellRef);
       cell.font = {
-        name: "Aptos",
+        name: "Arial",
         size: options.size || 10,
         bold: Boolean(options.bold),
         italic: Boolean(options.italic),
-        color: { argb: COLORS.text },
+        color: { argb: options.color || COLORS.text },
       };
       cell.alignment = { horizontal: options.horizontal, vertical: "middle", wrapText: false };
     }
@@ -930,7 +945,7 @@ async function exportRekapAbsensi(req, res) {
       " s.d. " +
       formatTanggalIndonesia(tanggalAkhir);
     dailySheet.getCell("A1").font = {
-      name: "Aptos Display",
+      name: "Arial",
       size: 14,
       bold: true,
       color: { argb: COLORS.white },
@@ -938,7 +953,7 @@ async function exportRekapAbsensi(req, res) {
     dailySheet.getCell("A1").fill = {
       type: "pattern",
       pattern: "solid",
-      fgColor: { argb: COLORS.navy },
+      fgColor: { argb: COLORS.titleNavy },
     };
     dailySheet.getCell("A1").alignment = {
       horizontal: "left",
@@ -948,16 +963,12 @@ async function exportRekapAbsensi(req, res) {
 
     dailySheet.mergeCells("A2:" + dailyLastColLetter + "2");
     dailySheet.getCell("A2").value =
-      "Kode: H = Hadir tepat waktu | T = Hadir terlambat | I = Izin (ada ket) | A = Alpha (tanpa ket) | S = Sakit ada surat | SX = Sakit tanpa surat | C = Cuti | L = Libur (Sabtu/Minggu/Libur) | kosong = tidak ada data.  Ubah kode di sini, sheet Rekap Absensi ikut berubah otomatis.";
+      "Kode: H = Hadir tepat waktu | T = Hadir terlambat | I = Izin (ada ket) | A = Alpha (tanpa ket) | S = Sakit ada surat | SX = Sakit tanpa surat | C = Cuti | L = Libur (Sabtu/Minggu) | kosong = tidak ada data.  Ubah kode di sini, sheet Rekap Absensi ikut berubah otomatis.";
     dailySheet.getCell("A2").font = {
-      name: "Aptos",
+      name: "Arial",
       size: 9,
-      color: { argb: COLORS.text },
-    };
-    dailySheet.getCell("A2").fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: COLORS.lightBlue },
+      italic: true,
+      color: { argb: "FF595959" },
     };
     dailySheet.getCell("A2").alignment = {
       horizontal: "left",
@@ -976,7 +987,7 @@ async function exportRekapAbsensi(req, res) {
       const col = index + 3;
       const bagian = bagianWaktuWIB(tanggal);
       const hari = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"][tanggal.getUTCDay()];
-      dailySheet.getCell(4, col).value = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"][bagian.bulan - 1];
+      dailySheet.getCell(4, col).value = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][bagian.bulan - 1];
       dailySheet.getCell(5, col).value = bagian.hari;
       dailySheet.getCell(6, col).value = hari;
     });
@@ -985,8 +996,8 @@ async function exportRekapAbsensi(req, res) {
       for (let col = 1; col <= dailyLastCol; col += 1) {
         const cell = dailySheet.getCell(rowNum, col);
         cell.font = {
-          name: "Aptos",
-          size: 9.5,
+          name: "Arial",
+          size: 9,
           bold: true,
           color: { argb: COLORS.white },
         };
@@ -995,7 +1006,12 @@ async function exportRekapAbsensi(req, res) {
           pattern: "solid",
           fgColor: { argb: COLORS.navy },
         };
-        cell.border = border;
+        cell.border = {
+          top: { style: "thin", color: { argb: COLORS.dailyGrid } },
+          left: { style: "thin", color: { argb: COLORS.dailyGrid } },
+          bottom: { style: "thin", color: { argb: COLORS.dailyGrid } },
+          right: { style: "thin", color: { argb: COLORS.dailyGrid } },
+        };
         cell.alignment = {
           horizontal: "center",
           vertical: "middle",
@@ -1009,8 +1025,8 @@ async function exportRekapAbsensi(req, res) {
 
     detailHarianPerKaryawan.forEach((item, index) => {
       const rowNum = dataStartRow + index;
-      dailySheet.getCell(rowNum, 1).value = index + 1;
-      dailySheet.getCell(rowNum, 2).value = item.nama;
+      dailySheet.getCell(rowNum, 1).value = { formula: "'Rekap Absensi'!A" + rowNum, result: index + 1 };
+      dailySheet.getCell(rowNum, 2).value = { formula: "'Rekap Absensi'!B" + rowNum, result: item.nama };
 
       item.kodeHarian.forEach((kode, offset) => {
         dailySheet.getCell(rowNum, offset + 3).value = kode || null;
@@ -1027,28 +1043,27 @@ async function exportRekapAbsensi(req, res) {
           })();
 
         cell.font = {
-          name: "Aptos",
-          size: col <= 2 ? 10 : 9.5,
-          bold: col <= 2,
+          name: "Arial",
+          size: col <= 2 ? 10 : 9,
+          bold: col === 2,
           color: { argb: COLORS.text },
         };
-        cell.fill = {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: {
-            argb: isWeekendOrHoliday
-              ? COLORS.lightGray
-              : index % 2 === 0
-                ? COLORS.white
-                : COLORS.lightBlue,
-          },
+        cell.fill = isWeekendOrHoliday
+          ? { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.lightGray } }
+          : { type: "pattern", pattern: "none" };
+        cell.border = {
+          top: { style: "thin", color: { argb: COLORS.dailyGrid } },
+          left: { style: "thin", color: { argb: COLORS.dailyGrid } },
+          bottom: { style: "thin", color: { argb: COLORS.dailyGrid } },
+          right: { style: "thin", color: { argb: COLORS.dailyGrid } },
         };
-        cell.border = border;
+        if (col <= 2) cell.fill = { type: "pattern", pattern: "none" };
         cell.alignment = {
           horizontal: col === 2 ? "left" : "center",
           vertical: "middle",
           wrapText: false,
         };
+        dailySheet.getRow(rowNum).height = 15;
       }
     });
 
