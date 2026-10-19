@@ -171,6 +171,24 @@ async function main() {
   assert.strictEqual(rekap.columnCount, 17, "Rekap Absensi harus 17 kolom A:Q");
   assert.strictEqual(harian.columnCount, 33, "Data Harian periode 31 hari harus A:AG");
 
+  // Dimensi merujuk langsung ke ukuran kolom/baris pada template HRD.
+  assert.ok(Math.abs(rekap.getColumn(1).width - 5.54296875) < 0.01, "Lebar kolom NO mengikuti template");
+  assert.ok(Math.abs(rekap.getColumn(2).width - 22) < 0.01, "Lebar kolom Nama mengikuti template");
+  assert.ok(Math.abs(rekap.getColumn(3).width - 9.54296875) < 0.01, "Lebar kolom TMK kiri mengikuti template");
+  assert.ok(Math.abs(rekap.getColumn(4).width - 9.54296875) < 0.01, "Lebar kolom TMK kanan mengikuti template");
+  assert.ok(Math.abs(rekap.getColumn(8).width - 10) < 0.01, "Lebar kolom Kehadiran mengikuti template");
+  assert.strictEqual(rekap.getRow(1).height, 30);
+  assert.strictEqual(rekap.getRow(2).height, 19.5);
+  assert.strictEqual(rekap.getRow(3).height, 6);
+  assert.strictEqual(rekap.getRow(4).height, 15.75);
+  assert.strictEqual(rekap.getRow(5).height, 15.75);
+  assert.strictEqual(rekap.getRow(6).height, 27.75);
+  assert.strictEqual(rekap.getRow(7).height, 16.5);
+  assert.strictEqual(harian.properties.defaultRowHeight, 15);
+  assert.strictEqual(harian.getRow(1).height, 17.25);
+  assert.strictEqual(harian.getRow(2).height, 15);
+  assert.strictEqual(harian.getRow(4).height, 15);
+
   assert.strictEqual(
     headers["content-disposition"],
     'attachment; filename="Rekap_Absensi_26Agu-25Sep2026.xlsx"',
