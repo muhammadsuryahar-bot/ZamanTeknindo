@@ -84,9 +84,14 @@ function daftarTanggal(mulai, selesai) {
 
 function formatTanggalIndonesia(tanggal) {
   const bagian = bagianWaktuWIB(tanggal);
-  return `${String(bagian.hari).padStart(2, "0")}-${String(
-    bagian.bulan,
-  ).padStart(2, "0")}-${bagian.tahun}`;
+  const bulan = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+  return String(bagian.hari).padStart(2, "0") + " " + bulan[bagian.bulan - 1] + " " + bagian.tahun;
+}
+
+function formatTanggalTanpaTahun(tanggal) {
+  const bagian = bagianWaktuWIB(tanggal);
+  const bulan = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+  return String(bagian.hari).padStart(2, "0") + " " + bulan[bagian.bulan - 1];
 }
 
 function formatJam(tanggal) {
@@ -97,17 +102,42 @@ function formatJam(tanggal) {
   ).padStart(2, "0")}`;
 }
 
-function formatTanggalFile(tanggal) {
+function formatTanggalFile(tanggal, sertakanTahun = true) {
   const bagian = bagianWaktuWIB(tanggal);
-  const bulan = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
-  return String(bagian.hari).padStart(2, "0") + bulan[bagian.bulan - 1] + bagian.tahun;
+  const bulan = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+  return String(bagian.hari).padStart(2, "0") + bulan[bagian.bulan - 1] + (sertakanTahun ? bagian.tahun : "");
+}
+
+function formatDaftarHariLibur(tanggalList, setHariLibur) {
+  const bulan = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+  const kelompok = new Map();
+
+  for (const tanggal of tanggalList) {
+    const keyTanggal = tanggal.toISOString().slice(0, 10);
+    const hari = tanggal.getUTCDay();
+    if (hari !== 0 && hari !== 6 && !setHariLibur.has(keyTanggal)) continue;
+
+    const bagian = bagianWaktuWIB(tanggal);
+    const key = String(bagian.tahun) + "-" + String(bagian.bulan).padStart(2, "0");
+    if (!kelompok.has(key)) kelompok.set(key, { tahun: bagian.tahun, bulan: bagian.bulan, hari: [] });
+    kelompok.get(key).hari.push(String(bagian.hari));
+  }
+
+  if (kelompok.size === 0) return "(Tidak ada hari libur pada periode ini)";
+  const daftar = Array.from(kelompok.values());
+  return "(Tanggal " + daftar.map((item, index) => {
+    const hariUnik = Array.from(new Set(item.hari));
+    const tahunBerbeda = daftar.some((lain) => lain.tahun !== item.tahun);
+    const suffixTahun = index === daftar.length - 1 || tahunBerbeda ? " " + item.tahun : "";
+    return hariUnik.join(", ") + " " + bulan[item.bulan - 1] + suffixTahun;
+  }).join(", ") + ")";
 }
 
 function punyaKeterangan(nilai) {
   return nilai !== null && nilai !== undefined && String(nilai).trim() !== "";
 }
 
-function kodeDariStatus(status, izinItem) {
+function kodeDariStatus(status, izinItem, keteranganAbsensi) {
   if (status === "tepat_waktu") return "H";
   if (status === "telat") return "T";
   if (status === "cuti" || izinItem?.jenis === "cuti") return "C";
@@ -120,7 +150,7 @@ function kodeDariStatus(status, izinItem) {
     izinItem?.jenis === "izin" ||
     izinItem?.jenis === "urgent"
   ) {
-    return "I";
+    return punyaKeterangan(izinItem?.keterangan) || punyaKeterangan(keteranganAbsensi) ? "I" : "";
   }
   if (status === "alpha") return "A";
   return "";
@@ -380,6 +410,7 @@ async function exportRekapAbsensi(req, res) {
           const kodeStatus = kodeDariStatus(
             statusDariAbsensi(absensiItem, jamMasukStandar),
             izinItem,
+            absensiItem.keterangan || absensiItem.catatanAdmin,
           );
           if (kodeStatus) return kodeStatus;
 
@@ -388,7 +419,7 @@ async function exportRekapAbsensi(req, res) {
         }
 
         if (izinItem) {
-          const kodeIzin = kodeDariStatus(null, izinItem);
+          const kodeIzin = kodeDariStatus(null, izinItem, absensiItem?.keterangan || absensiItem?.catatanAdmin);
           if (kodeIzin) return kodeIzin;
         }
 
@@ -498,9 +529,9 @@ async function exportRekapAbsensi(req, res) {
       " " +
       bagianAkhir.tahun +
       "  (" +
-      formatTanggalIndonesia(tanggalAwal) +
+      formatTanggalIndonesia(tanggalAwal).toUpperCase() +
       " – " +
-      formatTanggalIndonesia(tanggalAkhir) +
+      formatTanggalIndonesia(tanggalAkhir).toUpperCase() +
       ")  •  " +
       jumlahHari +
       " Hari Kalender";
@@ -534,16 +565,22 @@ async function exportRekapAbsensi(req, res) {
     [
       "A4:A6",
       "B4:B6",
-      "C4:C6",
-      "D4:D6",
+      "C4:D6",
       "E4:G4",
+      "E5:E6",
+      "F5:F6",
+      "G5:G6",
       "H4:H6",
       "I4:I6",
       "J4:J6",
       "K4:L4",
+      "K5:K6",
+      "L5:L6",
       "M4:M6",
       "N4:N6",
       "O4:P4",
+      "O5:O6",
+      "P5:P6",
       "Q4:Q6",
     ].forEach((merge) => sheet.mergeCells(merge));
 
@@ -717,224 +754,120 @@ async function exportRekapAbsensi(req, res) {
           };
         }
 
+      // TMK tidak tersedia pada model pengguna, tetapi harus tetap mengikuti
+      // bentuk gabungan sel dari workbook contoh HRD.
+      sheet.mergeCells("C" + rowNumber + ":D" + rowNumber);
       rowNumber += 1;
     }
 
+    // Tidak ada baris TOTAL tambahan pada workbook acuan.
     const adaDataKaryawan = detailHarianPerKaryawan.length > 0;
-    const lastDataRow = adaDataKaryawan ? rowNumber - 1 : dataStartRow;
-    const totalRow = adaDataKaryawan ? rowNumber : dataStartRow + 1;
-
-    sheet.mergeCells("A" + totalRow + ":G" + totalRow);
-    sheet.getCell("A" + totalRow).value = "TOTAL";
-
-    const totalPairs = [
-      ["H", "jumlahKehadiran"],
-      ["I", "jumlahTelat"],
-      ["K", "jumlahAdaKeterangan"],
-      ["L", "jumlahTanpaKeterangan"],
-      ["N", "cuti"],
-      ["O", "sakitAdaSurat"],
-      ["P", "sakitTanpaSurat"],
-      ["Q", "jumlahHC"],
+    const lastDataRow = adaDataKaryawan ? rowNumber - 1 : dataStartRow - 1;
+    const footerStart = lastDataRow + 2;
+    const rentangPeriode = "(" + formatTanggalIndonesia(tanggalAwal) + " - " + formatTanggalIndonesia(tanggalAkhir) + ")";
+    const judulBulan = namaBulanIndonesia(bagianAkhir.bulan) + " " + bagianAkhir.tahun;
+    const footerRows = [
+      "Jumlah Hari Kalender dalam Bulan " + judulBulan + " " + rentangPeriode,
+      "Jumlah Hari Kerja Efektif dalam Bulan " + judulBulan + " " + rentangPeriode,
+      "Jumlah Hari Minggu, Libur dan Cuti Bersama Periode Bulan " + judulBulan + " " + rentangPeriode,
     ];
-    for (const [column, key] of totalPairs) {
-      sheet.getCell(column + totalRow).value = {
-        formula: "SUM(" + column + dataStartRow + ":" + column + lastDataRow + ")",
-        result: detailHarianPerKaryawan.reduce(
-          (sum, item) => sum + Number(item[key] || 0),
-          0,
-        ),
-      };
-    }
-    sheet.getCell("J" + totalRow).value = {
-      formula: "MAX(0,H" + totalRow + "-I" + totalRow + ")",
-      result: Math.max(
-        0,
-        detailHarianPerKaryawan.reduce((sum, item) => sum + item.jumlahKehadiran, 0) -
-          detailHarianPerKaryawan.reduce((sum, item) => sum + item.jumlahTelat, 0),
-      ),
-    };
-    sheet.getCell("M" + totalRow).value = null;
+    const footerValues = [
+      jumlahHari + " Hari",
+      jumlahHariKerja + " HKE",
+      String(jumlahHariLibur).padStart(2, "0") + " Hari",
+    ];
+    const daftarHariLibur = formatDaftarHariLibur(tanggalList, setHariLibur);
 
-    for (let col = 1; col <= 17; col += 1) {
-      const cell = sheet.getCell(totalRow, col);
+    // Ringkasan diletakkan di E:O, berdampingan dengan tanda tangan kiri/kanan.
+    sheet.mergeCells("A" + footerStart + ":D" + footerStart);
+    sheet.mergeCells("E" + footerStart + ":M" + footerStart);
+    sheet.mergeCells("N" + footerStart + ":O" + footerStart);
+    sheet.mergeCells("P" + footerStart + ":Q" + footerStart);
+    sheet.mergeCells("A" + (footerStart + 1) + ":D" + (footerStart + 1));
+    sheet.mergeCells("E" + (footerStart + 1) + ":M" + (footerStart + 1));
+    sheet.mergeCells("N" + (footerStart + 1) + ":O" + (footerStart + 1));
+    sheet.mergeCells("E" + (footerStart + 2) + ":M" + (footerStart + 2));
+    sheet.mergeCells("N" + (footerStart + 2) + ":O" + (footerStart + 2));
+    sheet.mergeCells("E" + (footerStart + 3) + ":O" + (footerStart + 3));
+    sheet.mergeCells("E" + (footerStart + 4) + ":O" + (footerStart + 4));
+
+    sheet.getCell("A" + footerStart).value = "Dibuat Oleh,";
+    sheet.getCell("P" + footerStart).value = "Diketahui Oleh,";
+    sheet.getCell("A" + (footerStart + 1)).value = "Pekanbaru, " + formatTanggalIndonesia(new Date());
+
+    for (let index = 0; index < footerRows.length; index += 1) {
+      const row = footerStart + index;
+      sheet.getCell("E" + row).value = footerRows[index];
+      sheet.getCell("N" + row).value = footerValues[index];
+    }
+    sheet.getCell("E" + (footerStart + 3)).value = daftarHariLibur;
+
+    const styleFooterBlock = (range, options = {}) => {
+      const cell = sheet.getCell(range.split(":")[0]);
       cell.font = {
         name: "Aptos",
-        size: 10.5,
-        bold: true,
-        color: { argb: COLORS.navy },
+        size: options.size || 10,
+        bold: Boolean(options.bold),
+        italic: Boolean(options.italic),
+        color: { argb: options.color || COLORS.text },
       };
-      cell.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: COLORS.lightBlue },
-      };
-      cell.border = border;
       cell.alignment = {
-        horizontal: col === 1 ? "left" : "center",
+        horizontal: options.horizontal || "left",
         vertical: "middle",
+        wrapText: options.wrapText !== false,
       };
+      if (options.fill) {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: options.fill } };
+      }
+      cell.border = border;
+    };
+
+    styleFooterBlock("A" + footerStart + ":D" + footerStart, { bold: true, horizontal: "center", wrapText: false });
+    styleFooterBlock("P" + footerStart + ":Q" + footerStart, { bold: true, horizontal: "center", wrapText: false });
+    styleFooterBlock("A" + (footerStart + 1) + ":D" + (footerStart + 1), { italic: true, horizontal: "center", wrapText: false });
+    for (let index = 0; index < 3; index += 1) {
+      const row = footerStart + index;
+      styleFooterBlock("E" + row + ":M" + row, { bold: true, color: COLORS.navy, fill: COLORS.lightBlue, wrapText: false });
+      styleFooterBlock("N" + row + ":O" + row, { bold: true, color: COLORS.red, fill: COLORS.lightBlue, horizontal: "center", wrapText: false });
     }
-    sheet.getRow(totalRow).height = 27;
+    styleFooterBlock("E" + (footerStart + 3) + ":O" + (footerStart + 3), { italic: true, size: 9, color: COLORS.text, fill: COLORS.lightBlue, wrapText: false });
+    styleFooterBlock("E" + (footerStart + 4) + ":O" + (footerStart + 4), { fill: COLORS.lightBlue, wrapText: false });
 
-    const footerStart = totalRow + 2;
-    const footerLines = [
-      "Jumlah Hari Kalender dalam Bulan " +
-        namaBulanIndonesia(bagianAkhir.bulan) +
-        " " +
-        bagianAkhir.tahun +
-        " (" +
-        formatTanggalIndonesia(tanggalAwal) +
-        " - " +
-        formatTanggalIndonesia(tanggalAkhir) +
-        ") : " +
-        jumlahHari +
-        " Hari",
-      "Jumlah Hari Kerja Efektif dalam Bulan " +
-        namaBulanIndonesia(bagianAkhir.bulan) +
-        " " +
-        bagianAkhir.tahun +
-        " (" +
-        formatTanggalIndonesia(tanggalAwal) +
-        " - " +
-        formatTanggalIndonesia(tanggalAkhir) +
-        ") : " +
-        jumlahHariKerja +
-        " HKE",
-      "Jumlah Hari Minggu, Libur dan Cuti Bersama Periode Bulan " +
-        namaBulanIndonesia(bagianAkhir.bulan) +
-        " " +
-        bagianAkhir.tahun +
-        " (" +
-        formatTanggalIndonesia(tanggalAwal) +
-        " - " +
-        formatTanggalIndonesia(tanggalAkhir) +
-        ") : " +
-        String(jumlahHariLibur).padStart(2, "0") +
-        " Hari",
-      "(Hari Sabtu/Minggu dan tanggal yang tercatat pada master Hari Libur)",
-    ];
+    const signatureNameRow = footerStart + 7;
+    const signatureTitleRow = footerStart + 8;
+    sheet.mergeCells("A" + signatureNameRow + ":D" + signatureNameRow);
+    sheet.mergeCells("P" + signatureNameRow + ":Q" + signatureNameRow);
+    sheet.mergeCells("A" + signatureTitleRow + ":D" + signatureTitleRow);
+    sheet.mergeCells("P" + signatureTitleRow + ":Q" + signatureTitleRow);
+    sheet.getCell("A" + signatureNameRow).value = "Azwar Effendi";
+    sheet.getCell("P" + signatureNameRow).value = "R. Nuning Rosita R";
+    sheet.getCell("A" + signatureTitleRow).value = "SPV. Umum & Personalia";
+    sheet.getCell("P" + signatureTitleRow).value = "Manager Financial";
 
-    footerLines.forEach((footerText, index) => {
-      const rowIndex = footerStart + index;
-      sheet.mergeCells("A" + rowIndex + ":Q" + rowIndex);
-      const cell = sheet.getCell("A" + rowIndex);
-      cell.value = footerText;
+    for (const [cellRef, options] of [
+      ["A" + signatureNameRow, { bold: true, italic: true, horizontal: "center" }],
+      ["P" + signatureNameRow, { bold: true, italic: true, horizontal: "center" }],
+      ["A" + signatureTitleRow, { italic: true, size: 9.5, horizontal: "center" }],
+      ["P" + signatureTitleRow, { italic: true, size: 9.5, horizontal: "center" }],
+    ]) {
+      const cell = sheet.getCell(cellRef);
       cell.font = {
         name: "Aptos",
-        size: index < 3 ? 10 : 9,
-        bold: index < 3,
-        italic: index >= 3,
-        color: { argb: index < 3 ? COLORS.navy : COLORS.text },
+        size: options.size || 10,
+        bold: Boolean(options.bold),
+        italic: Boolean(options.italic),
+        color: { argb: COLORS.text },
       };
-      cell.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: COLORS.lightBlue },
-      };
-      cell.alignment = {
-        horizontal: "left",
-        vertical: "middle",
-        wrapText: true,
-      };
-      cell.border = border;
-      sheet.getRow(rowIndex).height = index < 3 ? 23 : 20;
-    });
+      cell.alignment = { horizontal: options.horizontal, vertical: "middle", wrapText: false };
+    }
 
-    const signatureRow = footerStart + footerLines.length + 2;
-    sheet.mergeCells("A" + signatureRow + ":D" + signatureRow);
-    sheet.getCell("A" + signatureRow).value = "Dibuat Oleh,";
-    sheet.getCell("A" + signatureRow).font = {
-      name: "Aptos",
-      size: 10,
-      bold: true,
-      color: { argb: COLORS.text },
-    };
-    sheet.getCell("A" + signatureRow).alignment = {
-      horizontal: "center",
-      vertical: "middle",
-    };
-
-    sheet.mergeCells("M" + signatureRow + ":Q" + signatureRow);
-    sheet.getCell("N" + signatureRow).value = "Diketahui Oleh,";
-    sheet.getCell("N" + signatureRow).font = {
-      name: "Aptos",
-      size: 10,
-      bold: true,
-      color: { argb: COLORS.text },
-    };
-    sheet.getCell("N" + signatureRow).alignment = {
-      horizontal: "center",
-      vertical: "middle",
-    };
-
-    sheet.mergeCells("A" + (signatureRow + 1) + ":D" + (signatureRow + 1));
-    sheet.getCell("A" + (signatureRow + 1)).value =
-      "Pekanbaru, " + formatTanggalIndonesia(new Date());
-    sheet.getCell("A" + (signatureRow + 1)).font = {
-      name: "Aptos",
-      size: 10,
-      italic: true,
-      color: { argb: COLORS.text },
-    };
-    sheet.getCell("A" + (signatureRow + 1)).alignment = {
-      horizontal: "center",
-      vertical: "middle",
-    };
-
-    sheet.mergeCells("A" + (signatureRow + 7) + ":D" + (signatureRow + 7));
-    sheet.getCell("A" + (signatureRow + 7)).value = "Zaman Teknindo";
-    sheet.getCell("A" + (signatureRow + 7)).font = {
-      name: "Aptos",
-      size: 10,
-      italic: true,
-      bold: true,
-      color: { argb: COLORS.text },
-    };
-    sheet.getCell("A" + (signatureRow + 7)).alignment = {
-      horizontal: "center",
-      vertical: "middle",
-    };
-
-    sheet.mergeCells("M" + (signatureRow + 7) + ":Q" + (signatureRow + 7));
-    sheet.getCell("N" + (signatureRow + 7)).value = "R. Nuning Rosita R";
-    sheet.getCell("N" + (signatureRow + 7)).font = {
-      name: "Aptos",
-      size: 10,
-      italic: true,
-      bold: true,
-      color: { argb: COLORS.text },
-    };
-    sheet.getCell("N" + (signatureRow + 7)).alignment = {
-      horizontal: "center",
-      vertical: "middle",
-    };
-
-    sheet.mergeCells("A" + (signatureRow + 8) + ":D" + (signatureRow + 8));
-    sheet.getCell("A" + (signatureRow + 8)).value = "SPV. Umum & Personalia";
-    sheet.getCell("A" + (signatureRow + 8)).font = {
-      name: "Aptos",
-      size: 9.5,
-      italic: true,
-      color: { argb: COLORS.text },
-    };
-    sheet.getCell("A" + (signatureRow + 8)).alignment = {
-      horizontal: "center",
-      vertical: "middle",
-    };
-
-    sheet.mergeCells("M" + (signatureRow + 8) + ":Q" + (signatureRow + 8));
-    sheet.getCell("N" + (signatureRow + 8)).value = "Manager Financial";
-    sheet.getCell("N" + (signatureRow + 8)).font = {
-      name: "Aptos",
-      size: 9.5,
-      italic: true,
-      color: { argb: COLORS.text },
-    };
-    sheet.getCell("N" + (signatureRow + 8)).alignment = {
-      horizontal: "center",
-      vertical: "middle",
-    };
+    sheet.getRow(footerStart).height = 23;
+    sheet.getRow(footerStart + 1).height = 23;
+    sheet.getRow(footerStart + 2).height = 23;
+    sheet.getRow(footerStart + 3).height = 20;
+    sheet.getRow(footerStart + 4).height = 18;
+    sheet.getRow(signatureNameRow).height = 22;
+    sheet.getRow(signatureTitleRow).height = 20;
 
     sheet.columns = [
       { key: "no", width: 7 },
@@ -971,7 +904,7 @@ async function exportRekapAbsensi(req, res) {
         footer: 0.15,
       },
     };
-    sheet.printArea = "A1:Q" + (signatureRow + 8);
+    sheet.printArea = "A1:Q" + signatureTitleRow;
 
     // =========================
     // SHEET 2 — DATA HARIAN
@@ -988,7 +921,7 @@ async function exportRekapAbsensi(req, res) {
     dailySheet.mergeCells("A1:" + dailyLastColLetter + "1");
     dailySheet.getCell("A1").value =
       "DATA HARIAN KEHADIRAN — Periode " +
-      formatTanggalIndonesia(tanggalAwal) +
+      formatTanggalTanpaTahun(tanggalAwal) +
       " s.d. " +
       formatTanggalIndonesia(tanggalAkhir);
     dailySheet.getCell("A1").font = {
@@ -1097,12 +1030,13 @@ async function exportRekapAbsensi(req, res) {
         cell.fill = {
           type: "pattern",
           pattern: "solid",
-          fgColor:
-            isWeekendOrHoliday && !item.kodeHarian[col - 3]
+          fgColor: {
+            argb: isWeekendOrHoliday
               ? COLORS.lightGray
               : index % 2 === 0
                 ? COLORS.white
                 : COLORS.lightBlue,
+          },
         };
         cell.border = border;
         cell.alignment = {
@@ -1139,7 +1073,7 @@ async function exportRekapAbsensi(req, res) {
       (dataStartRow + detailHarianPerKaryawan.length - 1);
 
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    res.setHeader("Content-Disposition", "attachment; filename=\"Rekap_Absensi_" + formatTanggalFile(tanggalAwal) + "-" + formatTanggalFile(tanggalAkhir) + ".xlsx\"");
+    res.setHeader("Content-Disposition", "attachment; filename=\"Rekap_Absensi_" + formatTanggalFile(tanggalAwal, false) + "-" + formatTanggalFile(tanggalAkhir, true) + ".xlsx\"");
     res.setHeader("Cache-Control", "no-store, private");
     await workbook.xlsx.write(res);
     return res.end();
