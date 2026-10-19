@@ -561,7 +561,7 @@ async function exportRekapAbsensi(req, res) {
         sheet.getCell(rowNum, col).fill = {
           type: "pattern",
           pattern: "solid",
-          fgColor: { argb: COLORS.navy },
+          fgColor: { argb: COLORS.titleNavy },
         };
       }
     }
