@@ -1030,12 +1030,13 @@ async function exportRekapAbsensi(req, res) {
         cell.fill = {
           type: "pattern",
           pattern: "solid",
-          fgColor:
-            isWeekendOrHoliday
+          fgColor: {
+            argb: isWeekendOrHoliday
               ? COLORS.lightGray
               : index % 2 === 0
                 ? COLORS.white
                 : COLORS.lightBlue,
+          },
         };
         cell.border = border;
         cell.alignment = {
