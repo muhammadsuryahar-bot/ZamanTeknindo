@@ -87,6 +87,14 @@ const prismaMock = {
         keterangan: "Keperluan keluarga",
         fotoSurat: null,
       },
+      {
+        id: 14,
+        penggunaId: 2,
+        tanggal: new Date("2026-09-04T00:00:00.000Z"),
+        jenis: "izin",
+        keterangan: "",
+        fotoSurat: null,
+      },
     ],
   },
   pengaturanPotongan: {
@@ -108,7 +116,7 @@ Module._load = function (request, parent, isMain) {
     request === "../utils/hariLibur"
   ) {
     return {
-      ambilSetHariLibur: async () => new Set(["2026-09-17"]),
+      ambilSetHariLibur: async () => new Set(),
     };
   }
   return originalLoad.call(this, request, parent, isMain);
@@ -163,6 +171,20 @@ async function main() {
   assert.strictEqual(rekap.columnCount, 17, "Rekap Absensi harus 17 kolom A:Q");
   assert.strictEqual(harian.columnCount, 33, "Data Harian periode 31 hari harus A:AG");
 
+  assert.strictEqual(
+    headers["content-disposition"],
+    'attachment; filename="Rekap_Absensi_26Agu-25Sep2026.xlsx"',
+    "Nama file mengikuti pola tanggal pada acuan HRD",
+  );
+  assert.match(
+    String(rekap.getCell("A2").value),
+    /PERIODE BULAN SEPTEMBER 2026.*26 AGUSTUS 2026.*25 SEPTEMBER 2026.*31 Hari Kalender/,
+    "Judul periode menampilkan tanggal Indonesia dengan bulan huruf besar",
+  );
+  assert.strictEqual(
+    harian.getCell("A1").value,
+    "DATA HARIAN KEHADIRAN — Periode 26 Agustus s.d. 25 September 2026",
+  );
   assert.strictEqual(rekap.getCell("A4").value, "NO");
   assert.strictEqual(rekap.getCell("B4").value, "NAMA");
   assert.strictEqual(rekap.getCell("C4").value, "TMK");
@@ -196,6 +218,16 @@ async function main() {
   assert.strictEqual(rekap.getCell("N7").value.result, 1);
   assert.strictEqual(rekap.getCell("O7").value.result, 1);
   assert.strictEqual(rekap.getCell("P7").value.result, 1);
+  assert.strictEqual(
+    harian.getCell(8, 9).value,
+    "I",
+    "Izin dengan keterangan harus dihitung",
+  );
+  assert.strictEqual(
+    harian.getCell(8, 12).value,
+    null,
+    "Izin tanpa keterangan tidak boleh dicatat sebagai I",
+  );
   assert.strictEqual(rekap.getCell("D7").value, null);
   assert.strictEqual(rekap.getCell("E7").value, null);
   assert.strictEqual(rekap.getCell("F7").value, null);
@@ -203,11 +235,30 @@ async function main() {
   assert.strictEqual(rekap.getCell("M7").value, null);
   assert.match(String(rekap.getCell("Q7").value.formula), /SUM\(H7,K7:L7,N7:P7\)/);
 
-  // 17 September harus ditandai L ketika tidak ada data.
-  const sep17Index = 22; // 26 Aug + 22 hari = 17 Sep
-  assert.strictEqual(harian.getCell(7, 3 + sep17Index).value, "L");
+  // 19 September (Sabtu) tetap ditandai L dan seluruh kolom akhir pekan berwarna abu-abu.
+  const sep19Index = 24; // 26 Aug + 24 hari = 19 Sep
+  assert.strictEqual(harian.getCell(7, 3 + sep19Index).value, "L");
+  assert.strictEqual(
+    harian.getCell(7, 3 + sep19Index).fill.fgColor.argb,
+    "FFE6E9ED",
+    "Seluruh kolom akhir pekan menggunakan latar abu-abu",
+  );
 
-  console.log("Export rekap 2-sheet integration test: PASS");
+  // Sesudah data karyawan hanya ada satu baris kosong—tanpa baris TOTAL.
+  assert.strictEqual(rekap.getCell("A9").value, null);
+  assert.strictEqual(rekap.getCell("A10").value, "Dibuat Oleh,");
+  assert.strictEqual(rekap.getCell("P10").value, "Diketahui Oleh,");
+  assert.strictEqual(rekap.getCell("E10").value, "Jumlah Hari Kalender dalam Bulan September 2026 (26 Agustus 2026 - 25 September 2026)");
+  assert.strictEqual(rekap.getCell("N10").value, "31 Hari");
+  assert.strictEqual(rekap.getCell("N11").value, "23 HKE");
+  assert.strictEqual(rekap.getCell("N12").value, "08 Hari");
+  assert.strictEqual(rekap.getCell("E13").value, "(Tanggal 29, 30 Agustus, 5, 6, 12, 13, 19, 20 September 2026)");
+  assert.strictEqual(rekap.getCell("A17").value, "Azwar Effendi");
+  assert.strictEqual(rekap.getCell("P17").value, "R. Nuning Rosita R");
+  assert.strictEqual(rekap.getCell("A18").value, "SPV. Umum & Personalia");
+  assert.strictEqual(rekap.getCell("P18").value, "Manager Financial");
+
+  console.log("Export rekap HRD template integration test: PASS");
 }
 
 main().catch((error) => {
