@@ -499,7 +499,7 @@ async function exportRekapAbsensi(req, res) {
       views: [{ state: "frozen", ySplit: 6, xSplit: 2 }],
     });
     sheet.showGridLines = false;
-    sheet.properties.defaultRowHeight = 22;
+    sheet.properties.defaultRowHeight = 16.5;
 
     sheet.mergeCells("A1:Q1");
     sheet.getCell("A1").value = "REKAP DATA KEHADIRAN KARYAWAN";
@@ -518,7 +518,7 @@ async function exportRekapAbsensi(req, res) {
       horizontal: "center",
       vertical: "middle",
     };
-    sheet.getRow(1).height = 28;
+    sheet.getRow(1).height = 30;
 
     const bagianAwal = bagianWaktuWIB(tanggalAwal);
     const bagianAkhir = bagianWaktuWIB(tanggalAkhir);
@@ -550,7 +550,8 @@ async function exportRekapAbsensi(req, res) {
       horizontal: "center",
       vertical: "middle",
     };
-    sheet.getRow(2).height = 23;
+    sheet.getRow(2).height = 19.5;
+    sheet.getRow(3).height = 6;
 
     for (const rowNum of [1, 2]) {
       for (let col = 1; col <= 17; col += 1) {
@@ -658,9 +659,9 @@ async function exportRekapAbsensi(req, res) {
       }
     }
 
-    sheet.getRow(4).height = 31;
-    sheet.getRow(5).height = 40;
-    sheet.getRow(6).height = 14;
+    sheet.getRow(4).height = 15.75;
+    sheet.getRow(5).height = 15.75;
+    sheet.getRow(6).height = 27.75;
 
     const dataStartRow = 7;
     const lastDailyColLetter = excelColumnName(2 + jumlahHari);
@@ -731,7 +732,7 @@ async function exportRekapAbsensi(req, res) {
         };
 
         const fill = index % 2 === 0 ? COLORS.white : COLORS.lightBlue;
-        row.height = 22;
+        row.height = 16.5;
 
         for (let col = 1; col <= 17; col += 1) {
           const cell = row.getCell(col);
@@ -861,32 +862,36 @@ async function exportRekapAbsensi(req, res) {
       cell.alignment = { horizontal: options.horizontal, vertical: "middle", wrapText: false };
     }
 
-    sheet.getRow(footerStart).height = 23;
-    sheet.getRow(footerStart + 1).height = 23;
-    sheet.getRow(footerStart + 2).height = 23;
-    sheet.getRow(footerStart + 3).height = 20;
-    sheet.getRow(footerStart + 4).height = 18;
-    sheet.getRow(signatureNameRow).height = 22;
-    sheet.getRow(signatureTitleRow).height = 20;
+    sheet.getRow(footerStart).height = 19.5;
+    sheet.getRow(footerStart + 1).height = 19.5;
+    sheet.getRow(footerStart + 2).height = 19.5;
+    sheet.getRow(footerStart + 3).height = 15.75;
+    sheet.getRow(footerStart + 4).height = 15.75;
+    sheet.getRow(footerStart + 5).height = 13.5;
+    sheet.getRow(footerStart + 6).height = 13.5;
+    sheet.getRow(signatureNameRow).height = 18;
+    sheet.getRow(signatureTitleRow).height = 15.75;
 
+    // Lebar kolom diambil dari workbook acuan HRD agar pembungkusan header
+    // dan posisi kolom TMK/HC tetap konsisten dengan format aslinya.
     sheet.columns = [
-      { key: "no", width: 7 },
-      { key: "nama", width: 32 },
-      { key: "tmk", width: 14 },
-      { key: "spacer", width: 4 },
-      { key: "hakCuti", width: 17 },
-      { key: "hc2425", width: 13 },
+      { key: "no", width: 5.54296875 },
+      { key: "nama", width: 22 },
+      { key: "tmk", width: 9.54296875 },
+      { key: "tmkPart", width: 9.54296875 },
+      { key: "hakCuti", width: 16.08984375 },
+      { key: "hc2425", width: 16.08984375 },
       { key: "hc2526", width: 13 },
-      { key: "hcDipinjam", width: 19 },
-      { key: "late", width: 13 },
-      { key: "meal", width: 22 },
-      { key: "adaKet", width: 12 },
-      { key: "tanpaKet", width: 12 },
-      { key: "lembur", width: 10 },
-      { key: "cuti", width: 10 },
-      { key: "sakitSrt", width: 11 },
-      { key: "sakitNoSrt", width: 13 },
-      { key: "jumlahHC", width: 11 },
+      { key: "hcDipinjam", width: 10 },
+      { key: "late", width: 9.6328125 },
+      { key: "meal", width: 13 },
+      { key: "adaKet", width: 10 },
+      { key: "tanpaKet", width: 10 },
+      { key: "lembur", width: 9 },
+      { key: "cuti", width: 9 },
+      { key: "sakitSrt", width: 9 },
+      { key: "sakitNoSrt", width: 9 },
+      { key: "jumlahHC", width: 11.26953125 },
     ];
 
     sheet.pageSetup = {
@@ -913,7 +918,7 @@ async function exportRekapAbsensi(req, res) {
       views: [{ state: "frozen", ySplit: 6, xSplit: 2 }],
     });
     dailySheet.showGridLines = false;
-    dailySheet.properties.defaultRowHeight = 21;
+    dailySheet.properties.defaultRowHeight = 15;
 
     const dailyLastCol = 2 + jumlahHari;
     const dailyLastColLetter = excelColumnName(dailyLastCol);
@@ -939,7 +944,7 @@ async function exportRekapAbsensi(req, res) {
       horizontal: "left",
       vertical: "middle",
     };
-    dailySheet.getRow(1).height = 25;
+    dailySheet.getRow(1).height = 17.25;
 
     dailySheet.mergeCells("A2:" + dailyLastColLetter + "2");
     dailySheet.getCell("A2").value =
@@ -959,7 +964,7 @@ async function exportRekapAbsensi(req, res) {
       vertical: "middle",
       wrapText: true,
     };
-    dailySheet.getRow(2).height = 32;
+    dailySheet.getRow(2).height = 15;
 
     const dailyHeaderRows = [4, 5, 6];
     dailySheet.getCell("A4").value = "NO";
@@ -998,9 +1003,9 @@ async function exportRekapAbsensi(req, res) {
         };
       }
     }
-    dailySheet.getRow(4).height = 22;
-    dailySheet.getRow(5).height = 22;
-    dailySheet.getRow(6).height = 22;
+    dailySheet.getRow(4).height = 15;
+    dailySheet.getRow(5).height = 15;
+    dailySheet.getRow(6).height = 15;
 
     detailHarianPerKaryawan.forEach((item, index) => {
       const rowNum = dataStartRow + index;
@@ -1048,9 +1053,9 @@ async function exportRekapAbsensi(req, res) {
     });
 
     dailySheet.columns = [
-      { key: "no", width: 7 },
-      { key: "nama", width: 30 },
-      ...tanggalList.map(() => ({ width: 6 })),
+      { key: "no", width: 5 },
+      { key: "nama", width: 26 },
+      ...tanggalList.map(() => ({ width: 4.6328125 })),
     ];
     dailySheet.pageSetup = {
       paperSize: 9,
