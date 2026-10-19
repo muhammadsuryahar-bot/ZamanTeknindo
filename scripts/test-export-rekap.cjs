@@ -184,6 +184,22 @@ async function main() {
   assert.strictEqual(rekap.getRow(5).height, 15.75);
   assert.strictEqual(rekap.getRow(6).height, 27.75);
   assert.strictEqual(rekap.getRow(7).height, 16.5);
+  assert.strictEqual(rekap.getCell("A1").font.name, "Arial");
+  assert.strictEqual(rekap.getCell("A1").font.size, 16);
+  assert.strictEqual(rekap.getCell("A1").fill.fgColor.argb, "FF1F3864");
+  assert.strictEqual(rekap.getCell("A2").font.size, 11);
+  assert.strictEqual(rekap.getCell("A2").font.italic, true);
+  assert.strictEqual(rekap.getCell("A4").font.name, "Arial");
+  assert.strictEqual(rekap.getCell("A4").font.size, 10);
+  assert.strictEqual(rekap.getCell("A7").fill.fgColor.argb, "FFF2F5FA");
+  assert.strictEqual(rekap.getCell("A8").fill.fgColor.argb, "FFFFFFFF");
+  assert.strictEqual(rekap.getCell("B7").font.bold, true);
+  assert.strictEqual(rekap.getCell("E7").font.italic, true);
+  assert.strictEqual(rekap.getCell("E7").font.color.argb, "FF808080");
+  assert.strictEqual(rekap.getCell("G7").font.color.argb, "FFC00000");
+  assert.strictEqual(rekap.getCell("Q7").font.color.argb, "FFC00000");
+  assert.strictEqual(rekap.getCell("E10").fill.fgColor.argb, "FFEAF1FB");
+  assert.strictEqual(rekap.getCell("E10").font.color.argb, "FF1F3864");
   assert.strictEqual(harian.properties.defaultRowHeight, 15);
   assert.strictEqual(harian.getRow(1).height, 17.25);
   assert.strictEqual(harian.getRow(2).height, 15);
@@ -216,9 +232,15 @@ async function main() {
 
   assert.strictEqual(harian.getCell("A4").value, "NO");
   assert.strictEqual(harian.getCell("B4").value, "NAMA");
-  assert.strictEqual(harian.getCell("C4").value, "Agu");
+  assert.strictEqual(harian.getCell("C4").value, "Aug");
   assert.strictEqual(harian.getCell("C5").value, 26);
   assert.strictEqual(harian.getCell("C6").value, "Rab");
+  assert.strictEqual(harian.getCell("A7").value.formula, "'Rekap Absensi'!A7");
+  assert.strictEqual(harian.getCell("A7").value.result, 1);
+  assert.strictEqual(harian.getCell("B7").value.formula, "'Rekap Absensi'!B7");
+  assert.strictEqual(harian.getCell("B7").value.result, "Karyawan Satu");
+  assert.strictEqual(harian.getCell("C7").font.name, "Arial");
+  assert.strictEqual(harian.getCell("C7").font.size, 9);
 
   // Data Harian baris 7 dan baris 8 harus terpisah per karyawan.
   assert.strictEqual(harian.getCell("C7").value, "H");
@@ -258,7 +280,7 @@ async function main() {
   assert.strictEqual(harian.getCell(7, 3 + sep19Index).value, "L");
   assert.strictEqual(
     harian.getCell(7, 3 + sep19Index).fill.fgColor.argb,
-    "FFE6E9ED",
+    "FFD9D9D9",
     "Seluruh kolom akhir pekan menggunakan latar abu-abu",
   );
 
