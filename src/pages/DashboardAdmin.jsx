@@ -1544,6 +1544,20 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
         throw new Error(data?.pesan || "Gagal membuat rekap absensi.");
       }
 
+      const exportMode = res.headers.get("x-rekap-excel-mode");
+      const sheetNames = (res.headers.get("x-rekap-excel-sheets") || "").split("|");
+      if (
+        exportMode !== "revisi-check-log" ||
+        sheetNames.length !== 3 ||
+        sheetNames[0] !== "Rekap Absensi" ||
+        sheetNames[1] !== "Data Harian" ||
+        sheetNames[2] !== "Perbandingan Jam"
+      ) {
+        throw new Error(
+          "Unduhan dihentikan karena server belum mengonfirmasi hasil revisi 3 sheet (Rekap Absensi, Data Harian, Perbandingan Jam). Muat ulang halaman Admin, lalu ulangi export. File tidak diunduh agar tidak tertukar dengan rekap 2 sheet biasa.",
+        );
+      }
+
       const blob = await res.blob();
       const contentDisposition = res.headers.get("content-disposition") || "";
       const match = contentDisposition.match(/filename="([^"]+)"/i);
@@ -2415,6 +2429,9 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                         ? `File dipilih: ${fileCheckLogExport.name}`
                         : "Unggah file Check Log yang mencakup periode terpilih. Nama karyawan dan tanggal digunakan untuk mencocokkan data."}
                     </span>
+                    <span style={styles.rekapExportNote}>
+                      Hasil revisi wajib memuat 3 sheet: Rekap Absensi, Data Harian, dan Perbandingan Jam.
+                    </span>
                   </div>
                   <div style={styles.rekapExportActions} className="rekapExportActions">
                     <button
@@ -2424,7 +2441,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                       style={styles.rekapExportSubmit}
                     >
                       <FileDown size={14} />
-                      {sedangExportAbsensi ? "Membuat file…" : "Unduh Rekap Absensi"}
+                      {sedangExportAbsensi ? "Membuat file…" : "Unduh Rekap 3 Sheet"}
                     </button>
                   </div>
                   <p style={styles.rekapExportNote}>
