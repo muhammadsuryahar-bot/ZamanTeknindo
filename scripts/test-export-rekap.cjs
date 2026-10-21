@@ -199,8 +199,8 @@ async function main() {
   assert.strictEqual(rekap.getCell("E7").font.color.argb, "FF808080");
   assert.strictEqual(rekap.getCell("G7").font.color.argb, "FFC00000");
   assert.strictEqual(rekap.getCell("Q7").font.color.argb, "FFC00000");
-  assert.strictEqual(rekap.getCell("E10").fill.fgColor.argb, "FFEAF1FB");
-  assert.strictEqual(rekap.getCell("E10").font.color.argb, "FF1F3864");
+  assert.strictEqual(rekap.getCell("E30").fill.fgColor.argb, "FFEAF1FB");
+  assert.strictEqual(rekap.getCell("E30").font.color.argb, "FF1F3864");
   assert.strictEqual(harian.properties.defaultRowHeight, 15);
   assert.strictEqual(harian.getRow(1).height, 17.25);
   assert.strictEqual(harian.getRow(2).height, 15);
