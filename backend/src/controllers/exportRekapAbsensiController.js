@@ -6,6 +6,7 @@ const {
   parseJam,
 } = require("../utils/waktuIndonesia");
 const { ambilSetHariLibur } = require("../utils/hariLibur");
+const { PERIODE_METADATA_HR, ROSTER_HR_REKAP } = require("../config/rosterRekapAbsensi");
 
 const STATUS_VALID = new Set([
   "tepat_waktu",
@@ -131,6 +132,12 @@ function formatDaftarHariLibur(tanggalList, setHariLibur) {
     const suffixTahun = index === daftar.length - 1 || tahunBerbeda ? " " + item.tahun : "";
     return hariUnik.join(", ") + " " + bulan[item.bulan - 1] + suffixTahun;
   }).join(", ") + ")";
+}
+
+function normalisasiNamaRoster(nilai) {
+  return String(nilai || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 }
 
 function punyaKeterangan(nilai) {
@@ -334,12 +341,29 @@ async function exportRekapAbsensi(req, res) {
 
     const jamMasukStandar = pengaturan?.jamMasukStandar || JAM_MASUK_STANDAR_DEFAULT;
 
-    // Satu baris Excel hanya boleh mewakili satu karyawan unik.
-    // Prisma sudah mengembalikan ID unik, tetapi kita deduplikasi lagi
-    // sebagai pengaman agar tidak pernah ada baris karyawan ganda.
-    const karyawanUnik = Array.from(
-      new Map(karyawan.map((item) => [String(item.id), item])).values(),
-    );
+    // Roster HRD adalah acuan urutan dan nomor karyawan di file ekspor.
+    // Pencocokan akun hanya memakai nama kanonis atau alias eksplisit agar
+    // akun uji/akun di luar roster tidak ikut tersisip ke rekap resmi.
+    // Jika satu nama HR tidak cocok tepat ke satu akun, tetap tampilkan
+    // baris roster itu dengan isi absensi kosong; jangan mengarang datanya.
+    const karyawanUnik = ROSTER_HR_REKAP.map((hr) => {
+      const namaDiizinkan = new Set(
+        [hr.nama, ...(hr.aliases || [])].map(normalisasiNamaRoster),
+      );
+      const kandidat = karyawan.filter((pengguna) =>
+        namaDiizinkan.has(normalisasiNamaRoster(pengguna.nama)),
+      );
+      const pengguna = kandidat.length === 1 ? kandidat[0] : null;
+
+      return {
+        id: pengguna?.id ?? null,
+        nama: hr.nama,
+        nomorHR: hr.nomor,
+        tmk: hr.tmk,
+        hc2024_2025: hr.hc2024_2025,
+        hc2025_2026: hr.hc2025_2026,
+      };
+    });
 
     const petaAbsensi = new Map();
     for (const item of absensi) {
@@ -394,8 +418,10 @@ async function exportRekapAbsensi(req, res) {
     // alpha karena database tidak punya bukti bahwa karyawan memang alpha.
     // Status alpha yang memang dicatat Admin tetap menjadi "A".
     const detailHarianPerKaryawan = karyawanUnik.map((item) => {
-      const prefix = item.id + "_";
-      const kodeHarian = tanggalList.map((tanggal) => {
+      const prefix = item.id == null ? null : item.id + "_";
+      const kodeHarian = item.id == null
+        ? tanggalList.map(() => null)
+        : tanggalList.map((tanggal) => {
         const tanggalKey = tanggal.toISOString().slice(0, 10);
         const absensiItem = petaAbsensi.get(prefix + tanggalKey);
         const izinItem = petaIzin.get(prefix + tanggalKey);
@@ -444,6 +470,11 @@ async function exportRekapAbsensi(req, res) {
 
       return {
         id: item.id,
+        nomorHR: item.nomorHR,
+        tmk: item.tmk,
+        hc2024_2025: item.hc2024_2025,
+        hc2025_2026: item.hc2025_2026,
+        cocokKeAkun: item.id != null,
         nama: item.nama || "-",
         kodeHarian,
         jumlahKehadiran,
@@ -668,6 +699,9 @@ async function exportRekapAbsensi(req, res) {
 
     const dataStartRow = 7;
     const lastDailyColLetter = excelColumnName(2 + jumlahHari);
+    const pakaiSnapshotHakCutiHR =
+      tanggalMulai === PERIODE_METADATA_HR.tanggalMulai &&
+      tanggalSelesai === PERIODE_METADATA_HR.tanggalSelesai;
     let rowNumber = dataStartRow;
 
     for (let index = 0; index < detailHarianPerKaryawan.length; index += 1) {
@@ -676,63 +710,74 @@ async function exportRekapAbsensi(req, res) {
         const dailyRow = dataStartRow + index;
         const dailyRange = "'Data Harian'!$C" + dailyRow + ":$" + lastDailyColLetter + dailyRow;
 
-        row.getCell(1).value = index + 1;
+        row.getCell(1).value = item.nomorHR;
         row.getCell(2).value = item.nama;
-
-        row.getCell(3).value = null;
+        row.getCell(3).value = item.tmk ? tanggalUTC(item.tmk) : null;
+        row.getCell(3).numFmt = "dd/mm/yyyy";
         row.getCell(4).value = null;
-        row.getCell(5).value = null;
-        row.getCell(6).value = null;
+        // Saldo/teks hak cuti tersedia di acuan HR untuk periode ini saja.
+        // Di periode lain, biarkan kosong daripada memakai snapshot lama.
+        row.getCell(5).value = pakaiSnapshotHakCutiHR ? item.hc2024_2025 : null;
+        row.getCell(6).value = pakaiSnapshotHakCutiHR ? item.hc2025_2026 : null;
+        // Kolom ini sengaja tetap kosong sesuai ketentuan rekap HR.
         row.getCell(7).value = null;
 
-        row.getCell(8).value = {
-          formula: "COUNTIF(" + dailyRange + ",\"H\")+COUNTIF(" + dailyRange + ",\"T\")",
-          result: item.jumlahKehadiran,
-        };
-        row.getCell(9).value = {
-          formula: "COUNTIF(" + dailyRange + ",\"T\")",
-          result: item.jumlahTelat,
-        };
-        row.getCell(10).value = {
-          formula: "MAX(0,H" + rowNumber + "-I" + rowNumber + ")",
-          result: item.jumlahUangMakan,
-        };
-        row.getCell(11).value = {
-          formula: "COUNTIF(" + dailyRange + ",\"I\")",
-          result: item.jumlahAdaKeterangan,
-        };
-        row.getCell(12).value = {
-          formula: "COUNTIF(" + dailyRange + ",\"A\")",
-          result: item.jumlahTanpaKeterangan,
-        };
-        row.getCell(13).value = null;
-        row.getCell(14).value = {
-          formula: "COUNTIF(" + dailyRange + ",\"C\")",
-          result: item.cuti,
-        };
-        row.getCell(15).value = {
-          formula: "COUNTIF(" + dailyRange + ",\"S\")",
-          result: item.sakitAdaSurat,
-        };
-        row.getCell(16).value = {
-          formula: "COUNTIF(" + dailyRange + ",\"SX\")",
-          result: item.sakitTanpaSurat,
-        };
-        row.getCell(17).value = {
-          formula:
-            "SUM(H" +
-            rowNumber +
-            ",K" +
-            rowNumber +
-            ":L" +
-            rowNumber +
-            ",N" +
-            rowNumber +
-            ":P" +
-            rowNumber +
-            ")",
-          result: item.jumlahHC,
-        };
+        if (!item.cocokKeAkun) {
+          // Roster ada, akun sumber belum ditemukan: jangan tampilkan angka 0
+          // yang tampak seperti hasil perhitungan, dan jangan hitung kode libur.
+          for (const col of [8, 9, 10, 11, 12, 13, 14, 15, 16, 17]) {
+            row.getCell(col).value = null;
+          }
+        } else {
+          row.getCell(8).value = {
+            formula: 'COUNTIF(' + dailyRange + ',"H")+COUNTIF(' + dailyRange + ',"T")',
+            result: item.jumlahKehadiran,
+          };
+          row.getCell(9).value = {
+            formula: 'COUNTIF(' + dailyRange + ',"T")',
+            result: item.jumlahTelat,
+          };
+          row.getCell(10).value = {
+            formula: "MAX(0,H" + rowNumber + "-I" + rowNumber + ")",
+            result: item.jumlahUangMakan,
+          };
+          row.getCell(11).value = {
+            formula: 'COUNTIF(' + dailyRange + ',"I")',
+            result: item.jumlahAdaKeterangan,
+          };
+          row.getCell(12).value = {
+            formula: 'COUNTIF(' + dailyRange + ',"A")',
+            result: item.jumlahTanpaKeterangan,
+          };
+          row.getCell(13).value = null;
+          row.getCell(14).value = {
+            formula: 'COUNTIF(' + dailyRange + ',"C")',
+            result: item.cuti,
+          };
+          row.getCell(15).value = {
+            formula: 'COUNTIF(' + dailyRange + ',"S")',
+            result: item.sakitAdaSurat,
+          };
+          row.getCell(16).value = {
+            formula: 'COUNTIF(' + dailyRange + ',"SX")',
+            result: item.sakitTanpaSurat,
+          };
+          row.getCell(17).value = {
+            formula:
+              "SUM(H" +
+              rowNumber +
+              ",K" +
+              rowNumber +
+              ":L" +
+              rowNumber +
+              ",N" +
+              rowNumber +
+              ":P" +
+              rowNumber +
+              ")",
+            result: item.jumlahHC,
+          };
+        }
 
         const fill = index % 2 === 0 ? COLORS.lightBlue : COLORS.white;
         row.height = 16.5;
