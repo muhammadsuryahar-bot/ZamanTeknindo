@@ -124,7 +124,7 @@ Module._load = function (request, parent, isMain) {
 };
 
 const ExcelJS = require("exceljs");
-const { exportRekapAbsensi } = require("../backend/src/controllers/exportRekapAbsensiController");
+const { exportRekapAbsensi, parseCheckLogWorkbook } = require("../backend/src/controllers/exportRekapAbsensiController");
 
 async function main() {
   const req = {
@@ -381,6 +381,22 @@ async function main() {
   assert.strictEqual(menitDariCellExcel("I5"), 1023, "Result Pulang harus memilih jam paling akhir");
   assert.strictEqual(compare.getCell("H222").value, null, "Karyawan tanpa akun/data tidak boleh menghasilkan jam buatan");
   console.log("Export rekap revisi + pemilihan waktu Check Log integration test: PASS");
+
+  // Check Log mentah dari mesin sering berbentuk satu baris per scan: Name, Time, State.
+  const rawLogWorkbook = new ExcelJS.Workbook();
+  const rawLogSheet = rawLogWorkbook.addWorksheet("Raw Check Log");
+  rawLogSheet.addRow(["Name", "Time", "State"]);
+  rawLogSheet.addRow(["Dimas Buluh Tenggono", new Date("2026-08-26T08:09:00.000Z"), 0]);
+  rawLogSheet.addRow(["Dimas Buluh Tenggono", new Date("2026-08-26T08:01:00.000Z"), 0]);
+  rawLogSheet.addRow(["Dimas Buluh Tenggono", new Date("2026-08-26T16:58:00.000Z"), 1]);
+  rawLogSheet.addRow(["Dimas Buluh Tenggono", new Date("2026-08-26T17:03:00.000Z"), 1]);
+  const rawLogBuffer = Buffer.from(await rawLogWorkbook.xlsx.writeBuffer());
+  const parsedRawLog = await parseCheckLogWorkbook(rawLogBuffer);
+  const rawLogResult = parsedRawLog.peta.get("dimasbuluht_2026-08-26");
+  assert.ok(rawLogResult, "Format Check Log mentah harus dikenali");
+  assert.strictEqual(rawLogResult.masuk, 481, "Jika ada beberapa scan masuk, ambil yang paling awal");
+  assert.strictEqual(rawLogResult.pulang, 1023, "Jika ada beberapa scan pulang, ambil yang paling akhir");
+  console.log("Parser Check Log mentah (Name/Time/State) + duplicate scans: PASS");
 }
 
 main().catch((error) => {

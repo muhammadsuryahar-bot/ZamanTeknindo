@@ -1353,4 +1353,5 @@ async function exportRekapAbsensi(req, res) {
 }
 module.exports = {
   exportRekapAbsensi,
+  parseCheckLogWorkbook,
 };
