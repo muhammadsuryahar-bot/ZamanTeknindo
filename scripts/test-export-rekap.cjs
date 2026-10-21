@@ -330,6 +330,52 @@ async function main() {
   assert.strictEqual(rekap.getCell("P38").value, "Manager Financial");
 
   console.log("Export rekap HRD template integration test: PASS");
+
+  // Revisi: unggahan Check Log menambah sheet perbandingan, tanpa mengganti dua sheet HRD.
+  const inputCheckLog = new ExcelJS.Workbook();
+  const checkSheet = inputCheckLog.addWorksheet("Check Log");
+  checkSheet.addRow(["Nama Karyawan", "Tanggal", "Masuk", "Pulang"]);
+  checkSheet.addRow(["Dimas Buluh Tenggono", new Date("2026-08-26T00:00:00.000Z"), 481 / 1440, 1023 / 1440]);
+  const inputBuffer = await inputCheckLog.xlsx.writeBuffer();
+
+  const revisedReq = { ...req, file: { originalname: "checklog.xlsx", buffer: Buffer.from(inputBuffer) }, revisiAbsensi: true };
+  const revisedOutput = new PassThrough();
+  const revisedChunks = [];
+  revisedOutput.on("data", (chunk) => revisedChunks.push(Buffer.from(chunk)));
+  const revisedHeaders = {};
+  revisedOutput.setHeader = (key, value) => { revisedHeaders[String(key).toLowerCase()] = value; };
+  revisedOutput.getHeader = (key) => revisedHeaders[String(key).toLowerCase()];
+  const revisedFinished = new Promise((resolve, reject) => {
+    if (revisedOutput.writableFinished || revisedOutput.readableEnded) return resolve();
+    revisedOutput.once("finish", resolve);
+    revisedOutput.once("error", reject);
+  });
+
+  await exportRekapAbsensi(revisedReq, revisedOutput);
+  await revisedFinished;
+  assert.ok(revisedChunks.length > 0, "Export revisi harus menghasilkan XLSX");
+  const revisedWorkbook = new ExcelJS.Workbook();
+  await revisedWorkbook.xlsx.load(Buffer.concat(revisedChunks));
+  assert.deepStrictEqual(
+    revisedWorkbook.worksheets.map((sheet) => sheet.name),
+    ["Rekap Absensi", "Data Harian", "Perbandingan Jam"],
+    "Export revisi menambah sheet pembandingan sambil menjaga dua sheet HRD",
+  );
+  const compare = revisedWorkbook.getWorksheet("Perbandingan Jam");
+  assert.strictEqual(compare.getCell("A3").value, "NAMA KARYAWAN");
+  assert.strictEqual(compare.getCell("C3").value, "HP");
+  assert.strictEqual(compare.getCell("E3").value, "Check Log");
+  assert.strictEqual(compare.getCell("H3").value, "Result (submit ke atasan)");
+  assert.strictEqual(compare.getCell("A5").value, "Dimas Buluh T");
+  assert.strictEqual(compare.getCell("B5").value, "26 Agustus 2026");
+  assert.ok(Math.abs(compare.getCell("C5").value - (485 / 1440)) < 1e-9, "HP Masuk harus berisi 08:05 dari sistem");
+  assert.ok(Math.abs(compare.getCell("D5").value - (1020 / 1440)) < 1e-9, "HP Pulang harus berisi 17:00 dari sistem");
+  assert.ok(Math.abs(compare.getCell("E5").value - (481 / 1440)) < 1e-9, "Check Log Masuk harus berisi 08:01");
+  assert.ok(Math.abs(compare.getCell("F5").value - (1023 / 1440)) < 1e-9, "Check Log Pulang harus berisi 17:03");
+  assert.ok(Math.abs(compare.getCell("H5").value - (481 / 1440)) < 1e-9, "Result Masuk harus memilih jam paling awal");
+  assert.ok(Math.abs(compare.getCell("I5").value - (1023 / 1440)) < 1e-9, "Result Pulang harus memilih jam paling akhir");
+  assert.strictEqual(compare.getCell("H222").value, null, "Karyawan tanpa akun/data tidak boleh menghasilkan jam buatan");
+  console.log("Export rekap revisi + pemilihan waktu Check Log integration test: PASS");
 }
 
 main().catch((error) => {
