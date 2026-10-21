@@ -368,6 +368,7 @@ async function main() {
   assert.strictEqual(compare.getCell("H3").value, "Result (submit ke atasan)");
   assert.strictEqual(compare.getCell("A5").value, "Dimas Buluh T");
   assert.strictEqual(compare.getCell("B5").value, "26 Agustus 2026");
+  console.log("DEBUG CHECKLOG VALUES", ["C5","D5","E5","F5","H5","I5"].map((cell) => [cell, compare.getCell(cell).value, compare.getCell(cell).numFmt]));
   assert.ok(Math.abs(compare.getCell("C5").value - (485 / 1440)) < 1e-9, "HP Masuk harus berisi 08:05 dari sistem");
   assert.ok(Math.abs(compare.getCell("D5").value - (1020 / 1440)) < 1e-9, "HP Pulang harus berisi 17:00 dari sistem");
   assert.ok(Math.abs(compare.getCell("E5").value - (481 / 1440)) < 1e-9, "Check Log Masuk harus berisi 08:01");
