@@ -240,6 +240,24 @@ async function main() {
   assert.strictEqual(harian.getCell("A7").value.result, 1);
   assert.strictEqual(harian.getCell("B7").value.formula, "'Rekap Absensi'!B7");
   assert.strictEqual(harian.getCell("B7").value.result, "Dimas Buluh T");
+  const expectedRoster = [
+    [1, "Dimas Buluh T"], [2, "Azwar Effendi"], [3, "Bidan Tamba"],
+    [4, "Indah Puji Lestari"], [5, "R.Tjuntjun Candra"], [7, "Cindyka Fransiska"],
+    [8, "Budi Winarso"], [9, "Novita Ramahyani"], [10, "Ratna Juwita"],
+    [11, "Sugiono"], [12, "Fittry S"], [14, "Setiyo Widodo"],
+    [16, "Arie Alfriadi S"], [17, "Jihan Adiba"], [19, "Ashabussalam"],
+    [20, "Iqbal Lika Marja"], [21, "Edi Ponimin"], [22, "Andi Daulay"],
+    [23, "M Rafael Harvio P"], [24, "Syaza Rafsanjani"], [25, "M Surya Harja"],
+    [26, "Nur M. Maulanal Hakim"],
+  ];
+  assert.deepStrictEqual(
+    expectedRoster.map(([nomor, nama], index) => [
+      rekap.getCell(7 + index, 1).value,
+      rekap.getCell(7 + index, 2).value,
+    ]),
+    expectedRoster,
+    "Seluruh roster dan nomor HR harus sesuai file acuan, termasuk nomor yang terlewat",
+  );
   assert.strictEqual(rekap.getCell("A8").value, 2);
   assert.strictEqual(rekap.getCell("B8").value, "Azwar Effendi");
   assert.strictEqual(rekap.getCell("A12").value, 7, "Nomor karyawan mengikuti nomor pada roster HRD, termasuk jeda");
