@@ -195,7 +195,7 @@ async function parseCheckLogWorkbook(buffer) {
   try { await workbook.xlsx.load(buffer); } catch { const e=new Error("File Check Log tidak dapat dibaca sebagai Excel .xlsx. Unggah file Excel yang benar."); e.statusCode=400; throw e; }
   const namaHeaders=new Set(["nama","nama karyawan","nama pegawai","karyawan","pegawai","name","employee","employee name","person name","personnel name"]);
   const tanggalHeaders=new Set(["tanggal","date","log date","check date","attendance date","punch date","tanggal absen","tanggal check"]);
-  const stampHeaders=new Set(["datetime","date time","timestamp","time stamp","check time","punch time","log time","scan time","record time","tanggal waktu","waktu check"]);
+  const stampHeaders=new Set(["datetime","date time","timestamp","time stamp","time","check time","punch time","log time","scan time","record time","tanggal waktu","waktu check"]);
   const timeHeaders=new Set(["jam","waktu","time","jam check","jam absen","scan time","punch time","log time"]);
   const masukHeaders=new Set(["masuk","jam masuk","waktu masuk","in","in time","time in","clock in","check in","checkin","sign in","punch in","jam datang","check log masuk"]);
   const pulangHeaders=new Set(["pulang","jam pulang","waktu pulang","out","out time","time out","clock out","check out","checkout","sign out","punch out","jam keluar","check log pulang"]);
@@ -420,6 +420,17 @@ async function exportRekapAbsensi(req, res) {
     }
 
     const checkLogData = req.revisiAbsensi ? await parseCheckLogWorkbook(req.file?.buffer) : null;
+    if (checkLogData) {
+      const checkLogAdaDalamPeriode = Array.from(checkLogData.peta.keys()).some((key) => {
+        const tanggalLog = key.slice(key.lastIndexOf("_") + 1);
+        return tanggalLog >= tanggalMulai && tanggalLog <= tanggalSelesai;
+      });
+      if (!checkLogAdaDalamPeriode) {
+        const error = new Error("File Check Log tidak berisi waktu karyawan yang cocok pada rentang tanggal yang dipilih. Sesuaikan periode rekap atau unggah file Check Log yang benar.");
+        error.statusCode = 400;
+        throw error;
+      }
+    }
 
     // Kolom tanggal di PostgreSQL adalah DATE. Gunakan batas tanggal UTC
     // pada tengah malam dan batas akhir eksklusif agar filter tidak bergantung
@@ -1260,7 +1271,9 @@ async function exportRekapAbsensi(req, res) {
       compareSheet.getCell("A1").alignment = { horizontal: "left", vertical: "middle" };
       compareSheet.getRow(1).height = 26;
       compareSheet.mergeCells("A2:I2");
-      compareSheet.getCell("A2").value = "HP = sistem absensi ZamanTeknindo; Check Log = file unggahan. Result memilih Masuk paling awal dan Pulang paling akhir. Nama Check Log yang tidak cocok dengan roster HRD: " + checkLogData.namaTidakCocok.size + ".";
+      const namaTidakCocokPreview = Array.from(checkLogData.namaTidakCocok).slice(0, 5).join(", ");
+      const namaTidakCocokTambahan = checkLogData.namaTidakCocok.size > 5 ? ", dan nama lainnya" : "";
+      compareSheet.getCell("A2").value = "HP = sistem absensi ZamanTeknindo; Check Log = file unggahan. Result memilih Masuk paling awal dan Pulang paling akhir. Nama Check Log yang tidak cocok dengan roster HRD: " + checkLogData.namaTidakCocok.size + (namaTidakCocokPreview ? " (" + namaTidakCocokPreview + namaTidakCocokTambahan + ")" : "") + ".";
       compareSheet.getCell("A2").font = { name: "Arial", size: 9, italic: true, color: { argb: WARNA.teks } };
       compareSheet.getCell("A2").alignment = { horizontal: "left", vertical: "middle", wrapText: true };
       compareSheet.getRow(2).height = 28;
