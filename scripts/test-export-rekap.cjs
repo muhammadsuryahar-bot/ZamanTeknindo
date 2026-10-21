@@ -281,7 +281,7 @@ async function main() {
     "Izin tanpa keterangan tidak boleh dicatat sebagai I",
   );
   assert.strictEqual(rekap.getCell("C7").value.toISOString().slice(0, 10), "2012-07-01");
-  assert.strictEqual(rekap.getCell("D7").value, null);
+  assert.strictEqual(rekap.getCell("D7").value.toISOString().slice(0, 10), "2012-07-01", "TMK berada di sel gabungan C:D");
   assert.strictEqual(rekap.getCell("E7").value, "Sdh hbs dijalani");
   assert.strictEqual(rekap.getCell("F7").value, "Sdh hbs dijalani");
   assert.strictEqual(rekap.getCell("G7").value, null, "Kolom JLH HC SDH DIJALANI/DIPINJAM harus tetap kosong");
