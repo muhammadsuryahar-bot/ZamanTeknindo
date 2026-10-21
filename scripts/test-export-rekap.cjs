@@ -157,6 +157,11 @@ async function main() {
 
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(Buffer.concat(chunks));
+  assert.deepStrictEqual(
+    workbook.worksheets.map((sheet) => sheet.name),
+    ["Rekap Absensi", "Data Harian"],
+    "Ekspor biasa harus tetap hanya berisi dua sheet HRD",
+  );
 
   assert.deepStrictEqual(
     workbook.worksheets.map((sheet) => sheet.name),
@@ -354,6 +359,16 @@ async function main() {
   await exportRekapAbsensi(revisedReq, revisedOutput);
   await revisedFinished;
   assert.ok(revisedChunks.length > 0, "Export revisi harus menghasilkan XLSX");
+  assert.strictEqual(
+    revisedHeaders["x-rekap-excel-mode"],
+    "revisi-check-log",
+    "Respons ekspor revisi harus secara eksplisit mengonfirmasi mode revisi",
+  );
+  assert.strictEqual(
+    revisedHeaders["x-rekap-excel-sheets"],
+    "Rekap Absensi|Data Harian|Perbandingan Jam",
+    "Respons revisi wajib mengonfirmasi ketiga nama sheet",
+  );
   const revisedWorkbook = new ExcelJS.Workbook();
   await revisedWorkbook.xlsx.load(Buffer.concat(revisedChunks));
   assert.deepStrictEqual(

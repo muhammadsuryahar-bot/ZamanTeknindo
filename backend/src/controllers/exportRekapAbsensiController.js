@@ -1339,6 +1339,15 @@ async function exportRekapAbsensi(req, res) {
       compareSheet.printArea="A1:I"+(compareRowNumber-1);
     }
 
+    // Handshake eksplisit agar UI tidak menganggap file 2-sheet sebagai hasil revisi.
+    if (checkLogData) {
+      res.setHeader("X-Rekap-Excel-Mode", "revisi-check-log");
+      res.setHeader(
+        "X-Rekap-Excel-Sheets",
+        "Rekap Absensi|Data Harian|Perbandingan Jam",
+      );
+    }
+
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", "attachment; filename=\"Rekap_Absensi_" + formatTanggalFile(tanggalAwal, false) + "-" + formatTanggalFile(tanggalAkhir, true) + ".xlsx\"");
     res.setHeader("Cache-Control", "no-store, private");
