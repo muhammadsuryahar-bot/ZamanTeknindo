@@ -5,8 +5,9 @@ const Module = require("module");
 const prismaMock = {
   pengguna: {
     findMany: async () => [
-      { id: 1, nama: "Karyawan Satu", jabatan: "Staff", divisi: "Umum", kantor: { namaKantor: "Pekanbaru" } },
-      { id: 2, nama: "Karyawan Dua", jabatan: "Staff", divisi: "Finance", kantor: { namaKantor: "Pekanbaru" } },
+      { id: 1, nama: "Dimas Buluh Tenggono", jabatan: "Staff", divisi: "Umum", kantor: { namaKantor: "Pekanbaru" } },
+      { id: 2, nama: "Azwar Effendi", jabatan: "Staff", divisi: "Finance", kantor: { namaKantor: "Pekanbaru" } },
+      { id: 3, nama: "User Tester", jabatan: "Staff", divisi: "Testing", kantor: { namaKantor: "Pekanbaru" } },
     ],
   },
   absensi: {
@@ -238,7 +239,18 @@ async function main() {
   assert.strictEqual(harian.getCell("A7").value.formula, "'Rekap Absensi'!A7");
   assert.strictEqual(harian.getCell("A7").value.result, 1);
   assert.strictEqual(harian.getCell("B7").value.formula, "'Rekap Absensi'!B7");
-  assert.strictEqual(harian.getCell("B7").value.result, "Karyawan Satu");
+  assert.strictEqual(harian.getCell("B7").value.result, "Dimas Buluh T");
+  assert.strictEqual(rekap.getCell("A8").value, 2);
+  assert.strictEqual(rekap.getCell("B8").value, "Azwar Effendi");
+  assert.strictEqual(rekap.getCell("A12").value, 7, "Nomor karyawan mengikuti nomor pada roster HRD, termasuk jeda");
+  assert.strictEqual(rekap.getCell("B14").value, "Novita Ramahyani");
+  assert.strictEqual(rekap.getCell("H14").value, null, "Karyawan HR tanpa akun tidak boleh ditampilkan sebagai nol");
+  assert.strictEqual(harian.getCell("C14").value, null, "Baris karyawan tanpa akun tetap kosong, bukan Alpha atau Libur");
+  assert.strictEqual(rekap.getCell("A25").value, 23);
+  assert.strictEqual(rekap.getCell("B25").value, "M Rafael Harvio P");
+  assert.strictEqual(rekap.getCell("H25").value, null);
+  assert.strictEqual(harian.getCell("C25").value, null);
+  assert.strictEqual(rekap.getCell("B29").value, null, "Akun di luar roster HR tidak boleh ikut ekspor");
   assert.strictEqual(harian.getCell("C7").font.name, "Arial");
   assert.strictEqual(harian.getCell("C7").font.size, 9);
 
@@ -268,10 +280,11 @@ async function main() {
     null,
     "Izin tanpa keterangan tidak boleh dicatat sebagai I",
   );
+  assert.strictEqual(rekap.getCell("C7").value.toISOString().slice(0, 10), "2012-07-01");
   assert.strictEqual(rekap.getCell("D7").value, null);
-  assert.strictEqual(rekap.getCell("E7").value, null);
-  assert.strictEqual(rekap.getCell("F7").value, null);
-  assert.strictEqual(rekap.getCell("G7").value, null);
+  assert.strictEqual(rekap.getCell("E7").value, "Sdh hbs dijalani");
+  assert.strictEqual(rekap.getCell("F7").value, "Sdh hbs dijalani");
+  assert.strictEqual(rekap.getCell("G7").value, null, "Kolom JLH HC SDH DIJALANI/DIPINJAM harus tetap kosong");
   assert.strictEqual(rekap.getCell("M7").value, null);
   assert.match(String(rekap.getCell("Q7").value.formula), /SUM\(H7,K7:L7,N7:P7\)/);
 
@@ -284,19 +297,19 @@ async function main() {
     "Seluruh kolom akhir pekan menggunakan latar abu-abu",
   );
 
-  // Sesudah data karyawan hanya ada satu baris kosong—tanpa baris TOTAL.
-  assert.strictEqual(rekap.getCell("A9").value, null);
-  assert.strictEqual(rekap.getCell("A10").value, "Dibuat Oleh,");
-  assert.strictEqual(rekap.getCell("P10").value, "Diketahui Oleh,");
-  assert.strictEqual(rekap.getCell("E10").value, "Jumlah Hari Kalender dalam Bulan September 2026 (26 Agustus 2026 - 25 September 2026)");
-  assert.strictEqual(rekap.getCell("N10").value, "31 Hari");
-  assert.strictEqual(rekap.getCell("N11").value, "23 HKE");
-  assert.strictEqual(rekap.getCell("N12").value, "08 Hari");
-  assert.strictEqual(rekap.getCell("E13").value, "(Tanggal 29, 30 Agustus, 5, 6, 12, 13, 19, 20 September 2026)");
-  assert.strictEqual(rekap.getCell("A17").value, "Azwar Effendi");
-  assert.strictEqual(rekap.getCell("P17").value, "R. Nuning Rosita R");
-  assert.strictEqual(rekap.getCell("A18").value, "SPV. Umum & Personalia");
-  assert.strictEqual(rekap.getCell("P18").value, "Manager Financial");
+  // Struktur akhir harus mempertahankan 22 nomor HR, satu baris kosong, ringkasan, dan tanda tangan.
+  assert.strictEqual(rekap.getCell("A29").value, null);
+  assert.strictEqual(rekap.getCell("A30").value, "Dibuat Oleh,");
+  assert.strictEqual(rekap.getCell("P30").value, "Diketahui Oleh,");
+  assert.strictEqual(rekap.getCell("E30").value, "Jumlah Hari Kalender dalam Bulan September 2026 (26 Agustus 2026 - 25 September 2026)");
+  assert.strictEqual(rekap.getCell("N30").value, "31 Hari");
+  assert.strictEqual(rekap.getCell("N31").value, "23 HKE");
+  assert.strictEqual(rekap.getCell("N32").value, "08 Hari");
+  assert.strictEqual(rekap.getCell("E33").value, "(Tanggal 29, 30 Agustus, 5, 6, 12, 13, 19, 20 September 2026)");
+  assert.strictEqual(rekap.getCell("A37").value, "Azwar Effendi");
+  assert.strictEqual(rekap.getCell("P37").value, "R. Nuning Rosita R");
+  assert.strictEqual(rekap.getCell("A38").value, "SPV. Umum & Personalia");
+  assert.strictEqual(rekap.getCell("P38").value, "Manager Financial");
 
   console.log("Export rekap HRD template integration test: PASS");
 }
