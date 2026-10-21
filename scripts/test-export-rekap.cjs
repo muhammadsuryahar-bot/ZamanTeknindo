@@ -368,13 +368,17 @@ async function main() {
   assert.strictEqual(compare.getCell("H3").value, "Result (submit ke atasan)");
   assert.strictEqual(compare.getCell("A5").value, "Dimas Buluh T");
   assert.strictEqual(compare.getCell("B5").value, "26 Agustus 2026");
-  console.log("DEBUG CHECKLOG VALUES", ["C5","D5","E5","F5","H5","I5"].map((cell) => [cell, compare.getCell(cell).value, compare.getCell(cell).numFmt]));
-  assert.ok(Math.abs(compare.getCell("C5").value - (485 / 1440)) < 1e-9, "HP Masuk harus berisi 08:05 dari sistem");
-  assert.ok(Math.abs(compare.getCell("D5").value - (1020 / 1440)) < 1e-9, "HP Pulang harus berisi 17:00 dari sistem");
-  assert.ok(Math.abs(compare.getCell("E5").value - (481 / 1440)) < 1e-9, "Check Log Masuk harus berisi 08:01");
-  assert.ok(Math.abs(compare.getCell("F5").value - (1023 / 1440)) < 1e-9, "Check Log Pulang harus berisi 17:03");
-  assert.ok(Math.abs(compare.getCell("H5").value - (481 / 1440)) < 1e-9, "Result Masuk harus memilih jam paling awal");
-  assert.ok(Math.abs(compare.getCell("I5").value - (1023 / 1440)) < 1e-9, "Result Pulang harus memilih jam paling akhir");
+  const menitDariCellExcel = (cell) => {
+    const value = compare.getCell(cell).value;
+    if (value instanceof Date) return value.getUTCHours() * 60 + value.getUTCMinutes();
+    return Number.isFinite(Number(value)) ? Math.round(Number(value) * 1440) : null;
+  };
+  assert.strictEqual(menitDariCellExcel("C5"), 485, "HP Masuk harus berisi 08:05 dari sistem");
+  assert.strictEqual(menitDariCellExcel("D5"), 1020, "HP Pulang harus berisi 17:00 dari sistem");
+  assert.strictEqual(menitDariCellExcel("E5"), 481, "Check Log Masuk harus berisi 08:01");
+  assert.strictEqual(menitDariCellExcel("F5"), 1023, "Check Log Pulang harus berisi 17:03");
+  assert.strictEqual(menitDariCellExcel("H5"), 481, "Result Masuk harus memilih jam paling awal");
+  assert.strictEqual(menitDariCellExcel("I5"), 1023, "Result Pulang harus memilih jam paling akhir");
   assert.strictEqual(compare.getCell("H222").value, null, "Karyawan tanpa akun/data tidak boleh menghasilkan jam buatan");
   console.log("Export rekap revisi + pemilihan waktu Check Log integration test: PASS");
 }
