@@ -469,7 +469,6 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
   const [tanggalExportSelesai, setTanggalExportSelesai] = useState(
     () => tanggalRekap,
   );
-  const [fileCheckLogExport, setFileCheckLogExport] = useState(null);
   const [sedangExportAbsensi, setSedangExportAbsensi] = useState(false);
 
   // Form aktivasi akun yang lagi dibuka (ganti prompt() bawaan browser)
@@ -1499,15 +1498,6 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
       return;
     }
 
-    if (!fileCheckLogExport) {
-      setPesan("Unggah file Excel Check Log terlebih dahulu agar sistem bisa memilih jam terbaik.");
-      return;
-    }
-    if (!String(fileCheckLogExport.name || "").toLowerCase().endsWith(".xlsx")) {
-      setPesan("File Check Log harus berformat .xlsx.");
-      return;
-    }
-
     const awal = new Date(`${mulai}T00:00:00Z`);
     const akhir = new Date(`${selesai}T00:00:00Z`);
     const jumlahHari = Math.floor((akhir - awal) / (24 * 60 * 60 * 1000)) + 1;
@@ -1527,15 +1517,11 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
         tanggalSelesai: selesai,
       });
 
-      const formData = new FormData();
-      formData.append("checkLog", fileCheckLogExport);
-
       const res = await fetch(
-        `${API_URL}/admin/rekap-absensi/export-revisi?${query.toString()}`,
+        `${API_URL}/admin/rekap-absensi/export?${query.toString()}`,
         {
-          method: "POST",
+          method: "GET",
           headers: { Authorization: `Bearer ${getToken()}` },
-          body: formData,
         },
       );
 
@@ -1544,21 +1530,17 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
         throw new Error(data?.pesan || "Gagal membuat rekap absensi.");
       }
 
-      const exportMode = res.headers.get("x-rekap-excel-mode");
-      const sheetNames = (res.headers.get("x-rekap-excel-sheets") || "").split("|");
-      if (
-        exportMode !== "revisi-check-log" ||
-        sheetNames.length !== 3 ||
-        sheetNames[0] !== "Rekap Absensi" ||
-        sheetNames[1] !== "Data Harian" ||
-        sheetNames[2] !== "Perbandingan Jam"
-      ) {
-        throw new Error(
-          "Unduhan dihentikan karena server belum mengonfirmasi hasil revisi 3 sheet (Rekap Absensi, Data Harian, Perbandingan Jam). Muat ulang halaman Admin, lalu ulangi export. File tidak diunduh agar tidak tertukar dengan rekap 2 sheet biasa.",
-        );
+      const contentType = (res.headers.get("content-type") || "").toLowerCase();
+      if (!contentType.includes("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")) {
+        const data = await res.clone().json().catch(() => ({}));
+        throw new Error(data?.pesan || "Server tidak mengirim file Excel yang valid. Silakan coba ekspor kembali.");
       }
 
       const blob = await res.blob();
+      if (blob.size === 0) {
+        throw new Error("File Excel yang diterima kosong. Silakan ulangi ekspor.");
+      }
+
       const contentDisposition = res.headers.get("content-disposition") || "";
       const match = contentDisposition.match(/filename="([^"]+)"/i);
       const namaFile =
@@ -1571,12 +1553,10 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-      URL.revokeObjectURL(url);
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 
       setPanelExportAbsensiTerbuka(false);
-      setPesanSukses(
-        "Rekap absensi revisi berhasil dibuat. Sheet Perbandingan Jam memuat jam sistem, Check Log, dan Result terbaik. Data absensi asli tidak diubah.",
-      );
+      setPesanSukses("Rekap absensi berhasil diunduh dalam 2 sheet: Rekap Absensi dan Data Harian.");
     } catch (error) {
       setPesan(error?.message || "Gagal membuat rekap absensi.");
     } finally {
@@ -2399,40 +2379,6 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                       </span>
                     </label>
                   </div>
-                  <div style={{ display: "grid", gap: 6 }}>
-                    <label htmlFor="admin-check-log-upload" style={styles.rekapExportLabel}>
-                      File Excel Check Log (wajib, format .xlsx)
-                    </label>
-                    <input
-                      id="admin-check-log-upload"
-                      type="file"
-                      accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                      disabled={sedangExportAbsensi}
-                      onChange={(event) => {
-                        const file = event.target.files?.[0] || null;
-                        setFileCheckLogExport(file);
-                        if (file) setPesan("");
-                      }}
-                      style={{
-                        width: "100%",
-                        boxSizing: "border-box",
-                        border: `1px solid ${warna.garis}`,
-                        borderRadius: 9,
-                        padding: 8,
-                        background: warna.panel,
-                        color: warna.tinta,
-                        fontSize: 12,
-                      }}
-                    />
-                    <span style={styles.rekapExportNote}>
-                      {fileCheckLogExport
-                        ? `File dipilih: ${fileCheckLogExport.name}`
-                        : "Unggah file Check Log yang mencakup periode terpilih. Nama karyawan dan tanggal digunakan untuk mencocokkan data."}
-                    </span>
-                    <span style={styles.rekapExportNote}>
-                      Hasil revisi wajib memuat 3 sheet: Rekap Absensi, Data Harian, dan Perbandingan Jam.
-                    </span>
-                  </div>
                   <div style={styles.rekapExportActions} className="rekapExportActions">
                     <button
                       type="button"
@@ -2441,7 +2387,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                       style={styles.rekapExportSubmit}
                     >
                       <FileDown size={14} />
-                      {sedangExportAbsensi ? "Membuat file…" : "Unduh Rekap 3 Sheet"}
+                      {sedangExportAbsensi ? "Membuat file…" : "Unduh Rekap Absensi"}
                     </button>
                   </div>
                   <p style={styles.rekapExportNote}>
