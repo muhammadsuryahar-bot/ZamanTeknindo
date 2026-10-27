@@ -301,8 +301,8 @@ async function main() {
   assert.strictEqual(harian.getCell(6, 15).value, null, "Cuti tidak boleh menghasilkan jam buatan");
   assert.strictEqual(harian.getCell(7, 15).value, null, "Izin tidak boleh menghasilkan jam buatan");
   assert.strictEqual(harian.getCell(7, 21).value, null, "Tanggal tanpa jam tetap kosong");
-  assert.strictEqual(harian.getCell("C7").value, 488 / 1440, "Waktu Azwar tersimpan sebagai waktu Excel");
-  assert.strictEqual(harian.getCell("D7").value, 1020 / 1440, "Jam pulang Azwar tersimpan sebagai waktu Excel");
+  assert.strictEqual(toMinutes(harian.getCell("C7")), 488, "Waktu Azwar harus cocok dengan data sistem 08:08 WIB");
+  assert.strictEqual(toMinutes(harian.getCell("D7")), 1020, "Jam pulang Azwar harus cocok dengan data sistem 17:00 WIB");
   assert.strictEqual(rekap.getCell("C7").value.toISOString().slice(0, 10), "2012-07-01");
   assert.strictEqual(rekap.getCell("D7").value.toISOString().slice(0, 10), "2012-07-01", "TMK berada di sel gabungan C:D");
   assert.strictEqual(rekap.getCell("E7").value, "Sdh hbs dijalani");
