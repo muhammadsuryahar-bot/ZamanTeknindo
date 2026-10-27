@@ -309,7 +309,7 @@ async function main() {
   assert.strictEqual(rekap.getCell("F7").value, "Sdh hbs dijalani");
   assert.strictEqual(rekap.getCell("G7").value, null, "Kolom JLH HC SDH DIJALANI/DIPINJAM harus tetap kosong");
   assert.strictEqual(rekap.getCell("M7").value, null);
-  assert.match(String(rekap.getCell("Q7").value.formula), /SUM\(H7,K7:L7,N7:P7\)/);
+  assert.strictEqual(rekap.getCell("Q7").value, 6, "Jumlah HC dihitung dari status absensi yang sama");
 
   // 19 September (Sabtu): pasangan jam Clock In/Clock Out tetap abu-abu.
   const sep19Index = 24; // 26 Aug + 24 hari = 19 Sep
