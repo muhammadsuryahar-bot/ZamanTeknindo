@@ -578,6 +578,17 @@ async function exportRekapAbsensi(req, res) {
         return "";
       });
 
+      const jamHarian = item.id == null
+        ? tanggalList.map(() => ({ masuk: null, pulang: null }))
+        : tanggalList.map((tanggal) => {
+            const tanggalKey = tanggal.toISOString().slice(0, 10);
+            const absensiItem = petaAbsensi.get(prefix + tanggalKey);
+            return {
+              masuk: waktuHarianKeMenit(absensiItem?.jamMasuk),
+              pulang: waktuHarianKeMenit(absensiItem?.jamPulang),
+            };
+          });
+
       const hitung = (kode) =>
         kodeHarian.filter((nilai) => nilai === kode).length;
 
@@ -598,6 +609,7 @@ async function exportRekapAbsensi(req, res) {
         cocokKeAkun: item.id != null,
         nama: item.nama || "-",
         kodeHarian,
+        jamHarian,
         jumlahKehadiran,
         jumlahTelat,
         jumlahUangMakan: Math.max(jumlahKehadiran - jumlahTelat, 0),
@@ -819,7 +831,6 @@ async function exportRekapAbsensi(req, res) {
     sheet.getRow(6).height = 27.75;
 
     const dataStartRow = 7;
-    const lastDailyColLetter = excelColumnName(2 + jumlahHari);
     const pakaiSnapshotHakCutiHR =
       tanggalMulai === PERIODE_METADATA_HR.tanggalMulai &&
       tanggalSelesai === PERIODE_METADATA_HR.tanggalSelesai;
@@ -828,8 +839,6 @@ async function exportRekapAbsensi(req, res) {
     for (let index = 0; index < detailHarianPerKaryawan.length; index += 1) {
         const item = detailHarianPerKaryawan[index];
         const row = sheet.getRow(rowNumber);
-        const dailyRow = dataStartRow + index;
-        const dailyRange = "'Data Harian'!$C" + dailyRow + ":$" + lastDailyColLetter + dailyRow;
 
         row.getCell(1).value = item.nomorHR;
         row.getCell(2).value = item.nama;
@@ -850,54 +859,18 @@ async function exportRekapAbsensi(req, res) {
             row.getCell(col).value = null;
           }
         } else {
-          row.getCell(8).value = {
-            formula: 'COUNTIF(' + dailyRange + ',"H")+COUNTIF(' + dailyRange + ',"T")',
-            result: item.jumlahKehadiran,
-          };
-          row.getCell(9).value = {
-            formula: 'COUNTIF(' + dailyRange + ',"T")',
-            result: item.jumlahTelat,
-          };
-          row.getCell(10).value = {
-            formula: "MAX(0,H" + rowNumber + "-I" + rowNumber + ")",
-            result: item.jumlahUangMakan,
-          };
-          row.getCell(11).value = {
-            formula: 'COUNTIF(' + dailyRange + ',"I")',
-            result: item.jumlahAdaKeterangan,
-          };
-          row.getCell(12).value = {
-            formula: 'COUNTIF(' + dailyRange + ',"A")',
-            result: item.jumlahTanpaKeterangan,
-          };
+          // Ringkasan dihitung langsung dari status dan pengajuan pada database.
+          // Data Harian berisi jam Clock In/Clock Out, bukan kode status.
+          row.getCell(8).value = item.jumlahKehadiran;
+          row.getCell(9).value = item.jumlahTelat;
+          row.getCell(10).value = item.jumlahUangMakan;
+          row.getCell(11).value = item.jumlahAdaKeterangan;
+          row.getCell(12).value = item.jumlahTanpaKeterangan;
           row.getCell(13).value = null;
-          row.getCell(14).value = {
-            formula: 'COUNTIF(' + dailyRange + ',"C")',
-            result: item.cuti,
-          };
-          row.getCell(15).value = {
-            formula: 'COUNTIF(' + dailyRange + ',"S")',
-            result: item.sakitAdaSurat,
-          };
-          row.getCell(16).value = {
-            formula: 'COUNTIF(' + dailyRange + ',"SX")',
-            result: item.sakitTanpaSurat,
-          };
-          row.getCell(17).value = {
-            formula:
-              "SUM(H" +
-              rowNumber +
-              ",K" +
-              rowNumber +
-              ":L" +
-              rowNumber +
-              ",N" +
-              rowNumber +
-              ":P" +
-              rowNumber +
-              ")",
-            result: item.jumlahHC,
-          };
+          row.getCell(14).value = item.cuti;
+          row.getCell(15).value = item.sakitAdaSurat;
+          row.getCell(16).value = item.sakitTanpaSurat;
+          row.getCell(17).value = item.jumlahHC;
         }
 
         const fill = index % 2 === 0 ? COLORS.lightBlue : COLORS.white;
@@ -1096,13 +1069,14 @@ async function exportRekapAbsensi(req, res) {
     // SHEET 2 — DATA HARIAN
     // =========================
     const dailySheet = workbook.addWorksheet("Data Harian", {
-      views: [{ state: "frozen", ySplit: 6, xSplit: 2 }],
+      views: [{ state: "frozen", ySplit: 5, xSplit: 2 }],
     });
     dailySheet.showGridLines = false;
     dailySheet.properties.defaultRowHeight = 15;
 
-    const dailyLastCol = 2 + jumlahHari;
+    const dailyLastCol = 2 + jumlahHari * 2;
     const dailyLastColLetter = excelColumnName(dailyLastCol);
+    const dailyDataStartRow = 6;
 
     dailySheet.mergeCells("A1:" + dailyLastColLetter + "1");
     dailySheet.getCell("A1").value =
@@ -1129,7 +1103,7 @@ async function exportRekapAbsensi(req, res) {
 
     dailySheet.mergeCells("A2:" + dailyLastColLetter + "2");
     dailySheet.getCell("A2").value =
-      "Kode: H = Hadir tepat waktu | T = Hadir terlambat | I = Izin (ada ket) | A = Alpha (tanpa ket) | S = Sakit ada surat | SX = Sakit tanpa surat | C = Cuti | L = Libur (Sabtu/Minggu) | kosong = tidak ada data.  Ubah kode di sini, sheet Rekap Absensi ikut berubah otomatis.";
+      "Clock In dan Clock Out ditampilkan dalam WIB berdasarkan catatan absensi sistem. Sel kosong berarti tidak ada cap waktu pada tanggal tersebut.";
     dailySheet.getCell("A2").font = {
       name: "Arial",
       size: 9,
@@ -1143,19 +1117,19 @@ async function exportRekapAbsensi(req, res) {
     };
     dailySheet.getRow(2).height = 15;
 
-    const dailyHeaderRows = [4, 5, 6];
+    const dailyHeaderRows = [4, 5];
     dailySheet.getCell("A4").value = "NO";
     dailySheet.getCell("B4").value = "NAMA";
-    dailySheet.mergeCells("A4:A6");
-    dailySheet.mergeCells("B4:B6");
+    dailySheet.mergeCells("A4:A5");
+    dailySheet.mergeCells("B4:B5");
 
     tanggalList.forEach((tanggal, index) => {
-      const col = index + 3;
-      const bagian = bagianWaktuWIB(tanggal);
-      const hari = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"][tanggal.getUTCDay()];
-      dailySheet.getCell(4, col).value = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][bagian.bulan - 1];
-      dailySheet.getCell(5, col).value = bagian.hari;
-      dailySheet.getCell(6, col).value = hari;
+      const col = index * 2 + 3;
+      dailySheet.mergeCells(4, col, 4, col + 1);
+      dailySheet.getCell(4, col).value = new Date(tanggal.getTime());
+      dailySheet.getCell(4, col).numFmt = "m/d/yy";
+      dailySheet.getCell(5, col).value = "Clock In";
+      dailySheet.getCell(5, col + 1).value = "Clock Out";
     });
 
     for (const rowNum of dailyHeaderRows) {
@@ -1185,17 +1159,23 @@ async function exportRekapAbsensi(req, res) {
         };
       }
     }
-    dailySheet.getRow(4).height = 15;
-    dailySheet.getRow(5).height = 15;
-    dailySheet.getRow(6).height = 15;
+    dailySheet.getRow(4).height = 18;
+    dailySheet.getRow(5).height = 18;
 
     detailHarianPerKaryawan.forEach((item, index) => {
-      const rowNum = dataStartRow + index;
-      dailySheet.getCell(rowNum, 1).value = { formula: "'Rekap Absensi'!A" + rowNum, result: index + 1 };
-      dailySheet.getCell(rowNum, 2).value = { formula: "'Rekap Absensi'!B" + rowNum, result: item.nama };
+      const rowNum = dailyDataStartRow + index;
+      // Identitas disimpan sebagai nilai di dalam berkas, tanpa tautan luar.
+      dailySheet.getCell(rowNum, 1).value = item.nomorHR;
+      dailySheet.getCell(rowNum, 2).value = item.nama;
 
-      item.kodeHarian.forEach((kode, offset) => {
-        dailySheet.getCell(rowNum, offset + 3).value = kode || null;
+      item.jamHarian.forEach((jam, offset) => {
+        const colMasuk = offset * 2 + 3;
+        const masuk = dailySheet.getCell(rowNum, colMasuk);
+        const pulang = dailySheet.getCell(rowNum, colMasuk + 1);
+        masuk.value = jam.masuk == null ? null : jam.masuk / 1440;
+        pulang.value = jam.pulang == null ? null : jam.pulang / 1440;
+        masuk.numFmt = "hh:mm";
+        pulang.numFmt = "hh:mm";
       });
 
       for (let col = 1; col <= dailyLastCol; col += 1) {
@@ -1203,11 +1183,11 @@ async function exportRekapAbsensi(req, res) {
         const isWeekendOrHoliday =
           col >= 3 &&
           (() => {
-            const tanggal = tanggalList[col - 3];
+            const dateIndex = Math.floor((col - 3) / 2);
+            const tanggal = tanggalList[dateIndex];
             const key = tanggal.toISOString().slice(0, 10);
             return tanggal.getUTCDay() === 0 || tanggal.getUTCDay() === 6 || setHariLibur.has(key);
           })();
-
         cell.font = {
           name: "Arial",
           size: col <= 2 ? 10 : 9,
@@ -1236,8 +1216,9 @@ async function exportRekapAbsensi(req, res) {
     dailySheet.columns = [
       { key: "no", width: 5 },
       { key: "nama", width: 26 },
-      ...tanggalList.map(() => ({ width: 4.6328125 })),
+      ...tanggalList.flatMap(() => [{ width: 12 }, { width: 12 }]),
     ];
+
     dailySheet.pageSetup = {
       paperSize: 9,
       orientation: "landscape",
@@ -1257,7 +1238,7 @@ async function exportRekapAbsensi(req, res) {
     dailySheet.printArea =
       "A1:" +
       dailyLastColLetter +
-      (dataStartRow + detailHarianPerKaryawan.length - 1);
+      (dailyDataStartRow + detailHarianPerKaryawan.length - 1);
 
     // Sheet tambahan ini dibuat hanya jika Admin mengunggah Check Log.
     if (checkLogData) {
