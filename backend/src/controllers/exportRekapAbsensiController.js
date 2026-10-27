@@ -1149,7 +1149,7 @@ async function exportRekapAbsensi(req, res) {
   } catch (error) {
     console.error("Gagal export rekap absensi:", error);
     const status = Number(error?.statusCode);
-    if (status >= 400 && status < 500) return res.status(status).json({ pesan: error.message || "File Check Log tidak valid." });
+    if (status >= 400 && status < 500) return res.status(status).json({ pesan: error.message || "Gagal membuat rekap absensi." });
     return res.status(500).json({ pesan: "Gagal membuat rekap absensi. Silakan coba lagi." });
   }
 }
