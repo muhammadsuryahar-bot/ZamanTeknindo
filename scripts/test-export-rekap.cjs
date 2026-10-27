@@ -124,7 +124,7 @@ Module._load = function (request, parent, isMain) {
 };
 
 const ExcelJS = require("exceljs");
-const { exportRekapAbsensi, parseCheckLogWorkbook } = require("../backend/src/controllers/exportRekapAbsensiController");
+const { exportRekapAbsensi } = require("../backend/src/controllers/exportRekapAbsensiController");
 
 async function main() {
   const req = {
@@ -284,6 +284,12 @@ async function main() {
   assert.strictEqual(harian.getCell("I7").value, "C");
   assert.strictEqual(harian.getCell("J7").value, "S");
   assert.strictEqual(harian.getCell("K7").value, "SX");
+  assert.strictEqual(harian.getCell("D7").fill.fgColor.argb, "FFFFE699", "Terlambat diberi warna kuning seperti acuan");
+  assert.strictEqual(harian.getCell("E7").fill.fgColor.argb, "FFF4B6B6", "Alpha diberi warna merah muda seperti acuan");
+  assert.strictEqual(harian.getCell("I7").fill.fgColor.argb, "FFBDD7EE", "Cuti diberi warna biru muda seperti acuan");
+  assert.strictEqual(harian.getCell("J7").fill.fgColor.argb, "FFC6E0B4", "Sakit dengan surat diberi warna hijau muda seperti acuan");
+  assert.strictEqual(harian.getCell("K7").fill.fgColor.argb, "FFA9D18E", "Sakit tanpa surat diberi warna hijau seperti acuan");
+  assert.ok(rekap.autoFilter, "Rekap Absensi harus memiliki filter Excel pada header");
   assert.strictEqual(harian.getCell("C8").value, "H");
 
   // Rekap harus mengambil sumber dari baris Data Harian karyawan yang sama.
@@ -336,82 +342,7 @@ async function main() {
 
   console.log("Export rekap HRD template integration test: PASS");
 
-  // Revisi: unggahan Check Log menambah sheet perbandingan, tanpa mengganti dua sheet HRD.
-  const inputCheckLog = new ExcelJS.Workbook();
-  const checkSheet = inputCheckLog.addWorksheet("Check Log");
-  checkSheet.addRow(["Nama Karyawan", "Tanggal", "Masuk", "Pulang"]);
-  checkSheet.addRow(["Dimas Buluh Tenggono", new Date("2026-08-26T00:00:00.000Z"), 481 / 1440, 1023 / 1440]);
-  const inputBuffer = await inputCheckLog.xlsx.writeBuffer();
 
-  const revisedReq = { ...req, file: { originalname: "checklog.xlsx", buffer: Buffer.from(inputBuffer) }, revisiAbsensi: true };
-  const revisedOutput = new PassThrough();
-  const revisedChunks = [];
-  revisedOutput.on("data", (chunk) => revisedChunks.push(Buffer.from(chunk)));
-  const revisedHeaders = {};
-  revisedOutput.setHeader = (key, value) => { revisedHeaders[String(key).toLowerCase()] = value; };
-  revisedOutput.getHeader = (key) => revisedHeaders[String(key).toLowerCase()];
-  const revisedFinished = new Promise((resolve, reject) => {
-    if (revisedOutput.writableFinished || revisedOutput.readableEnded) return resolve();
-    revisedOutput.once("finish", resolve);
-    revisedOutput.once("error", reject);
-  });
-
-  await exportRekapAbsensi(revisedReq, revisedOutput);
-  await revisedFinished;
-  assert.ok(revisedChunks.length > 0, "Export revisi harus menghasilkan XLSX");
-  assert.strictEqual(
-    revisedHeaders["x-rekap-excel-mode"],
-    "revisi-check-log",
-    "Respons ekspor revisi harus secara eksplisit mengonfirmasi mode revisi",
-  );
-  assert.strictEqual(
-    revisedHeaders["x-rekap-excel-sheets"],
-    "Rekap Absensi|Data Harian|Perbandingan Jam",
-    "Respons revisi wajib mengonfirmasi ketiga nama sheet",
-  );
-  const revisedWorkbook = new ExcelJS.Workbook();
-  await revisedWorkbook.xlsx.load(Buffer.concat(revisedChunks));
-  assert.deepStrictEqual(
-    revisedWorkbook.worksheets.map((sheet) => sheet.name),
-    ["Rekap Absensi", "Data Harian", "Perbandingan Jam"],
-    "Export revisi menambah sheet pembandingan sambil menjaga dua sheet HRD",
-  );
-  const compare = revisedWorkbook.getWorksheet("Perbandingan Jam");
-  assert.strictEqual(compare.getCell("A3").value, "NAMA KARYAWAN");
-  assert.strictEqual(compare.getCell("C3").value, "HP");
-  assert.strictEqual(compare.getCell("E3").value, "Check Log");
-  assert.strictEqual(compare.getCell("H3").value, "Result (submit ke atasan)");
-  assert.strictEqual(compare.getCell("A5").value, "Dimas Buluh T");
-  assert.strictEqual(compare.getCell("B5").value, "26 Agustus 2026");
-  const menitDariCellExcel = (cell) => {
-    const value = compare.getCell(cell).value;
-    if (value instanceof Date) return value.getUTCHours() * 60 + value.getUTCMinutes();
-    return Number.isFinite(Number(value)) ? Math.round(Number(value) * 1440) : null;
-  };
-  assert.strictEqual(menitDariCellExcel("C5"), 485, "HP Masuk harus berisi 08:05 dari sistem");
-  assert.strictEqual(menitDariCellExcel("D5"), 1020, "HP Pulang harus berisi 17:00 dari sistem");
-  assert.strictEqual(menitDariCellExcel("E5"), 481, "Check Log Masuk harus berisi 08:01");
-  assert.strictEqual(menitDariCellExcel("F5"), 1023, "Check Log Pulang harus berisi 17:03");
-  assert.strictEqual(menitDariCellExcel("H5"), 481, "Result Masuk harus memilih jam paling awal");
-  assert.strictEqual(menitDariCellExcel("I5"), 1023, "Result Pulang harus memilih jam paling akhir");
-  assert.strictEqual(compare.getCell("H222").value, null, "Karyawan tanpa akun/data tidak boleh menghasilkan jam buatan");
-  console.log("Export rekap revisi + pemilihan waktu Check Log integration test: PASS");
-
-  // Check Log mentah dari mesin sering berbentuk satu baris per scan: Name, Time, State.
-  const rawLogWorkbook = new ExcelJS.Workbook();
-  const rawLogSheet = rawLogWorkbook.addWorksheet("Raw Check Log");
-  rawLogSheet.addRow(["Name", "Time", "State"]);
-  rawLogSheet.addRow(["Dimas Buluh Tenggono", new Date("2026-08-26T08:09:00.000Z"), 0]);
-  rawLogSheet.addRow(["Dimas Buluh Tenggono", new Date("2026-08-26T08:01:00.000Z"), 0]);
-  rawLogSheet.addRow(["Dimas Buluh Tenggono", new Date("2026-08-26T16:58:00.000Z"), 1]);
-  rawLogSheet.addRow(["Dimas Buluh Tenggono", new Date("2026-08-26T17:03:00.000Z"), 1]);
-  const rawLogBuffer = Buffer.from(await rawLogWorkbook.xlsx.writeBuffer());
-  const parsedRawLog = await parseCheckLogWorkbook(rawLogBuffer);
-  const rawLogResult = parsedRawLog.peta.get("dimasbuluht_2026-08-26");
-  assert.ok(rawLogResult, "Format Check Log mentah harus dikenali");
-  assert.strictEqual(rawLogResult.masuk, 481, "Jika ada beberapa scan masuk, ambil yang paling awal");
-  assert.strictEqual(rawLogResult.pulang, 1023, "Jika ada beberapa scan pulang, ambil yang paling akhir");
-  console.log("Parser Check Log mentah (Name/Time/State) + duplicate scans: PASS");
 }
 
 main().catch((error) => {

@@ -141,113 +141,6 @@ function normalisasiNamaRoster(nilai) {
 }
 
 
-function normalisasiHeaderCheckLog(nilai) {
-  return String(nilai == null ? "" : nilai).normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-}
-function nilaiCellKeTeks(nilai) {
-  if (nilai == null) return "";
-  if (typeof nilai === "object") {
-    if (Array.isArray(nilai.richText)) return nilai.richText.map((bagian) => bagian.text || "").join("");
-    if (typeof nilai.text === "string") return nilai.text;
-    if (nilai.result != null) return String(nilai.result);
-  }
-  return String(nilai).trim();
-}
-function tanggalCheckLog(nilai) {
-  if (nilai instanceof Date && !Number.isNaN(nilai.getTime())) return String(nilai.getUTCFullYear()) + "-" + String(nilai.getUTCMonth()+1).padStart(2,"0") + "-" + String(nilai.getUTCDate()).padStart(2,"0");
-  if (typeof nilai === "number" && Number.isFinite(nilai) && nilai > 1000) {
-    const date=new Date(Math.round((nilai-25569)*86400000));
-    if (!Number.isNaN(date.getTime())) return String(date.getUTCFullYear())+"-"+String(date.getUTCMonth()+1).padStart(2,"0")+"-"+String(date.getUTCDate()).padStart(2,"0");
-  }
-  const teks=nilaiCellKeTeks(nilai); if(!teks) return null;
-  let c=teks.match(/\b(20\d{2})[-/.](\d{1,2})[-/.](\d{1,2})\b/);
-  if(c) return normalisasiTanggal(c[1]+"-"+String(c[2]).padStart(2,"0")+"-"+String(c[3]).padStart(2,"0"));
-  c=teks.match(/\b(\d{1,2})[-/.](\d{1,2})[-/.](20\d{2})\b/);
-  if(c) return normalisasiTanggal(c[3]+"-"+String(c[2]).padStart(2,"0")+"-"+String(c[1]).padStart(2,"0"));
-  const parsed=new Date(teks);
-  return Number.isNaN(parsed.getTime()) ? null : String(parsed.getUTCFullYear())+"-"+String(parsed.getUTCMonth()+1).padStart(2,"0")+"-"+String(parsed.getUTCDate()).padStart(2,"0");
-}
-function menitCheckLog(nilai) {
-  if(nilai==null || nilai==="") return null;
-  if(nilai instanceof Date && !Number.isNaN(nilai.getTime())) return nilai.getUTCHours()*60+nilai.getUTCMinutes();
-  if(typeof nilai==="number" && Number.isFinite(nilai)) return Math.round((((nilai%1)+1)%1)*1440)%1440;
-  const c=nilaiCellKeTeks(nilai).match(/\b(\d{1,2}):([0-5]\d)(?::([0-5]\d))?\b/);
-  if(!c) return null;
-  const h=Number(c[1]), m=Number(c[2]);
-  return h>=0 && h<=23 && m>=0 && m<=59 ? h*60+m : null;
-}
-function arahCheckLog(nilai) {
-  const s=normalisasiHeaderCheckLog(nilai);
-  if(["0","in","masuk","check in","checkin","clock in","sign in","punch in","entry","datang"].includes(s) || /\b(check in|clock in|sign in|punch in|masuk|datang)\b/.test(s)) return "masuk";
-  if(["1","out","pulang","check out","checkout","clock out","sign out","punch out","exit","keluar"].includes(s) || /\b(check out|clock out|sign out|punch out|pulang|keluar)\b/.test(s)) return "pulang";
-  return null;
-}
-function buatPetaNamaRosterCheckLog() {
-  const p=new Map();
-  for(const item of ROSTER_HR_REKAP) for(const nama of [item.nama,...(item.aliases||[])]) {
-    const k=normalisasiNamaRoster(nama); if(k) p.set(k,normalisasiNamaRoster(item.nama));
-  }
-  return p;
-}
-async function parseCheckLogWorkbook(buffer) {
-  if(!Buffer.isBuffer(buffer)||!buffer.length) { const e=new Error("File Excel Check Log belum diterima. Pilih file .xlsx terlebih dahulu."); e.statusCode=400; throw e; }
-  const ExcelJS=require("exceljs"), workbook=new ExcelJS.Workbook();
-  try { await workbook.xlsx.load(buffer); } catch { const e=new Error("File Check Log tidak dapat dibaca sebagai Excel .xlsx. Unggah file Excel yang benar."); e.statusCode=400; throw e; }
-  const namaHeaders=new Set(["nama","nama karyawan","nama pegawai","karyawan","pegawai","name","employee","employee name","person name","personnel name"]);
-  const tanggalHeaders=new Set(["tanggal","date","log date","check date","attendance date","punch date","tanggal absen","tanggal check"]);
-  const stampHeaders=new Set(["datetime","date time","timestamp","time stamp","time","check time","punch time","log time","scan time","record time","tanggal waktu","waktu check"]);
-  const timeHeaders=new Set(["jam","waktu","time","jam check","jam absen","scan time","punch time","log time"]);
-  const masukHeaders=new Set(["masuk","jam masuk","waktu masuk","in","in time","time in","clock in","check in","checkin","sign in","punch in","jam datang","check log masuk"]);
-  const pulangHeaders=new Set(["pulang","jam pulang","waktu pulang","out","out time","time out","clock out","check out","checkout","sign out","punch out","jam keluar","check log pulang"]);
-  const arahHeaders=new Set(["arah","direction","in out","check type","clock type","log type","event","event type","state","status","type","attendance type","punch type","check status","verify state"]);
-  let struktur=null;
-  for(const worksheet of workbook.worksheets) {
-    for(let rn=1;rn<=Math.min(worksheet.rowCount||0,40);rn++) {
-      const headers=worksheet.getRow(rn).values.slice(1).map(v=>normalisasiHeaderCheckLog(nilaiCellKeTeks(v)));
-      const idx=set=>headers.findIndex(h=>set.has(h));
-      const nama=idx(namaHeaders), tanggal=idx(tanggalHeaders), timestamp=idx(stampHeaders), waktu=idx(timeHeaders);
-      const masuk=idx(masukHeaders), pulang=idx(pulangHeaders), arah=idx(arahHeaders);
-      const lebar=masuk>=0&&pulang>=0&&(tanggal>=0||timestamp>=0);
-      const log=arah>=0&&(timestamp>=0||(tanggal>=0&&waktu>=0));
-      if(nama>=0&&(lebar||log)){struktur={worksheet,headerRow:rn,nama,tanggal,timestamp,waktu,masuk,pulang,arah,formatLebar:lebar};break;}
-    }
-    if(struktur) break;
-  }
-  if(!struktur){const e=new Error("Header file Check Log belum dikenali. Pastikan ada Nama Karyawan/Name dan Tanggal/Date serta Jam Masuk dan Jam Pulang; atau timestamp/waktu dan arah Check In/Check Out.");e.statusCode=400;throw e;}
-  const namaRoster=buatPetaNamaRosterCheckLog(), peta=new Map(), namaTidakCocok=new Set(); let jumlahCatatanValid=0;
-  const simpan=(rawName,date,direction,minutes)=>{
-    if(!rawName||!date||minutes==null||!normalisasiTanggal(date)) return;
-    const canonical=namaRoster.get(normalisasiNamaRoster(rawName));
-    if(!canonical){namaTidakCocok.add(String(rawName).trim());return;}
-    const key=canonical+"_"+date;
-    if(!peta.has(key)) peta.set(key,{masuk:null,pulang:null});
-    const val=peta.get(key);
-    if(direction==="masuk") val.masuk=val.masuk==null?minutes:Math.min(val.masuk,minutes);
-    if(direction==="pulang") val.pulang=val.pulang==null?minutes:Math.max(val.pulang,minutes);
-    jumlahCatatanValid++;
-  };
-  const {worksheet,headerRow,nama,tanggal,timestamp,waktu,masuk,pulang,arah,formatLebar}=struktur;
-  for(let rn=headerRow+1;rn<=worksheet.rowCount;rn++) {
-    const row=worksheet.getRow(rn), rawName=nilaiCellKeTeks(row.getCell(nama+1).value).trim(); if(!rawName) continue;
-    const rawDate=tanggal>=0?row.getCell(tanggal+1).value:null, rawTimestamp=timestamp>=0?row.getCell(timestamp+1).value:null;
-    const date=tanggalCheckLog(rawDate??rawTimestamp); if(!date) continue;
-    if(formatLebar) {
-      simpan(rawName,date,"masuk",menitCheckLog(row.getCell(masuk+1).value));
-      simpan(rawName,date,"pulang",menitCheckLog(row.getCell(pulang+1).value));
-    } else {
-      const rawTime=timestamp>=0?rawTimestamp:row.getCell(waktu+1).value, direction=arahCheckLog(row.getCell(arah+1).value);
-      if(direction) simpan(rawName,date,direction,menitCheckLog(rawTime));
-    }
-  }
-  if(jumlahCatatanValid===0){const e=new Error("Tidak ada catatan Check Log yang cocok dengan roster HRD dan memiliki tanggal/jam valid. Periksa nama karyawan, header, tanggal, dan jam.");e.statusCode=400;throw e;}
-  return {peta,namaTidakCocok,jumlahCatatanValid};
-}
-function waktuHarianKeMenit(nilai) {
-  if(!nilai) return null;
-  const c=formatJam(nilai).match(/^(\d{2}):(\d{2})$/);
-  return c?Number(c[1])*60+Number(c[2]):null;
-}
-
 function punyaKeterangan(nilai) {
   return nilai !== null && nilai !== undefined && String(nilai).trim() !== "";
 }
@@ -419,18 +312,6 @@ async function exportRekapAbsensi(req, res) {
       return res.status(400).json({ pesan: "Rentang rekap maksimal 31 hari per file." });
     }
 
-    const checkLogData = req.revisiAbsensi ? await parseCheckLogWorkbook(req.file?.buffer) : null;
-    if (checkLogData) {
-      const checkLogAdaDalamPeriode = Array.from(checkLogData.peta.keys()).some((key) => {
-        const tanggalLog = key.slice(key.lastIndexOf("_") + 1);
-        return tanggalLog >= tanggalMulai && tanggalLog <= tanggalSelesai;
-      });
-      if (!checkLogAdaDalamPeriode) {
-        const error = new Error("File Check Log tidak berisi waktu karyawan yang cocok pada rentang tanggal yang dipilih. Sesuaikan periode rekap atau unggah file Check Log yang benar.");
-        error.statusCode = 400;
-        throw error;
-      }
-    }
 
     // Kolom tanggal di PostgreSQL adalah DATE. Gunakan batas tanggal UTC
     // pada tengah malam dan batas akhir eksklusif agar filter tidak bergantung
@@ -635,6 +516,11 @@ async function exportRekapAbsensi(req, res) {
       teal: "FF00695C",
       lightBlue: "FFF2F5FA",
       lightGray: "FFD9D9D9",
+      statusTelat: "FFFFE699",
+      statusAlpha: "FFF4B6B6",
+      statusIzin: "FFBDD7EE",
+      statusSakit: "FFC6E0B4",
+      statusSakitTanpaSurat: "FFA9D18E",
       grid: "FF808080",
       text: "FF1F2937",
       white: "FFFFFFFF",
@@ -1091,6 +977,8 @@ async function exportRekapAbsensi(req, res) {
       },
     };
     sheet.printArea = "A1:Q" + signatureTitleRow;
+    // Filter Excel berada di baris terakhir header, sesuai tampilan HRD.
+    sheet.autoFilter = { from: "A6", to: "Q" + lastDataRow };
 
     // =========================
     // SHEET 2 — DATA HARIAN
@@ -1214,8 +1102,18 @@ async function exportRekapAbsensi(req, res) {
           bold: col === 2,
           color: { argb: COLORS.text },
         };
-        cell.fill = isWeekendOrHoliday
-          ? { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.lightGray } }
+        const kode = col >= 3 ? item.kodeHarian[col - 3] : null;
+        const warnaStatus = {
+          T: COLORS.statusTelat,
+          A: COLORS.statusAlpha,
+          I: COLORS.statusIzin,
+          C: COLORS.statusIzin,
+          S: COLORS.statusSakit,
+          SX: COLORS.statusSakitTanpaSurat,
+        }[kode];
+        const warnaIsi = isWeekendOrHoliday ? COLORS.lightGray : warnaStatus;
+        cell.fill = warnaIsi
+          ? { type: "pattern", pattern: "solid", fgColor: { argb: warnaIsi } }
           : { type: "pattern", pattern: "none" };
         cell.border = {
           top: { style: "thin", color: { argb: COLORS.dailyGrid } },
@@ -1259,94 +1157,6 @@ async function exportRekapAbsensi(req, res) {
       dailyLastColLetter +
       (dataStartRow + detailHarianPerKaryawan.length - 1);
 
-    // Sheet tambahan ini dibuat hanya jika Admin mengunggah Check Log.
-    if (checkLogData) {
-      const compareSheet = workbook.addWorksheet("Perbandingan Jam", { views: [{ state: "frozen", ySplit: 4, xSplit: 2 }] });
-      compareSheet.showGridLines = false;
-      compareSheet.properties.defaultRowHeight = 18;
-      compareSheet.mergeCells("A1:I1");
-      compareSheet.getCell("A1").value = "PERBANDINGAN JAM ABSENSI — Periode " + formatTanggalIndonesia(tanggalAwal) + " s.d. " + formatTanggalIndonesia(tanggalAkhir);
-      compareSheet.getCell("A1").font = { name: "Arial", size: 14, bold: true, color: { argb: WARNA.putih } };
-      compareSheet.getCell("A1").fill = { type: "pattern", pattern: "solid", fgColor: { argb: WARNA.navy } };
-      compareSheet.getCell("A1").alignment = { horizontal: "left", vertical: "middle" };
-      compareSheet.getRow(1).height = 26;
-      compareSheet.mergeCells("A2:I2");
-      const namaTidakCocokPreview = Array.from(checkLogData.namaTidakCocok).slice(0, 5).join(", ");
-      const namaTidakCocokTambahan = checkLogData.namaTidakCocok.size > 5 ? ", dan nama lainnya" : "";
-      compareSheet.getCell("A2").value = "HP = sistem absensi ZamanTeknindo; Check Log = file unggahan. Result memilih Masuk paling awal dan Pulang paling akhir. Nama Check Log yang tidak cocok dengan roster HRD: " + checkLogData.namaTidakCocok.size + (namaTidakCocokPreview ? " (" + namaTidakCocokPreview + namaTidakCocokTambahan + ")" : "") + ".";
-      compareSheet.getCell("A2").font = { name: "Arial", size: 9, italic: true, color: { argb: WARNA.teks } };
-      compareSheet.getCell("A2").alignment = { horizontal: "left", vertical: "middle", wrapText: true };
-      compareSheet.getRow(2).height = 28;
-      compareSheet.mergeCells("A3:A4");
-      compareSheet.mergeCells("B3:B4");
-      compareSheet.mergeCells("C3:D3");
-      compareSheet.mergeCells("E3:F3");
-      compareSheet.mergeCells("H3:I3");
-      compareSheet.getCell("A3").value = "NAMA KARYAWAN";
-      compareSheet.getCell("B3").value = "TANGGAL";
-      compareSheet.getCell("C3").value = "HP";
-      compareSheet.getCell("E3").value = "Check Log";
-      compareSheet.getCell("H3").value = "Result (submit ke atasan)";
-      for (const [cell, value] of [["C4","Masuk"],["D4","Pulang"],["E4","Masuk"],["F4","Pulang"],["H4","Masuk"],["I4","Pulang"]]) compareSheet.getCell(cell).value = value;
-      for (const rowNumber of [3,4]) {
-        const row=compareSheet.getRow(rowNumber);
-        for(let col=1;col<=9;col++) {
-          const cell=row.getCell(col);
-          cell.font={name:"Arial",size:10,bold:true,color:{argb:WARNA.putih}};
-          cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:WARNA.header}};
-          cell.alignment={horizontal:"center",vertical:"middle",wrapText:true};
-          cell.border={top:{style:"thin",color:{argb:WARNA.garis}},left:{style:"thin",color:{argb:WARNA.garis}},bottom:{style:"thin",color:{argb:WARNA.garis}},right:{style:"thin",color:{argb:WARNA.garis}}};
-        }
-      }
-      compareSheet.getRow(3).height=26;
-      compareSheet.getRow(4).height=22;
-      let compareRowNumber=5;
-      for(const employee of karyawanUnik) {
-        for(const tanggal of tanggalList) {
-          const tanggalKey=tanggal.toISOString().slice(0,10);
-          const hp=employee.id==null?null:petaAbsensi.get(employee.id+"_"+tanggalKey);
-          const hpMasuk=waktuHarianKeMenit(hp?.jamMasuk), hpPulang=waktuHarianKeMenit(hp?.jamPulang);
-          const check=checkLogData.peta.get(normalisasiNamaRoster(employee.nama)+"_"+tanggalKey);
-          const checkMasuk=check?.masuk??null, checkPulang=check?.pulang??null;
-          const resultMasuk=hpMasuk==null?checkMasuk:checkMasuk==null?hpMasuk:Math.min(hpMasuk,checkMasuk);
-          const resultPulang=hpPulang==null?checkPulang:checkPulang==null?hpPulang:Math.max(hpPulang,checkPulang);
-          const konflik=(hpMasuk!=null&&checkMasuk!=null&&hpMasuk!==checkMasuk)||(hpPulang!=null&&checkPulang!=null&&hpPulang!==checkPulang);
-          const warnaBaris=konflik?WARNA.kuningMuda:WARNA.hijauMuda;
-          const row=compareSheet.getRow(compareRowNumber);
-          row.getCell(1).value=employee.nama;
-          row.getCell(2).value=formatTanggalIndonesia(tanggal);
-          row.getCell(3).value=hpMasuk==null?null:hpMasuk/1440;
-          row.getCell(4).value=hpPulang==null?null:hpPulang/1440;
-          row.getCell(5).value=checkMasuk==null?null:checkMasuk/1440;
-          row.getCell(6).value=checkPulang==null?null:checkPulang/1440;
-          row.getCell(7).value=null;
-          row.getCell(8).value=resultMasuk==null?null:resultMasuk/1440;
-          row.getCell(9).value=resultPulang==null?null:resultPulang/1440;
-          for(let col=1;col<=9;col++) {
-            const cell=row.getCell(col);
-            cell.font={name:"Arial",size:10,bold:col>=8,color:{argb:WARNA.teks}};
-            cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:col===7?WARNA.putih:warnaBaris}};
-            cell.alignment={horizontal:col===1?"left":"center",vertical:"middle",wrapText:false};
-            cell.border={top:{style:"thin",color:{argb:WARNA.garis}},left:{style:"thin",color:{argb:WARNA.garis}},bottom:{style:"thin",color:{argb:WARNA.garis}},right:{style:"thin",color:{argb:WARNA.garis}}};
-            if(col>=3&&col!==7) cell.numFmt="hh:mm";
-          }
-          row.height=18;
-          compareRowNumber++;
-        }
-      }
-      compareSheet.columns=[{key:"nama",width:28},{key:"tanggal",width:18},{key:"hpMasuk",width:12},{key:"hpPulang",width:12},{key:"checkMasuk",width:12},{key:"checkPulang",width:12},{key:"pemisah",width:3},{key:"resultMasuk",width:14},{key:"resultPulang",width:14}];
-      compareSheet.pageSetup={paperSize:9,orientation:"landscape",fitToPage:true,fitToWidth:1,fitToHeight:0,margins:{left:0.2,right:0.2,top:0.35,bottom:0.35,header:0.15,footer:0.15}};
-      compareSheet.printArea="A1:I"+(compareRowNumber-1);
-    }
-
-    // Handshake eksplisit agar UI tidak menganggap file 2-sheet sebagai hasil revisi.
-    if (checkLogData) {
-      res.setHeader("X-Rekap-Excel-Mode", "revisi-check-log");
-      res.setHeader(
-        "X-Rekap-Excel-Sheets",
-        "Rekap Absensi|Data Harian|Perbandingan Jam",
-      );
-    }
 
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", "attachment; filename=\"Rekap_Absensi_" + formatTanggalFile(tanggalAwal, false) + "-" + formatTanggalFile(tanggalAkhir, true) + ".xlsx\"");
@@ -1356,11 +1166,10 @@ async function exportRekapAbsensi(req, res) {
   } catch (error) {
     console.error("Gagal export rekap absensi:", error);
     const status = Number(error?.statusCode);
-    if (status >= 400 && status < 500) return res.status(status).json({ pesan: error.message || "File Check Log tidak valid." });
+    if (status >= 400 && status < 500) return res.status(status).json({ pesan: error.message || "Gagal membuat rekap absensi." });
     return res.status(500).json({ pesan: "Gagal membuat rekap absensi. Silakan coba lagi." });
   }
 }
 module.exports = {
   exportRekapAbsensi,
-  parseCheckLogWorkbook,
 };
