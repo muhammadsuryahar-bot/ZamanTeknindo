@@ -209,6 +209,8 @@ async function main() {
   assert.strictEqual(harian.properties.defaultRowHeight, 15);
   assert.strictEqual(harian.getRow(1).height, 17.25);
   assert.strictEqual(harian.getRow(2).height, 15);
+  assert.strictEqual(harian.getCell("A2").alignment.wrapText, false, "Keterangan kode harian harus satu baris seperti template");
+  assert.strictEqual(harian.getCell("A2").font.size, 8.5, "Ukuran keterangan kode harian disesuaikan agar tidak terpotong");
   assert.strictEqual(harian.getRow(4).height, 15);
 
   assert.strictEqual(
@@ -289,7 +291,10 @@ async function main() {
   assert.strictEqual(harian.getCell("I7").fill.fgColor.argb, "FFBDD7EE", "Cuti diberi warna biru muda seperti acuan");
   assert.strictEqual(harian.getCell("J7").fill.fgColor.argb, "FFC6E0B4", "Sakit dengan surat diberi warna hijau muda seperti acuan");
   assert.strictEqual(harian.getCell("K7").fill.fgColor.argb, "FFA9D18E", "Sakit tanpa surat diberi warna hijau seperti acuan");
-  assert.ok(rekap.autoFilter, "Rekap Absensi harus memiliki filter Excel pada header");
+  assert.ok(!rekap.autoFilter, "Template HRD tidak memakai dropdown filter yang menutupi teks header");
+  assert.strictEqual(rekap.views[0].xSplit || 0, 0, "Judul rekap harus membentang utuh tanpa freeze dua kolom");
+  assert.strictEqual(rekap.getCell("B1").fill.fgColor.argb, "FF1F3864", "Warna judul harus berlanjut ke kolom Nama");
+  assert.strictEqual(rekap.getCell("Q1").fill.fgColor.argb, "FF1F3864", "Warna judul harus berlanjut sampai kolom akhir");
   assert.strictEqual(harian.getCell("C8").value, "H");
 
   // Rekap harus mengambil sumber dari baris Data Harian karyawan yang sama.

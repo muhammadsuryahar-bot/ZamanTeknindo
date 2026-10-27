@@ -537,7 +537,7 @@ async function exportRekapAbsensi(req, res) {
     // SHEET 1 — REKAP ABSENSI
     // =========================
     const sheet = workbook.addWorksheet("Rekap Absensi", {
-      views: [{ state: "frozen", ySplit: 6, xSplit: 2 }],
+      views: [{ state: "frozen", ySplit: 6 }],
     });
     sheet.showGridLines = false;
     sheet.properties.defaultRowHeight = 16.5;
@@ -977,9 +977,6 @@ async function exportRekapAbsensi(req, res) {
       },
     };
     sheet.printArea = "A1:Q" + signatureTitleRow;
-    // Filter Excel berada di baris terakhir header, sesuai tampilan HRD.
-    sheet.autoFilter = { from: "A6", to: "Q" + lastDataRow };
-
     // =========================
     // SHEET 2 — DATA HARIAN
     // =========================
@@ -1020,14 +1017,14 @@ async function exportRekapAbsensi(req, res) {
       "Kode: H = Hadir tepat waktu | T = Hadir terlambat | I = Izin (ada ket) | A = Alpha (tanpa ket) | S = Sakit ada surat | SX = Sakit tanpa surat | C = Cuti | L = Libur (Sabtu/Minggu) | kosong = tidak ada data.  Ubah kode di sini, sheet Rekap Absensi ikut berubah otomatis.";
     dailySheet.getCell("A2").font = {
       name: "Arial",
-      size: 9,
+      size: 8.5,
       italic: true,
       color: { argb: "FF595959" },
     };
     dailySheet.getCell("A2").alignment = {
       horizontal: "left",
       vertical: "middle",
-      wrapText: true,
+      wrapText: false,
     };
     dailySheet.getRow(2).height = 15;
 
