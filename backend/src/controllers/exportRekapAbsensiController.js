@@ -516,6 +516,11 @@ async function exportRekapAbsensi(req, res) {
       teal: "FF00695C",
       lightBlue: "FFF2F5FA",
       lightGray: "FFD9D9D9",
+      statusTelat: "FFFFE699",
+      statusAlpha: "FFF4B6B6",
+      statusIzin: "FFBDD7EE",
+      statusSakit: "FFC6E0B4",
+      statusSakitTanpaSurat: "FFA9D18E",
       grid: "FF808080",
       text: "FF1F2937",
       white: "FFFFFFFF",
@@ -972,6 +977,8 @@ async function exportRekapAbsensi(req, res) {
       },
     };
     sheet.printArea = "A1:Q" + signatureTitleRow;
+    // Filter Excel berada di baris terakhir header, sesuai tampilan HRD.
+    sheet.autoFilter = { from: "A6", to: "Q" + lastDataRow };
 
     // =========================
     // SHEET 2 — DATA HARIAN
@@ -1095,8 +1102,18 @@ async function exportRekapAbsensi(req, res) {
           bold: col === 2,
           color: { argb: COLORS.text },
         };
-        cell.fill = isWeekendOrHoliday
-          ? { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.lightGray } }
+        const kode = col >= 3 ? item.kodeHarian[col - 3] : null;
+        const warnaStatus = {
+          T: COLORS.statusTelat,
+          A: COLORS.statusAlpha,
+          I: COLORS.statusIzin,
+          C: COLORS.statusIzin,
+          S: COLORS.statusSakit,
+          SX: COLORS.statusSakitTanpaSurat,
+        }[kode];
+        const warnaIsi = isWeekendOrHoliday ? COLORS.lightGray : warnaStatus;
+        cell.fill = warnaIsi
+          ? { type: "pattern", pattern: "solid", fgColor: { argb: warnaIsi } }
           : { type: "pattern", pattern: "none" };
         cell.border = {
           top: { style: "thin", color: { argb: COLORS.dailyGrid } },
