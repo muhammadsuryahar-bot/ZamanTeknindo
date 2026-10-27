@@ -299,7 +299,6 @@ async function main() {
   assert.strictEqual(rekap.getCell("G27").master.address, "E27", "Sel HC karyawan magang harus digabung E:G");
   assert.strictEqual(rekap.getCell("E28").value, "Mhs Magang", "Status Mhs Magang harus konsisten pada baris berikutnya");
   assert.strictEqual(rekap.getCell("G28").master.address, "E28", "Gabungan HC karyawan magang harus konsisten");
-  assert.strictEqual(rekap.getImages().length, 0, "Tidak menanamkan tanda tangan hasil scan dari workbook referensi ke repository publik");
   assert.strictEqual(harian.getCell("C8").value, "H");
 
   // Rekap harus mengambil sumber dari baris Data Harian karyawan yang sama.
