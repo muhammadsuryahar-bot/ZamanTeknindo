@@ -210,7 +210,7 @@ async function main() {
   assert.strictEqual(harian.getRow(1).height, 17.25);
   assert.strictEqual(harian.getRow(2).height, 15);
   assert.notStrictEqual(harian.getCell("A2").alignment.wrapText, true, "Keterangan kode harian harus satu baris seperti template");
-  assert.strictEqual(harian.getCell("A2").font.size, 8.5, "Ukuran keterangan kode harian disesuaikan agar tidak terpotong");
+  assert.strictEqual(harian.getCell("A2").font.size, 8, "Ukuran keterangan kode harian disesuaikan agar tidak terpotong");
   assert.strictEqual(harian.getRow(4).height, 15);
 
   assert.strictEqual(
