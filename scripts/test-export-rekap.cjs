@@ -284,6 +284,12 @@ async function main() {
   assert.strictEqual(harian.getCell("I7").value, "C");
   assert.strictEqual(harian.getCell("J7").value, "S");
   assert.strictEqual(harian.getCell("K7").value, "SX");
+  assert.strictEqual(harian.getCell("D7").fill.fgColor.argb, "FFFFE699", "Terlambat diberi warna kuning seperti acuan");
+  assert.strictEqual(harian.getCell("E7").fill.fgColor.argb, "FFF4B6B6", "Alpha diberi warna merah muda seperti acuan");
+  assert.strictEqual(harian.getCell("I7").fill.fgColor.argb, "FFBDD7EE", "Cuti diberi warna biru muda seperti acuan");
+  assert.strictEqual(harian.getCell("J7").fill.fgColor.argb, "FFC6E0B4", "Sakit dengan surat diberi warna hijau muda seperti acuan");
+  assert.strictEqual(harian.getCell("K7").fill.fgColor.argb, "FFA9D18E", "Sakit tanpa surat diberi warna hijau seperti acuan");
+  assert.ok(rekap.autoFilter, "Rekap Absensi harus memiliki filter Excel pada header");
   assert.strictEqual(harian.getCell("C8").value, "H");
 
   // Rekap harus mengambil sumber dari baris Data Harian karyawan yang sama.
