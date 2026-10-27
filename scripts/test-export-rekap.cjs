@@ -209,8 +209,8 @@ async function main() {
   assert.strictEqual(harian.properties.defaultRowHeight, 15);
   assert.strictEqual(harian.getRow(1).height, 17.25);
   assert.strictEqual(harian.getRow(2).height, 15);
-  assert.notStrictEqual(harian.getCell("A2").alignment.wrapText, true, "Keterangan kode harian harus satu baris seperti template");
-  assert.strictEqual(harian.getCell("A2").font.size, 8, "Ukuran keterangan kode harian disesuaikan agar tidak terpotong");
+  assert.strictEqual(harian.getCell("A2").alignment.wrapText, true, "Keterangan kode harian mengikuti pengaturan wrap dari template HRD");
+  assert.strictEqual(harian.getCell("A2").font.size, 9, "Ukuran keterangan kode harian mengikuti template HRD");
   assert.strictEqual(harian.getRow(4).height, 15);
 
   assert.strictEqual(
@@ -291,10 +291,15 @@ async function main() {
   assert.strictEqual(harian.getCell("I7").fill.fgColor.argb, "FFBDD7EE", "Cuti diberi warna biru muda seperti acuan");
   assert.strictEqual(harian.getCell("J7").fill.fgColor.argb, "FFC6E0B4", "Sakit dengan surat diberi warna hijau muda seperti acuan");
   assert.strictEqual(harian.getCell("K7").fill.fgColor.argb, "FFA9D18E", "Sakit tanpa surat diberi warna hijau seperti acuan");
-  assert.ok(!rekap.autoFilter, "Template HRD tidak memakai dropdown filter yang menutupi teks header");
-  assert.strictEqual(rekap.views[0].xSplit || 0, 0, "Judul rekap harus membentang utuh tanpa freeze dua kolom");
-  assert.strictEqual(rekap.getCell("B1").fill.fgColor.argb, "FF1F3864", "Warna judul harus berlanjut ke kolom Nama");
-  assert.strictEqual(rekap.getCell("Q1").fill.fgColor.argb, "FF1F3864", "Warna judul harus berlanjut sampai kolom akhir");
+  assert.ok(rekap.autoFilter, "Ekspor harus mempertahankan filter seperti template HRD");
+  assert.strictEqual(rekap.views[0].xSplit, 2, "Dua kolom identitas dibekukan seperti template HRD");
+  assert.strictEqual(rekap.getCell("A7").border.bottom.color.argb, "FF000000", "Garis tabel rekap harus hitam seperti template");
+  assert.strictEqual(rekap.getCell("A39").master.address, "A39", "Baris akhir template HRD dipertahankan");
+  assert.strictEqual(rekap.getCell("E27").value, "Mhs Magang", "Status Mhs Magang harus tetap terlihat pada periode selain snapshot");
+  assert.strictEqual(rekap.getCell("G27").master.address, "E27", "Sel HC karyawan magang harus digabung E:G");
+  assert.strictEqual(rekap.getCell("E28").value, "Mhs Magang", "Status Mhs Magang harus konsisten pada baris berikutnya");
+  assert.strictEqual(rekap.getCell("G28").master.address, "E28", "Gabungan HC karyawan magang harus konsisten");
+  assert.strictEqual(rekap.getImages().length, 0, "Tidak menanamkan tanda tangan hasil scan dari workbook referensi ke repository publik");
   assert.strictEqual(harian.getCell("C8").value, "H");
 
   // Rekap harus mengambil sumber dari baris Data Harian karyawan yang sama.

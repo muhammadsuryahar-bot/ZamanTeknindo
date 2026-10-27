@@ -521,7 +521,7 @@ async function exportRekapAbsensi(req, res) {
       statusIzin: "FFBDD7EE",
       statusSakit: "FFC6E0B4",
       statusSakitTanpaSurat: "FFA9D18E",
-      grid: "FF808080",
+      grid: "FF000000",
       text: "FF1F2937",
       white: "FFFFFFFF",
     };
@@ -537,7 +537,7 @@ async function exportRekapAbsensi(req, res) {
     // SHEET 1 — REKAP ABSENSI
     // =========================
     const sheet = workbook.addWorksheet("Rekap Absensi", {
-      views: [{ state: "frozen", ySplit: 6 }],
+      views: [{ state: "frozen", ySplit: 6, xSplit: 2 }],
     });
     sheet.showGridLines = false;
     sheet.properties.defaultRowHeight = 16.5;
@@ -724,10 +724,24 @@ async function exportRekapAbsensi(req, res) {
         row.getCell(4).value = null;
         // Saldo/teks hak cuti tersedia di acuan HR untuk periode ini saja.
         // Di periode lain, biarkan kosong daripada memakai snapshot lama.
-        row.getCell(5).value = pakaiSnapshotHakCutiHR ? item.hc2024_2025 : null;
-        row.getCell(6).value = pakaiSnapshotHakCutiHR ? item.hc2025_2026 : null;
-        // Kolom ini sengaja tetap kosong sesuai ketentuan rekap HR.
+        const karyawanMagang = item.hc2024_2025 === "Mhs Magang";
+        row.getCell(5).value = karyawanMagang
+          ? "Mhs Magang"
+          : pakaiSnapshotHakCutiHR
+            ? item.hc2024_2025
+            : null;
+        row.getCell(6).value = karyawanMagang
+          ? null
+          : pakaiSnapshotHakCutiHR
+            ? item.hc2025_2026
+            : null;
+        // Kolom JLH HC dijalani/dipinjam tetap kosong sesuai acuan HRD.
         row.getCell(7).value = null;
+        if (karyawanMagang) {
+          // Status mahasiswa magang mengikuti roster HRD untuk setiap periode,
+          // bukan snapshot saldo hak cuti yang hanya valid pada satu periode.
+          sheet.mergeCells("E" + rowNumber + ":G" + rowNumber);
+        }
 
         if (!item.cocokKeAkun) {
           // Roster ada, akun sumber belum ditemukan: jangan tampilkan angka 0
@@ -976,7 +990,11 @@ async function exportRekapAbsensi(req, res) {
         footer: 0.15,
       },
     };
-    sheet.printArea = "A1:Q" + signatureTitleRow;
+    // Baris kosong dan pembekuan/filter mengikuti struktur workbook acuan HRD.
+    const barisKosongTemplate = signatureTitleRow + 1;
+    sheet.mergeCells("A" + barisKosongTemplate + ":D" + barisKosongTemplate);
+    sheet.printArea = "A1:Q" + barisKosongTemplate;
+    sheet.autoFilter = { from: "A4", to: "Q" + lastDataRow };
     // =========================
     // SHEET 2 — DATA HARIAN
     // =========================
@@ -1017,14 +1035,14 @@ async function exportRekapAbsensi(req, res) {
       "Kode: H = Hadir tepat waktu | T = Hadir terlambat | I = Izin (ada ket) | A = Alpha (tanpa ket) | S = Sakit ada surat | SX = Sakit tanpa surat | C = Cuti | L = Libur (Sabtu/Minggu) | kosong = tidak ada data.  Ubah kode di sini, sheet Rekap Absensi ikut berubah otomatis.";
     dailySheet.getCell("A2").font = {
       name: "Arial",
-      size: 8.5,
+      size: 9,
       italic: true,
       color: { argb: "FF595959" },
     };
     dailySheet.getCell("A2").alignment = {
       horizontal: "left",
       vertical: "middle",
-      wrapText: false,
+      wrapText: true,
     };
     dailySheet.getRow(2).height = 15;
 
