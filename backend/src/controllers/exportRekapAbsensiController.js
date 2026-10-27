@@ -1132,7 +1132,7 @@ async function exportRekapAbsensi(req, res) {
       dailySheet.getCell(5, col + 1).value = "Clock Out";
     });
 
-    for (const rowNum of dailyHeaderRows) {    for (const rowNum of dailyHeaderRows) {
+    for (const rowNum of dailyHeaderRows) {
       for (let col = 1; col <= dailyLastCol; col += 1) {
         const cell = dailySheet.getCell(rowNum, col);
         cell.font = {
@@ -1219,7 +1219,7 @@ async function exportRekapAbsensi(req, res) {
       ...tanggalList.flatMap(() => [{ width: 12 }, { width: 12 }]),
     ];
 
-    dailySheet.pageSetup = {    dailySheet.pageSetup = {
+    dailySheet.pageSetup = {
       paperSize: 9,
       orientation: "landscape",
       fitToPage: true,
