@@ -175,7 +175,7 @@ async function main() {
   assert.ok(rekap, "Sheet Rekap Absensi harus ada");
   assert.ok(harian, "Sheet Data Harian harus ada");
   assert.strictEqual(rekap.columnCount, 17, "Rekap Absensi harus 17 kolom A:Q");
-  assert.strictEqual(harian.columnCount, 33, "Data Harian periode 31 hari harus A:AG");
+  assert.strictEqual(harian.columnCount, 64, "Data Harian periode 31 hari harus memuat 2 kolom jam per tanggal (A:BL)");
 
   // Dimensi merujuk langsung ke ukuran kolom/baris pada template HRD.
   assert.ok(Math.abs(rekap.getColumn(1).width - 5.54296875) < 0.01, "Lebar kolom NO mengikuti template");
@@ -209,7 +209,8 @@ async function main() {
   assert.strictEqual(harian.properties.defaultRowHeight, 15);
   assert.strictEqual(harian.getRow(1).height, 17.25);
   assert.strictEqual(harian.getRow(2).height, 15);
-  assert.strictEqual(harian.getRow(4).height, 15);
+  assert.strictEqual(harian.getRow(4).height, 18);
+  assert.strictEqual(harian.getRow(5).height, 18);
 
   assert.strictEqual(
     headers["content-disposition"],
@@ -238,13 +239,21 @@ async function main() {
 
   assert.strictEqual(harian.getCell("A4").value, "NO");
   assert.strictEqual(harian.getCell("B4").value, "NAMA");
-  assert.strictEqual(harian.getCell("C4").value, "Aug");
-  assert.strictEqual(harian.getCell("C5").value, 26);
-  assert.strictEqual(harian.getCell("C6").value, "Rab");
-  assert.strictEqual(harian.getCell("A7").value.formula, "'Rekap Absensi'!A7");
-  assert.strictEqual(harian.getCell("A7").value.result, 1);
-  assert.strictEqual(harian.getCell("B7").value.formula, "'Rekap Absensi'!B7");
-  assert.strictEqual(harian.getCell("B7").value.result, "Dimas Buluh T");
+  assert.strictEqual(harian.getCell("C4").value.toISOString().slice(0, 10), "2026-08-26");
+  assert.strictEqual(harian.getCell("C4").numFmt, "m/d/yy");
+  assert.strictEqual(harian.getCell("C5").value, "Clock In");
+  assert.strictEqual(harian.getCell("D5").value, "Clock Out");
+  assert.strictEqual(harian.getCell("A6").value, 1);
+  assert.strictEqual(harian.getCell("B6").value, "Dimas Buluh T");
+  const toMinutes = (cell) => {
+    const value = cell.value;
+    if (value instanceof Date) return value.getUTCHours() * 60 + value.getUTCMinutes();
+    return Number.isFinite(Number(value)) && value !== null ? Math.round(Number(value) * 1440) : null;
+  };
+  assert.strictEqual(toMinutes(harian.getCell("C6")), 485, "Clock In 26 Agustus cocok dengan data sistem 08:05 WIB");
+  assert.strictEqual(toMinutes(harian.getCell("D6")), 1020, "Clock Out 26 Agustus cocok dengan data sistem 17:00 WIB");
+  assert.strictEqual(toMinutes(harian.getCell("E6")), 495, "Clock In 27 Agustus cocok dengan data sistem 08:15 WIB");
+  assert.strictEqual(toMinutes(harian.getCell("F6")), 1020, "Clock Out 27 Agustus cocok dengan data sistem 17:00 WIB");
   const expectedRoster = [
     [1, "Dimas Buluh T"], [2, "Azwar Effendi"], [3, "Bidan Tamba"],
     [4, "Indah Puji Lestari"], [5, "R.Tjuntjun Candra"], [7, "Cindyka Fransiska"],
@@ -267,42 +276,33 @@ async function main() {
   assert.strictEqual(rekap.getCell("B8").value, "Azwar Effendi");
   assert.strictEqual(rekap.getCell("A12").value, 7, "Nomor karyawan mengikuti nomor pada roster HRD, termasuk jeda");
   assert.strictEqual(rekap.getCell("B14").value, "Novita Ramahyani");
-  assert.strictEqual(rekap.getCell("H14").value, null, "Karyawan HR tanpa akun tidak boleh ditampilkan sebagai nol");
-  assert.strictEqual(harian.getCell("C14").value, null, "Baris karyawan tanpa akun tetap kosong, bukan Alpha atau Libur");
+  assert.strictEqual(rekap.getCell("H14").value, null, "Nama HR tanpa akun tidak boleh ditampilkan sebagai nol");
+  assert.strictEqual(harian.getCell("C13").value, null, "Nama HR tanpa akun tidak boleh memiliki jam buatan");
   assert.strictEqual(rekap.getCell("A25").value, 23);
   assert.strictEqual(rekap.getCell("B25").value, "M Rafael Harvio P");
   assert.strictEqual(rekap.getCell("H25").value, null);
-  assert.strictEqual(harian.getCell("C25").value, null);
+  assert.strictEqual(harian.getCell("C24").value, null);
   assert.strictEqual(rekap.getCell("B29").value, null, "Akun di luar roster HR tidak boleh ikut ekspor");
-  assert.strictEqual(harian.getCell("C7").font.name, "Arial");
-  assert.strictEqual(harian.getCell("C7").font.size, 9);
+  assert.strictEqual(harian.getCell("C6").font.name, "Arial");
+  assert.strictEqual(harian.getCell("C6").font.size, 9);
 
-  // Data Harian baris 7 dan baris 8 harus terpisah per karyawan.
-  assert.strictEqual(harian.getCell("C7").value, "H");
-  assert.strictEqual(harian.getCell("D7").value, "T");
-  assert.strictEqual(harian.getCell("E7").value, "A");
-  assert.strictEqual(harian.getCell("I7").value, "C");
-  assert.strictEqual(harian.getCell("J7").value, "S");
-  assert.strictEqual(harian.getCell("K7").value, "SX");
-  assert.strictEqual(harian.getCell("C8").value, "H");
-
-  // Rekap harus mengambil sumber dari baris Data Harian karyawan yang sama.
-  assert.match(String(rekap.getCell("H7").value.formula), /'Data Harian'!\$C7:\$AG7/);
-  assert.match(String(rekap.getCell("H8").value.formula), /'Data Harian'!\$C8:\$AG8/);
-  assert.strictEqual(rekap.getCell("I7").value.result, 1);
-  assert.strictEqual(rekap.getCell("N7").value.result, 1);
-  assert.strictEqual(rekap.getCell("O7").value.result, 1);
-  assert.strictEqual(rekap.getCell("P7").value.result, 1);
-  assert.strictEqual(
-    harian.getCell(8, 9).value,
-    "I",
-    "Izin dengan keterangan harus dihitung",
-  );
-  assert.strictEqual(
-    harian.getCell(8, 12).value,
-    null,
-    "Izin tanpa keterangan tidak boleh dicatat sebagai I",
-  );
+  // Ringkasan berasal dari status absensi/pengajuan pada database mock, bukan jam harian.
+  assert.strictEqual(rekap.getCell("H7").value, 2, "Dimas punya dua hari hadir");
+  assert.strictEqual(rekap.getCell("I7").value, 1, "Dimas punya satu hari telat");
+  assert.strictEqual(rekap.getCell("J7").value, 1, "Uang makan berkurang satu untuk hari telat");
+  assert.strictEqual(rekap.getCell("K7").value, 0);
+  assert.strictEqual(rekap.getCell("L7").value, 1, "Alpha diambil dari status sistem");
+  assert.strictEqual(rekap.getCell("N7").value, 1);
+  assert.strictEqual(rekap.getCell("O7").value, 1);
+  assert.strictEqual(rekap.getCell("P7").value, 1);
+  assert.strictEqual(rekap.getCell("Q7").value, 6);
+  assert.strictEqual(rekap.getCell("H8").value, 1, "Azwar punya satu hari hadir");
+  assert.strictEqual(rekap.getCell("K8").value, 1, "Izin disetujui dengan keterangan masuk rekap");
+  assert.strictEqual(harian.getCell(6, 15).value, null, "Cuti tidak boleh menghasilkan jam buatan");
+  assert.strictEqual(harian.getCell(7, 15).value, null, "Izin tidak boleh menghasilkan jam buatan");
+  assert.strictEqual(harian.getCell(7, 21).value, null, "Tanggal tanpa jam tetap kosong");
+  assert.strictEqual(harian.getCell("C7").value, 488 / 1440, "Waktu Azwar tersimpan sebagai waktu Excel");
+  assert.strictEqual(harian.getCell("D7").value, 1020 / 1440, "Jam pulang Azwar tersimpan sebagai waktu Excel");
   assert.strictEqual(rekap.getCell("C7").value.toISOString().slice(0, 10), "2012-07-01");
   assert.strictEqual(rekap.getCell("D7").value.toISOString().slice(0, 10), "2012-07-01", "TMK berada di sel gabungan C:D");
   assert.strictEqual(rekap.getCell("E7").value, "Sdh hbs dijalani");
@@ -311,14 +311,12 @@ async function main() {
   assert.strictEqual(rekap.getCell("M7").value, null);
   assert.match(String(rekap.getCell("Q7").value.formula), /SUM\(H7,K7:L7,N7:P7\)/);
 
-  // 19 September (Sabtu) tetap ditandai L dan seluruh kolom akhir pekan berwarna abu-abu.
+  // 19 September (Sabtu): pasangan jam Clock In/Clock Out tetap abu-abu.
   const sep19Index = 24; // 26 Aug + 24 hari = 19 Sep
-  assert.strictEqual(harian.getCell(7, 3 + sep19Index).value, "L");
-  assert.strictEqual(
-    harian.getCell(7, 3 + sep19Index).fill.fgColor.argb,
-    "FFD9D9D9",
-    "Seluruh kolom akhir pekan menggunakan latar abu-abu",
-  );
+  const sep19Col = 3 + 2 * sep19Index;
+  assert.strictEqual(harian.getCell(6, sep19Col).value, null);
+  assert.strictEqual(harian.getCell(6, sep19Col).fill.fgColor.argb, "FFD9D9D9");
+  assert.strictEqual(harian.getCell(6, sep19Col + 1).fill.fgColor.argb, "FFD9D9D9");
 
   // Struktur akhir harus mempertahankan 22 nomor HR, satu baris kosong, ringkasan, dan tanda tangan.
   assert.strictEqual(rekap.getCell("A29").value, null);
