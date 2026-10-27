@@ -137,15 +137,6 @@ const uploadExcelGaji = multer({
   },
 });
 
-const uploadCheckLog = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const nama = String(file.originalname || "").toLowerCase();
-    if (!nama.endsWith(".xlsx")) return cb(new Error("File Check Log harus berformat .xlsx."));
-    cb(null, true);
-  },
-});
 
 router.get("/akun-menunggu", daftarMenungguKonfirmasiFixed);
 router.get("/notifikasi", notifikasiAdminFixed);
@@ -172,31 +163,6 @@ router.get("/rekap-absensi/export", async (req, res, next) => {
   }
 });
 
-router.post("/rekap-absensi/export-revisi", (req, res, next) => {
-  uploadCheckLog.single("checkLog")(req, res, (error) => {
-    if (error) {
-      return res.status(400).json({
-        pesan: error.code === "LIMIT_FILE_SIZE"
-          ? "Ukuran file Check Log maksimal 10 MB."
-          : error.message || "File Check Log tidak dapat diunggah.",
-      });
-    }
-    if (!req.file) return res.status(400).json({ pesan: "Unggah file Excel Check Log terlebih dahulu." });
-    req.revisiAbsensi = true;
-    next();
-  });
-}, async (req, res, next) => {
-  try {
-    const { exportRekapAbsensi } = require("../controllers/exportRekapAbsensiController");
-    return exportRekapAbsensi(req, res, next);
-  } catch (error) {
-    console.error("Gagal memuat controller export revisi rekap:", error);
-    if (res.headersSent) return next(error);
-    return res.status(500).json({
-      pesan: "Fitur export revisi rekap sedang bermasalah. Fitur absensi lainnya tetap dapat digunakan.",
-    });
-  }
-});
 router.put("/absensi/tanggal/:tanggal/pengguna/:penggunaId/status", validasiEditStatusAbsensi, ubahStatusTanpaAbsensi);
 router.get("/ringkasan", ringkasanDashboardFixed);
 router.put("/absensi/:id/edit-status", editStatusAbsensiFixed);
