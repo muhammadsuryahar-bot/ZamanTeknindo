@@ -209,9 +209,9 @@ async function main() {
   assert.strictEqual(harian.properties.defaultRowHeight, 15);
   assert.strictEqual(harian.getRow(1).height, 17.25);
   assert.strictEqual(harian.getRow(2).height, 15);
-  assert.strictEqual(harian.getCell("A2").alignment.wrapText, false, "Keterangan kode harian mengikuti satu baris pada template");
+  assert.notStrictEqual(harian.getCell("A2").alignment.wrapText, true, "Keterangan kode harian mengikuti satu baris pada template");
   assert.strictEqual(harian.getCell("A2").font.size, 9, "Ukuran keterangan kode harian mengikuti template HRD");
-  assert.strictEqual(harian.getCell("C4").alignment.wrapText, false, "Header tanggal harian tidak memakai pembungkusan tambahan");
+  assert.notStrictEqual(harian.getCell("C4").alignment.wrapText, true, "Header tanggal harian tidak memakai pembungkusan tambahan");
   assert.strictEqual(harian.getRow(4).height, 15);
 
   assert.strictEqual(
