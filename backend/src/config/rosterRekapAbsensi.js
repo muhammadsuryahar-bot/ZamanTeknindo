@@ -1,5 +1,5 @@
 // Roster dan metadata HR diambil dari file acuan "REKAP ABSENSI 9 SEPTEMBER 2026(2).xlsx"
-// untuk periode 26 Agustus–25 September 2026. Nomor HR sengaja tidak dirapikan
+// dan menjadi master HR yang dipakai lintas periode sampai HR mengirim pembaruan. Nomor HR sengaja tidak dirapikan
 // menjadi urutan 1..22 karena nomor resmi pada file acuan memang memiliki jeda.
 // Hanya alias eksplisit yang boleh menghubungkan nama HR ke akun aplikasi.
 // Dua nama yang tidak ditemukan di database tetap tampil dengan sel kehadiran kosong;

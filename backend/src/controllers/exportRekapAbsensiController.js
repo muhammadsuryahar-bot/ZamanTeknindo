@@ -6,7 +6,7 @@ const {
   parseJam,
 } = require("../utils/waktuIndonesia");
 const { ambilSetHariLibur } = require("../utils/hariLibur");
-const { PERIODE_METADATA_HR, ROSTER_HR_REKAP } = require("../config/rosterRekapAbsensi");
+const { ROSTER_HR_REKAP } = require("../config/rosterRekapAbsensi");
 
 const STATUS_VALID = new Set([
   "tepat_waktu",
@@ -558,6 +558,7 @@ async function exportRekapAbsensi(req, res) {
     sheet.getCell("A1").alignment = {
       horizontal: "center",
       vertical: "middle",
+      wrapText: true,
     };
     sheet.getRow(1).height = 30;
 
@@ -590,6 +591,7 @@ async function exportRekapAbsensi(req, res) {
     sheet.getCell("A2").alignment = {
       horizontal: "center",
       vertical: "middle",
+      wrapText: true,
     };
     sheet.getRow(2).height = 19.5;
     sheet.getRow(3).height = 6;
@@ -631,7 +633,7 @@ async function exportRekapAbsensi(req, res) {
       B4: "NAMA",
       C4: "TMK",
       E4: "JUMLAH HAK CUTI",
-      H4: "JLH KEHADIRAN",
+      H4: "JLH\nKEHADIRAN",
       I4: "TERLAMBAT",
       J4: "JLH UANG MAKAN\nYANG DIBAYARKAN",
       K4: "TIDAK MASUK",
@@ -706,9 +708,6 @@ async function exportRekapAbsensi(req, res) {
 
     const dataStartRow = 7;
     const lastDailyColLetter = excelColumnName(2 + jumlahHari);
-    const pakaiSnapshotHakCutiHR =
-      tanggalMulai === PERIODE_METADATA_HR.tanggalMulai &&
-      tanggalSelesai === PERIODE_METADATA_HR.tanggalSelesai;
     let rowNumber = dataStartRow;
 
     for (let index = 0; index < detailHarianPerKaryawan.length; index += 1) {
@@ -722,19 +721,11 @@ async function exportRekapAbsensi(req, res) {
         row.getCell(3).value = item.tmk ? tanggalUTC(item.tmk) : null;
         row.getCell(3).numFmt = "dd/mm/yyyy";
         row.getCell(4).value = null;
-        // Saldo/teks hak cuti tersedia di acuan HR untuk periode ini saja.
-        // Di periode lain, biarkan kosong daripada memakai snapshot lama.
+        // Hak cuti/status magang diambil dari master HR dan dipakai lintas
+        // periode sampai HR memberikan pembaruan roster yang baru.
         const karyawanMagang = item.hc2024_2025 === "Mhs Magang";
-        row.getCell(5).value = karyawanMagang
-          ? "Mhs Magang"
-          : pakaiSnapshotHakCutiHR
-            ? item.hc2024_2025
-            : null;
-        row.getCell(6).value = karyawanMagang
-          ? null
-          : pakaiSnapshotHakCutiHR
-            ? item.hc2025_2026
-            : null;
+        row.getCell(5).value = item.hc2024_2025;
+        row.getCell(6).value = karyawanMagang ? null : item.hc2025_2026;
         // Kolom JLH HC dijalani/dipinjam tetap kosong sesuai acuan HRD.
         row.getCell(7).value = null;
         if (karyawanMagang) {
@@ -940,7 +931,7 @@ async function exportRekapAbsensi(req, res) {
         italic: Boolean(options.italic),
         color: { argb: options.color || COLORS.text },
       };
-      cell.alignment = { horizontal: options.horizontal, vertical: "middle", wrapText: false };
+      cell.alignment = { horizontal: options.horizontal, vertical: "middle", wrapText: true };
     }
 
     sheet.getRow(footerStart).height = 19.5;
@@ -994,7 +985,9 @@ async function exportRekapAbsensi(req, res) {
     const barisKosongTemplate = signatureTitleRow + 1;
     sheet.mergeCells("A" + barisKosongTemplate + ":D" + barisKosongTemplate);
     sheet.printArea = "A1:Q" + barisKosongTemplate;
-    sheet.autoFilter = { from: "A4", to: "Q" + lastDataRow };
+    // Dua baris mahasiswa magang digabung E:G dan berada di luar area filter,
+    // sesuai workbook acuan HRD.
+    sheet.autoFilter = { from: "A4", to: "Q" + Math.max(dataStartRow, lastDataRow - 2) };
     // =========================
     // SHEET 2 — DATA HARIAN
     // =========================
@@ -1025,7 +1018,6 @@ async function exportRekapAbsensi(req, res) {
       fgColor: { argb: COLORS.titleNavy },
     };
     dailySheet.getCell("A1").alignment = {
-      horizontal: "left",
       vertical: "middle",
     };
     dailySheet.getRow(1).height = 17.25;
@@ -1037,12 +1029,10 @@ async function exportRekapAbsensi(req, res) {
       name: "Arial",
       size: 9,
       italic: true,
-      color: { argb: "FF595959" },
     };
     dailySheet.getCell("A2").alignment = {
-      horizontal: "left",
       vertical: "middle",
-      wrapText: true,
+      wrapText: false,
     };
     dailySheet.getRow(2).height = 15;
 
@@ -1084,7 +1074,7 @@ async function exportRekapAbsensi(req, res) {
         cell.alignment = {
           horizontal: "center",
           vertical: "middle",
-          wrapText: true,
+          wrapText: false,
         };
       }
     }
@@ -1094,7 +1084,7 @@ async function exportRekapAbsensi(req, res) {
 
     detailHarianPerKaryawan.forEach((item, index) => {
       const rowNum = dataStartRow + index;
-      dailySheet.getCell(rowNum, 1).value = { formula: "'Rekap Absensi'!A" + rowNum, result: index + 1 };
+      dailySheet.getCell(rowNum, 1).value = { formula: "'Rekap Absensi'!A" + rowNum, result: item.nomorHR };
       dailySheet.getCell(rowNum, 2).value = { formula: "'Rekap Absensi'!B" + rowNum, result: item.nama };
 
       item.kodeHarian.forEach((kode, offset) => {
@@ -1115,7 +1105,6 @@ async function exportRekapAbsensi(req, res) {
           name: "Arial",
           size: col <= 2 ? 10 : 9,
           bold: col === 2,
-          color: { argb: COLORS.text },
         };
         const kode = col >= 3 ? item.kodeHarian[col - 3] : null;
         const warnaStatus = {

@@ -209,8 +209,9 @@ async function main() {
   assert.strictEqual(harian.properties.defaultRowHeight, 15);
   assert.strictEqual(harian.getRow(1).height, 17.25);
   assert.strictEqual(harian.getRow(2).height, 15);
-  assert.strictEqual(harian.getCell("A2").alignment.wrapText, true, "Keterangan kode harian mengikuti pengaturan wrap dari template HRD");
+  assert.strictEqual(harian.getCell("A2").alignment.wrapText, false, "Keterangan kode harian mengikuti satu baris pada template");
   assert.strictEqual(harian.getCell("A2").font.size, 9, "Ukuran keterangan kode harian mengikuti template HRD");
+  assert.strictEqual(harian.getCell("C4").alignment.wrapText, false, "Header tanggal harian tidak memakai pembungkusan tambahan");
   assert.strictEqual(harian.getRow(4).height, 15);
 
   assert.strictEqual(
@@ -245,6 +246,11 @@ async function main() {
   assert.strictEqual(harian.getCell("C6").value, "Rab");
   assert.strictEqual(harian.getCell("A7").value.formula, "'Rekap Absensi'!A7");
   assert.strictEqual(harian.getCell("A7").value.result, 1);
+  assert.strictEqual(harian.getCell("A12").value.result, 7, "Nomor Cindyka pada Data Harian harus 7, bukan urutan baris 6");
+  assert.strictEqual(harian.getCell("A18").value.result, 14, "Nomor Setiyo pada Data Harian mengikuti roster HRD");
+  assert.strictEqual(harian.getCell("A21").value.result, 19, "Nomor Ashabussalam pada Data Harian mengikuti roster HRD");
+  assert.strictEqual(harian.getCell("A27").value.result, 25, "Nomor M Surya pada Data Harian mengikuti roster HRD");
+  assert.strictEqual(harian.getCell("A28").value.result, 26, "Nomor Nur Hakim pada Data Harian mengikuti roster HRD");
   assert.strictEqual(harian.getCell("B7").value.formula, "'Rekap Absensi'!B7");
   assert.strictEqual(harian.getCell("B7").value.result, "Dimas Buluh T");
   const expectedRoster = [
@@ -295,6 +301,10 @@ async function main() {
   assert.strictEqual(rekap.views[0].xSplit, 2, "Dua kolom identitas dibekukan seperti template HRD");
   assert.strictEqual(rekap.getCell("A7").border.bottom.color.argb, "FF000000", "Garis tabel rekap harus hitam seperti template");
   assert.strictEqual(rekap.getCell("A39").master.address, "A39", "Baris akhir template HRD dipertahankan");
+  assert.strictEqual(rekap.autoFilter.to, "Q26", "Filter hanya meliputi baris tanpa gabungan HC magang");
+  assert.strictEqual(rekap.getCell("H4").value, "JLH\nKEHADIRAN", "Header kehadiran mengikuti pemenggalan dua baris pada acuan");
+  assert.strictEqual(rekap.getCell("A1").alignment.wrapText, true, "Judul utama mengikuti pembungkusan template");
+  assert.strictEqual(rekap.getCell("A2").alignment.wrapText, true, "Subjudul periode mengikuti pembungkusan template");
   assert.strictEqual(rekap.getCell("E27").value, "Mhs Magang", "Status Mhs Magang harus tetap terlihat pada periode selain snapshot");
   assert.strictEqual(rekap.getCell("G27").master.address, "E27", "Sel HC karyawan magang harus digabung E:G");
   assert.strictEqual(rekap.getCell("E28").value, "Mhs Magang", "Status Mhs Magang harus konsisten pada baris berikutnya");
@@ -348,6 +358,36 @@ async function main() {
   assert.strictEqual(rekap.getCell("P37").value, "R. Nuning Rosita R");
   assert.strictEqual(rekap.getCell("A38").value, "SPV. Umum & Personalia");
   assert.strictEqual(rekap.getCell("P38").value, "Manager Financial");
+
+
+  // Periode bulan berikutnya harus tetap memakai master metadata HR (HC dan status magang),
+  // sedangkan angka absensi dihitung ulang untuk rentang tanggal yang dipilih.
+  const reqPeriodeBerikut = { query: { tanggalMulai: "2026-09-28", tanggalSelesai: "2026-10-26" } };
+  const outputPeriodeBerikut = new PassThrough();
+  const chunksPeriodeBerikut = [];
+  outputPeriodeBerikut.on("data", (chunk) => chunksPeriodeBerikut.push(Buffer.from(chunk)));
+  const headersPeriodeBerikut = {};
+  outputPeriodeBerikut.setHeader = (key, value) => { headersPeriodeBerikut[String(key).toLowerCase()] = value; };
+  outputPeriodeBerikut.getHeader = (key) => headersPeriodeBerikut[String(key).toLowerCase()];
+  const selesaiPeriodeBerikut = new Promise((resolve, reject) => {
+    if (outputPeriodeBerikut.writableFinished || outputPeriodeBerikut.readableEnded) return resolve();
+    outputPeriodeBerikut.once("finish", resolve);
+    outputPeriodeBerikut.once("error", reject);
+  });
+  await exportRekapAbsensi(reqPeriodeBerikut, outputPeriodeBerikut);
+  await selesaiPeriodeBerikut;
+  const workbookPeriodeBerikut = new ExcelJS.Workbook();
+  await workbookPeriodeBerikut.xlsx.load(Buffer.concat(chunksPeriodeBerikut));
+  const rekapPeriodeBerikut = workbookPeriodeBerikut.getWorksheet("Rekap Absensi");
+  const harianPeriodeBerikut = workbookPeriodeBerikut.getWorksheet("Data Harian");
+  assert.strictEqual(rekapPeriodeBerikut.getCell("E7").value, "Sdh hbs dijalani", "Metadata HR HC 2024/2025 harus tetap ada pada periode bulan selanjutnya");
+  assert.strictEqual(rekapPeriodeBerikut.getCell("F7").value, "Sdh hbs dijalani", "Metadata HR HC 2025/2026 harus tetap ada pada periode bulan selanjutnya");
+  assert.strictEqual(rekapPeriodeBerikut.getCell("E27").value, "Mhs Magang", "Status magang harus tetap tampil pada periode bulan selanjutnya");
+  assert.strictEqual(rekapPeriodeBerikut.getCell("G27").master.address, "E27", "Merge HC magang tetap E:G pada periode bulan selanjutnya");
+  assert.strictEqual(rekapPeriodeBerikut.rowCount, 39, "Struktur rekap HRD harus berakhir di baris 39");
+  assert.strictEqual(rekapPeriodeBerikut.autoFilter.to, "Q26", "Filter HRD tidak mencakup baris magang yang digabung");
+  assert.strictEqual(harianPeriodeBerikut.getCell("A12").value.result, 7, "Nomor roster harian mengikuti HRD pada periode berikutnya");
+  assert.strictEqual(workbookPeriodeBerikut.worksheets.length, 2, "Periode berikutnya tetap menghasilkan dua sheet");
 
   console.log("Export rekap HRD template integration test: PASS");
 
