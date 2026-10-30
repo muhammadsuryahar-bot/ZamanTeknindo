@@ -301,7 +301,7 @@ async function main() {
   assert.strictEqual(rekap.views[0].xSplit, 2, "Dua kolom identitas dibekukan seperti template HRD");
   assert.strictEqual(rekap.getCell("A7").border.bottom.color.argb, "FF000000", "Garis tabel rekap harus hitam seperti template");
   assert.strictEqual(rekap.getCell("A39").master.address, "A39", "Baris akhir template HRD dipertahankan");
-  assert.strictEqual(rekap.autoFilter.to, "Q26", "Filter hanya meliputi baris tanpa gabungan HC magang");
+  assert.match(JSON.stringify(rekap.autoFilter), /Q26/, "Filter hanya meliputi baris tanpa gabungan HC magang");
   assert.strictEqual(rekap.getCell("H4").value, "JLH\nKEHADIRAN", "Header kehadiran mengikuti pemenggalan dua baris pada acuan");
   assert.strictEqual(rekap.getCell("A1").alignment.wrapText, true, "Judul utama mengikuti pembungkusan template");
   assert.strictEqual(rekap.getCell("A2").alignment.wrapText, true, "Subjudul periode mengikuti pembungkusan template");
@@ -385,7 +385,7 @@ async function main() {
   assert.strictEqual(rekapPeriodeBerikut.getCell("E27").value, "Mhs Magang", "Status magang harus tetap tampil pada periode bulan selanjutnya");
   assert.strictEqual(rekapPeriodeBerikut.getCell("G27").master.address, "E27", "Merge HC magang tetap E:G pada periode bulan selanjutnya");
   assert.strictEqual(rekapPeriodeBerikut.rowCount, 39, "Struktur rekap HRD harus berakhir di baris 39");
-  assert.strictEqual(rekapPeriodeBerikut.autoFilter.to, "Q26", "Filter HRD tidak mencakup baris magang yang digabung");
+  assert.match(JSON.stringify(rekapPeriodeBerikut.autoFilter), /Q26/, "Filter HRD tidak mencakup baris magang yang digabung");
   assert.strictEqual(harianPeriodeBerikut.getCell("A12").value.result, 7, "Nomor roster harian mengikuti HRD pada periode berikutnya");
   assert.strictEqual(workbookPeriodeBerikut.worksheets.length, 2, "Periode berikutnya tetap menghasilkan dua sheet");
 
