@@ -235,7 +235,7 @@ async function main() {
   assert.strictEqual(rekap.getCell("E5").value, "HC\n2024/2025");
   assert.strictEqual(rekap.getCell("F5").value, "HC\n2025/2026");
   assert.strictEqual(rekap.getCell("G5").value, "JLH HC SDH\nDIJALANI/DIPINJAM");
-  assert.strictEqual(rekap.getCell("H4").value, "JLH KEHADIRAN");
+  assert.strictEqual(rekap.getCell("H4").value, "JLH\nKEHADIRAN");
   assert.strictEqual(rekap.getCell("J4").value, "JLH UANG MAKAN\nYANG DIBAYARKAN");
   assert.strictEqual(rekap.getCell("Q4").value, "JLH HC");
 
