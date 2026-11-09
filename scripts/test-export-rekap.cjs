@@ -43,6 +43,16 @@ const prismaMock = {
         catatanAdmin: null,
       },
       {
+        penggunaId: 1,
+        tanggal: new Date("2026-08-31T00:00:00.000Z"),
+        jamMasuk: null,
+        jamPulang: new Date("2026-08-31T10:00:00.000Z"),
+        statusOtomatis: "alpha",
+        statusFinal: "alpha",
+        keterangan: null,
+        catatanAdmin: null,
+      },
+      {
         penggunaId: 2,
         tanggal: new Date("2026-08-26T00:00:00.000Z"),
         jamMasuk: new Date("2026-08-26T01:08:00.000Z"),
@@ -51,6 +61,16 @@ const prismaMock = {
         statusFinal: "tepat_waktu",
         keterangan: null,
         catatanAdmin: null,
+      },
+      {
+        penggunaId: 2,
+        tanggal: new Date("2026-08-27T00:00:00.000Z"),
+        jamMasuk: new Date("2026-08-27T01:00:00.000Z"),
+        jamPulang: new Date("2026-08-27T10:00:00.000Z"),
+        statusOtomatis: "tepat_waktu",
+        statusFinal: "alpha",
+        keterangan: null,
+        catatanAdmin: "Perubahan status oleh Admin",
       },
     ],
   },
@@ -289,6 +309,14 @@ async function main() {
   assert.strictEqual(harian.getCell("C7").value, "H");
   assert.strictEqual(harian.getCell("D7").value, "T");
   assert.strictEqual(harian.getCell("E7").value, "A");
+  assert.strictEqual(harian.getCell("H7").value, "M", "Cap pulang tanpa cap masuk harus menjadi kode M, bukan H");
+  assert.strictEqual(harian.getCell("H7").fill.fgColor.argb, "FFD9E2F3", "Kode M harus memakai warna khusus agar mudah dibedakan");
+  assert.strictEqual(harian.getCell("D8").value, "A", "Status Admin Alpha harus mengalahkan cap otomatis tepat waktu");
+  assert.strictEqual(rekap.getCell("H7").value.result, 3, "Hadir mencakup H, T, dan M");
+  assert.strictEqual(rekap.getCell("J7").value.result, 2, "Uang makan dihitung dari jumlah hadir dikurangi terlambat");
+  assert.strictEqual(rekap.getCell("L7").value.result, 1, "Alpha hanya menghitung kode A");
+  assert.match(String(rekap.getCell("H7").value.formula), /COUNTIF\(.*\"M\"\)/, "Formula kehadiran harus memasukkan kode M");
+  assert.match(String(harian.getCell("A2").value), /M = Hanya cap pulang/, "Legenda harus menjelaskan kode M");
   assert.strictEqual(harian.getCell("I7").value, "C");
   assert.strictEqual(harian.getCell("J7").value, "S");
   assert.strictEqual(harian.getCell("K7").value, "SX");

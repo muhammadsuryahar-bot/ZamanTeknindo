@@ -427,27 +427,49 @@ async function exportRekapAbsensi(req, res) {
         const tanggalKey = tanggal.toISOString().slice(0, 10);
         const absensiItem = petaAbsensi.get(prefix + tanggalKey);
         const izinItem = petaIzin.get(prefix + tanggalKey);
+        const punyaJamMasuk = Boolean(absensiItem?.jamMasuk);
+        const punyaJamPulang = Boolean(absensiItem?.jamPulang);
+        const keteranganAbsensi = absensiItem?.keterangan || absensiItem?.catatanAdmin;
 
-        const punyaCap = Boolean(absensiItem?.jamMasuk || absensiItem?.jamPulang);
-        if (punyaCap) {
-          const status = statusDariAbsensi(absensiItem, jamMasukStandar);
-          return status === "telat" ? "T" : "H";
+        // Perubahan status Admin harus menang atas cap otomatis, termasuk jika
+        // Admin menetapkan Alpha/Izin/Sakit/Cuti pada hari yang memiliki cap.
+        const statusFinal = String(absensiItem?.statusFinal || "").trim();
+        const statusOtomatis = String(absensiItem?.statusOtomatis || "").trim();
+        const statusDiubahManual =
+          STATUS_VALID.has(statusFinal) &&
+          STATUS_VALID.has(statusOtomatis) &&
+          statusFinal !== statusOtomatis;
+
+        if (statusDiubahManual) {
+          const kodeManual = kodeDariStatus(statusFinal, izinItem, keteranganAbsensi);
+          if (kodeManual) return kodeManual;
         }
+
+        // Cap masuk menjadi dasar H/T. Cap pulang saja tidak boleh dianggap
+        // hadir tepat waktu karena waktu masuknya tidak tercatat.
+        if (punyaJamMasuk) {
+          const status = statusDariAbsensi(absensiItem, jamMasukStandar);
+          const kodeStatus = kodeDariStatus(status, izinItem, keteranganAbsensi);
+          if (kodeStatus) return kodeStatus;
+        }
+
+        // M = hanya ada cap pulang tanpa cap masuk. Status ini dipertahankan
+        // secara eksplisit agar tidak disamarkan sebagai hadir tepat waktu.
+        if (punyaJamPulang && !punyaJamMasuk) return "M";
 
         if (absensiItem) {
           const kodeStatus = kodeDariStatus(
             statusDariAbsensi(absensiItem, jamMasukStandar),
             izinItem,
-            absensiItem.keterangan || absensiItem.catatanAdmin,
+            keteranganAbsensi,
           );
           if (kodeStatus) return kodeStatus;
 
-          const adaKeterangan = punyaKeterangan(absensiItem.keterangan);
-          if (adaKeterangan) return "I";
+          if (punyaKeterangan(keteranganAbsensi)) return "I";
         }
 
         if (izinItem) {
-          const kodeIzin = kodeDariStatus(null, izinItem, absensiItem?.keterangan || absensiItem?.catatanAdmin);
+          const kodeIzin = kodeDariStatus(null, izinItem, keteranganAbsensi);
           if (kodeIzin) return kodeIzin;
         }
 
@@ -462,7 +484,9 @@ async function exportRekapAbsensi(req, res) {
       const hitung = (kode) =>
         kodeHarian.filter((nilai) => nilai === kode).length;
 
-      const jumlahKehadiran = hitung("H") + hitung("T");
+      // Status M dihitung sebagai kehadiran tercatat sesuai rekap sumber,
+      // tetapi tetap terpisah pada Data Harian agar kekurangan cap masuk terlihat.
+      const jumlahKehadiran = hitung("H") + hitung("T") + hitung("M");
       const jumlahTelat = hitung("T");
       const jumlahAdaKeterangan = hitung("I");
       const jumlahTanpaKeterangan = hitung("A");
@@ -521,6 +545,7 @@ async function exportRekapAbsensi(req, res) {
       statusIzin: "FFBDD7EE",
       statusSakit: "FFC6E0B4",
       statusSakitTanpaSurat: "FFA9D18E",
+      statusPulangTanpaMasuk: "FFD9E2F3",
       grid: "FF000000",
       text: "FF1F2937",
       white: "FFFFFFFF",
@@ -742,7 +767,7 @@ async function exportRekapAbsensi(req, res) {
           }
         } else {
           row.getCell(8).value = {
-            formula: 'COUNTIF(' + dailyRange + ',"H")+COUNTIF(' + dailyRange + ',"T")',
+            formula: 'COUNTIF(' + dailyRange + ',"H")+COUNTIF(' + dailyRange + ',"T")+COUNTIF(' + dailyRange + ',"M")',
             result: item.jumlahKehadiran,
           };
           row.getCell(9).value = {
@@ -1024,7 +1049,7 @@ async function exportRekapAbsensi(req, res) {
 
     dailySheet.mergeCells("A2:" + dailyLastColLetter + "2");
     dailySheet.getCell("A2").value =
-      "Kode: H = Hadir tepat waktu | T = Hadir terlambat | I = Izin (ada ket) | A = Alpha (tanpa ket) | S = Sakit ada surat | SX = Sakit tanpa surat | C = Cuti | L = Libur (Sabtu/Minggu) | kosong = tidak ada data.  Ubah kode di sini, sheet Rekap Absensi ikut berubah otomatis.";
+      "Kode: H = Hadir tepat waktu | T = Hadir terlambat | M = Hanya cap pulang (tetap dihitung hadir) | I = Izin (ada ket) | A = Alpha (tanpa ket) | S = Sakit ada surat | SX = Sakit tanpa surat | C = Cuti | L = Libur (Sabtu/Minggu) | kosong = tidak ada data.  Ubah kode di sini, sheet Rekap Absensi ikut berubah otomatis.";
     dailySheet.getCell("A2").font = {
       name: "Arial",
       size: 9,
@@ -1114,6 +1139,7 @@ async function exportRekapAbsensi(req, res) {
           C: COLORS.statusIzin,
           S: COLORS.statusSakit,
           SX: COLORS.statusSakitTanpaSurat,
+          M: COLORS.statusPulangTanpaMasuk,
         }[kode];
         const warnaIsi = isWeekendOrHoliday ? COLORS.lightGray : warnaStatus;
         cell.fill = warnaIsi
