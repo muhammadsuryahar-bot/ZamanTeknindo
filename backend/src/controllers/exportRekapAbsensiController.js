@@ -786,7 +786,9 @@ async function exportRekapAbsensi(req, res) {
             formula: 'COUNTIF(' + dailyRange + ',"A")',
             result: item.jumlahTanpaKeterangan,
           };
-          row.getCell(13).value = null;
+          // Kolom Lembur mengikuti template HRD: 0 bila karyawan punya
+          // pemetaan akun, dan kosong bila baris roster belum punya akun.
+          row.getCell(13).value = 0;
           row.getCell(14).value = {
             formula: 'COUNTIF(' + dailyRange + ',"C")',
             result: item.cuti,
@@ -799,20 +801,15 @@ async function exportRekapAbsensi(req, res) {
             formula: 'COUNTIF(' + dailyRange + ',"SX")',
             result: item.sakitTanpaSurat,
           };
+          // G sengaja dikosongkan sesuai arahan HRD. Jangan biarkan Excel
+          // memperlakukan G kosong sebagai nol lalu menghasilkan saldo HC
+          // negatif yang menyesatkan pada kolom Q.
           row.getCell(17).value = {
             formula:
-              "SUM(H" +
-              rowNumber +
-              ",K" +
-              rowNumber +
-              ":L" +
-              rowNumber +
-              ",N" +
-              rowNumber +
-              ":P" +
-              rowNumber +
-              ")",
-            result: item.jumlahHC,
+              'IF(H' + rowNumber + '="","",IF(G' + rowNumber +
+              '="","",G' + rowNumber + '-(L' + rowNumber +
+              '+N' + rowNumber + '+P' + rowNumber + ')))',
+            result: null,
           };
         }
 
@@ -1006,10 +1003,9 @@ async function exportRekapAbsensi(req, res) {
         footer: 0.15,
       },
     };
-    // Baris kosong dan pembekuan/filter mengikuti struktur workbook acuan HRD.
-    const barisKosongTemplate = signatureTitleRow + 1;
-    sheet.mergeCells("A" + barisKosongTemplate + ":D" + barisKosongTemplate);
-    sheet.printArea = "A1:Q" + barisKosongTemplate;
+    // Area cetak berakhir tepat pada baris jabatan penandatangan,
+    // sesuai template HRD A1:Q38 (tanpa baris tambahan di bawahnya).
+    sheet.printArea = "A1:Q" + signatureTitleRow;
     // Dua baris mahasiswa magang digabung E:G dan berada di luar area filter,
     // sesuai workbook acuan HRD.
     sheet.autoFilter = { from: "A4", to: "Q" + Math.max(dataStartRow, lastDataRow - 2) };
