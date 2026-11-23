@@ -367,8 +367,8 @@ async function main() {
     'IF(H7="","",IF(G7="","",G7-(L7+N7+P7)))',
     "Kolom JLH HC harus kosong ketika kolom G sengaja dikosongkan, bukan menghasilkan saldo negatif",
   );
-  assert.strictEqual(rekap.getCell("Q7").value.result, null);
-  assert.strictEqual(rekap.getCell("M14").value, null, "Baris roster tanpa akun tetap kosong termasuk kolom lembur");
+  assert.strictEqual(rekap.getCell("Q7").value.result ?? null, null);
+  assert.strictEqual(rekap.getCell("M14").value ?? null, null, "Baris roster tanpa akun tetap kosong termasuk kolom lembur");
 
   // 19 September (Sabtu) tetap ditandai L dan seluruh kolom akhir pekan berwarna abu-abu.
   const sep19Index = 24; // 26 Aug + 24 hari = 19 Sep
