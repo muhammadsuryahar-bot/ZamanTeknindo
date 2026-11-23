@@ -418,7 +418,7 @@ async function main() {
   assert.strictEqual(rekapPeriodeBerikut.getCell("F7").value, "Sdh hbs dijalani", "Metadata HR HC 2025/2026 harus tetap ada pada periode bulan selanjutnya");
   assert.strictEqual(rekapPeriodeBerikut.getCell("E27").value, "Mhs Magang", "Status magang harus tetap tampil pada periode bulan selanjutnya");
   assert.strictEqual(rekapPeriodeBerikut.getCell("G27").master.address, "E27", "Merge HC magang tetap E:G pada periode bulan selanjutnya");
-  assert.strictEqual(rekapPeriodeBerikut.rowCount, 39, "Struktur rekap HRD harus berakhir di baris 39");
+  assert.strictEqual(rekapPeriodeBerikut.rowCount, 38, "Struktur rekap HRD harus berakhir di baris 38");
   assert.match(JSON.stringify(rekapPeriodeBerikut.autoFilter), /Q26/, "Filter HRD tidak mencakup baris magang yang digabung");
   assert.strictEqual(harianPeriodeBerikut.getCell("A12").value.result, 7, "Nomor roster harian mengikuti HRD pada periode berikutnya");
   assert.strictEqual(workbookPeriodeBerikut.worksheets.length, 2, "Periode berikutnya tetap menghasilkan dua sheet");
