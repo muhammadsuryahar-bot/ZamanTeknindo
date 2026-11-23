@@ -328,7 +328,7 @@ async function main() {
   assert.ok(rekap.autoFilter, "Ekspor harus mempertahankan filter seperti template HRD");
   assert.strictEqual(rekap.views[0].xSplit, 2, "Dua kolom identitas dibekukan seperti template HRD");
   assert.strictEqual(rekap.getCell("A7").border.bottom.color.argb, "FF000000", "Garis tabel rekap harus hitam seperti template");
-  assert.strictEqual(rekap.getCell("A39").master.address, "A39", "Baris akhir template HRD dipertahankan");
+  assert.strictEqual(rekap.rowCount, 38, "Sheet Rekap Absensi harus berakhir tepat di baris 38 sesuai file referensi");
   assert.match(JSON.stringify(rekap.autoFilter), /Q26/, "Filter hanya meliputi baris tanpa gabungan HC magang");
   assert.strictEqual(rekap.getCell("H4").value, "JLH\nKEHADIRAN", "Header kehadiran mengikuti pemenggalan dua baris pada acuan");
   assert.strictEqual(rekap.getCell("A1").alignment.wrapText, true, "Judul utama mengikuti pembungkusan template");
@@ -361,8 +361,14 @@ async function main() {
   assert.strictEqual(rekap.getCell("E7").value, "Sdh hbs dijalani");
   assert.strictEqual(rekap.getCell("F7").value, "Sdh hbs dijalani");
   assert.strictEqual(rekap.getCell("G7").value, null, "Kolom JLH HC SDH DIJALANI/DIPINJAM harus tetap kosong");
-  assert.strictEqual(rekap.getCell("M7").value, null);
-  assert.match(String(rekap.getCell("Q7").value.formula), /SUM\(H7,K7:L7,N7:P7\)/);
+  assert.strictEqual(rekap.getCell("M7").value, 0, "Kolom Lembur mengikuti template HRD dengan nilai 0 untuk karyawan yang terpetakan");
+  assert.strictEqual(
+    rekap.getCell("Q7").value.formula,
+    'IF(H7="","",IF(G7="","",G7-(L7+N7+P7)))',
+    "Kolom JLH HC harus kosong ketika kolom G sengaja dikosongkan, bukan menghasilkan saldo negatif",
+  );
+  assert.strictEqual(rekap.getCell("Q7").value.result, null);
+  assert.strictEqual(rekap.getCell("M14").value, null, "Baris roster tanpa akun tetap kosong termasuk kolom lembur");
 
   // 19 September (Sabtu) tetap ditandai L dan seluruh kolom akhir pekan berwarna abu-abu.
   const sep19Index = 24; // 26 Aug + 24 hari = 19 Sep
