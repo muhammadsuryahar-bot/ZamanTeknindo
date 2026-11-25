@@ -11,9 +11,10 @@ const bukaKameraEnd = source.indexOf("\n  useEffect(() => {", bukaKameraStart);
 assert.notEqual(bukaKameraEnd, -1, "bukaKamera block must end before camera preview effect");
 const bukaKamera = source.slice(bukaKameraStart, bukaKameraEnd);
 
-assert.match(
-  bukaKamera,
-  /setKameraAktif\(true\);[\\s\\S]*?ambilLokasi\\(\\);/,
+const cameraActiveIndex = bukaKamera.indexOf("setKameraAktif(true)");
+const gpsCallIndex = bukaKamera.indexOf("ambilLokasi()");
+assert.ok(
+  cameraActiveIndex >= 0 && gpsCallIndex > cameraActiveIndex,
   "GPS must start immediately after camera permission/stream succeeds, parallel to video preview",
 );
 const gateIndex = bukaKamera.indexOf("perluBlokirBukaKameraPulang(tahapUntukKamera, menitUntukKamera)");
