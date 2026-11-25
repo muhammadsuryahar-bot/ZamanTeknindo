@@ -72,8 +72,18 @@ assert.match(dashboard, /ABSEN MASUK SUDAH TERCATAT/);
 const bukaKameraMulai = dashboard.indexOf("async function bukaKamera()");
 const blokirKameraIndex = dashboard.indexOf("perluBlokirBukaKameraPulang(tahapUntukKamera, menitUntukKamera)", bukaKameraMulai);
 const getUserMediaIndex = dashboard.indexOf("navigator.mediaDevices.getUserMedia", bukaKameraMulai);
-assert.ok(bukaKameraMulai >= 0 && blokirKameraIndex > bukaKameraMulai && getUserMediaIndex > blokirKameraIndex,
-  "Pemeriksaan batas pulang wajib berjalan sebelum permintaan akses kamera.");
+const startCameraIndex = dashboard.indexOf("setKameraMembuka(true)", bukaKameraMulai);
+const startGpsIndex = dashboard.indexOf("ambilLokasi()", bukaKameraMulai);
+assert.ok(
+  bukaKameraMulai >= 0 &&
+    blokirKameraIndex > bukaKameraMulai &&
+    startCameraIndex > blokirKameraIndex &&
+    getUserMediaIndex > blokirKameraIndex &&
+    startGpsIndex > blokirKameraIndex,
+  "Pemeriksaan batas pulang wajib berjalan sebelum status kamera, akses kamera, dan GPS dimulai."
+);
+assert.equal(dashboard.includes("Testing mode: absen pulang tidak dibatasi jam minimum."), false,
+  "Tidak boleh ada komentar testing lama yang bertentangan dengan batas 12:00 WIB.");
 
 const kirimMulai = dashboard.indexOf("  async function kirimAbsen()");
 const tampilanMulai = dashboard.indexOf("// Gunakan tahap tampilan", kirimMulai);
