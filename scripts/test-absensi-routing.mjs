@@ -8,6 +8,7 @@ import {
   PESAN_KONFIRMASI_PULANG_SAJA,
   tentukanEndpointAbsensi,
   perluKonfirmasiPulangSaja,
+  perluBlokirBukaKameraPulang,
 } from "../src/utils/alurAbsensi.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -35,6 +36,15 @@ assert.equal(tentukanEndpointAbsensi("selesai", 800), null);
 assert.equal(tentukanEndpointAbsensi("tidak_perlu_absen", 800), null);
 assert.equal(tentukanEndpointAbsensi("belum_masuk", Number.NaN), null);
 
+// Kamera untuk langkah pulang harus tertutup sebelum 12:00 WIB.
+assert.equal(perluBlokirBukaKameraPulang("sudah_masuk", 719), true);
+assert.equal(perluBlokirBukaKameraPulang("sudah_masuk", 720), false);
+assert.equal(perluBlokirBukaKameraPulang("langsung_pulang", 719), true);
+assert.equal(perluBlokirBukaKameraPulang("langsung_pulang", 720), false);
+assert.equal(perluBlokirBukaKameraPulang("belum_masuk", 719), false);
+assert.equal(perluBlokirBukaKameraPulang("belum_masuk", 720), false);
+assert.equal(perluBlokirBukaKameraPulang("selesai", 800), false);
+
 // Konfirmasi hanya untuk karyawan tanpa absen masuk pada 12:00 sampai sebelum 17:00.
 assert.equal(perluKonfirmasiPulangSaja("langsung_pulang", 719), false);
 assert.equal(perluKonfirmasiPulangSaja("langsung_pulang", 720), true);
@@ -50,6 +60,16 @@ assert.match(dashboard, /window\.confirm\(PESAN_KONFIRMASI_PULANG_SAJA\)/);
 assert.match(dashboard, /async function bacaAbsensiTersimpan\(endpoint\)/);
 assert.match(dashboard, /if \(sesiKirimRef\.current \|\| loading \|\| absensiTerkirimRef\.current\) return;/);
 assert.match(dashboard, /Absen Pulang Tersedia 12\.00 WIB/);
+
+assert.match(dashboard, /perluBlokirBukaKameraPulang\(tahapUntukKamera, menitUntukKamera\)/);
+assert.match(dashboard, /PESAN_ABSEN_PULANG_BELUM_WAKTU/);
+assert.match(dashboard, /LANGKAH 2 · ABSEN PULANG/);
+assert.match(dashboard, /ABSEN MASUK SUDAH TERCATAT/);
+const bukaKameraMulai = dashboard.indexOf("async function bukaKamera()");
+const blokirKameraIndex = dashboard.indexOf("perluBlokirBukaKameraPulang(tahapUntukKamera, menitUntukKamera)", bukaKameraMulai);
+const getUserMediaIndex = dashboard.indexOf("navigator.mediaDevices.getUserMedia", bukaKameraMulai);
+assert.ok(bukaKameraMulai >= 0 && blokirKameraIndex > bukaKameraMulai && getUserMediaIndex > blokirKameraIndex,
+  "Pemeriksaan batas pulang wajib berjalan sebelum permintaan akses kamera.");
 
 const kirimMulai = dashboard.indexOf("  async function kirimAbsen()");
 const tampilanMulai = dashboard.indexOf("// Gunakan tahap tampilan", kirimMulai);
