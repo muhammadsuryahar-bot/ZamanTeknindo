@@ -28,7 +28,8 @@ assert.doesNotMatch(
   "GPS must no longer wait for camera-preview readiness or start through a stale scheduler",
 );
 assert.match(source, /const LOKASI_REQUEST_TIMEOUT_MS = 20000;/, "GPS timeout stays 20 seconds");
-assert.match(source, /const LOKASI_AKURASI_FALLBACK_METER = 100;/, "maximum accepted GPS accuracy stays 100 meters");
+assert.match(source, /const LOKASI_AKURASI_FALLBACK_METER = MAKS_AKURASI_LOKASI_METER;/, "GPS fallback uses the shared accuracy limit");
+assert.match(source, /MAKS_AKURASI_LOKASI_METER = 100/, "maximum accepted GPS accuracy stays 100 meters");
 assert.match(source, /const LOKASI_FALLBACK_FINISH_MS = 3000;/, "fallback wait stays 3 seconds");
 assert.match(source, /enableHighAccuracy: true, maximumAge: 0, timeout: LOKASI_REQUEST_TIMEOUT_MS/, "high accuracy and fresh GPS fixes remain enabled");
 assert.match(source, /if \(akurasi <= 20\)/, "preferred finish threshold remains 20 meters");
