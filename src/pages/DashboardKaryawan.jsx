@@ -48,7 +48,6 @@ const STATUS_CACHE_VERSION = 4; // FIX: bump biar cache lama belum_masuk kehapus
 const STATUS_REQUEST_TIMEOUT_MS = 8000;
 const ABSENSI_REQUEST_TIMEOUT_MS = 15000;
 const BATAS_ABSEN_MASUK_WIB = 12 * 60;
-// Testing mode: absen pulang tidak dibatasi jam minimum.\n
 const LOKASI_REQUEST_TIMEOUT_MS = 20000;
 const LOKASI_AKURASI_FALLBACK_METER = 100;
 const LOKASI_FALLBACK_FINISH_MS = 3000;
@@ -750,114 +749,137 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
     try {
       setPesan("");
-    // Jika status belum terverifikasi atau sudah lebih dari 30 detik,
-    // ambil snapshot server TERLEBIH DAHULU sebelum meminta akses kamera.
-    let tahapUntukKamera = tahapTampilan;
-    let menitUntukKamera = menitAcuan;
-    if (
-      navigator.onLine &&
-      (!statusTerverifikasi ||
-        !statusTerverifikasiAtRef.current ||
-        Date.now() - statusTerverifikasiAtRef.current > 30000)
-    ) {
-      const hasilStatus = await ambilStatusHariIni();
-      if (!hasilStatus?.ok) {
-        setPesan("Status absensi belum dapat dipastikan dari server. Kamera belum dibuka. Periksa koneksi lalu coba lagi.");
+
+      // Status lama tidak boleh dipakai untuk membuka kamera.
+      // Jika belum terverifikasi atau berusia lebih dari 30 detik, periksa server dulu.
+      let tahapUntukKamera = tahapTampilan;
+      let menitUntukKamera = menitAcuan;
+
+      if (
+        navigator.onLine &&
+        (!statusTerverifikasi ||
+          !statusTerverifikasiAtRef.current ||
+          Date.now() - statusTerverifikasiAtRef.current > 30000)
+      ) {
+        const hasilStatus = await ambilStatusHariIni();
+        if (!hasilStatus?.ok) {
+          setPesan("Status absensi belum dapat dipastikan dari server. Kamera belum dibuka. Periksa koneksi lalu coba lagi.");
+          return;
+        }
+
+        tahapUntukKamera = hasilStatus.tahap;
+        const epochServer =
+          Number.isFinite(hasilStatus.waktuServerEpochMs) &&
+          hasilStatus.serverReceivedAtMs > 0
+            ? hasilStatus.waktuServerEpochMs +
+              Math.max(0, Date.now() - hasilStatus.serverReceivedAtMs)
+            : null;
+
+        menitUntukKamera =
+          epochServer !== null
+            ? menitSekarangWIB(new Date(epochServer))
+            : menitSekarangWIB();
+      } else if (!navigator.onLine && !statusTerverifikasi) {
+        setPesan("Status absensi belum terverifikasi. Hubungkan internet dan muat status terlebih dahulu sebelum membuka kamera.");
         return;
       }
-      tahapUntukKamera = hasilStatus.tahap;
-      const epochServer =
-        Number.isFinite(hasilStatus.waktuServerEpochMs) &&
-        hasilStatus.serverReceivedAtMs > 0
-          ? hasilStatus.waktuServerEpochMs +
-            Math.max(0, Date.now() - hasilStatus.serverReceivedAtMs)
-          : null;
-      menitUntukKamera =
-        epochServer !== null
-          ? menitSekarangWIB(new Date(epochServer))
-          : menitSekarangWIB();
-    } else if (!navigator.onLine && !statusTerverifikasi) {
-      setPesan("Status absensi belum terverifikasi. Hubungkan internet dan muat status terlebih dahulu sebelum membuka kamera.");
-      return;
-    }
 
-    if (
-      tahapUntukKamera === "belum_masuk" &&
-      menitUntukKamera >= BATAS_ABSEN_MASUK_WIB
-    ) {
-      tahapUntukKamera = "langsung_pulang";
-    }
-
-    // Jangan pernah membuka kamera/GPS untuk alur pulang sebelum pukul 12:00 WIB.
-    if (perluBlokirBukaKameraPulang(tahapUntukKamera, menitUntukKamera)) {
-      setPesan(
-        tahapUntukKamera === "sudah_masuk"
-          ? PESAN_ABSEN_PULANG_BELUM_WAKTU
-          : "Absen pulang baru tersedia mulai pukul 12.00 WIB. Belum ada absensi yang dikirim dari percobaan ini."
-      );
-      return;
-    }
-
-    if (tahapUntukKamera === "selesai" || tahapUntukKamera === "tidak_perlu_absen") {
-      setPesan(
-        tahapUntukKamera === "selesai"
-          ? "Absensi hari ini sudah lengkap. Tidak perlu membuka kamera atau mengirim ulang."
-          : "Absensi hari ini tidak diperlukan karena pengajuan izin kamu sudah disetujui Admin."
-      );
-      return;
-    }
-
-    if (!TAHAP_VALID.has(tahapUntukKamera) || tahapUntukKamera === "memuat" || tahapUntukKamera === "belum_terverifikasi") {
-      setPesan("Status absensi belum siap. Muat ulang status sebelum membuka kamera.");
-      return;
-    }
-
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setPesan("Browser ini tidak mendukung akses kamera.");
-      return;
-    }
-
-    tandaiSesiAbsensiAktif(true);
-    setKameraMembuka(true);
-    hentikanStreamKamera();
-    hentikanPelacakanLokasi();
-    const sesiKamera = kameraSesiRef.current + 1;
-    kameraSesiRef.current = sesiKamera;
-    sesiKirimRef.current = false;
-    try {
-      let stream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: "user" },
-            width: { ideal: 640 },
-            height: { ideal: 480 },
-            frameRate: { ideal: 24, max: 30 },
-          },
-          audio: false,
-        });
-      } catch (firstError) {
-        if (firstError?.name === "NotAllowedError" || firstError?.name === "SecurityError") throw firstError;
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      if (
+        tahapUntukKamera === "belum_masuk" &&
+        menitUntukKamera >= BATAS_ABSEN_MASUK_WIB
+      ) {
+        tahapUntukKamera = "langsung_pulang";
       }
-      if (!mountedRef.current || kameraSesiRef.current !== sesiKamera) { stream.getTracks().forEach((track) => track.stop()); return; }
-      streamRef.current = stream;
-      setKameraStream(stream);
-      setFotoTerambil(null);
-      setLokasi(null);
-      setStatusLokasi("mencari");
-      setKameraAktif(true);
-      // Mulai GPS segera setelah izin kamera didapat, tanpa menunggu preview video siap.
-      // GPS dan preview kamera berjalan paralel; batas akurasi tetap sama.
-      ambilLokasi();
-    } catch (err) {
-      console.error("Gagal membuka kamera:", err);
-      if (!kameraAktif && !fotoTerambil && !loading) tandaiSesiAbsensiAktif(false);
-      if (!mountedRef.current) return;
-      if (err?.name === "NotAllowedError" || err?.name === "SecurityError") setPesan("Akses kamera ditolak. Izinkan kamera untuk situs ini melalui pengaturan browser HP, lalu coba lagi.");
-      else if (err?.name === "NotFoundError") setPesan("Kamera tidak ditemukan pada perangkat ini.");
-      else if (err?.name === "NotReadableError" || err?.name === "TrackStartError") setPesan("Kamera sedang digunakan aplikasi lain atau gagal dinyalakan. Tutup aplikasi lain yang memakai kamera, lalu coba lagi.");
-      else setPesan("Kamera belum bisa dibuka. Coba lagi beberapa saat lagi.");
+
+      // Periksa batas waktu SEBELUM kamera dan GPS dimulai.
+      if (perluBlokirBukaKameraPulang(tahapUntukKamera, menitUntukKamera)) {
+        setPesan(
+          tahapUntukKamera === "sudah_masuk"
+            ? PESAN_ABSEN_PULANG_BELUM_WAKTU
+            : "Absen pulang baru tersedia mulai pukul 12.00 WIB. Belum ada absensi yang dikirim dari percobaan ini."
+        );
+        return;
+      }
+
+      if (tahapUntukKamera === "selesai" || tahapUntukKamera === "tidak_perlu_absen") {
+        setPesan(
+          tahapUntukKamera === "selesai"
+            ? "Absensi hari ini sudah lengkap. Tidak perlu membuka kamera atau mengirim ulang."
+            : "Absensi hari ini tidak diperlukan karena pengajuan izin kamu sudah disetujui Admin."
+        );
+        return;
+      }
+
+      if (
+        !TAHAP_VALID.has(tahapUntukKamera) ||
+        tahapUntukKamera === "memuat" ||
+        tahapUntukKamera === "belum_terverifikasi"
+      ) {
+        setPesan("Status absensi belum siap. Muat ulang status sebelum membuka kamera.");
+        return;
+      }
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setPesan("Browser ini tidak mendukung akses kamera.");
+        return;
+      }
+
+      tandaiSesiAbsensiAktif(true);
+      setKameraMembuka(true);
+      hentikanStreamKamera();
+      hentikanPelacakanLokasi();
+
+      const sesiKamera = kameraSesiRef.current + 1;
+      kameraSesiRef.current = sesiKamera;
+      sesiKirimRef.current = false;
+
+      try {
+        let stream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: { ideal: "user" },
+              width: { ideal: 640 },
+              height: { ideal: 480 },
+              frameRate: { ideal: 24, max: 30 },
+            },
+            audio: false,
+          });
+        } catch (firstError) {
+          if (firstError?.name === "NotAllowedError" || firstError?.name === "SecurityError") {
+            throw firstError;
+          }
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        }
+
+        if (!mountedRef.current || kameraSesiRef.current !== sesiKamera) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
+        streamRef.current = stream;
+        setKameraStream(stream);
+        setFotoTerambil(null);
+        setLokasi(null);
+        setStatusLokasi("mencari");
+        setKameraAktif(true);
+
+        // GPS dan preview kamera berjalan paralel setelah batas waktu lolos.
+        ambilLokasi();
+      } catch (err) {
+        console.error("Gagal membuka kamera:", err);
+        if (!kameraAktif && !fotoTerambil && !loading) tandaiSesiAbsensiAktif(false);
+        if (!mountedRef.current) return;
+
+        if (err?.name === "NotAllowedError" || err?.name === "SecurityError") {
+          setPesan("Akses kamera ditolak. Izinkan kamera untuk situs ini melalui pengaturan browser HP, lalu coba lagi.");
+        } else if (err?.name === "NotFoundError") {
+          setPesan("Kamera tidak ditemukan pada perangkat ini.");
+        } else if (err?.name === "NotReadableError" || err?.name === "TrackStartError") {
+          setPesan("Kamera sedang digunakan aplikasi lain atau gagal dinyalakan. Tutup aplikasi lain yang memakai kamera, lalu coba lagi.");
+        } else {
+          setPesan("Kamera belum bisa dibuka. Coba lagi beberapa saat lagi.");
+        }
       }
     } finally {
       bukaKameraGuardRef.current = false;
