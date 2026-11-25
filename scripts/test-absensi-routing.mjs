@@ -63,6 +63,10 @@ assert.match(dashboard, /Absen Pulang Tersedia 12\.00 WIB/);
 
 assert.match(dashboard, /perluBlokirBukaKameraPulang\(tahapUntukKamera, menitUntukKamera\)/);
 assert.match(dashboard, /PESAN_ABSEN_PULANG_BELUM_WAKTU/);
+assert.match(dashboard, /bukaKameraGuardRef\.current/);
+assert.match(dashboard, /Absen pulang baru tersedia mulai pukul 12\.00 WIB/);
+assert.match(dashboard, /Status absen masuk sudah tercatat dan terverifikasi/);
+
 assert.match(dashboard, /LANGKAH 2 · ABSEN PULANG/);
 assert.match(dashboard, /ABSEN MASUK SUDAH TERCATAT/);
 const bukaKameraMulai = dashboard.indexOf("async function bukaKamera()");
