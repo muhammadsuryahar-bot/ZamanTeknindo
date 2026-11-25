@@ -30,7 +30,9 @@ import { perluSinkronStatusHarian } from "../utils/statusHarian";
 import {
   tentukanEndpointAbsensi,
   perluKonfirmasiPulangSaja,
+  perluBlokirBukaKameraPulang,
   PESAN_KONFIRMASI_PULANG_SAJA,
+  PESAN_ABSEN_PULANG_BELUM_WAKTU,
 } from "../utils/alurAbsensi";
 
 let dataProvinsiCache = null;
@@ -46,7 +48,6 @@ const STATUS_CACHE_VERSION = 4; // FIX: bump biar cache lama belum_masuk kehapus
 const STATUS_REQUEST_TIMEOUT_MS = 8000;
 const ABSENSI_REQUEST_TIMEOUT_MS = 15000;
 const BATAS_ABSEN_MASUK_WIB = 12 * 60;
-// Testing mode: absen pulang tidak dibatasi jam minimum.\n
 const LOKASI_REQUEST_TIMEOUT_MS = 20000;
 const LOKASI_AKURASI_FALLBACK_METER = 100;
 const LOKASI_FALLBACK_FINISH_MS = 3000;
@@ -361,6 +362,7 @@ const dialStyles = {
 export default function DashboardKaryawan({ pengguna, onLogout }) {
   const navigate = useNavigate();
   const [tahap, setTahap] = useState("memuat");
+  const [dataAbsensiHariIni, setDataAbsensiHariIni] = useState(null);
   const [pengajuanHariIni, setPengajuanHariIni] = useState(null);
   const [manualPending, setManualPending] = useState(null);
   const [kameraAktif, setKameraAktif] = useState(false);
@@ -394,6 +396,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   const statusRequestRef = useRef(0);
   const mountedRef = useRef(true);
   const kameraSesiRef = useRef(0);
+  const bukaKameraGuardRef = useRef(false);
   const kameraSiapRef = useRef(false);
   const sesiKirimRef = useRef(false);
   const absensiTerkirimRef = useRef(false);
@@ -480,6 +483,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       }
 
       setTahap("memuat");
+      setDataAbsensiHariIni(null);
       setPengajuanHariIni(null);
       setManualPending(null);
       setStatusTerverifikasi(false);
@@ -656,26 +660,33 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         setStatusVerifikasiSedang(false);
         setLoadingStatus(false);
       }
-      return;
+      return {
+        ok: Boolean(statusTerverifikasi && tahapCacheAwal),
+        tahap: tahapCacheAwal ? normalisasiTahapBerdasarkanWaktu(tahapCacheAwal) : tahap,
+        absensi: dataAbsensiHariIni,
+        waktuServerEpochMs,
+        serverReceivedAtMs: Date.now(),
+        source: "cache",
+      };
     }
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), STATUS_REQUEST_TIMEOUT_MS);
     setStatusVerifikasiSedang(true);
     try {
-      if (requestId !== statusRequestRef.current || !mountedRef.current) { clearTimeout(timeoutId); return; }
+      if (requestId !== statusRequestRef.current || !mountedRef.current) { clearTimeout(timeoutId); return { ok: false, stale: true }; }
       const res = await fetch(`${API_URL}/absensi/status-hari-ini`, { headers: { Authorization: `Bearer ${getToken()}` }, signal: controller.signal });
       let data = {};
       try { data = await res.json(); } catch (parseError) { console.warn("Respons status absensi bukan JSON:", parseError); }
-      if (requestId !== statusRequestRef.current || !mountedRef.current) return;
+      if (requestId !== statusRequestRef.current || !mountedRef.current) return { ok: false, stale: true };
       if (!res.ok) {
         const berhasilPakaiCache = terapkanCache(data.pesan || "Server tidak dapat memuat status terbaru. Status terakhir di perangkat digunakan.");
         if (!berhasilPakaiCache) { setPesan(data.pesan || "Gagal memuat status absen."); setTahap("belum_terverifikasi"); setStatusTerverifikasi(false); }
-        return;
+        return { ok: false, fallback: berhasilPakaiCache };
       }
       if (!TAHAP_VALID.has(data.tahap)) {
         const berhasilPakaiCache = terapkanCache("Status dari server tidak dikenali. Status terakhir di perangkat digunakan.");
         if (!berhasilPakaiCache) { setTahap("belum_terverifikasi"); setStatusTerverifikasi(false); setPesan("Status absensi dari server tidak valid."); }
-        return;
+        return { ok: false, fallback: berhasilPakaiCache };
       }
       const tahapEfektif = normalisasiTahapBerdasarkanWaktu(data.tahap);
       const epochServer = Number(data.waktuServerEpochMs);
@@ -684,6 +695,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         waktuServerDiterimaAtRef.current = Date.now();
       }
       setTahap(tahapEfektif);
+      setDataAbsensiHariIni(data.data || null);
       setPengajuanHariIni(data.pengajuanIzin || null);
       setManualPending(data.manualPending || null);
       // FIX: simpan info pending kiosk manual fallback
@@ -698,6 +710,14 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       setPesan("");
       // DEBUG: log biar keliatan sudah_masuk dari kiosk
       console.log("[STATUS HARI INI FIXED]", data.tahap, "manualPending:", data.manualPending);
+      return {
+        ok: true,
+        tahap: tahapEfektif,
+        absensi: data.data || null,
+        waktuServerEpochMs: Number.isFinite(epochServer) && epochServer > 0 ? epochServer : null,
+        serverReceivedAtMs: Date.now(),
+        source: "server",
+      };
     } catch (err) {
       // AbortError karena unmount komponen (bukan timeout) — abaikan dengan senyap.
       if (err?.name === "AbortError" && (requestId !== statusRequestRef.current || !mountedRef.current)) return;
@@ -705,6 +725,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       const pesanGagal = err?.name === "AbortError" ? "Server terlalu lama merespons. Status terakhir di perangkat digunakan." : "Server tidak dapat dihubungi. Status terakhir di perangkat digunakan.";
       const berhasilPakaiCache = terapkanCache(pesanGagal);
       if (!berhasilPakaiCache) { setTahap("belum_terverifikasi"); setStatusTerverifikasi(false); setPesan(err?.name === "AbortError" ? "Server terlalu lama merespons. Coba lagi atau periksa koneksi." : "Gagal memuat status absen. Coba lagi atau periksa koneksi."); }
+      return { ok: false, fallback: berhasilPakaiCache };
     } finally {
       clearTimeout(timeoutId);
       if (requestId === statusRequestRef.current && mountedRef.current) { setStatusVerifikasiSedang(false); setLoadingStatus(false); }
@@ -723,62 +744,145 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
   }
 
   async function bukaKamera() {
-    setPesan("");
-    if (!navigator.mediaDevices?.getUserMedia) { setPesan("Browser ini tidak mendukung akses kamera."); return; }
-    if (kameraMembuka || kameraAktif) return;
+    if (bukaKameraGuardRef.current || kameraMembuka || kameraAktif) return;
+    bukaKameraGuardRef.current = true;
 
-    // Status diperbarui selagi kamera/GPS mulai, bukan saat tombol Kirim sudah ditekan.
-    if (
-      navigator.onLine &&
-      (!statusTerverifikasi ||
-        !statusTerverifikasiAtRef.current ||
-        Date.now() - statusTerverifikasiAtRef.current > 30000)
-    ) {
-      void ambilStatusHariIni({ pertahankanVerifikasiSaatFallback: true });
-    }
-
-    tandaiSesiAbsensiAktif(true);
-    setKameraMembuka(true);
-    hentikanStreamKamera();
-    hentikanPelacakanLokasi();
-    const sesiKamera = kameraSesiRef.current + 1;
-    kameraSesiRef.current = sesiKamera;
-    sesiKirimRef.current = false;
     try {
-      let stream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: "user" },
-            width: { ideal: 640 },
-            height: { ideal: 480 },
-            frameRate: { ideal: 24, max: 30 },
-          },
-          audio: false,
-        });
-      } catch (firstError) {
-        if (firstError?.name === "NotAllowedError" || firstError?.name === "SecurityError") throw firstError;
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      setPesan("");
+
+      // Status lama tidak boleh dipakai untuk membuka kamera.
+      // Jika belum terverifikasi atau berusia lebih dari 30 detik, periksa server dulu.
+      let tahapUntukKamera = tahapTampilan;
+      let menitUntukKamera = menitAcuan;
+
+      if (
+        navigator.onLine &&
+        (!statusTerverifikasi ||
+          !statusTerverifikasiAtRef.current ||
+          Date.now() - statusTerverifikasiAtRef.current > 30000)
+      ) {
+        const hasilStatus = await ambilStatusHariIni();
+        if (!hasilStatus?.ok) {
+          setPesan("Status absensi belum dapat dipastikan dari server. Kamera belum dibuka. Periksa koneksi lalu coba lagi.");
+          return;
+        }
+
+        tahapUntukKamera = hasilStatus.tahap;
+        const epochServer =
+          Number.isFinite(hasilStatus.waktuServerEpochMs) &&
+          hasilStatus.serverReceivedAtMs > 0
+            ? hasilStatus.waktuServerEpochMs +
+              Math.max(0, Date.now() - hasilStatus.serverReceivedAtMs)
+            : null;
+
+        menitUntukKamera =
+          epochServer !== null
+            ? menitSekarangWIB(new Date(epochServer))
+            : menitSekarangWIB();
+      } else if (!navigator.onLine && !statusTerverifikasi) {
+        setPesan("Status absensi belum terverifikasi. Hubungkan internet dan muat status terlebih dahulu sebelum membuka kamera.");
+        return;
       }
-      if (!mountedRef.current || kameraSesiRef.current !== sesiKamera) { stream.getTracks().forEach((track) => track.stop()); return; }
-      streamRef.current = stream;
-      setKameraStream(stream);
-      setFotoTerambil(null);
-      setLokasi(null);
-      setStatusLokasi("mencari");
-      setKameraAktif(true);
-      // Mulai GPS segera setelah izin kamera didapat, tanpa menunggu preview video siap.
-      // GPS dan preview kamera berjalan paralel; batas akurasi tetap sama.
-      ambilLokasi();
-    } catch (err) {
-      console.error("Gagal membuka kamera:", err);
-      if (!kameraAktif && !fotoTerambil && !loading) tandaiSesiAbsensiAktif(false);
-      if (!mountedRef.current) return;
-      if (err?.name === "NotAllowedError" || err?.name === "SecurityError") setPesan("Akses kamera ditolak. Izinkan kamera untuk situs ini melalui pengaturan browser HP, lalu coba lagi.");
-      else if (err?.name === "NotFoundError") setPesan("Kamera tidak ditemukan pada perangkat ini.");
-      else if (err?.name === "NotReadableError" || err?.name === "TrackStartError") setPesan("Kamera sedang digunakan aplikasi lain atau gagal dinyalakan. Tutup aplikasi lain yang memakai kamera, lalu coba lagi.");
-      else setPesan("Kamera belum bisa dibuka. Coba lagi beberapa saat lagi.");
+
+      if (
+        tahapUntukKamera === "belum_masuk" &&
+        menitUntukKamera >= BATAS_ABSEN_MASUK_WIB
+      ) {
+        tahapUntukKamera = "langsung_pulang";
+      }
+
+      // Periksa batas waktu SEBELUM kamera dan GPS dimulai.
+      if (perluBlokirBukaKameraPulang(tahapUntukKamera, menitUntukKamera)) {
+        setPesan(
+          tahapUntukKamera === "sudah_masuk"
+            ? PESAN_ABSEN_PULANG_BELUM_WAKTU
+            : "Absen pulang baru tersedia mulai pukul 12.00 WIB. Belum ada absensi yang dikirim dari percobaan ini."
+        );
+        return;
+      }
+
+      if (tahapUntukKamera === "selesai" || tahapUntukKamera === "tidak_perlu_absen") {
+        setPesan(
+          tahapUntukKamera === "selesai"
+            ? "Absensi hari ini sudah lengkap. Tidak perlu membuka kamera atau mengirim ulang."
+            : "Absensi hari ini tidak diperlukan karena pengajuan izin kamu sudah disetujui Admin."
+        );
+        return;
+      }
+
+      if (
+        !TAHAP_VALID.has(tahapUntukKamera) ||
+        tahapUntukKamera === "memuat" ||
+        tahapUntukKamera === "belum_terverifikasi"
+      ) {
+        setPesan("Status absensi belum siap. Muat ulang status sebelum membuka kamera.");
+        return;
+      }
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setPesan("Browser ini tidak mendukung akses kamera.");
+        return;
+      }
+
+      tandaiSesiAbsensiAktif(true);
+      setKameraMembuka(true);
+      hentikanStreamKamera();
+      hentikanPelacakanLokasi();
+
+      const sesiKamera = kameraSesiRef.current + 1;
+      kameraSesiRef.current = sesiKamera;
+      sesiKirimRef.current = false;
+
+      try {
+        let stream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: { ideal: "user" },
+              width: { ideal: 640 },
+              height: { ideal: 480 },
+              frameRate: { ideal: 24, max: 30 },
+            },
+            audio: false,
+          });
+        } catch (firstError) {
+          if (firstError?.name === "NotAllowedError" || firstError?.name === "SecurityError") {
+            throw firstError;
+          }
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        }
+
+        if (!mountedRef.current || kameraSesiRef.current !== sesiKamera) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
+        streamRef.current = stream;
+        setKameraStream(stream);
+        setFotoTerambil(null);
+        setLokasi(null);
+        setStatusLokasi("mencari");
+        setKameraAktif(true);
+
+        // GPS dan preview kamera berjalan paralel setelah batas waktu lolos.
+        ambilLokasi();
+      } catch (err) {
+        console.error("Gagal membuka kamera:", err);
+        if (!kameraAktif && !fotoTerambil && !loading) tandaiSesiAbsensiAktif(false);
+        if (!mountedRef.current) return;
+
+        if (err?.name === "NotAllowedError" || err?.name === "SecurityError") {
+          setPesan("Akses kamera ditolak. Izinkan kamera untuk situs ini melalui pengaturan browser HP, lalu coba lagi.");
+        } else if (err?.name === "NotFoundError") {
+          setPesan("Kamera tidak ditemukan pada perangkat ini.");
+        } else if (err?.name === "NotReadableError" || err?.name === "TrackStartError") {
+          setPesan("Kamera sedang digunakan aplikasi lain atau gagal dinyalakan. Tutup aplikasi lain yang memakai kamera, lalu coba lagi.");
+        } else {
+          setPesan("Kamera belum bisa dibuka. Coba lagi beberapa saat lagi.");
+        }
+      }
     } finally {
+      bukaKameraGuardRef.current = false;
       if (mountedRef.current) setKameraMembuka(false);
     }
   }
@@ -1122,6 +1226,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     const tahapServer = TAHAP_VALID.has(status?.tahap) ? status.tahap : (endpoint === "masuk" ? "sudah_masuk" : "selesai");
     absensiTerkirimRef.current = true;
     setTahap(tahapServer);
+    setDataAbsensiHariIni(status?.data || null);
     setStatusTerverifikasi(true);
     statusTerverifikasiAtRef.current = Date.now();
     setStatusVerifikasiSedang(false);
@@ -1306,6 +1411,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       absensiTerkirimRef.current = true;
       const tahapSetelahAbsen = endpoint === "masuk" ? "sudah_masuk" : "selesai";
       setTahap(tahapSetelahAbsen);
+      setDataAbsensiHariIni(data.data || null);
       setStatusTerverifikasi(true);
       statusTerverifikasiAtRef.current = Date.now();
       setStatusVerifikasiSedang(false);
@@ -1342,6 +1448,15 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       ? "langsung_pulang"
       : tahap;
 
+  const waktuMasukTersimpan = dataAbsensiHariIni?.jamMasuk
+    ? new Intl.DateTimeFormat("id-ID", {
+        timeZone: TIMEZONE_WIB,
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+      }).format(new Date(dataAbsensiHariIni.jamMasuk))
+    : null;
+
   const judulAksi =
     tahapTampilan === "belum_masuk"
       ? "Absensi Masuk"
@@ -1370,7 +1485,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
           {!loadingStatus && tahapTampilan !== "memuat" && tahapTampilan !== "belum_terverifikasi" && tahapTampilan !== "tidak_perlu_absen" && <DialJamKerja tahap={tahapTampilan} />}
           {tahap === "belum_terverifikasi" && <div style={styles.unverifiedBox}><div style={styles.unverifiedIcon}><WifiOff size={24} /></div><h2 style={styles.sectionTitle}>Status absensi belum tersedia</h2><p style={styles.sectionDescription}>Sistem belum berhasil memastikan status absensi hari ini. Untuk keamanan, tombol absensi tidak ditampilkan sampai status berhasil diverifikasi.</p><button onClick={() => void ambilStatusHariIni()} style={styles.secondaryButton} type="button" disabled={!isOnline || loadingStatus}><RefreshCcw size={17} />{loadingStatus ? "Memuat..." : "Coba Muat Status"}</button></div>}
           {tahap === "selesai" && <div style={styles.successBox}><div style={styles.successIcon}><CheckCircle2 size={28} /></div><h2 style={styles.sectionTitle}>Absensi Hari Ini Selesai</h2><p style={styles.sectionDescription}>Absen masuk dan pulang kamu sudah tercatat. Terima kasih, sampai jumpa besok.</p></div>}
-          {(tahapTampilan === "belum_masuk" || tahapTampilan === "langsung_pulang" || tahapTampilan === "sudah_masuk") && <><div style={styles.actionHeading}><div><p style={styles.actionEyebrow}>{tahapTampilan === "belum_masuk" ? "LANGKAH 1 · ABSEN MASUK" : "LANGKAH 1 · ABSEN PULANG"}</p><h2 style={styles.sectionTitle}>Ambil foto untuk mencatat kehadiran</h2><p style={styles.statusVerificationHint}>{statusVerifikasiSedang ? "Memverifikasi status absensi terbaru..." : statusTerverifikasi ? "Status absensi sudah diverifikasi." : "Status absensi belum terverifikasi."}</p></div></div>{tahapTampilan === "langsung_pulang" && <div style={{ marginBottom: 14, padding: "11px 13px", borderRadius: 12, border: "1px solid " + warna.peringatan, background: warna.peringatanLembut, color: warna.tinta, fontSize: 12, lineHeight: 1.55 }}><strong>Sudah lewat 12:00 WIB.</strong> Absen masuk pagi tidak dapat dilakukan lagi. Sistem hanya menyediakan <strong>Absen Pulang</strong>.</div>}{!kameraAktif && !fotoTerambil && <div style={styles.startPanel}><div style={styles.cameraIconCircle}><Camera size={28} /></div><p style={styles.startTitle}>Siapkan kamera</p><p style={styles.startDescription}>Pastikan wajah terlihat jelas dan izinkan kamera serta lokasi pada browser HP kamu.</p>{jumlahTertunda > 0 && <p style={styles.pendingActionNote}>{jumlahTertunda} absensi masih menunggu sinkronisasi. Selesaikan sinkronisasi terlebih dahulu agar tidak terjadi absensi ganda.</p>}<button onClick={() => void bukaKamera()} style={styles.primaryButton} type="button" disabled={kameraMembuka || sedangSinkron || jumlahTertunda > 0} title={jumlahTertunda > 0 ? "Tunggu absensi yang tersimpan offline selesai disinkronkan." : undefined}><Camera size={18} />{kameraMembuka ? "Menyiapkan Kamera..." : jumlahTertunda > 0 ? "Menunggu Sinkronisasi" : "Buka Kamera"}</button></div>}{kameraAktif && <div style={styles.cameraSection}><div style={styles.cameraTopbar} className="cameraTopbar"><div><p style={styles.cameraEyebrow}>KAMERA AKTIF</p><p style={styles.cameraTitle} className="cameraTitle">Posisikan wajah di tengah panduan</p></div><div style={styles.cameraReadyBadge} className="cameraReadyBadge"><span style={styles.cameraReadyDot} />{kameraSiap ? "Siap" : "Menyiapkan..."}</div></div><div style={styles.cameraFrame}><video key={kameraStream?.id || "kamera"} ref={videoRef} autoPlay playsInline muted style={styles.video} /><div style={styles.cameraOverlay}><div style={styles.faceGuide} />{!kameraSiap && <div style={styles.cameraPreparing}>Menyiapkan preview kamera...</div>}<div style={styles.faceGuideHint} className="faceGuideHint">Wajah berada di tengah</div></div><div style={styles.cameraLocationBadge} className="cameraLocationBadge"><MapPin size={12} /><span>{statusLokasi === "mencari" && "Mencari lokasi..."}{statusLokasi === "ditemukan" && "Lokasi ditemukan"}{statusLokasi === "gagal" && "Lokasi belum ditemukan"}</span></div></div><div style={styles.cameraHelpRow} className="cameraHelpRow"><ShieldCheck size={14} color={warna.aksen} /><span>Foto diproses untuk pencatatan absensi.</span></div><button onClick={ambilFoto} style={styles.primaryButton} type="button" disabled={!kameraSiap}><Camera size={18} />Ambil Foto</button></div>}{fotoTerambil && <div style={styles.previewSection}><div style={styles.previewFrame}><img src={fotoPreview} alt="Foto absen" style={styles.previewImage} /></div><div style={styles.locationCard}><div style={styles.locationHeader}><div style={styles.locationIcon}><MapPin size={17} /></div><div style={styles.locationMain}><div style={styles.locationTitleRow}><p style={styles.locationTitle}>Lokasi Absensi</p>{statusLokasi === "ditemukan" && <span style={{ ...styles.locationAccuracyBadge, ...(lokasi?.akurasi <= 50 ? styles.locationAccuracyGood : lokasi?.akurasi <= 100 ? styles.locationAccuracyMedium : styles.locationAccuracyWeak) }}>{lokasi?.akurasi <= 50 ? "Akurat" : lokasi?.akurasi <= 100 ? "Cukup" : "Kurang presisi"}</span>}</div><p style={styles.locationStatus}>{statusLokasi === "mencari" && "Sedang mencari lokasi terbaik..."}{statusLokasi === "ditemukan" && (lokasi?.alamat || "Lokasi ditemukan, membaca alamat...")}{statusLokasi === "gagal" && "Lokasi tidak terdeteksi. Tekan Foto Ulang lalu pastikan GPS dan izin lokasi aktif."}</p></div></div>{statusLokasi === "ditemukan" && lokasi?.akurasi && <div style={styles.locationMeta}><span>Akurasi ±{lokasi.akurasi} meter</span><span style={styles.locationDot} /><span>Koordinat berhasil diperoleh</span></div>}{statusLokasi === "ditemukan" && lokasi?.latitude !== undefined && lokasi?.longitude !== undefined && <div style={styles.locationActions}><a href={`https://www.google.com/maps?q=${lokasi.latitude},${lokasi.longitude}`} target="_blank" rel="noopener noreferrer" style={styles.mapsLink}><Navigation size={14} />Lihat lokasi di Google Maps</a></div>}</div><div style={styles.actionButtons} className="karyawan-action-buttons"><button onClick={fotoUlang} style={styles.secondaryButton} type="button" disabled={loading}><RefreshCcw size={17} />Foto Ulang</button><button
+          {(tahapTampilan === "belum_masuk" || tahapTampilan === "langsung_pulang" || tahapTampilan === "sudah_masuk") && <><div style={styles.actionHeading}><div><p style={styles.actionEyebrow}>{tahapTampilan === "belum_masuk" ? "LANGKAH 1 · ABSEN MASUK" : tahapTampilan === "sudah_masuk" ? "LANGKAH 2 · ABSEN PULANG" : "ABSEN PULANG · TANPA ABSEN MASUK"}</p><h2 style={styles.sectionTitle}>Ambil foto untuk mencatat kehadiran</h2><p style={styles.statusVerificationHint}>{statusVerifikasiSedang ? "Memverifikasi status absensi terbaru..." : statusTerverifikasi ? "Status absensi sudah diverifikasi." : "Status absensi belum terverifikasi."}</p></div></div>{tahapTampilan === "sudah_masuk" && <div role="status" aria-live="polite" style={{ marginBottom: 14, padding: "12px 14px", borderRadius: 12, border: "1px solid " + warna.sukses, background: warna.suksesLembut, color: warna.tinta, fontSize: 13, lineHeight: 1.6 }}><strong style={{ display: "block", marginBottom: 4 }}>ABSEN MASUK SUDAH TERCATAT</strong>{waktuMasukTersimpan ? <p style={{ margin: "0 0 4px" }}>Waktu masuk: <strong>{waktuMasukTersimpan} WIB</strong></p> : manualPending?.tipe === "masuk" ? <p style={{ margin: "0 0 4px" }}>Permintaan absen masuk sedang menunggu verifikasi Admin.</p> : <p style={{ margin: "0 0 4px" }}>{statusTerverifikasi ? "Status absen masuk sudah tercatat dan terverifikasi." : "Status terakhir menunjukkan kamu sudah absen masuk. Sistem akan memverifikasi ulang sebelum kamera dibuka."}</p>}<p style={{ margin: 0 }}>Kamu tidak perlu mengirim absen masuk lagi. Absen pulang baru bisa dilakukan mulai pukul <strong>12.00 WIB</strong>.</p></div>}{tahapTampilan === "langsung_pulang" && <div style={{ marginBottom: 14, padding: "11px 13px", borderRadius: 12, border: "1px solid " + warna.peringatan, background: warna.peringatanLembut, color: warna.tinta, fontSize: 12, lineHeight: 1.55 }}><strong>Sudah lewat 12:00 WIB.</strong> Absen masuk pagi tidak dapat dilakukan lagi. Sistem hanya menyediakan <strong>Absen Pulang</strong>.</div>}{!kameraAktif && !fotoTerambil && <div style={styles.startPanel}><div style={styles.cameraIconCircle}><Camera size={28} /></div><p style={styles.startTitle}>Siapkan kamera</p><p style={styles.startDescription}>Pastikan wajah terlihat jelas dan izinkan kamera serta lokasi pada browser HP kamu.</p>{jumlahTertunda > 0 && <p style={styles.pendingActionNote}>{jumlahTertunda} absensi masih menunggu sinkronisasi. Selesaikan sinkronisasi terlebih dahulu agar tidak terjadi absensi ganda.</p>}<button onClick={() => void bukaKamera()} style={styles.primaryButton} type="button" disabled={kameraMembuka || sedangSinkron || jumlahTertunda > 0} title={jumlahTertunda > 0 ? "Tunggu absensi yang tersimpan offline selesai disinkronkan." : undefined}><Camera size={18} />{kameraMembuka ? "Menyiapkan Kamera..." : jumlahTertunda > 0 ? "Menunggu Sinkronisasi" : tahapTampilan === "belum_masuk" ? "Buka Kamera Absen Masuk" : "Buka Kamera Absen Pulang"}</button></div>}{kameraAktif && <div style={styles.cameraSection}><div style={styles.cameraTopbar} className="cameraTopbar"><div><p style={styles.cameraEyebrow}>KAMERA AKTIF</p><p style={styles.cameraTitle} className="cameraTitle">Posisikan wajah di tengah panduan</p></div><div style={styles.cameraReadyBadge} className="cameraReadyBadge"><span style={styles.cameraReadyDot} />{kameraSiap ? "Siap" : "Menyiapkan..."}</div></div><div style={styles.cameraFrame}><video key={kameraStream?.id || "kamera"} ref={videoRef} autoPlay playsInline muted style={styles.video} /><div style={styles.cameraOverlay}><div style={styles.faceGuide} />{!kameraSiap && <div style={styles.cameraPreparing}>Menyiapkan preview kamera...</div>}<div style={styles.faceGuideHint} className="faceGuideHint">Wajah berada di tengah</div></div><div style={styles.cameraLocationBadge} className="cameraLocationBadge"><MapPin size={12} /><span>{statusLokasi === "mencari" && "Mencari lokasi..."}{statusLokasi === "ditemukan" && "Lokasi ditemukan"}{statusLokasi === "gagal" && "Lokasi belum ditemukan"}</span></div></div><div style={styles.cameraHelpRow} className="cameraHelpRow"><ShieldCheck size={14} color={warna.aksen} /><span>Foto diproses untuk pencatatan absensi.</span></div><button onClick={ambilFoto} style={styles.primaryButton} type="button" disabled={!kameraSiap}><Camera size={18} />Ambil Foto</button></div>}{fotoTerambil && <div style={styles.previewSection}><div style={styles.previewFrame}><img src={fotoPreview} alt="Foto absen" style={styles.previewImage} /></div><div style={styles.locationCard}><div style={styles.locationHeader}><div style={styles.locationIcon}><MapPin size={17} /></div><div style={styles.locationMain}><div style={styles.locationTitleRow}><p style={styles.locationTitle}>Lokasi Absensi</p>{statusLokasi === "ditemukan" && <span style={{ ...styles.locationAccuracyBadge, ...(lokasi?.akurasi <= 50 ? styles.locationAccuracyGood : lokasi?.akurasi <= 100 ? styles.locationAccuracyMedium : styles.locationAccuracyWeak) }}>{lokasi?.akurasi <= 50 ? "Akurat" : lokasi?.akurasi <= 100 ? "Cukup" : "Kurang presisi"}</span>}</div><p style={styles.locationStatus}>{statusLokasi === "mencari" && "Sedang mencari lokasi terbaik..."}{statusLokasi === "ditemukan" && (lokasi?.alamat || "Lokasi ditemukan, membaca alamat...")}{statusLokasi === "gagal" && "Lokasi tidak terdeteksi. Tekan Foto Ulang lalu pastikan GPS dan izin lokasi aktif."}</p></div></div>{statusLokasi === "ditemukan" && lokasi?.akurasi && <div style={styles.locationMeta}><span>Akurasi ±{lokasi.akurasi} meter</span><span style={styles.locationDot} /><span>Koordinat berhasil diperoleh</span></div>}{statusLokasi === "ditemukan" && lokasi?.latitude !== undefined && lokasi?.longitude !== undefined && <div style={styles.locationActions}><a href={`https://www.google.com/maps?q=${lokasi.latitude},${lokasi.longitude}`} target="_blank" rel="noopener noreferrer" style={styles.mapsLink}><Navigation size={14} />Lihat lokasi di Google Maps</a></div>}</div><div style={styles.actionButtons} className="karyawan-action-buttons"><button onClick={fotoUlang} style={styles.secondaryButton} type="button" disabled={loading}><RefreshCcw size={17} />Foto Ulang</button><button
   onClick={kirimAbsen}
   style={styles.primaryButton}
   type="button"

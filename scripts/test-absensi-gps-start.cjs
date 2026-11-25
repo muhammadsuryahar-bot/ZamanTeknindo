@@ -11,11 +11,17 @@ const bukaKameraEnd = source.indexOf("\n  useEffect(() => {", bukaKameraStart);
 assert.notEqual(bukaKameraEnd, -1, "bukaKamera block must end before camera preview effect");
 const bukaKamera = source.slice(bukaKameraStart, bukaKameraEnd);
 
-assert.match(
-  bukaKamera,
-  /setKameraAktif\(true\);\s*\/\/ Mulai GPS segera setelah izin kamera didapat, tanpa menunggu preview video siap\.\s*\/\/ GPS dan preview kamera berjalan paralel; batas akurasi tetap sama\.\s*ambilLokasi\(\);/,
+const cameraActiveIndex = bukaKamera.indexOf("setKameraAktif(true)");
+const gpsCallIndex = bukaKamera.indexOf("ambilLokasi()");
+assert.ok(
+  cameraActiveIndex >= 0 && gpsCallIndex > cameraActiveIndex,
   "GPS must start immediately after camera permission/stream succeeds, parallel to video preview",
 );
+const gateIndex = bukaKamera.indexOf("perluBlokirBukaKameraPulang(tahapUntukKamera, menitUntukKamera)");
+const mediaIndex = bukaKamera.indexOf("navigator.mediaDevices.getUserMedia");
+const gpsIndex = bukaKamera.indexOf("ambilLokasi()");
+assert.ok(gateIndex >= 0 && mediaIndex > gateIndex && gpsIndex > mediaIndex,
+  "Checkout time gate must run before both camera and GPS are initialized.");
 assert.doesNotMatch(
   source,
   /jadwalkanLokasiSetelahKameraSiap/,
