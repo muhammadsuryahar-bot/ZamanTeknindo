@@ -26,6 +26,11 @@ import {
   simpanKeAntrian,
 } from "../utils/antrianOffline";
 import { formatAlamatPresensi } from "../utils/alamatPresensi";
+import {
+  akurasiLokasiLayak,
+  MAKS_AKURASI_LOKASI_METER,
+  pesanKesalahanGeolokasi,
+} from "../utils/lokasiAbsensi";
 import { perluSinkronStatusHarian } from "../utils/statusHarian";
 import {
   tentukanEndpointAbsensi,
@@ -49,7 +54,7 @@ const STATUS_REQUEST_TIMEOUT_MS = 8000;
 const ABSENSI_REQUEST_TIMEOUT_MS = 15000;
 const BATAS_ABSEN_MASUK_WIB = 12 * 60;
 const LOKASI_REQUEST_TIMEOUT_MS = 20000;
-const LOKASI_AKURASI_FALLBACK_METER = 100;
+const LOKASI_AKURASI_FALLBACK_METER = MAKS_AKURASI_LOKASI_METER;
 const LOKASI_FALLBACK_FINISH_MS = 3000;
 const MAX_UPLOAD_BYTES = 1.5 * 1024 * 1024;
 const MAX_UPLOAD_WIDTH = 1280;
@@ -1121,55 +1126,117 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
 
   function ambilLokasi() {
     hentikanPelacakanLokasi();
+    setLokasi(null);
     setStatusLokasi("mencari");
-    if (!navigator.geolocation) { setStatusLokasi("gagal"); setPesan("Perangkat/browser ini tidak menyediakan layanan lokasi. Periksa izin lokasi di HP lalu coba lagi."); return; }
+
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      setStatusLokasi("gagal");
+      setPesan("Lokasi hanya dapat diakses melalui koneksi aman HTTPS. Buka sistem melalui https://zaman-teknindo.vercel.app, bukan alamat HTTP jaringan lokal.");
+      return;
+    }
+
+    if (!navigator.geolocation) {
+      setStatusLokasi("gagal");
+      setPesan("Browser/perangkat ini tidak menyediakan layanan lokasi. Gunakan browser terbaru dan pastikan izin lokasi perangkat aktif.");
+      return;
+    }
 
     const sesi = lokasiSesiRef.current;
     let posisiTerbaik = null;
+    let errorGeolokasiTerakhir = null;
     let sudahSelesai = false;
     const sesiMasihAktif = () => mountedRef.current && sesi === lokasiSesiRef.current;
 
     const selesaikan = async () => {
       if (sudahSelesai || !sesiMasihAktif()) return;
       sudahSelesai = true;
-      if (lokasiWatchRef.current !== null) { navigator.geolocation.clearWatch(lokasiWatchRef.current); lokasiWatchRef.current = null; }
-      if (lokasiTimerRef.current) { clearTimeout(lokasiTimerRef.current); lokasiTimerRef.current = null; }
-      if (!posisiTerbaik) { setStatusLokasi("gagal"); setPesan("Lokasi belum berhasil ditemukan. Pastikan GPS/lokasi HP aktif dan izin lokasi untuk situs ini diberikan, lalu coba lagi."); return; }
-      if (posisiTerbaik.akurasi > 100) {
+
+      if (lokasiWatchRef.current !== null) {
+        navigator.geolocation.clearWatch(lokasiWatchRef.current);
+        lokasiWatchRef.current = null;
+      }
+      if (lokasiTimerRef.current) {
+        clearTimeout(lokasiTimerRef.current);
+        lokasiTimerRef.current = null;
+      }
+      if (lokasiFallbackFinishRef.current) {
+        clearTimeout(lokasiFallbackFinishRef.current);
+        lokasiFallbackFinishRef.current = null;
+      }
+
+      if (!posisiTerbaik) {
+        setLokasi(null);
         setStatusLokasi("gagal");
-        setPesan(`Akurasi GPS masih rendah (±${Math.round(posisiTerbaik.akurasi)} m). Aktifkan GPS/lokasi presisi dan coba Foto Ulang agar akurasi lokasi lebih baik.`);
+        setPesan(
+          errorGeolokasiTerakhir
+            ? pesanKesalahanGeolokasi(errorGeolokasiTerakhir)
+            : "Lokasi belum berhasil diperoleh dalam 20 detik. Aktifkan layanan lokasi perangkat, izinkan lokasi untuk situs ini, dan sambungkan Wi-Fi. Coba lagi atau gunakan HP."
+        );
         return;
       }
+
+      if (!akurasiLokasiLayak(posisiTerbaik.akurasi)) {
+        setLokasi(null);
+        setStatusLokasi("gagal");
+        setPesan(
+          `Perangkat hanya memberikan perkiraan lokasi ±${Math.round(posisiTerbaik.akurasi)} m; batas absensi adalah maksimal ±${MAKS_AKURASI_LOKASI_METER} m. Aktifkan layanan lokasi perangkat, izinkan lokasi di browser, dan sambungkan Wi-Fi. Jika laptop tetap kurang akurat, gunakan HP.`
+        );
+        return;
+      }
+
       const { latitude, longitude, akurasi } = posisiTerbaik;
       setLokasi({ latitude, longitude, akurasi, alamat: null });
       setStatusLokasi("ditemukan");
-      void ambilAlamatDariKoordinat(latitude, longitude).then((alamatLengkap) => {
-        if (!mountedRef.current || !sesiMasihAktif()) return;
-        setLokasi((prev) => prev ? { ...prev, alamat: formatAlamatPresensi(alamatLengkap, prev.akurasi) } : prev);
-      }).catch((err) => console.error("Reverse geocoding gagal:", err));
+      setPesan("");
+
+      void ambilAlamatDariKoordinat(latitude, longitude)
+        .then((alamatLengkap) => {
+          if (!mountedRef.current || !sesiMasihAktif()) return;
+          setLokasi((prev) =>
+            prev
+              ? { ...prev, alamat: formatAlamatPresensi(alamatLengkap, prev.akurasi) }
+              : prev
+          );
+        })
+        .catch((err) => console.error("Reverse geocoding gagal:", err));
     };
 
     const watchId = navigator.geolocation.watchPosition(
       (posisi) => {
         if (!sesiMasihAktif() || sudahSelesai) return;
+
+        errorGeolokasiTerakhir = null;
         const akurasi = Math.round(Number(posisi.coords.accuracy));
         const latitude = Number(posisi.coords.latitude);
         const longitude = Number(posisi.coords.longitude);
         if (![latitude, longitude, akurasi].every(Number.isFinite) || akurasi <= 0) return;
+
         if (!posisiTerbaik || akurasi < posisiTerbaik.akurasi) {
           posisiTerbaik = { latitude, longitude, akurasi };
-          setLokasi((prev) => ({ latitude, longitude, akurasi, alamat: prev?.alamat || null }));
-          setStatusLokasi("ditemukan");
+
+          if (akurasiLokasiLayak(akurasi)) {
+            // Baru tampilkan "Lokasi ditemukan" setelah koordinat lolos batas.
+            setLokasi({ latitude, longitude, akurasi, alamat: null });
+            setStatusLokasi("ditemukan");
+            setPesan("");
+          } else {
+            // Akurasi sementara di atas 100 m bukan lokasi absensi yang valid.
+            // Jangan tampilkan koordinat/map link yang belum memenuhi syarat.
+            setLokasi(null);
+            setStatusLokasi("mencari");
+            setPesan(
+              `Perkiraan lokasi sementara ±${akurasi} m. Sistem masih mencari posisi yang lebih akurat; batas absensi maksimal ±${MAKS_AKURASI_LOKASI_METER} m.`
+            );
+          }
         }
+
         if (akurasi <= 20) {
           void selesaikan();
         } else if (
-          akurasi <= LOKASI_AKURASI_FALLBACK_METER &&
+          akurasiLokasiLayak(akurasi) &&
           !lokasiFallbackFinishRef.current
         ) {
-          // Posisi <=100 m sudah memenuhi batas server. Beri GPS beberapa
-          // detik untuk memperbaiki posisi, tetapi jangan memaksa karyawan
-          // menunggu sampai timeout 20 detik hanya demi mencapai <=20 m.
+          // Posisi dalam batas server diberi waktu 3 detik untuk menjadi lebih akurat.
           lokasiFallbackFinishRef.current = window.setTimeout(() => {
             lokasiFallbackFinishRef.current = null;
             void selesaikan();
@@ -1178,20 +1245,33 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
       },
       (error) => {
         if (!sesiMasihAktif() || sudahSelesai) return;
+        errorGeolokasiTerakhir = Number(error?.code) || null;
         console.warn("Geolocation error:", error);
-        if (error?.code === 1) {
+
+        if (errorGeolokasiTerakhir === 1) {
+          // Permission denied tidak akan membaik dengan mengulang watch yang sama.
+          setLokasi(null);
           setStatusLokasi("gagal");
-          setPesan("Izin lokasi ditolak. Izinkan lokasi untuk situs ini, lalu tekan Foto Ulang dan coba lagi.");
+          setPesan(pesanKesalahanGeolokasi(errorGeolokasiTerakhir));
           hentikanPelacakanLokasi();
-        } else if (!posisiTerbaik) {
+          return;
+        }
+
+        // POSITION_UNAVAILABLE (2) atau TIMEOUT (3): tampilkan penyebab,
+        // tetapi pertahankan watch sampai batas total 20 detik agar perangkat
+        // masih sempat mengirim koordinat yang lebih baik.
+        if (!posisiTerbaik || !akurasiLokasiLayak(posisiTerbaik.akurasi)) {
           setStatusLokasi("mencari");
+          setPesan(pesanKesalahanGeolokasi(errorGeolokasiTerakhir));
         }
       },
       { enableHighAccuracy: true, maximumAge: 0, timeout: LOKASI_REQUEST_TIMEOUT_MS },
     );
 
     lokasiWatchRef.current = watchId;
-    lokasiTimerRef.current = setTimeout(() => { void selesaikan(); }, LOKASI_REQUEST_TIMEOUT_MS);
+    lokasiTimerRef.current = setTimeout(() => {
+      void selesaikan();
+    }, LOKASI_REQUEST_TIMEOUT_MS);
   }
 
   // Setelah timeout atau respons konflik, cek status server sebelum meminta
@@ -1265,9 +1345,9 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
         return;
       }
 
-      if (lokasiAkurasi <= 0 || lokasiAkurasi > 100) {
+      if (!akurasiLokasiLayak(lokasiAkurasi)) {
         setPesan(
-          `Akurasi GPS masih rendah (±${Math.round(lokasiAkurasi || 0)} m). Tunggu sampai akurasi maksimal ±100 meter lalu kirim absen.`,
+          `Akurasi lokasi masih di atas batas ±${MAKS_AKURASI_LOKASI_METER} m (saat ini ±${Math.round(lokasiAkurasi || 0)} m). Tunggu hingga lebih akurat, lalu kirim absen.`,
         );
         return;
       }
@@ -1495,9 +1575,7 @@ export default function DashboardKaryawan({ pengguna, onLogout }) {
     !statusTerverifikasi ||
     !Number.isFinite(Number(lokasi?.latitude)) ||
     !Number.isFinite(Number(lokasi?.longitude)) ||
-    !Number.isFinite(Number(lokasi?.akurasi)) ||
-    Number(lokasi?.akurasi) <= 0 ||
-    Number(lokasi?.akurasi) > 100 ||
+    !akurasiLokasiLayak(lokasi?.akurasi) ||
     ((tahapTampilan === "sudah_masuk" || tahapTampilan === "langsung_pulang") &&
       menitAcuan < BATAS_ABSEN_MASUK_WIB)
   }
