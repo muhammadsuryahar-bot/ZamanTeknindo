@@ -534,7 +534,7 @@ async function main() {
   assert.strictEqual(harianBandung.getCell("C8").value, "T");
   assert.match(String(rekapBandung.getCell("A2").value), /TIM HB BANDUNG/);
   assert.match(String(harianBandung.getCell("A1").value), /Tim HB Bandung/);
-  assert.match(String(rekapBandung.getCell("A11").value), /^HB Bandung,/);
+  assert.match(String(rekapBandung.getCell("A12").value), /^HB Bandung,/);
   assert.strictEqual(workbookBandung.worksheets.length, 2);
 
   // Kelompok tidak dikenal harus ditolak, bukan diam-diam mengunduh roster kosong.
