@@ -111,6 +111,16 @@ function escapeHtml(value) {
   })[character]);
 }
 
+async function statusPemulihanPassword(req, res) {
+  setNoCacheAuth(res);
+  const tersedia = Boolean(
+    String(process.env.RESEND_API_KEY || "").trim() &&
+    String(process.env.RESET_PASSWORD_FROM_EMAIL || "").trim(),
+  );
+  // Hanya status kesiapan yang dibuka ke publik; kredensial email tidak pernah dikirim.
+  return res.json({ tersedia });
+}
+
 async function mintaResetPassword(req, res) {
   setNoCacheAuth(res);
   try {
@@ -260,4 +270,4 @@ async function resetPasswordDenganToken(req, res) {
   }
 }
 
-module.exports = { daftarAkun, login, gantiPassword, mintaResetPassword, resetPasswordDenganToken };
+module.exports = { daftarAkun, login, gantiPassword, statusPemulihanPassword, mintaResetPassword, resetPasswordDenganToken };
