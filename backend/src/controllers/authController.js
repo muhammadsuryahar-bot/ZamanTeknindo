@@ -128,4 +128,157 @@ async function resetPasswordOlehAdmin(req, res) {
   } catch (error) { console.error(error); return res.status(500).json({ pesan: "Terjadi kesalahan pada server." }); }
 }
 
-module.exports = { daftarAkun, login, gantiPassword, resetPasswordOlehAdmin };
+function sidikJariPassword(passwordHash) {
+  return crypto.createHash("sha256").update(String(passwordHash)).digest("hex");
+}
+
+function setNoCacheAuth(res) {
+  res.set({
+    "Cache-Control": "no-store, no-cache, must-revalidate, private",
+    Pragma: "no-cache",
+    "Surrogate-Control": "no-store",
+  });
+}
+
+function escapeHtml(value) {
+  return String(value || "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character]);
+}
+
+async function mintaResetPassword(req, res) {
+  setNoCacheAuth(res);
+  try {
+    const emailBersih = String(req.body?.email || "").trim().toLowerCase();
+    if (!emailBersih || !/^\S+@\S+\.\S+$/.test(emailBersih)) {
+      return res.status(400).json({ pesan: "Masukkan alamat email yang valid." });
+    }
+
+    // Tanpa kredensial pengirim, jangan membuat token reset yang tidak dapat dikirim.
+    if (!process.env.RESEND_API_KEY || !process.env.RESET_PASSWORD_FROM_EMAIL) {
+      return res.status(503).json({
+        pesan: "Layanan pemulihan password belum dikonfigurasi. Hubungi Admin/HR untuk reset sementara.",
+      });
+    }
+
+    const pesanUmum = "Jika email terdaftar dan akun aktif, tautan pemulihan password akan dikirim. Periksa kotak masuk atau folder spam.";
+    if (!emailLoginDiizinkan(emailBersih)) return res.json({ pesan: pesanUmum });
+
+    const pengguna = await prisma.pengguna.findUnique({
+      where: { email: emailBersih },
+      select: { id: true, nama: true, email: true, kataSandi: true, statusAkun: true },
+    });
+    if (!pengguna || pengguna.statusAkun !== "aktif") return res.json({ pesan: pesanUmum });
+
+    const token = jwt.sign(
+      {
+        id: pengguna.id,
+        purpose: "password_reset",
+        ver: sidikJariPassword(pengguna.kataSandi),
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "20m", jwtid: crypto.randomUUID() },
+    );
+
+    const baseUrl = String(
+      process.env.RESET_PASSWORD_URL || "https://zaman-teknindo.vercel.app",
+    ).trim();
+    const resetUrl = new URL("/reset-password", baseUrl);
+    resetUrl.searchParams.set("token", token);
+
+    const namaAman = escapeHtml(pengguna.nama);
+    const linkAman = escapeHtml(resetUrl.toString());
+    const bodyEmail = {
+      from: process.env.RESET_PASSWORD_FROM_EMAIL,
+      to: [pengguna.email],
+      subject: "Pemulihan Password — Absensi Zaman Teknindo",
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#243247;line-height:1.6">
+          <h2 style="color:#1f3864">Pemulihan Password</h2>
+          <p>Halo ${namaAman},</p>
+          <p>Kami menerima permintaan untuk mengatur ulang password akun Absensi Zaman Teknindo.</p>
+          <p><a href="${linkAman}" style="display:inline-block;padding:12px 18px;background:#1f8f5f;color:#fff;text-decoration:none;border-radius:8px">Atur Password Baru</a></p>
+          <p>Tautan hanya berlaku selama 20 menit dan hanya dapat digunakan sekali. Abaikan email ini jika Anda tidak meminta pemulihan password.</p>
+          <p style="font-size:12px;color:#64748b">Jangan bagikan tautan ini kepada siapa pun.</p>
+        </div>`,
+      text: `Halo ${pengguna.nama}, gunakan tautan berikut untuk mengatur ulang password Absensi Zaman Teknindo (berlaku 20 menit dan sekali pakai): ${resetUrl.toString()} . Abaikan email ini jika Anda tidak meminta pemulihan password.`,
+    };
+
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(bodyEmail),
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      console.error("Pengiriman email pemulihan gagal:", response.status, detail.slice(0, 300));
+      return res.status(502).json({ pesan: "Email pemulihan belum berhasil dikirim. Coba lagi atau hubungi Admin." });
+    }
+
+    return res.json({ pesan: pesanUmum });
+  } catch (error) {
+    console.error("Gagal meminta reset password:", error?.message || error);
+    return res.status(500).json({ pesan: "Permintaan pemulihan password gagal diproses." });
+  }
+}
+
+async function resetPasswordDenganToken(req, res) {
+  setNoCacheAuth(res);
+  try {
+    const token = String(req.body?.token || "").trim();
+    const passwordBaru = String(req.body?.passwordBaru || "");
+    if (!token || !passwordBaru) {
+      return res.status(400).json({ pesan: "Tautan pemulihan dan password baru wajib diisi." });
+    }
+    if (passwordBaru.length < 6) {
+      return res.status(400).json({ pesan: "Password baru minimal 6 karakter." });
+    }
+
+    let dataToken;
+    try {
+      dataToken = jwt.verify(token, process.env.JWT_SECRET);
+    } catch {
+      return res.status(400).json({ pesan: "Tautan pemulihan tidak valid atau sudah kedaluwarsa. Minta tautan baru." });
+    }
+
+    if (
+      dataToken?.purpose !== "password_reset" ||
+      !Number.isInteger(Number(dataToken?.id)) ||
+      typeof dataToken?.ver !== "string"
+    ) {
+      return res.status(400).json({ pesan: "Tautan pemulihan tidak valid. Minta tautan baru." });
+    }
+
+    const pengguna = await prisma.pengguna.findUnique({
+      where: { id: Number(dataToken.id) },
+      select: { id: true, kataSandi: true, statusAkun: true },
+    });
+    if (
+      !pengguna ||
+      pengguna.statusAkun !== "aktif" ||
+      sidikJariPassword(pengguna.kataSandi) !== dataToken.ver
+    ) {
+      return res.status(400).json({ pesan: "Tautan pemulihan sudah digunakan atau tidak lagi berlaku. Minta tautan baru." });
+    }
+
+    const passwordHashBaru = await bcrypt.hash(passwordBaru, 10);
+    await prisma.pengguna.update({
+      where: { id: pengguna.id },
+      data: { kataSandi: passwordHashBaru },
+    });
+
+    return res.json({ pesan: "Password berhasil diperbarui. Silakan login menggunakan password baru." });
+  } catch (error) {
+    console.error("Gagal mengatur password baru:", error?.message || error);
+    return res.status(500).json({ pesan: "Password baru gagal disimpan. Silakan coba lagi." });
+  }
+}
+
+module.exports = { daftarAkun, login, gantiPassword, resetPasswordOlehAdmin, mintaResetPassword, resetPasswordDenganToken };
