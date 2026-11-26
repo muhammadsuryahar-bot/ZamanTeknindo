@@ -8,6 +8,8 @@ const prismaMock = {
       { id: 1, nama: "Dimas Buluh Tenggono", jabatan: "Staff", divisi: "Umum", kantor: { namaKantor: "Pekanbaru" } },
       { id: 2, nama: "Azwar Effendi", jabatan: "Staff", divisi: "Finance", kantor: { namaKantor: "Pekanbaru" } },
       { id: 3, nama: "User Tester", jabatan: "Staff", divisi: "Testing", kantor: { namaKantor: "Pekanbaru" } },
+      { id: 4, nama: "Mayo Andhika", jabatan: "Staff", divisi: "Operasional Bandung", kantor: { namaKantor: "PT. Zaman Teknindo" } },
+      { id: 5, nama: "Adang Warsa Koswara", jabatan: "Staff", divisi: "Office Bandung", kantor: { namaKantor: "HB Bandung" } },
     ],
   },
   absensi: {
@@ -71,6 +73,26 @@ const prismaMock = {
         statusFinal: "alpha",
         keterangan: null,
         catatanAdmin: "Perubahan status oleh Admin",
+      },
+      {
+        penggunaId: 4,
+        tanggal: new Date("2026-08-26T00:00:00.000Z"),
+        jamMasuk: new Date("2026-08-26T01:05:00.000Z"),
+        jamPulang: new Date("2026-08-26T10:00:00.000Z"),
+        statusOtomatis: "tepat_waktu",
+        statusFinal: "tepat_waktu",
+        keterangan: null,
+        catatanAdmin: null,
+      },
+      {
+        penggunaId: 5,
+        tanggal: new Date("2026-08-26T00:00:00.000Z"),
+        jamMasuk: new Date("2026-08-26T01:15:00.000Z"),
+        jamPulang: new Date("2026-08-26T10:00:00.000Z"),
+        statusOtomatis: "telat",
+        statusFinal: "telat",
+        keterangan: null,
+        catatanAdmin: null,
       },
     ],
   },
@@ -422,6 +444,79 @@ async function main() {
   assert.match(JSON.stringify(rekapPeriodeBerikut.autoFilter), /Q26/, "Filter HRD tidak mencakup baris magang yang digabung");
   assert.strictEqual(harianPeriodeBerikut.getCell("A12").value.result, 7, "Nomor roster harian mengikuti HRD pada periode berikutnya");
   assert.strictEqual(workbookPeriodeBerikut.worksheets.length, 2, "Periode berikutnya tetap menghasilkan dua sheet");
+
+  // Tim HB Bandung harus terpisah, memakai alias nama akun, dan tidak membawa
+  // identitas/HC yang belum diberikan HRD. Data kehadiran tetap diambil dari
+  // akun masing-masing, bukan dibuat dari nama roster.
+  const reqBandung = {
+    query: {
+      tanggalMulai: "2026-08-26",
+      tanggalSelesai: "2026-09-25",
+      kelompok: "bandung",
+    },
+  };
+  const outputBandung = new PassThrough();
+  const chunksBandung = [];
+  outputBandung.on("data", (chunk) => chunksBandung.push(Buffer.from(chunk)));
+  const headersBandung = {};
+  outputBandung.setHeader = (key, value) => { headersBandung[String(key).toLowerCase()] = value; };
+  outputBandung.getHeader = (key) => headersBandung[String(key).toLowerCase()];
+  const selesaiBandung = new Promise((resolve, reject) => {
+    if (outputBandung.writableFinished || outputBandung.readableEnded) return resolve();
+    outputBandung.once("finish", resolve);
+    outputBandung.once("error", reject);
+  });
+  await exportRekapAbsensi(reqBandung, outputBandung);
+  await selesaiBandung;
+
+  assert.match(
+    headersBandung["content-disposition"] || "",
+    /Rekap_Absensi_Tim_HB_Bandung_26Agu-25Sep2026\.xlsx/,
+    "Nama file unduhan harus jelas sebagai rekap Tim HB Bandung",
+  );
+
+  const workbookBandung = new ExcelJS.Workbook();
+  await workbookBandung.xlsx.load(Buffer.concat(chunksBandung));
+  assert.deepStrictEqual(
+    workbookBandung.worksheets.map((sheet) => sheet.name),
+    ["Rekap Absensi", "Data Harian"],
+    "Laporan Bandung tetap memakai dua sheet template HRD",
+  );
+
+  const rekapBandung = workbookBandung.getWorksheet("Rekap Absensi");
+  const harianBandung = workbookBandung.getWorksheet("Data Harian");
+  assert.strictEqual(rekapBandung.getCell("B7").value, "Mayo Andika");
+  assert.strictEqual(rekapBandung.getCell("B8").value, "R. Adang Koswara");
+  assert.strictEqual(rekapBandung.getCell("A7").value, null, "Nomor HR Mayo dibiarkan kosong");
+  assert.strictEqual(rekapBandung.getCell("A8").value, null, "Nomor HR Adang dibiarkan kosong");
+  for (const cell of ["C7", "E7", "F7", "G7", "C8", "E8", "F8", "G8"]) {
+    assert.strictEqual(rekapBandung.getCell(cell).value ?? null, null, cell + " harus kosong sesuai instruksi HRD");
+  }
+  assert.strictEqual(rekapBandung.getCell("M7").value, 0, "Lembur karyawan terpetakan mengikuti nilai default template");
+  assert.strictEqual(rekapBandung.getCell("M8").value, 0, "Lembur karyawan terpetakan mengikuti nilai default template");
+  assert.strictEqual(rekapBandung.getCell("H7").value.result, 1, "Kehadiran Mayo harus terhubung melalui alias akun");
+  assert.strictEqual(rekapBandung.getCell("H8").value.result, 1, "Kehadiran Adang harus terhubung melalui alias akun");
+  assert.strictEqual(rekapBandung.getCell("Q7").value.result ?? null, null, "Saldo HC tetap kosong jika metadata G kosong");
+  assert.strictEqual(harianBandung.getCell("A7").value.result ?? null, null, "Nomor harian Mayo juga tetap kosong");
+  assert.strictEqual(harianBandung.getCell("A8").value.result ?? null, null, "Nomor harian Adang juga tetap kosong");
+  assert.strictEqual(harianBandung.getCell("B7").value.result, "Mayo Andika");
+  assert.strictEqual(harianBandung.getCell("B8").value.result, "R. Adang Koswara");
+  assert.strictEqual(harianBandung.getCell("C7").value, "H");
+  assert.strictEqual(harianBandung.getCell("C8").value, "T");
+  assert.match(String(rekapBandung.getCell("A2").value), /TIM HB BANDUNG/);
+  assert.match(String(harianBandung.getCell("A1").value), /Tim HB Bandung/);
+  assert.match(String(rekapBandung.getCell("A11").value), /^HB Bandung,/);
+  assert.strictEqual(workbookBandung.worksheets.length, 2);
+
+  // Kelompok tidak dikenal harus ditolak, bukan diam-diam mengunduh roster kosong.
+  const responseKelompokInvalid = {
+    statusCode: 200,
+    status(code) { this.statusCode = code; return this; },
+    json(payload) { this.payload = payload; return this; },
+    setHeader() {},
+  };
+  await exportRekapAbsensi({ query: { kelompok: "lainnya" } }, responseKelompokInvalid);
+  assert.strictEqual(responseKelompokInvalid.statusCode, 400);
 
   console.log("Export rekap HRD template integration test: PASS");
 
