@@ -3035,9 +3035,11 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                                       {resetPasswordHasil.password}
                                     </div>
                                     <p style={styles.hasilResetCatatan}>
-                                      Sampaikan ini secara manual (WA/telepon)
-                                      ke karyawan, lalu minta segera diganti
-                                      lewat menu "Ganti Password".
+                                      1. Sampaikan password sementara ini secara langsung kepada karyawan melalui WA/telepon.
+                                      <br />
+                                      2. Karyawan login menggunakan email dan password sementara tersebut.
+                                      <br />
+                                      3. Setelah masuk, klik tombol "Ganti Password" di bagian atas dashboard karyawan. Masukkan password sementara pada kolom "Password Lama", lalu buat password baru milik karyawan.
                                     </p>
                                     <button
                                       onClick={() =>
