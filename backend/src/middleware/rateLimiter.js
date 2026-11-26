@@ -32,6 +32,24 @@ const batasResetPassword = rateLimit({
   legacyHeaders: false,
 });
 
+// Pemulihan password mengirim email; batasi agar tidak dapat dipakai untuk spam.
+const batasLupaPassword = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  message: { pesan: "Terlalu banyak permintaan pemulihan password. Coba lagi dalam satu jam." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Validasi token reset juga dibatasi untuk mengurangi percobaan token secara acak.
+const batasResetPasswordUser = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 8,
+  message: { pesan: "Terlalu banyak percobaan reset password. Coba lagi nanti." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Ganti password juga sensitif, tetapi diberi sedikit ruang lebih longgar
 // karena pengguna bisa salah memasukkan password lama beberapa kali.
 const batasGantiPassword = rateLimit({
@@ -62,6 +80,8 @@ module.exports = {
   batasLogin,
   batasDaftar,
   batasResetPassword,
+  batasLupaPassword,
+  batasResetPasswordUser,
   batasGantiPassword,
   batasKioskPin,
   batasKioskRecognition,
