@@ -226,7 +226,7 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
                 try {
                   if (e.target.value) sessionStorage.setItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA, e.target.value);
                   else sessionStorage.removeItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA);
-                } catch {}
+                } catch { /* Penyimpanan sesi tidak tersedia; lanjutkan tanpa menyimpan email. */ }
               }}
               placeholder="nama@zamanteknindo.com"
               className="auth-input auth-input-tanpa-tombol"
@@ -294,7 +294,7 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
             setErrorPemulihan("");
             setPesanPemulihan("");
             setStatusEmailPemulihan(null);
-            try { sessionStorage.removeItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA); } catch {}
+            try { sessionStorage.removeItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA); } catch { /* Penyimpanan sesi tidak tersedia; lanjutkan tanpa menyimpan email. */ }
             ubahModeLupaPassword(false);
           }}
           disabled={loadingPemulihan}
@@ -365,7 +365,7 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
               setErrorPemulihan("");
               try {
                 if (email) sessionStorage.setItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA, email);
-              } catch {}
+              } catch { /* Penyimpanan sesi tidak tersedia; lanjutkan tanpa menyimpan email. */ }
               ubahModeLupaPassword(true);
             }}
             disabled={loading}
