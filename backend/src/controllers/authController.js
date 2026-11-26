@@ -269,10 +269,19 @@ async function resetPasswordDenganToken(req, res) {
     }
 
     const passwordHashBaru = await bcrypt.hash(passwordBaru, 10);
-    await prisma.pengguna.update({
-      where: { id: pengguna.id },
+    // Update bersyarat pada hash lama membuat token hanya dapat dipakai
+    // sekali, termasuk ketika dua permintaan reset masuk hampir bersamaan.
+    const hasilUpdate = await prisma.pengguna.updateMany({
+      where: {
+        id: pengguna.id,
+        kataSandi: pengguna.kataSandi,
+        statusAkun: "aktif",
+      },
       data: { kataSandi: passwordHashBaru },
     });
+    if (hasilUpdate.count !== 1) {
+      return res.status(400).json({ pesan: "Tautan pemulihan sudah digunakan. Minta tautan baru." });
+    }
 
     return res.json({ pesan: "Password berhasil diperbarui. Silakan login menggunakan password baru." });
   } catch (error) {
