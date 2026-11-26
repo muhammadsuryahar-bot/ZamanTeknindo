@@ -608,8 +608,7 @@ async function exportRekapAbsensi(req, res) {
       ")  •  " +
       jumlahHari +
       " Hari Kalender" +
-      " • " +
-      kelompok.penanda;
+      (kelompokId === "bandung" ? " • " + kelompok.penanda : "");
     sheet.getCell("A2").font = {
       name: "Arial",
       size: 11,
@@ -1035,8 +1034,7 @@ async function exportRekapAbsensi(req, res) {
       formatTanggalTanpaTahun(tanggalAwal) +
       " s.d. " +
       formatTanggalIndonesia(tanggalAkhir) +
-      " — " +
-      kelompok.label;
+      (kelompokId === "bandung" ? " — " + kelompok.label : "");
     dailySheet.getCell("A1").font = {
       name: "Arial",
       size: 14,
