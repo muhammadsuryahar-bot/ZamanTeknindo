@@ -42,7 +42,11 @@ assert(controller.includes('purpose: "password_reset"'), "Token harus memiliki p
 assert(controller.includes('sidikJariPassword(pengguna.kataSandi) !== dataToken.ver'), "Token harus tidak bisa dipakai ulang setelah password berubah.");
 assert(controller.includes('await prisma.pengguna.updateMany({'), "Reset harus memakai update kondisional untuk mencegah token digunakan dua kali secara bersamaan.");
 assert(controller.includes('if (hasilUpdate.count !== 1)'), "Hanya satu permintaan reset yang boleh berhasil menggunakan token yang sama.");
-assert(controller.includes('if (!process.env.RESEND_API_KEY || !process.env.RESET_PASSWORD_FROM_EMAIL)'), "Endpoint tidak boleh membuat token reset yang tidak dapat dikirim.");
+assert(controller.includes('const emailTersedia = Boolean('), "Email reset langsung hanya aktif jika konfigurasi pengirim tersedia.");
+assert(controller.includes('if (!emailTersedia)'), "Tanpa email service, pemulihan harus dialihkan ke Admin.");
+assert(controller.includes('await kirimPushKeSemuaAdmin({'), "Permintaan lupa password tanpa email harus memberi notifikasi ke Admin.");
+assert(controller.includes('title: "Permintaan Lupa Password"'), "Notifikasi Admin harus dikenali sebagai permintaan reset.");
+assert(controller.includes('return res.json({ pesan: pesanAdmin });'), "Peminta harus menerima konfirmasi permintaan Admin tanpa membocorkan keberadaan akun.");
 assert(authRoutes.includes('router.post("/lupa-password", batasLupaPassword, mintaResetPassword);'), "Endpoint lupa password harus dibatasi rate limit.");
 assert(authRoutes.includes('router.post("/reset-password", batasResetPasswordUser, resetPasswordDenganToken);'), "Endpoint reset token harus dibatasi rate limit.");
 assert(rateLimiter.includes("const batasLupaPassword = rateLimit("), "Rate limit permintaan email reset wajib aktif.");
