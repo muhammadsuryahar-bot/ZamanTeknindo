@@ -6,7 +6,7 @@ const {
   parseJam,
 } = require("../utils/waktuIndonesia");
 const { ambilSetHariLibur } = require("../utils/hariLibur");
-const { ROSTER_HR_REKAP } = require("../config/rosterRekapAbsensi");
+const { KELOMPOK_ROSTER_HR } = require("../config/rosterRekapAbsensi");
 
 const STATUS_VALID = new Set([
   "tepat_waktu",
@@ -291,6 +291,12 @@ function gayaData(cell, { horizontal = "left", wrapText = false, bold = false } 
 
 async function exportRekapAbsensi(req, res) {
   try {
+    const kelompokId = String(req.query?.kelompok || "pekanbaru").trim().toLowerCase();
+    const kelompok = KELOMPOK_ROSTER_HR[kelompokId];
+    if (!kelompok) {
+      return res.status(400).json({ pesan: "Kelompok rekap tidak valid. Pilih Pekanbaru atau HB Bandung." });
+    }
+
     const hariIni = tanggalHariIniWIBString();
     const tanggalMulai = normalisasiTanggal(req.query?.tanggalMulai) || hariIni;
     const tanggalSelesai = normalisasiTanggal(req.query?.tanggalSelesai) || tanggalMulai;
@@ -348,7 +354,7 @@ async function exportRekapAbsensi(req, res) {
     // akun uji/akun di luar roster tidak ikut tersisip ke rekap resmi.
     // Jika satu nama HR tidak cocok tepat ke satu akun, tetap tampilkan
     // baris roster itu dengan isi absensi kosong; jangan mengarang datanya.
-    const karyawanUnik = ROSTER_HR_REKAP.map((hr) => {
+    const karyawanUnik = kelompok.roster.map((hr) => {
       const namaDiizinkan = new Set(
         [hr.nama, ...(hr.aliases || [])].map(normalisasiNamaRoster),
       );
@@ -360,7 +366,7 @@ async function exportRekapAbsensi(req, res) {
       return {
         id: pengguna?.id ?? null,
         nama: hr.nama,
-        nomorHR: hr.nomor,
+        nomorHR: hr.nomor ?? null,
         tmk: hr.tmk,
         hc2024_2025: hr.hc2024_2025,
         hc2025_2026: hr.hc2025_2026,
@@ -601,7 +607,9 @@ async function exportRekapAbsensi(req, res) {
       formatTanggalIndonesia(tanggalAkhir).toUpperCase() +
       ")  •  " +
       jumlahHari +
-      " Hari Kalender";
+      " Hari Kalender" +
+      " • " +
+      kelompok.penanda;
     sheet.getCell("A2").font = {
       name: "Arial",
       size: 11,
@@ -881,7 +889,7 @@ async function exportRekapAbsensi(req, res) {
 
     sheet.getCell("A" + footerStart).value = "Dibuat Oleh,";
     sheet.getCell("P" + footerStart).value = "Diketahui Oleh,";
-    sheet.getCell("A" + (footerStart + 1)).value = "Pekanbaru, " + formatTanggalIndonesia(new Date());
+    sheet.getCell("A" + (footerStart + 1)).value = kelompok.lokasi + ", " + formatTanggalIndonesia(new Date());
 
     for (let index = 0; index < footerRows.length; index += 1) {
       const row = footerStart + index;
@@ -1026,7 +1034,9 @@ async function exportRekapAbsensi(req, res) {
       "DATA HARIAN KEHADIRAN — Periode " +
       formatTanggalTanpaTahun(tanggalAwal) +
       " s.d. " +
-      formatTanggalIndonesia(tanggalAkhir);
+      formatTanggalIndonesia(tanggalAkhir) +
+      " — " +
+      kelompok.label;
     dailySheet.getCell("A1").font = {
       name: "Arial",
       size: 14,
@@ -1185,7 +1195,7 @@ async function exportRekapAbsensi(req, res) {
 
 
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    res.setHeader("Content-Disposition", "attachment; filename=\"Rekap_Absensi_" + formatTanggalFile(tanggalAwal, false) + "-" + formatTanggalFile(tanggalAkhir, true) + ".xlsx\"");
+    res.setHeader("Content-Disposition", "attachment; filename=\\"Rekap_Absensi_" + kelompok.fileTag + "_" + formatTanggalFile(tanggalAwal, false) + "-" + formatTanggalFile(tanggalAkhir, true) + ".xlsx\\"");
     res.setHeader("Cache-Control", "no-store, private");
     await workbook.xlsx.write(res);
     return res.end();
