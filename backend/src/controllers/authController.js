@@ -130,7 +130,8 @@ async function mintaResetPassword(req, res) {
     }
 
     const emailTersedia = Boolean(
-      process.env.RESEND_API_KEY && process.env.RESET_PASSWORD_FROM_EMAIL,
+      String(process.env.RESEND_API_KEY || "").trim() &&
+      String(process.env.RESET_PASSWORD_FROM_EMAIL || "").trim(),
     );
     const pesanEmail = "Jika email terdaftar dan akun aktif, tautan pemulihan password akan dikirim. Periksa kotak masuk atau folder spam.";
 
@@ -173,7 +174,7 @@ async function mintaResetPassword(req, res) {
     const namaAman = escapeHtml(pengguna.nama);
     const linkAman = escapeHtml(resetUrl.toString());
     const bodyEmail = {
-      from: process.env.RESET_PASSWORD_FROM_EMAIL,
+      from: String(process.env.RESET_PASSWORD_FROM_EMAIL).trim(),
       to: [pengguna.email],
       subject: "Pemulihan Password — Absensi Zaman Teknindo",
       html: `
@@ -191,7 +192,7 @@ async function mintaResetPassword(req, res) {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        Authorization: `Bearer ${String(process.env.RESEND_API_KEY).trim()}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(bodyEmail),
