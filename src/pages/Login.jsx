@@ -129,7 +129,7 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
       setPesanPemulihan(data?.pesan || "Periksa email Anda untuk tautan pemulihan password.");
     } catch (error) {
       console.error("Permintaan lupa password gagal:", error);
-      setErrorPemulihan("Tidak bisa terhubung ke server. Coba lagi atau hubungi Admin.");
+      setErrorPemulihan("Tidak bisa terhubung ke server. Coba lagi atau hubungi HR/IT jika kamu tidak dapat mengakses email akun.");
     } finally {
       setLoadingPemulihan(false);
     }
@@ -144,7 +144,7 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
       tagline="Kelola kehadiran karyawan dengan lebih tertib, cepat, dan terintegrasi — di mana pun karyawan bertugas."
       formTitle={modeLupaPassword ? "Lupa Password" : "Masuk ke Akun"}
       formSubtitle={modeLupaPassword
-        ? "Masukkan email akun. Jika email reset otomatis belum aktif, permintaan akan diteruskan ke Admin/HR untuk verifikasi dan reset sementara."
+        ? "Masukkan email akun yang terdaftar. Tautan pemulihan dikirim ke email tersebut agar kamu dapat membuat password baru sendiri."
         : "Gunakan email dan password akun kamu untuk mengakses sistem absensi."}
     >
       <form onSubmit={modeLupaPassword ? handleMintaResetPassword : handleLogin} noValidate name="login" className="login-form">
@@ -170,7 +170,7 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
         </div>
 
         <p style={{ margin: "2px 0 14px", color: "#64748b", fontSize: 12, lineHeight: 1.5 }}>
-          Jika email otomatis aktif, tautan reset akan dikirim ke email. Jika belum, permintaan diteruskan ke Admin/HR untuk verifikasi dan reset sementara.
+          Tautan pemulihan dikirim langsung ke email akun yang terdaftar. Buka tautan tersebut untuk membuat password baru sendiri. Tautan berlaku 20 menit dan hanya dapat digunakan sekali.
         </p>
 
         {errorPemulihan && (

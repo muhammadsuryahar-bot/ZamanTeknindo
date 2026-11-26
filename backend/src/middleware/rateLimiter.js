@@ -22,16 +22,6 @@ const batasDaftar = rateLimit({
   legacyHeaders: false,
 });
 
-// Reset password admin adalah operasi sensitif. Batasi percobaan per IP
-// supaya endpoint tidak dapat dipanggil berulang-ulang secara agresif.
-const batasResetPassword = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  message: { pesan: "Terlalu banyak percobaan reset password. Coba lagi dalam beberapa menit." },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
 // Pemulihan password mengirim email; batasi agar tidak dapat dipakai untuk spam.
 const batasLupaPassword = rateLimit({
   windowMs: 60 * 60 * 1000,
@@ -79,7 +69,6 @@ const batasKioskRecognition = rateLimit({
 module.exports = {
   batasLogin,
   batasDaftar,
-  batasResetPassword,
   batasLupaPassword,
   batasResetPasswordUser,
   batasGantiPassword,
