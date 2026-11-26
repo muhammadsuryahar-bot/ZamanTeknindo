@@ -158,21 +158,42 @@ async function mintaResetPassword(req, res) {
       return res.status(400).json({ pesan: "Masukkan alamat email yang valid." });
     }
 
-    // Tanpa kredensial pengirim, jangan membuat token reset yang tidak dapat dikirim.
-    if (!process.env.RESEND_API_KEY || !process.env.RESET_PASSWORD_FROM_EMAIL) {
-      return res.status(503).json({
-        pesan: "Layanan pemulihan password belum dikonfigurasi. Hubungi Admin/HR untuk reset sementara.",
-      });
-    }
+    const emailTersedia = Boolean(
+      process.env.RESEND_API_KEY && process.env.RESET_PASSWORD_FROM_EMAIL,
+    );
+    const pesanEmail = "Jika email terdaftar dan akun aktif, tautan pemulihan password akan dikirim. Periksa kotak masuk atau folder spam.";
+    const pesanAdmin = "Jika email terdaftar dan akun aktif, permintaan pemulihan telah diteruskan ke Admin/HR. Admin akan menghubungi Anda untuk verifikasi dan reset password.";
 
-    const pesanUmum = "Jika email terdaftar dan akun aktif, tautan pemulihan password akan dikirim. Periksa kotak masuk atau folder spam.";
-    if (!emailLoginDiizinkan(emailBersih)) return res.json({ pesan: pesanUmum });
+    if (!emailLoginDiizinkan(emailBersih)) {
+      return res.json({ pesan: emailTersedia ? pesanEmail : pesanAdmin });
+    }
 
     const pengguna = await prisma.pengguna.findUnique({
       where: { email: emailBersih },
       select: { id: true, nama: true, email: true, kataSandi: true, statusAkun: true },
     });
-    if (!pengguna || pengguna.statusAkun !== "aktif") return res.json({ pesan: pesanUmum });
+    if (!pengguna || pengguna.statusAkun !== "aktif") {
+      return res.json({ pesan: emailTersedia ? pesanEmail : pesanAdmin });
+    }
+
+    if (!emailTersedia) {
+      try {
+        const hasilPush = await kirimPushKeSemuaAdmin({
+          title: "Permintaan Lupa Password",
+          body: `${pengguna.nama} (${pengguna.email}) meminta reset password. Reset melalui menu Karyawan lalu hubungi karyawan melalui WA/telepon.`,
+          tag: `admin-reset-password-request-${pengguna.id}`,
+          url: "/admin",
+          renotify: true,
+        });
+        console.info("Notifikasi permintaan reset password dikirim:", hasilPush);
+      } catch (error) {
+        console.error("Gagal mengirim notifikasi permintaan reset password:", error?.message || error);
+        return res.status(503).json({
+          pesan: "Permintaan belum berhasil diteruskan. Silakan hubungi Admin/HR secara langsung.",
+        });
+      }
+      return res.json({ pesan: pesanAdmin });
+    }
 
     const token = jwt.sign(
       {
@@ -222,7 +243,7 @@ async function mintaResetPassword(req, res) {
       return res.status(502).json({ pesan: "Email pemulihan belum berhasil dikirim. Coba lagi atau hubungi Admin." });
     }
 
-    return res.json({ pesan: pesanUmum });
+    return res.json({ pesan: pesanEmail });
   } catch (error) {
     console.error("Gagal meminta reset password:", error?.message || error);
     return res.status(500).json({ pesan: "Permintaan pemulihan password gagal diproses." });
