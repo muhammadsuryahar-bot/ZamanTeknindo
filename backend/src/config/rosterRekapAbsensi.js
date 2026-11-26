@@ -33,6 +33,10 @@ const ROSTER_HR_REKAP_PEKANBARU = Object.freeze([
   { nomor: 24, nama: "Syaza Rafsanjani", tmk: "2026-04-20", aliases: ["Syaza rafsanjani"], hc2024_2025: "Belum Ada hak Cuti", hc2025_2026: "Belum Ada hak Cuti" },
   { nomor: 25, nama: "M Surya Harja", tmk: "2026-08-03", aliases: ["Muhammad Surya Harja"], hc2024_2025: "Mhs Magang", hc2025_2026: null },
   { nomor: 26, nama: "Nur M. Maulanal Hakim", tmk: "2026-08-03", aliases: ["Nur Muhammad Maulanal Hakim"], hc2024_2025: "Mhs Magang", hc2025_2026: null },
+  // Karyawan aktif yang ada di database tetapi belum tercantum pada template HR.
+  // Nomor, TMK, dan HC dibiarkan kosong sampai HR memberikan data resminya.
+  { nomor: null, nama: "Deddy Efendi Hamonangan Siregar", tmk: null, aliases: [], hc2024_2025: null, hc2025_2026: null },
+  { nomor: null, nama: "Tyas Sulistyanto Atmaja", tmk: null, aliases: ["Tyas sulistyanto atmaja"], hc2024_2025: null, hc2025_2026: null },
 ]);
 
 // Roster Pekanbaru tetap memakai daftar HRD yang sudah berjalan.
@@ -52,6 +56,17 @@ const ROSTER_HR_REKAP_BANDUNG = Object.freeze([
     nama: "R. Adang Koswara",
     tmk: null,
     aliases: ["Adang Warsa Koswara"],
+    hc2024_2025: null,
+    hc2025_2026: null,
+  },
+  {
+    nomor: null,
+    nama: "Marlinda Puspitasari Koswara",
+    tmk: null,
+    // ID 26 adalah akun yang memiliki catatan absensi; akun duplikat ID 24
+    // tetap tidak digabung atau dihapus tanpa persetujuan HR/Admin.
+    accountIds: [26],
+    aliases: [],
     hc2024_2025: null,
     hc2025_2026: null,
   },

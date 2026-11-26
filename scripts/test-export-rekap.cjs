@@ -10,6 +10,10 @@ const prismaMock = {
       { id: 3, nama: "User Tester", jabatan: "Staff", divisi: "Testing", kantor: { namaKantor: "Pekanbaru" } },
       { id: 4, nama: "Mayo Andhika", jabatan: "Staff", divisi: "Operasional Bandung", kantor: { namaKantor: "PT. Zaman Teknindo" } },
       { id: 5, nama: "Adang Warsa Koswara", jabatan: "Staff", divisi: "Office Bandung", kantor: { namaKantor: "HB Bandung" } },
+      { id: 6, nama: "Deddy Efendi Hamonangan Siregar", jabatan: "Staff", divisi: "Project Re-engginering", kantor: { namaKantor: "PT. Zaman Teknindo" } },
+      { id: 7, nama: "Tyas sulistyanto atmaja", jabatan: "Staff", divisi: "Operasional", kantor: { namaKantor: "PT. Zaman Teknindo" } },
+      { id: 24, nama: "Marlinda Puspitasari Koswara", jabatan: "Staff", divisi: "Office Bandung", kantor: { namaKantor: "HB Bandung" } },
+      { id: 26, nama: "Marlinda Puspitasari Koswara", jabatan: "Staff", divisi: "Office Bandung", kantor: { namaKantor: "HB Bandung" } },
     ],
   },
   absensi: {
@@ -89,6 +93,16 @@ const prismaMock = {
         tanggal: new Date("2026-08-26T00:00:00.000Z"),
         jamMasuk: new Date("2026-08-26T01:15:00.000Z"),
         jamPulang: new Date("2026-08-26T10:00:00.000Z"),
+        statusOtomatis: "telat",
+        statusFinal: "telat",
+        keterangan: null,
+        catatanAdmin: null,
+      },
+      {
+        penggunaId: 26,
+        tanggal: new Date("2026-08-26T00:00:00.000Z"),
+        jamMasuk: new Date("2026-08-26T01:12:00.000Z"),
+        jamPulang: null,
         statusOtomatis: "telat",
         statusFinal: "telat",
         keterangan: null,
@@ -246,8 +260,8 @@ async function main() {
   assert.strictEqual(rekap.getCell("E7").font.color.argb, "FF808080");
   assert.strictEqual(rekap.getCell("G7").font.color.argb, "FFC00000");
   assert.strictEqual(rekap.getCell("Q7").font.color.argb, "FFC00000");
-  assert.strictEqual(rekap.getCell("E30").fill.fgColor.argb, "FFEAF1FB");
-  assert.strictEqual(rekap.getCell("E30").font.color.argb, "FF1F3864");
+  assert.strictEqual(rekap.getCell("E32").fill.fgColor.argb, "FFEAF1FB");
+  assert.strictEqual(rekap.getCell("E32").font.color.argb, "FF1F3864");
   assert.strictEqual(harian.properties.defaultRowHeight, 15);
   assert.strictEqual(harian.getRow(1).height, 17.25);
   assert.strictEqual(harian.getRow(2).height, 15);
@@ -323,7 +337,9 @@ async function main() {
   assert.strictEqual(rekap.getCell("B25").value, "M Rafael Harvio P");
   assert.strictEqual(rekap.getCell("H25").value, null);
   assert.strictEqual(harian.getCell("C25").value, null);
-  assert.strictEqual(rekap.getCell("B29").value, null, "Akun di luar roster HR tidak boleh ikut ekspor");
+  assert.strictEqual(rekap.getCell("B29").value, "Deddy Efendi Hamonangan Siregar", "Deddy yang terdaftar aktif harus ikut roster Pekanbaru");
+  assert.strictEqual(rekap.getCell("B30").value, "Tyas Sulistyanto Atmaja", "Tyas yang terdaftar aktif harus ikut roster Pekanbaru");
+  assert.strictEqual(rekap.getCell("B31").value, null, "Akun tester di luar roster HR tidak boleh ikut ekspor");
   assert.strictEqual(harian.getCell("C7").font.name, "Arial");
   assert.strictEqual(harian.getCell("C7").font.size, 9);
 
@@ -350,8 +366,8 @@ async function main() {
   assert.ok(rekap.autoFilter, "Ekspor harus mempertahankan filter seperti template HRD");
   assert.strictEqual(rekap.views[0].xSplit, 2, "Dua kolom identitas dibekukan seperti template HRD");
   assert.strictEqual(rekap.getCell("A7").border.bottom.color.argb, "FF000000", "Garis tabel rekap harus hitam seperti template");
-  assert.strictEqual(rekap.rowCount, 38, "Sheet Rekap Absensi harus berakhir tepat di baris 38 sesuai file referensi");
-  assert.match(JSON.stringify(rekap.autoFilter), /Q26/, "Filter hanya meliputi baris tanpa gabungan HC magang");
+  assert.strictEqual(rekap.rowCount, 40, "Sheet Rekap Absensi harus menampung 24 baris roster serta footer dan tanda tangan");
+  assert.match(JSON.stringify(rekap.autoFilter), /Q28/, "Filter mencakup baris roster hingga sebelum dua baris HC magang terakhir");
   assert.strictEqual(rekap.getCell("H4").value, "JLH\nKEHADIRAN", "Header kehadiran mengikuti pemenggalan dua baris pada acuan");
   assert.strictEqual(rekap.getCell("A1").alignment.wrapText, true, "Judul utama mengikuti pembungkusan template");
   assert.strictEqual(rekap.getCell("A2").alignment.wrapText, true, "Subjudul periode mengikuti pembungkusan template");
@@ -401,19 +417,22 @@ async function main() {
     "Seluruh kolom akhir pekan menggunakan latar abu-abu",
   );
 
-  // Struktur akhir harus mempertahankan 22 nomor HR, satu baris kosong, ringkasan, dan tanda tangan.
+  // Baris akhir roster dan footer bergeser karena Deddy dan Tyas sudah ditambahkan.
   assert.strictEqual(rekap.getCell("A29").value, null);
-  assert.strictEqual(rekap.getCell("A30").value, "Dibuat Oleh,");
-  assert.strictEqual(rekap.getCell("P30").value, "Diketahui Oleh,");
-  assert.strictEqual(rekap.getCell("E30").value, "Jumlah Hari Kalender dalam Bulan September 2026 (26 Agustus 2026 - 25 September 2026)");
-  assert.strictEqual(rekap.getCell("N30").value, "31 Hari");
-  assert.strictEqual(rekap.getCell("N31").value, "23 HKE");
-  assert.strictEqual(rekap.getCell("N32").value, "08 Hari");
-  assert.strictEqual(rekap.getCell("E33").value, "(Tanggal 29, 30 Agustus, 5, 6, 12, 13, 19, 20 September 2026)");
-  assert.strictEqual(rekap.getCell("A37").value, "Azwar Effendi");
-  assert.strictEqual(rekap.getCell("P37").value, "R. Nuning Rosita R");
-  assert.strictEqual(rekap.getCell("A38").value, "SPV. Umum & Personalia");
-  assert.strictEqual(rekap.getCell("P38").value, "Manager Financial");
+  assert.strictEqual(rekap.getCell("B29").value, "Deddy Efendi Hamonangan Siregar");
+  assert.strictEqual(rekap.getCell("B30").value, "Tyas Sulistyanto Atmaja");
+  assert.strictEqual(rekap.getCell("A31").value, null);
+  assert.strictEqual(rekap.getCell("A32").value, "Dibuat Oleh,");
+  assert.strictEqual(rekap.getCell("P32").value, "Diketahui Oleh,");
+  assert.strictEqual(rekap.getCell("E32").value, "Jumlah Hari Kalender dalam Bulan September 2026 (26 Agustus 2026 - 25 September 2026)");
+  assert.strictEqual(rekap.getCell("N32").value, "31 Hari");
+  assert.strictEqual(rekap.getCell("N33").value, "23 HKE");
+  assert.strictEqual(rekap.getCell("N34").value, "08 Hari");
+  assert.strictEqual(rekap.getCell("E35").value, "(Tanggal 29, 30 Agustus, 5, 6, 12, 13, 19, 20 September 2026)");
+  assert.strictEqual(rekap.getCell("A39").value, "Azwar Effendi");
+  assert.strictEqual(rekap.getCell("P39").value, "R. Nuning Rosita R");
+  assert.strictEqual(rekap.getCell("A40").value, "SPV. Umum & Personalia");
+  assert.strictEqual(rekap.getCell("P40").value, "Manager Financial");
 
 
   // Periode bulan berikutnya harus tetap memakai master metadata HR (HC dan status magang),
@@ -440,8 +459,8 @@ async function main() {
   assert.strictEqual(rekapPeriodeBerikut.getCell("F7").value, "Sdh hbs dijalani", "Metadata HR HC 2025/2026 harus tetap ada pada periode bulan selanjutnya");
   assert.strictEqual(rekapPeriodeBerikut.getCell("E27").value, "Mhs Magang", "Status magang harus tetap tampil pada periode bulan selanjutnya");
   assert.strictEqual(rekapPeriodeBerikut.getCell("G27").master.address, "E27", "Merge HC magang tetap E:G pada periode bulan selanjutnya");
-  assert.strictEqual(rekapPeriodeBerikut.rowCount, 38, "Struktur rekap HRD harus berakhir di baris 38");
-  assert.match(JSON.stringify(rekapPeriodeBerikut.autoFilter), /Q26/, "Filter HRD tidak mencakup baris magang yang digabung");
+  assert.strictEqual(rekapPeriodeBerikut.rowCount, 40, "Struktur rekap HRD menampung roster tambahan");
+  assert.match(JSON.stringify(rekapPeriodeBerikut.autoFilter), /Q28/, "Filter HRD tidak mencakup dua baris magang yang digabung");
   assert.strictEqual(harianPeriodeBerikut.getCell("A12").value.result, 7, "Nomor roster harian mengikuti HRD pada periode berikutnya");
   assert.strictEqual(workbookPeriodeBerikut.worksheets.length, 2, "Periode berikutnya tetap menghasilkan dua sheet");
 
@@ -487,6 +506,8 @@ async function main() {
   const harianBandung = workbookBandung.getWorksheet("Data Harian");
   assert.strictEqual(rekapBandung.getCell("B7").value, "Mayo Andika");
   assert.strictEqual(rekapBandung.getCell("B8").value, "R. Adang Koswara");
+  assert.strictEqual(rekapBandung.getCell("B9").value, "Marlinda Puspitasari Koswara", "Marlinda harus muncul tepat satu kali di rekap Bandung");
+  assert.strictEqual(rekapBandung.getCell("B10").value, null, "Akun kedua Marlinda yang tidak ditetapkan secara eksplisit tidak boleh menggandakan baris");
   assert.strictEqual(rekapBandung.getCell("A7").value, null, "Nomor HR Mayo dibiarkan kosong");
   assert.strictEqual(rekapBandung.getCell("A8").value, null, "Nomor HR Adang dibiarkan kosong");
   for (const cell of ["C7", "E7", "F7", "G7", "C8", "E8", "F8", "G8"]) {
@@ -494,18 +515,26 @@ async function main() {
   }
   assert.strictEqual(rekapBandung.getCell("M7").value, 0, "Lembur karyawan terpetakan mengikuti nilai default template");
   assert.strictEqual(rekapBandung.getCell("M8").value, 0, "Lembur karyawan terpetakan mengikuti nilai default template");
+  assert.strictEqual(rekapBandung.getCell("M9").value, 0, "Lembur Marlinda mengikuti nilai default template");
+  for (const cell of ["A9", "C9", "E9", "F9", "G9"]) {
+    assert.strictEqual(rekapBandung.getCell(cell).value ?? null, null, cell + " Marlinda harus kosong sampai data HR diberikan");
+  }
   assert.strictEqual(rekapBandung.getCell("H7").value.result, 1, "Kehadiran Mayo harus terhubung melalui alias akun");
   assert.strictEqual(rekapBandung.getCell("H8").value.result, 1, "Kehadiran Adang harus terhubung melalui alias akun");
+  assert.strictEqual(rekapBandung.getCell("H9").value.result, 1, "Marlinda harus terhubung ke akun ID 26 yang memiliki riwayat absensi");
   assert.strictEqual(rekapBandung.getCell("Q7").value.result ?? null, null, "Saldo HC tetap kosong jika metadata G kosong");
   assert.strictEqual(harianBandung.getCell("A7").value.result ?? null, null, "Nomor harian Mayo juga tetap kosong");
   assert.strictEqual(harianBandung.getCell("A8").value.result ?? null, null, "Nomor harian Adang juga tetap kosong");
   assert.strictEqual(harianBandung.getCell("B7").value.result, "Mayo Andika");
   assert.strictEqual(harianBandung.getCell("B8").value.result, "R. Adang Koswara");
+  assert.strictEqual(harianBandung.getCell("B9").value.result, "Marlinda Puspitasari Koswara");
+  assert.strictEqual(harianBandung.getCell("A9").value.result ?? null, null, "Nomor harian Marlinda tetap kosong");
+  assert.strictEqual(harianBandung.getCell("C9").value, "T", "Kode hari Marlinda mengambil rekam absensi akun yang dipetakan");
   assert.strictEqual(harianBandung.getCell("C7").value, "H");
   assert.strictEqual(harianBandung.getCell("C8").value, "T");
   assert.match(String(rekapBandung.getCell("A2").value), /TIM HB BANDUNG/);
   assert.match(String(harianBandung.getCell("A1").value), /Tim HB Bandung/);
-  assert.match(String(rekapBandung.getCell("A11").value), /^HB Bandung,/);
+  assert.match(String(rekapBandung.getCell("A12").value), /^HB Bandung,/);
   assert.strictEqual(workbookBandung.worksheets.length, 2);
 
   // Kelompok tidak dikenal harus ditolak, bukan diam-diam mengunduh roster kosong.

@@ -34,11 +34,19 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
   const [lihatPassword, setLihatPassword] = useState(false);
   const [emailFokus, setEmailFokus] = useState(false);
   const [passwordFokus, setPasswordFokus] = useState(false);
+  const [modeLupaPassword, setModeLupaPassword] = useState(false);
+  const [emailPemulihan, setEmailPemulihan] = useState("");
+  const [loadingPemulihan, setLoadingPemulihan] = useState(false);
+  const [pesanPemulihan, setPesanPemulihan] = useState("");
+  const [errorPemulihan, setErrorPemulihan] = useState("");
 
   useEffect(() => {
     try {
       const emailTersimpan = localStorage.getItem(KUNCI_EMAIL_TERSIMPAN);
-      if (emailTersimpan) setEmail(emailTersimpan);
+      if (emailTersimpan) {
+        setEmail(emailTersimpan);
+        setEmailPemulihan(emailTersimpan);
+      }
 
       const pesanTitipan = sessionStorage.getItem("pesanSetelahLogout");
       if (pesanTitipan) {
@@ -96,6 +104,37 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
     }
   }
 
+  async function handleMintaResetPassword(e) {
+    e.preventDefault();
+    setPesanPemulihan("");
+    setErrorPemulihan("");
+    const emailBersih = emailPemulihan.trim().toLowerCase();
+    if (!emailBersih) {
+      setErrorPemulihan("Email akun wajib diisi.");
+      return;
+    }
+
+    setLoadingPemulihan(true);
+    try {
+      const res = await fetch(`${API_URL}/auth/lupa-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailBersih }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorPemulihan(data?.pesan || "Permintaan pemulihan password gagal.");
+        return;
+      }
+      setPesanPemulihan(data?.pesan || "Periksa email Anda untuk tautan pemulihan password.");
+    } catch (error) {
+      console.error("Permintaan lupa password gagal:", error);
+      setErrorPemulihan("Tidak bisa terhubung ke server. Coba lagi atau hubungi Admin.");
+    } finally {
+      setLoadingPemulihan(false);
+    }
+  }
+
   const infoAdalahPeringatan = Boolean(
     pesanInfo && /dinonaktifkan|tidak aktif|menunggu/i.test(pesanInfo),
   );
@@ -103,11 +142,73 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
   return (
     <AuthLayout
       tagline="Kelola kehadiran karyawan dengan lebih tertib, cepat, dan terintegrasi — di mana pun karyawan bertugas."
-      formTitle="Masuk ke Akun"
-      formSubtitle="Gunakan email dan password akun kamu untuk mengakses sistem absensi."
+      formTitle={modeLupaPassword ? "Lupa Password" : "Masuk ke Akun"}
+      formSubtitle={modeLupaPassword
+        ? "Masukkan email yang terdaftar. Tautan aman untuk membuat password baru akan dikirim ke email tersebut."
+        : "Gunakan email dan password akun kamu untuk mengakses sistem absensi."}
     >
-      <form onSubmit={handleLogin} noValidate name="login" className="login-form">
+      <form onSubmit={modeLupaPassword ? handleMintaResetPassword : handleLogin} noValidate name="login" className="login-form">
+        {modeLupaPassword ? (<>
         <div className="field">
+          <label htmlFor="emailPemulihan" className="field-label">Email Akun</label>
+          <div className="input-wrap">
+            <Mail size={18} className="input-icon" />
+            <input
+              id="emailPemulihan"
+              name="email"
+              type="email"
+              value={emailPemulihan}
+              onChange={(e) => { setEmailPemulihan(e.target.value); setErrorPemulihan(""); setPesanPemulihan(""); }}
+              placeholder="nama@zamanteknindo.com"
+              className="auth-input auth-input-tanpa-tombol"
+              autoComplete="email"
+              inputMode="email"
+              disabled={loadingPemulihan}
+              required
+            />
+          </div>
+        </div>
+
+        <p style={{ margin: "2px 0 14px", color: "#64748b", fontSize: 12, lineHeight: 1.5 }}>
+          Jika email otomatis aktif, tautan reset akan dikirim ke email. Jika belum, permintaan diteruskan ke Admin/HR untuk verifikasi dan reset sementara.
+        </p>
+
+        {errorPemulihan && (
+          <div className="message message-error" role="alert">
+            <AlertCircle size={18} />
+            <span>{errorPemulihan}</span>
+          </div>
+        )}
+        {pesanPemulihan && (
+          <div className="message message-info" role="status">
+            <Info size={18} />
+            <span>{pesanPemulihan}</span>
+          </div>
+        )}
+
+        <button type="submit" className="auth-button" disabled={loadingPemulihan}>
+          {loadingPemulihan ? (
+            <>
+              <LoaderCircle size={18} className="auth-loading-icon" />
+              Mengirim tautan...
+            </>
+          ) : (
+            <>
+              Kirim Permintaan Pemulihan
+              <ArrowRight size={18} />
+            </>
+          )}
+        </button>
+        <button
+          type="button"
+          className="auth-switch-button"
+          onClick={() => { setModeLupaPassword(false); setErrorPemulihan(""); setPesanPemulihan(""); }}
+          disabled={loadingPemulihan}
+          style={{ display: "block", width: "100%", marginTop: 14, textAlign: "center" }}
+        >
+          Kembali ke halaman login
+        </button>
+        </>) : (<>        <div className="field">
           <label htmlFor="email" className="field-label">Email</label>
           <div className={`input-wrap ${emailFokus ? "focused" : ""}`}>
             <Mail size={18} className="input-icon" />
@@ -160,6 +261,23 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
           </div>
         </div>
 
+        <div style={{ display: "flex", justifyContent: "flex-end", margin: "-4px 0 12px" }}>
+          <button
+            type="button"
+            className="auth-switch-button"
+            onClick={() => {
+              setEmailPemulihan(email);
+              setPesanPemulihan("");
+              setErrorPemulihan("");
+              setModeLupaPassword(true);
+            }}
+            disabled={loading}
+            style={{ padding: 0, fontSize: 12.5, fontWeight: 700 }}
+          >
+            Lupa password?
+          </button>
+        </div>
+
         <label className="remember-login">
           <input
             type="checkbox"
@@ -197,14 +315,17 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
             </>
           )}
         </button>
+        </>)}
       </form>
 
-      <div className="auth-switch-area">
-        Belum punya akun?
-        <button type="button" className="auth-switch-button" onClick={kePendaftaran} disabled={loading}>
-          Daftar di sini
-        </button>
-      </div>
+      {!modeLupaPassword && (
+        <div className="auth-switch-area">
+          Belum punya akun?
+          <button type="button" className="auth-switch-button" onClick={kePendaftaran} disabled={loading}>
+            Daftar di sini
+          </button>
+        </div>
+      )}
 
       <div className="auth-security-note">
         <ShieldCheck size={13} />
