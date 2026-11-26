@@ -1195,7 +1195,7 @@ async function exportRekapAbsensi(req, res) {
 
 
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    res.setHeader("Content-Disposition", "attachment; filename=\\"Rekap_Absensi_" + kelompok.fileTag + "_" + formatTanggalFile(tanggalAwal, false) + "-" + formatTanggalFile(tanggalAkhir, true) + ".xlsx\\"");
+    res.setHeader("Content-Disposition", 'attachment; filename="Rekap_Absensi_' + kelompok.fileTag + "_" + formatTanggalFile(tanggalAwal, false) + "-" + formatTanggalFile(tanggalAkhir, true) + '.xlsx"');
     res.setHeader("Cache-Control", "no-store, private");
     await workbook.xlsx.write(res);
     return res.end();
