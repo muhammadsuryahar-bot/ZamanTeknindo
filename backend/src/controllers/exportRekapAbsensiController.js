@@ -358,8 +358,16 @@ async function exportRekapAbsensi(req, res) {
       const namaDiizinkan = new Set(
         [hr.nama, ...(hr.aliases || [])].map(normalisasiNamaRoster),
       );
+      // Untuk nama yang mempunyai lebih dari satu akun aktif/duplikat,
+      // roster boleh menentukan ID akun secara eksplisit. Ini mencegah
+      // kehadiran dibuang karena nama yang sama ditemukan dua kali.
+      const idDiizinkan = Array.isArray(hr.accountIds)
+        ? new Set(hr.accountIds.map(Number))
+        : null;
       const kandidat = karyawan.filter((pengguna) =>
-        namaDiizinkan.has(normalisasiNamaRoster(pengguna.nama)),
+        idDiizinkan
+          ? idDiizinkan.has(Number(pengguna.id))
+          : namaDiizinkan.has(normalisasiNamaRoster(pengguna.nama)),
       );
       const pengguna = kandidat.length === 1 ? kandidat[0] : null;
 
