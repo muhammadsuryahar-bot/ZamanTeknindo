@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Eye,
   EyeOff,
@@ -16,8 +17,25 @@ import AuthLayout from "../components/AuthLayout";
 
 const KUNCI_INGAT_SAYA = "zaman-teknindo:ingat-saya";
 const KUNCI_EMAIL_TERSIMPAN = "zaman-teknindo:email-login";
+const KUNCI_EMAIL_PEMULIHAN_SEMENTARA = "zaman-teknindo:email-pemulihan-sementara";
 
 export default function Login({ onLoginBerhasil, kePendaftaran }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const modeLupaPassword = new URLSearchParams(location.search).get("mode") === "lupa-password";
+
+  function ubahModeLupaPassword(aktif) {
+    const params = new URLSearchParams(location.search);
+    if (aktif) params.set("mode", "lupa-password");
+    else params.delete("mode");
+    const query = params.toString();
+    navigate({
+      pathname: location.pathname,
+      search: query ? `?${query}` : "",
+      hash: location.hash,
+    }, { replace: true });
+  }
+
   const [email, setEmail] = useState("");
   const [kataSandi, setKataSandi] = useState("");
   const [ingatSaya, setIngatSaya] = useState(() => {
@@ -34,8 +52,15 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
   const [lihatPassword, setLihatPassword] = useState(false);
   const [emailFokus, setEmailFokus] = useState(false);
   const [passwordFokus, setPasswordFokus] = useState(false);
-  const [modeLupaPassword, setModeLupaPassword] = useState(false);
-  const [emailPemulihan, setEmailPemulihan] = useState("");
+  const [emailPemulihan, setEmailPemulihan] = useState(() => {
+    try {
+      return sessionStorage.getItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA) || "";
+    } catch {
+      return "";
+    }
+  });
+  const [statusEmailPemulihan, setStatusEmailPemulihan] = useState(null);
+  const [memeriksaStatusEmail, setMemeriksaStatusEmail] = useState(false);
   const [loadingPemulihan, setLoadingPemulihan] = useState(false);
   const [pesanPemulihan, setPesanPemulihan] = useState("");
   const [errorPemulihan, setErrorPemulihan] = useState("");
@@ -43,8 +68,8 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
   useEffect(() => {
     try {
       const emailTersimpan = localStorage.getItem(KUNCI_EMAIL_TERSIMPAN);
-      if (emailTersimpan) {
-        setEmail(emailTersimpan);
+      if (emailTersimpan) setEmail(emailTersimpan);
+      if (!sessionStorage.getItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA) && emailTersimpan) {
         setEmailPemulihan(emailTersimpan);
       }
 
@@ -57,6 +82,37 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
       console.warn("Storage browser tidak tersedia:", error);
     }
   }, []);
+
+  useEffect(() => {
+    if (!modeLupaPassword) {
+      setStatusEmailPemulihan(null);
+      setMemeriksaStatusEmail(false);
+      return undefined;
+    }
+
+    let masihAktif = true;
+    setMemeriksaStatusEmail(true);
+    fetch(`${API_URL}/auth/lupa-password/status`, { cache: "no-store" })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.pesan || "Status layanan email tidak dapat diperiksa.");
+        return data;
+      })
+      .then((data) => {
+        if (masihAktif) setStatusEmailPemulihan(data?.tersedia === true);
+      })
+      .catch((error) => {
+        console.warn("Status layanan email pemulihan tidak dapat diperiksa:", error);
+        if (masihAktif) setStatusEmailPemulihan(null);
+      })
+      .finally(() => {
+        if (masihAktif) setMemeriksaStatusEmail(false);
+      });
+
+    return () => {
+      masihAktif = false;
+    };
+  }, [modeLupaPassword]);
 
   async function handleLogin(e) {
     e.preventDefault();
@@ -114,6 +170,11 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
       return;
     }
 
+    if (statusEmailPemulihan === false) {
+      setErrorPemulihan("Layanan email pemulihan belum aktif. Permintaan belum dikirim. Hubungi HR/IT untuk mengaktifkan layanan email.");
+      return;
+    }
+
     setLoadingPemulihan(true);
     try {
       const res = await fetch(`${API_URL}/auth/lupa-password`, {
@@ -158,7 +219,15 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
               name="email"
               type="email"
               value={emailPemulihan}
-              onChange={(e) => { setEmailPemulihan(e.target.value); setErrorPemulihan(""); setPesanPemulihan(""); }}
+              onChange={(e) => {
+                setEmailPemulihan(e.target.value);
+                setErrorPemulihan("");
+                setPesanPemulihan("");
+                try {
+                  if (e.target.value) sessionStorage.setItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA, e.target.value);
+                  else sessionStorage.removeItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA);
+                } catch { /* Penyimpanan sesi tidak tersedia; lanjutkan tanpa menyimpan email. */ }
+              }}
               placeholder="nama@zamanteknindo.com"
               className="auth-input auth-input-tanpa-tombol"
               autoComplete="email"
@@ -169,8 +238,22 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
           </div>
         </div>
 
+        {memeriksaStatusEmail && (
+          <div className="message message-info" role="status">
+            <Info size={18} />
+            <span>Memeriksa kesiapan layanan email pemulihan...</span>
+          </div>
+        )}
+        {statusEmailPemulihan === false && (
+          <div className="message message-warning" role="status">
+            <AlertCircle size={18} />
+            <span>Layanan email pemulihan belum diaktifkan. Permintaan belum dapat dikirim dari halaman ini. Hubungi HR/IT untuk mengaktifkan layanan email. Setelah aktif, tautan pemulihan akan dikirim langsung ke email akun agar karyawan membuat password baru sendiri.</span>
+          </div>
+        )}
         <p style={{ margin: "2px 0 14px", color: "#64748b", fontSize: 12, lineHeight: 1.5 }}>
-          Tautan pemulihan dikirim langsung ke email akun yang terdaftar. Buka tautan tersebut untuk membuat password baru sendiri. Tautan berlaku 20 menit dan hanya dapat digunakan sekali.
+          {statusEmailPemulihan === false
+            ? "Setelah layanan aktif, tautan berlaku 20 menit dan hanya dapat digunakan sekali."
+            : "Tautan pemulihan dikirim langsung ke email akun yang terdaftar. Buka tautan tersebut untuk membuat password baru sendiri. Tautan berlaku 20 menit dan hanya dapat digunakan sekali."}
         </p>
 
         {errorPemulihan && (
@@ -186,8 +269,13 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
           </div>
         )}
 
-        <button type="submit" className="auth-button" disabled={loadingPemulihan}>
-          {loadingPemulihan ? (
+        <button type="submit" className="auth-button" disabled={loadingPemulihan || memeriksaStatusEmail || statusEmailPemulihan === false}>
+          {memeriksaStatusEmail ? (
+            <>
+              <LoaderCircle size={18} className="auth-loading-icon" />
+              Memeriksa layanan email...
+            </>
+          ) : loadingPemulihan ? (
             <>
               <LoaderCircle size={18} className="auth-loading-icon" />
               Mengirim permintaan...
@@ -202,7 +290,13 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
         <button
           type="button"
           className="auth-switch-button"
-          onClick={() => { setModeLupaPassword(false); setErrorPemulihan(""); setPesanPemulihan(""); }}
+          onClick={() => {
+            setErrorPemulihan("");
+            setPesanPemulihan("");
+            setStatusEmailPemulihan(null);
+            try { sessionStorage.removeItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA); } catch { /* Penyimpanan sesi tidak tersedia; lanjutkan tanpa menyimpan email. */ }
+            ubahModeLupaPassword(false);
+          }}
           disabled={loadingPemulihan}
           style={{ display: "block", width: "100%", marginTop: 14, textAlign: "center" }}
         >
@@ -269,7 +363,10 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
               setEmailPemulihan(email);
               setPesanPemulihan("");
               setErrorPemulihan("");
-              setModeLupaPassword(true);
+              try {
+                if (email) sessionStorage.setItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA, email);
+              } catch { /* Penyimpanan sesi tidak tersedia; lanjutkan tanpa menyimpan email. */ }
+              ubahModeLupaPassword(true);
             }}
             disabled={loading}
             style={{ padding: 0, fontSize: 12.5, fontWeight: 700 }}
