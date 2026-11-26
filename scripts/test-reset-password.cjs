@@ -63,6 +63,9 @@ assert(login.includes('new URLSearchParams(location.search).get("mode") === "lup
 assert(login.includes('params.set("mode", "lupa-password")'), "Masuk ke mode Lupa Password harus menyimpan status di URL.");
 assert(login.includes('fetch(`${API_URL}/auth/lupa-password/status`, { cache: "no-store" })'), "Halaman harus memeriksa konfigurasi email sebelum mengirim permintaan.");
 assert(login.includes("statusEmailPemulihan === false"), "Halaman harus memberi tahu saat layanan email belum aktif.");
+assert(login.includes('statusEmailPemulihan === true ? ('), "Form email dan tombol kirim hanya boleh tampil jika layanan email siap.");
+assert(login.includes("statusEmailPemulihan !== true"), "Handler harus menolak permintaan jika status email belum pasti siap.");
+assert(login.includes("Karyawan tidak perlu memasukkan email atau menekan tombol apa pun."), "Saat layanan belum aktif, instruksi harus jelas dan tidak menampilkan tindakan kirim.");
 assert(!envExample.includes("diteruskan ke Admin melalui notifikasi push"), "Dokumentasi environment tidak boleh menjanjikan fallback Admin yang sudah dihapus.");
 assert(login.includes('sessionStorage.setItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA'), "Email yang diuji harus tetap terisi ketika halaman di-refresh.");
 assert(resetPasswordPage.includes('/auth/reset-password'), "Halaman set password baru harus memanggil endpoint reset token.");
