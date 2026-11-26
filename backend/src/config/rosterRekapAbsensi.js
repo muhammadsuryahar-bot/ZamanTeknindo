@@ -10,7 +10,7 @@ const PERIODE_METADATA_HR = Object.freeze({
   tanggalSelesai: "2026-09-25",
 });
 
-const ROSTER_HR_REKAP = Object.freeze([
+const ROSTER_HR_REKAP_PEKANBARU = Object.freeze([
   { nomor: 1, nama: "Dimas Buluh T", tmk: "2012-07-01", aliases: ["Dimas Buluh Tenggono"], hc2024_2025: "Sdh hbs dijalani", hc2025_2026: "Sdh hbs dijalani" },
   { nomor: 2, nama: "Azwar Effendi", tmk: "2014-09-01", aliases: [], hc2024_2025: "Sdh hbs dijalani", hc2025_2026: "Sdh hbs dijalani" },
   { nomor: 3, nama: "Bidan Tamba", tmk: "2011-11-01", aliases: ["Bidan T"], hc2024_2025: "Sudah hbs dijalani", hc2025_2026: 12 },
@@ -35,4 +35,52 @@ const ROSTER_HR_REKAP = Object.freeze([
   { nomor: 26, nama: "Nur M. Maulanal Hakim", tmk: "2026-08-03", aliases: ["Nur Muhammad Maulanal Hakim"], hc2024_2025: "Mhs Magang", hc2025_2026: null },
 ]);
 
-module.exports = { PERIODE_METADATA_HR, ROSTER_HR_REKAP };
+// Roster Pekanbaru tetap memakai daftar HRD yang sudah berjalan.
+// Tim Bandung dilaporkan terpisah sesuai arahan HRD. Nomor karyawan,
+// TMK, dan kedua kolom HC dibiarkan kosong sampai HR memberikan datanya.
+const ROSTER_HR_REKAP_BANDUNG = Object.freeze([
+  {
+    nomor: null,
+    nama: "Mayo Andika",
+    tmk: null,
+    aliases: ["Mayo Andhika"],
+    hc2024_2025: null,
+    hc2025_2026: null,
+  },
+  {
+    nomor: null,
+    nama: "R. Adang Koswara",
+    tmk: null,
+    aliases: ["Adang Warsa Koswara"],
+    hc2024_2025: null,
+    hc2025_2026: null,
+  },
+]);
+
+const ROSTER_HR_REKAP = ROSTER_HR_REKAP_PEKANBARU;
+const KELOMPOK_ROSTER_HR = Object.freeze({
+  pekanbaru: Object.freeze({
+    id: "pekanbaru",
+    label: "Tim Pekanbaru",
+    penanda: "TIM PEKANBARU",
+    fileTag: "Tim_Pekanbaru",
+    lokasi: "Pekanbaru",
+    roster: ROSTER_HR_REKAP_PEKANBARU,
+  }),
+  bandung: Object.freeze({
+    id: "bandung",
+    label: "Tim HB Bandung",
+    penanda: "TIM HB BANDUNG",
+    fileTag: "Tim_HB_Bandung",
+    lokasi: "HB Bandung",
+    roster: ROSTER_HR_REKAP_BANDUNG,
+  }),
+});
+
+module.exports = {
+  PERIODE_METADATA_HR,
+  ROSTER_HR_REKAP,
+  ROSTER_HR_REKAP_PEKANBARU,
+  ROSTER_HR_REKAP_BANDUNG,
+  KELOMPOK_ROSTER_HR,
+};
