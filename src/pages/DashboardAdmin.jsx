@@ -1477,7 +1477,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tanggalRekap]);
 
-  async function exportRekapAbsensi() {
+  async function exportRekapAbsensi(kelompok = "pekanbaru") {
     if (sedangExportAbsensi) return;
 
     const mulai = String(tanggalExportMulai || "").trim();
@@ -1515,6 +1515,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
       const query = new URLSearchParams({
         tanggalMulai: mulai,
         tanggalSelesai: selesai,
+        kelompok,
       });
 
       const res = await fetch(
@@ -1555,8 +1556,10 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
       anchor.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 
-      setPanelExportAbsensiTerbuka(false);
-      setPesanSukses("Rekap absensi berhasil diunduh dalam 2 sheet: Rekap Absensi dan Data Harian.");
+      const labelKelompok = kelompok === "bandung" ? "Tim HB Bandung" : "Tim Pekanbaru";
+      setPesanSukses(
+        "Rekap absensi " + labelKelompok + " berhasil diunduh dalam 2 sheet: Rekap Absensi dan Data Harian.",
+      );
     } catch (error) {
       setPesan(error?.message || "Gagal membuat rekap absensi.");
     } finally {
@@ -2382,12 +2385,21 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                   <div style={styles.rekapExportActions} className="rekapExportActions">
                     <button
                       type="button"
-                      onClick={() => void exportRekapAbsensi()}
+                      onClick={() => void exportRekapAbsensi("pekanbaru")}
                       disabled={sedangExportAbsensi}
                       style={styles.rekapExportSubmit}
                     >
                       <FileDown size={14} />
-                      {sedangExportAbsensi ? "Membuat file…" : "Unduh Rekap Absensi"}
+                      {sedangExportAbsensi ? "Membuat file…" : "Unduh Tim Pekanbaru"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void exportRekapAbsensi("bandung")}
+                      disabled={sedangExportAbsensi}
+                      style={styles.rekapExportSubmit}
+                    >
+                      <FileDown size={14} />
+                      {sedangExportAbsensi ? "Membuat file…" : "Unduh Tim HB Bandung"}
                     </button>
                   </div>
                   <p style={styles.rekapExportNote}>
