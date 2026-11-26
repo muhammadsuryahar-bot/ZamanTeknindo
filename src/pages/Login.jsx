@@ -170,7 +170,7 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
         </div>
 
         <p style={{ margin: "2px 0 14px", color: "#64748b", fontSize: 12, lineHeight: 1.5 }}>
-          Kami akan mengirim tautan pemulihan ke alamat email yang terdaftar. Tautan berlaku 20 menit dan hanya dapat digunakan sekali.
+          Jika email otomatis aktif, tautan reset akan dikirim ke email. Jika belum, permintaan diteruskan ke Admin/HR untuk verifikasi dan reset sementara.
         </p>
 
         {errorPemulihan && (
@@ -194,7 +194,7 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
             </>
           ) : (
             <>
-              Kirim Tautan Pemulihan
+              Kirim Permintaan Pemulihan
               <ArrowRight size={18} />
             </>
           )}
