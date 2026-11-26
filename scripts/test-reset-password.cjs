@@ -16,6 +16,7 @@ const app = baca("src/App.jsx");
 const dashboardAdmin = baca("src/pages/DashboardAdmin.jsx");
 const dashboardKaryawan = baca("src/pages/DashboardKaryawan.jsx");
 const packageJson = JSON.parse(baca("package.json"));
+const envExample = baca(".env.example");
 
 // Admin must never set, generate, receive, or display an employee password.
 assert(!controller.includes("buatPasswordSementara"), "Generator password sementara Admin harus dihapus.");
@@ -62,6 +63,7 @@ assert(login.includes('new URLSearchParams(location.search).get("mode") === "lup
 assert(login.includes('params.set("mode", "lupa-password")'), "Masuk ke mode Lupa Password harus menyimpan status di URL.");
 assert(login.includes('fetch(`${API_URL}/auth/lupa-password/status`, { cache: "no-store" })'), "Halaman harus memeriksa konfigurasi email sebelum mengirim permintaan.");
 assert(login.includes("statusEmailPemulihan === false"), "Halaman harus memberi tahu saat layanan email belum aktif.");
+assert(!envExample.includes("diteruskan ke Admin melalui notifikasi push"), "Dokumentasi environment tidak boleh menjanjikan fallback Admin yang sudah dihapus.");
 assert(login.includes('sessionStorage.setItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA'), "Email yang diuji harus tetap terisi ketika halaman di-refresh.");
 assert(resetPasswordPage.includes('/auth/reset-password'), "Halaman set password baru harus memanggil endpoint reset token.");
 assert(resetPasswordPage.includes('passwordBaru !== konfirmasi'), "Halaman reset harus memeriksa konfirmasi password.");
