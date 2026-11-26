@@ -493,11 +493,6 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
   // Konfirmasi ubah status karyawan yang lagi dibuka (ganti confirm() bawaan browser)
   const [konfirmasiStatusTerbuka, setKonfirmasiStatusTerbuka] = useState(null); // id karyawan atau null
 
-  // Password sementara hanya ditampilkan sesudah Admin mengonfirmasi reset.
-  const [resetPasswordHasil, setResetPasswordHasil] = useState(null); // { id, password } atau null
-  const [resetPasswordKonfirmasi, setResetPasswordKonfirmasi] = useState(null); // { id, nama } atau null
-  const [sedangResetPasswordId, setSedangResetPasswordId] = useState(null);
-
   // Form edit status kehadiran manual yang lagi dibuka
   const [editStatusTerbuka, setEditStatusTerbuka] = useState(null); // id absensi atau null
   const [sedangSimpanStatusId, setSedangSimpanStatusId] = useState(null);
@@ -1190,68 +1185,6 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
     }
   }
 
-  function bukaResetPassword(id, nama) {
-    if (sedangResetPasswordId !== null) return;
-
-    // Tombol yang sama dapat menutup hasil, bukan membuat password baru.
-    if (resetPasswordHasil?.id === id) {
-      setResetPasswordHasil(null);
-      setResetPasswordKonfirmasi(null);
-      return;
-    }
-
-    setPesan("");
-    setPesanSukses("");
-    setResetPasswordKonfirmasi((sebelumnya) =>
-      sebelumnya?.id === id ? null : { id, nama },
-    );
-  }
-
-  async function konfirmasiResetPassword() {
-    const target = resetPasswordKonfirmasi;
-    if (!target || sedangResetPasswordId !== null) return;
-
-    // Tutup konfirmasi sebelum request agar klik berulang tidak memicu reset ganda.
-    setResetPasswordKonfirmasi(null);
-    setSedangResetPasswordId(target.id);
-    setResetPasswordHasil(null);
-    setPesan("");
-    setPesanSukses("");
-
-    try {
-      const res = await fetch(
-        `${API_URL}/admin/karyawan/${target.id}/reset-password`,
-        {
-          method: "PUT",
-          headers: { Authorization: `Bearer ${getToken()}` },
-          cache: "no-store",
-        },
-      );
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        setPesan(data?.pesan || `Gagal mereset password (HTTP ${res.status}).`);
-        return;
-      }
-
-      if (typeof data?.passwordSementara !== "string" || data.passwordSementara.length !== 12) {
-        setPesan("Server telah merespons, tetapi password sementara tidak diterima dengan benar. Status reset belum dapat dipastikan; periksa akun sebelum mengulangi reset.");
-        return;
-      }
-
-      setResetPasswordHasil({
-        id: target.id,
-        password: data.passwordSementara,
-      });
-      setPesanSukses(`Password ${target.nama} berhasil direset. Password sementara hanya ditampilkan sekali.`);
-    } catch (err) {
-      console.error("Status permintaan reset password belum dapat dipastikan:", err);
-      setPesan("Koneksi terputus saat reset diproses. Status belum dapat dipastikan. Jangan mengulangi reset sebelum status akun diperiksa.");
-    } finally {
-      setSedangResetPasswordId(null);
-    }
-  }
-
   async function ubahStatusKaryawan(id, statusBaru) {
     try {
       const res = await fetch(`${API_URL}/admin/karyawan/${id}/status`, {
@@ -1619,9 +1552,6 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
     setFormAktivasiTerbuka(null);
     setKonfirmasiStatusTerbuka(null);
     setEditStatusTerbuka(null);
-    setResetPasswordHasil(null);
-    setResetPasswordKonfirmasi(null);
-    setSedangResetPasswordId(null);
 
     setSidebarMobileTerbuka(false);
   }
@@ -2939,18 +2869,6 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                                     flexWrap: "wrap",
                                   }}
                                 >
-                                  <button
-                                    type="button"
-                                    onClick={() => bukaResetPassword(item.id, item.nama)}
-                                    disabled={sedangResetPasswordId !== null}
-                                    style={{
-                                      ...styles.tombolEditKecil,
-                                      opacity: sedangResetPasswordId !== null ? 0.65 : 1,
-                                      cursor: sedangResetPasswordId !== null ? "wait" : "pointer",
-                                    }}
-                                  >
-                                    {sedangResetPasswordId === item.id ? "Memproses…" : resetPasswordHasil?.id === item.id ? "Tutup Password" : "Reset Password"}
-                                  </button>
                                   {item.statusAkun === "aktif" ? (
                                     <button
                                       onClick={() =>
@@ -2979,80 +2897,6 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                                 </div>
                               </td>
                             </tr>
-                            {resetPasswordKonfirmasi?.id === item.id && (
-                              <tr>
-                                <td
-                                  colSpan={5}
-                                  style={{
-                                    padding: "0 16px 16px 16px",
-                                    background: warna.panelAlt,
-                                  }}
-                                >
-                                  <div style={styles.konfirmasiInline}>
-                                    <span style={styles.konfirmasiTeks}>
-                                      Reset password {item.nama}? Password lama akan langsung diganti, dan password sementara baru hanya ditampilkan sekali. Lanjutkan hanya jika karyawan yang benar sudah dipilih.
-                                    </span>
-                                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                                      <button
-                                        type="button"
-                                        onClick={() => setResetPasswordKonfirmasi(null)}
-                                        disabled={sedangResetPasswordId !== null}
-                                        style={styles.tombolBatal}
-                                      >
-                                        Batal
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => void konfirmasiResetPassword()}
-                                        disabled={sedangResetPasswordId !== null}
-                                        style={{
-                                          ...styles.tombolEditKecil,
-                                          opacity: sedangResetPasswordId !== null ? 0.65 : 1,
-                                        }}
-                                      >
-                                        {sedangResetPasswordId === item.id ? "Memproses…" : "Ya, Reset Password"}
-                                      </button>
-                                    </div>
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                            {resetPasswordHasil?.id === item.id && (
-                              <tr>
-                                <td
-                                  colSpan={5}
-                                  style={{
-                                    padding: "0 16px 16px 16px",
-                                    background: warna.panelAlt,
-                                  }}
-                                >
-                                  <div style={styles.hasilResetBox}>
-                                    <p style={styles.hasilResetTeks}>
-                                      Password sementara untuk{" "}
-                                      <strong>{item.nama}</strong>:
-                                    </p>
-                                    <div style={styles.hasilResetKode}>
-                                      {resetPasswordHasil.password}
-                                    </div>
-                                    <p style={styles.hasilResetCatatan}>
-                                      1. Sampaikan password sementara ini secara langsung kepada karyawan melalui WA/telepon.
-                                      <br />
-                                      2. Karyawan login menggunakan email dan password sementara tersebut.
-                                      <br />
-                                      3. Setelah masuk, klik tombol "Ganti Password" di bagian atas dashboard karyawan. Masukkan password sementara pada kolom "Password Lama", lalu buat password baru milik karyawan.
-                                    </p>
-                                    <button
-                                      onClick={() =>
-                                        setResetPasswordHasil(null)
-                                      }
-                                      style={styles.tombolBatal}
-                                    >
-                                      Tutup
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
                             {konfirmasiStatusTerbuka === item.id && (
                               <tr>
                                 <td
