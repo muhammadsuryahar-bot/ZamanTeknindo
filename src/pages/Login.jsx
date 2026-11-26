@@ -238,8 +238,22 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
           </div>
         </div>
 
+        {memeriksaStatusEmail && (
+          <div className="message message-info" role="status">
+            <Info size={18} />
+            <span>Memeriksa kesiapan layanan email pemulihan...</span>
+          </div>
+        )}
+        {statusEmailPemulihan === false && (
+          <div className="message message-warning" role="status">
+            <AlertCircle size={18} />
+            <span>Layanan email pemulihan belum diaktifkan. Permintaan belum dapat dikirim dari halaman ini. Hubungi HR/IT untuk mengaktifkan layanan email. Setelah aktif, tautan pemulihan akan dikirim langsung ke email akun agar karyawan membuat password baru sendiri.</span>
+          </div>
+        )}
         <p style={{ margin: "2px 0 14px", color: "#64748b", fontSize: 12, lineHeight: 1.5 }}>
-          Tautan pemulihan dikirim langsung ke email akun yang terdaftar. Buka tautan tersebut untuk membuat password baru sendiri. Tautan berlaku 20 menit dan hanya dapat digunakan sekali.
+          {statusEmailPemulihan === false
+            ? "Setelah layanan aktif, tautan berlaku 20 menit dan hanya dapat digunakan sekali."
+            : "Tautan pemulihan dikirim langsung ke email akun yang terdaftar. Buka tautan tersebut untuk membuat password baru sendiri. Tautan berlaku 20 menit dan hanya dapat digunakan sekali."}
         </p>
 
         {errorPemulihan && (
