@@ -60,7 +60,7 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
     }
   });
   const [statusEmailPemulihan, setStatusEmailPemulihan] = useState(null);
-  const [memeriksaStatusEmail, setMemeriksaStatusEmail] = useState(false);
+  const [memeriksaStatusEmail, setMemeriksaStatusEmail] = useState(() => modeLupaPassword);
   const [loadingPemulihan, setLoadingPemulihan] = useState(false);
   const [pesanPemulihan, setPesanPemulihan] = useState("");
   const [errorPemulihan, setErrorPemulihan] = useState("");
@@ -170,8 +170,8 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
       return;
     }
 
-    if (statusEmailPemulihan === false) {
-      setErrorPemulihan("Layanan email pemulihan belum aktif. Permintaan belum dikirim. Hubungi HR/IT untuk mengaktifkan layanan email.");
+    if (statusEmailPemulihan !== true) {
+      setErrorPemulihan("Layanan email pemulihan belum siap. Permintaan belum dikirim. Hubungi HR/IT untuk mengaktifkan layanan email.");
       return;
     }
 
@@ -205,88 +205,95 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
       tagline="Kelola kehadiran karyawan dengan lebih tertib, cepat, dan terintegrasi — di mana pun karyawan bertugas."
       formTitle={modeLupaPassword ? "Lupa Password" : "Masuk ke Akun"}
       formSubtitle={modeLupaPassword
-        ? "Masukkan email akun yang terdaftar. Tautan pemulihan dikirim ke email tersebut agar kamu dapat membuat password baru sendiri."
+        ? (statusEmailPemulihan === false
+          ? "Pemulihan password mandiri belum dapat digunakan karena layanan email belum diaktifkan."
+          : "Masukkan email akun yang terdaftar. Tautan pemulihan akan dikirim ke email tersebut agar kamu dapat membuat password baru sendiri.")
         : "Gunakan email dan password akun kamu untuk mengakses sistem absensi."}
     >
       <form onSubmit={modeLupaPassword ? handleMintaResetPassword : handleLogin} noValidate name="login" className="login-form">
         {modeLupaPassword ? (<>
-        <div className="field">
-          <label htmlFor="emailPemulihan" className="field-label">Email Akun</label>
-          <div className="input-wrap">
-            <Mail size={18} className="input-icon" />
-            <input
-              id="emailPemulihan"
-              name="email"
-              type="email"
-              value={emailPemulihan}
-              onChange={(e) => {
-                setEmailPemulihan(e.target.value);
-                setErrorPemulihan("");
-                setPesanPemulihan("");
-                try {
-                  if (e.target.value) sessionStorage.setItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA, e.target.value);
-                  else sessionStorage.removeItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA);
-                } catch { /* Penyimpanan sesi tidak tersedia; lanjutkan tanpa menyimpan email. */ }
-              }}
-              placeholder="nama@zamanteknindo.com"
-              className="auth-input auth-input-tanpa-tombol"
-              autoComplete="email"
-              inputMode="email"
-              disabled={loadingPemulihan}
-              required
-            />
-          </div>
-        </div>
-
-        {memeriksaStatusEmail && (
+        {memeriksaStatusEmail ? (
           <div className="message message-info" role="status">
-            <Info size={18} />
+            <LoaderCircle size={18} className="auth-loading-icon" />
             <span>Memeriksa kesiapan layanan email pemulihan...</span>
           </div>
-        )}
-        {statusEmailPemulihan === false && (
+        ) : statusEmailPemulihan === true ? (
+          <>
+            <div className="field">
+              <label htmlFor="emailPemulihan" className="field-label">Email Akun</label>
+              <div className="input-wrap">
+                <Mail size={18} className="input-icon" />
+                <input
+                  id="emailPemulihan"
+                  name="email"
+                  type="email"
+                  value={emailPemulihan}
+                  onChange={(e) => {
+                    setEmailPemulihan(e.target.value);
+                    setErrorPemulihan("");
+                    setPesanPemulihan("");
+                    try {
+                      if (e.target.value) sessionStorage.setItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA, e.target.value);
+                      else sessionStorage.removeItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA);
+                    } catch { /* Penyimpanan sesi tidak tersedia; lanjutkan tanpa menyimpan email. */ }
+                  }}
+                  placeholder="nama@zamanteknindo.com"
+                  className="auth-input auth-input-tanpa-tombol"
+                  autoComplete="email"
+                  inputMode="email"
+                  disabled={loadingPemulihan}
+                  required
+                />
+              </div>
+            </div>
+
+            <p style={{ margin: "2px 0 14px", color: "#64748b", fontSize: 12, lineHeight: 1.5 }}>
+              Masukkan email akun yang aktif. Tautan pemulihan berlaku 20 menit dan hanya dapat digunakan sekali.
+            </p>
+
+            {errorPemulihan && (
+              <div className="message message-error" role="alert">
+                <AlertCircle size={18} />
+                <span>{errorPemulihan}</span>
+              </div>
+            )}
+            {pesanPemulihan && (
+              <div className="message message-info" role="status">
+                <Info size={18} />
+                <span>{pesanPemulihan}</span>
+              </div>
+            )}
+
+            <button type="submit" className="auth-button" disabled={loadingPemulihan}>
+              {loadingPemulihan ? (
+                <>
+                  <LoaderCircle size={18} className="auth-loading-icon" />
+                  Mengirim tautan...
+                </>
+              ) : (
+                <>
+                  Kirim Tautan Pemulihan
+                  <ArrowRight size={18} />
+                </>
+              )}
+            </button>
+          </>
+        ) : statusEmailPemulihan === false ? (
           <div className="message message-warning" role="status">
             <AlertCircle size={18} />
-            <span>Layanan email pemulihan belum diaktifkan. Permintaan belum dapat dikirim dari halaman ini. Hubungi HR/IT untuk mengaktifkan layanan email. Setelah aktif, tautan pemulihan akan dikirim langsung ke email akun agar karyawan membuat password baru sendiri.</span>
+            <span>
+              Fitur Lupa Password belum dapat digunakan karena pengiriman email perusahaan belum diaktifkan.
+              Belum ada permintaan yang dikirim. Karyawan tidak perlu memasukkan email atau menekan tombol apa pun.
+              Hubungi HR/IT untuk mengaktifkan layanan email pemulihan.
+            </span>
           </div>
-        )}
-        <p style={{ margin: "2px 0 14px", color: "#64748b", fontSize: 12, lineHeight: 1.5 }}>
-          {statusEmailPemulihan === false
-            ? "Setelah layanan aktif, tautan berlaku 20 menit dan hanya dapat digunakan sekali."
-            : "Tautan pemulihan dikirim langsung ke email akun yang terdaftar. Buka tautan tersebut untuk membuat password baru sendiri. Tautan berlaku 20 menit dan hanya dapat digunakan sekali."}
-        </p>
-
-        {errorPemulihan && (
+        ) : (
           <div className="message message-error" role="alert">
             <AlertCircle size={18} />
-            <span>{errorPemulihan}</span>
-          </div>
-        )}
-        {pesanPemulihan && (
-          <div className="message message-info" role="status">
-            <Info size={18} />
-            <span>{pesanPemulihan}</span>
+            <span>Status layanan email tidak dapat diperiksa. Belum ada permintaan yang dikirim. Muat ulang halaman atau hubungi HR/IT.</span>
           </div>
         )}
 
-        <button type="submit" className="auth-button" disabled={loadingPemulihan || memeriksaStatusEmail || statusEmailPemulihan === false}>
-          {memeriksaStatusEmail ? (
-            <>
-              <LoaderCircle size={18} className="auth-loading-icon" />
-              Memeriksa layanan email...
-            </>
-          ) : loadingPemulihan ? (
-            <>
-              <LoaderCircle size={18} className="auth-loading-icon" />
-              Mengirim permintaan...
-            </>
-          ) : (
-            <>
-              Kirim Permintaan Pemulihan
-              <ArrowRight size={18} />
-            </>
-          )}
-        </button>
         <button
           type="button"
           className="auth-switch-button"
