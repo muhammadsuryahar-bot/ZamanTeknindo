@@ -40,11 +40,13 @@ assert(controller.includes('https://api.resend.com/emails'), "Pengiriman email p
 assert(controller.includes('expiresIn: "20m"'), "Tautan reset harus memiliki batas waktu 20 menit.");
 assert(controller.includes('purpose: "password_reset"'), "Token harus memiliki purpose khusus reset password.");
 assert(controller.includes('sidikJariPassword(pengguna.kataSandi) !== dataToken.ver'), "Token harus tidak bisa dipakai ulang setelah password berubah.");
+assert(controller.includes('await prisma.pengguna.updateMany({'), "Reset harus memakai update kondisional untuk mencegah token digunakan dua kali secara bersamaan.");
+assert(controller.includes('if (hasilUpdate.count !== 1)'), "Hanya satu permintaan reset yang boleh berhasil menggunakan token yang sama.");
 assert(controller.includes('if (!process.env.RESEND_API_KEY || !process.env.RESET_PASSWORD_FROM_EMAIL)'), "Endpoint tidak boleh membuat token reset yang tidak dapat dikirim.");
 assert(authRoutes.includes('router.post("/lupa-password", batasLupaPassword, mintaResetPassword);'), "Endpoint lupa password harus dibatasi rate limit.");
 assert(authRoutes.includes('router.post("/reset-password", batasResetPasswordUser, resetPasswordDenganToken);'), "Endpoint reset token harus dibatasi rate limit.");
 assert(rateLimiter.includes("const batasLupaPassword = rateLimit("), "Rate limit permintaan email reset wajib aktif.");
-assert(/const batasLupaPassword = rateLimit\\(\\{[\\s\\S]*?max: 5,/.test(rateLimiter), "Permintaan email reset maksimal 5 kali per jam per IP.");
+assert(rateLimiter.includes('max: 5,\n  message: { pesan: "Terlalu banyak permintaan pemulihan password.'), "Permintaan email reset maksimal 5 kali per jam per IP.");
 assert(login.includes('Lupa password?'), "Halaman login harus menampilkan tautan Lupa Password.");
 assert(login.includes('/auth/lupa-password'), "Halaman login harus memanggil API pemulihan.");
 assert(resetPasswordPage.includes('/auth/reset-password'), "Halaman set password baru harus memanggil endpoint reset token.");
