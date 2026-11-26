@@ -55,6 +55,14 @@ assert(rateLimiter.includes('max: 5,\n  message: { pesan: "Terlalu banyak permin
 assert(login.includes('Lupa password?'), "Halaman login harus menampilkan tautan Lupa Password.");
 assert(login.includes('/auth/lupa-password'), "Halaman login harus memanggil API pemulihan.");
 assert(login.includes("membuat password baru sendiri"), "Copy harus menjelaskan bahwa pemilik akun membuat password baru sendiri.");
+assert(authRoutes.includes('router.get("/lupa-password/status", statusPemulihanPassword);'), "Status kesiapan layanan email harus dapat diperiksa oleh halaman Lupa Password.");
+assert(controller.includes("async function statusPemulihanPassword(req, res)"), "Endpoint status pemulihan harus tersedia.");
+assert(controller.includes("return res.json({ tersedia });"), "Endpoint status hanya boleh mengembalikan status ketersediaan, bukan kredensial.");
+assert(login.includes('new URLSearchParams(location.search).get("mode") === "lupa-password"'), "Mode Lupa Password harus dipulihkan dari URL setelah refresh.");
+assert(login.includes('params.set("mode", "lupa-password")'), "Masuk ke mode Lupa Password harus menyimpan status di URL.");
+assert(login.includes('fetch(`${API_URL}/auth/lupa-password/status`, { cache: "no-store" })'), "Halaman harus memeriksa konfigurasi email sebelum mengirim permintaan.");
+assert(login.includes("statusEmailPemulihan === false"), "Halaman harus memberi tahu saat layanan email belum aktif.");
+assert(login.includes('sessionStorage.setItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA'), "Email yang diuji harus tetap terisi ketika halaman di-refresh.");
 assert(resetPasswordPage.includes('/auth/reset-password'), "Halaman set password baru harus memanggil endpoint reset token.");
 assert(resetPasswordPage.includes('passwordBaru !== konfirmasi'), "Halaman reset harus memeriksa konfirmasi password.");
 assert(app.includes('path="/reset-password"'), "Rute halaman reset password harus terdaftar.");
