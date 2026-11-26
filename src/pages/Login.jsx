@@ -144,7 +144,7 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
       tagline="Kelola kehadiran karyawan dengan lebih tertib, cepat, dan terintegrasi — di mana pun karyawan bertugas."
       formTitle={modeLupaPassword ? "Lupa Password" : "Masuk ke Akun"}
       formSubtitle={modeLupaPassword
-        ? "Masukkan email yang terdaftar. Tautan aman untuk membuat password baru akan dikirim ke email tersebut."
+        ? "Masukkan email akun. Jika email reset otomatis belum aktif, permintaan akan diteruskan ke Admin/HR untuk verifikasi dan reset sementara."
         : "Gunakan email dan password akun kamu untuk mengakses sistem absensi."}
     >
       <form onSubmit={modeLupaPassword ? handleMintaResetPassword : handleLogin} noValidate name="login" className="login-form">
@@ -190,7 +190,7 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
           {loadingPemulihan ? (
             <>
               <LoaderCircle size={18} className="auth-loading-icon" />
-              Mengirim tautan...
+              Mengirim permintaan...
             </>
           ) : (
             <>
