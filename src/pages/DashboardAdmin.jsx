@@ -1522,10 +1522,10 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
       id: "karyawan",
       label: "Karyawan",
     },
+    { id: "reset-password", label: "Pemulihan Password", badge: notifikasi.resetPasswordPending || null },
     { id: "izin", label: "Izin", badge: notifikasi.izinBaru || null },
     { id: "wajah", label: "Kelola Wajah" },
     { id: "manual", label: "Verifikasi Manual", badge: manualPendingCount || notifikasi.manualPending || null },
-    { id: "reset-password", label: "Pemulihan Password", badge: notifikasi.resetPasswordPending || null },
     { id: "gaji", label: "Gaji" },
     { id: "gaji-massal", label: "Gaji Massal" },
     { id: "kantor", label: "Kantor Pusat" },
@@ -1536,7 +1536,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
   // sekali (itu masih dipakai apa adanya untuk judul halaman & badge).
   const grupSidebar = [
     { label: "WORKSPACE", idTab: ["rekap", "approval"] },
-    { label: "PEOPLE", idTab: ["karyawan", "izin", "wajah", "manual", "reset-password"] },
+    { label: "PEOPLE", idTab: ["karyawan", "reset-password", "izin", "wajah", "manual"] },
     { label: "FINANCE", idTab: ["gaji", "gaji-massal"] },
     { label: "SYSTEM", idTab: ["kantor"] },
   ];
