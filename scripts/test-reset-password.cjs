@@ -17,6 +17,10 @@ const dashboardAdmin = baca("src/pages/DashboardAdmin.jsx");
 const dashboardKaryawan = baca("src/pages/DashboardKaryawan.jsx");
 const packageJson = JSON.parse(baca("package.json"));
 const envExample = baca(".env.example");
+const recoveryAdminController = baca("backend/src/controllers/passwordRecoveryAdminController.js");
+const adminOperational = baca("backend/src/controllers/adminOperationalFixedController.js");
+const adminRecoveryPage = baca("src/pages/AdminPermintaanResetPassword.jsx");
+const prismaSchema = baca("backend/prisma/schema.prisma");
 
 // Admin must never set, generate, receive, or display an employee password.
 assert(!controller.includes("buatPasswordSementara"), "Generator password sementara Admin harus dihapus.");
@@ -38,15 +42,28 @@ assert(dashboardKaryawan.includes('navigate("/ganti-password")'), "Dashboard kar
 // Forgotten-password recovery belongs to the employee through a single-use email link.
 assert(controller.includes("async function mintaResetPassword(req, res)"), "Endpoint permintaan pemulihan password harus tersedia.");
 assert(controller.includes("async function resetPasswordDenganToken(req, res)"), "Endpoint simpan password baru dengan token harus tersedia.");
-assert(controller.includes('process.env.RESEND_API_KEY'), "Pengiriman tautan pemulihan harus membutuhkan pengirim email terkonfigurasi.");
-assert(controller.includes('https://api.resend.com/emails'), "Pengiriman tautan pemulihan harus terhubung ke API email.");
+assert(controller.includes("prisma.permintaanResetPassword.findFirst"), "Permintaan Lupa Password harus dicatat agar dapat dilihat Admin.");
+assert(controller.includes("kirimPushKeSemuaAdmin"), "Permintaan Lupa Password harus mengirim notifikasi ke perangkat Admin jika Web Push tersedia.");
+assert(controller.includes('title: "Zaman Teknindo — Permintaan Lupa Password"'), "Notifikasi Admin harus mengidentifikasi permintaan Lupa Password.");
+assert(recoveryAdminController.includes("async function daftarPermintaanResetPassword"), "Admin harus memiliki endpoint daftar permintaan pemulihan.");
+assert(recoveryAdminController.includes("async function buatTautanPemulihanAdmin"), "Admin harus dapat menerbitkan tautan pemulihan, bukan membuat password.");
+assert(recoveryAdminController.includes('expiresIn: "20m"'), "Tautan yang diterbitkan Admin harus berlaku 20 menit.");
+assert(recoveryAdminController.includes("requestId: permintaan.id"), "Token pemulihan Admin harus terikat ke permintaan yang benar.");
+assert(recoveryAdminController.includes("tokenJti"), "Tautan lama harus gugur ketika Admin menerbitkan tautan baru.");
+assert(adminRoutes.includes('router.get("/permintaan-reset-password", daftarPermintaanResetPassword);'), "Admin harus dapat melihat daftar permintaan.");
+assert(adminRoutes.includes('router.post("/permintaan-reset-password/:id/tautan", buatTautanPemulihanAdmin);'), "Endpoint penerbitan tautan harus berada di bawah proteksi Admin.");
+assert(adminOperational.includes("resetPasswordPending: jumlahPemulihanPassword"), "Jumlah permintaan aktif harus masuk ke notifikasi Admin.");
+assert(adminRecoveryPage.includes("Buat tautan pemulihan"), "Halaman Admin harus menyediakan tindakan penerbitan tautan.");
+assert(adminRecoveryPage.includes("Admin tidak mengatur atau mengetahui password baru"), "Admin tidak boleh melihat atau menentukan password baru.");
+assert(prismaSchema.includes("model PermintaanResetPassword"), "Schema Prisma harus memiliki tabel permintaan pemulihan.");
+assert(prismaSchema.includes('@@map("permintaan_reset_password")'), "Model Prisma harus terhubung ke tabel yang benar.");
 assert(controller.includes('expiresIn: "20m"'), "Tautan reset harus berlaku maksimal 20 menit.");
 assert(controller.includes('purpose: "password_reset"'), "Token harus memiliki purpose khusus reset password.");
 assert(controller.includes('sidikJariPassword(pengguna.kataSandi) !== dataToken.ver'), "Token lama harus gugur setelah password berubah.");
 assert(controller.includes('await prisma.pengguna.updateMany({'), "Reset harus memakai update kondisional agar token sekali pakai.");
 assert(controller.includes('if (hasilUpdate.count !== 1)'), "Hanya satu permintaan reset boleh berhasil dengan token yang sama.");
-assert(controller.includes("Pemulihan password otomatis belum tersedia karena layanan email belum dikonfigurasi."), "Tanpa layanan email, sistem harus menyatakan pemulihan belum tersedia dan tidak mengalihkan reset ke Admin.");
-assert(!controller.includes('title: "Permintaan Lupa Password"'), "Tidak boleh ada notifikasi yang meminta Admin mereset password karyawan.");
+assert(!controller.includes("RESEND_API_KEY"), "Permintaan pemulihan tidak boleh bergantung pada konfigurasi email agar notifikasi Admin tetap berfungsi.");
+assert(!controller.includes("buatPasswordSementara"), "Admin tidak boleh membuat password sementara.");
 
 assert(authRoutes.includes('router.post("/lupa-password", batasLupaPassword, mintaResetPassword);'), "Endpoint lupa password harus dibatasi rate limit.");
 assert(authRoutes.includes('router.post("/reset-password", batasResetPasswordUser, resetPasswordDenganToken);'), "Endpoint reset token harus dibatasi rate limit.");
@@ -61,12 +78,10 @@ assert(controller.includes("async function statusPemulihanPassword(req, res)"), 
 assert(controller.includes("return res.json({ tersedia });"), "Endpoint status hanya boleh mengembalikan status ketersediaan, bukan kredensial.");
 assert(login.includes('new URLSearchParams(location.search).get("mode") === "lupa-password"'), "Mode Lupa Password harus dipulihkan dari URL setelah refresh.");
 assert(login.includes('params.set("mode", "lupa-password")'), "Masuk ke mode Lupa Password harus menyimpan status di URL.");
-assert(login.includes('fetch(`${API_URL}/auth/lupa-password/status`, { cache: "no-store" })'), "Halaman harus memeriksa konfigurasi email sebelum mengirim permintaan.");
-assert(login.includes("statusEmailPemulihan === false"), "Halaman harus memberi tahu saat layanan email belum aktif.");
-assert(login.includes('statusEmailPemulihan === true ? ('), "Form email dan tombol kirim hanya boleh tampil jika layanan email siap.");
-assert(login.includes("statusEmailPemulihan !== true"), "Handler harus menolak permintaan jika status email belum pasti siap.");
-assert(login.includes("Karyawan tidak perlu memasukkan email atau menekan tombol apa pun."), "Saat layanan belum aktif, instruksi harus jelas dan tidak menampilkan tindakan kirim.");
-assert(!envExample.includes("diteruskan ke Admin melalui notifikasi push"), "Dokumentasi environment tidak boleh menjanjikan fallback Admin yang sudah dihapus.");
+assert(login.includes("Permintaan akan diteruskan ke HR/Admin untuk diverifikasi"), "Form harus menjelaskan permintaan diteruskan kepada Admin.");
+assert(login.includes("Kirim Permintaan Pemulihan"), "Karyawan harus dapat mengirim permintaan dari halaman Login.");
+assert(login.includes("Setelah identitas diverifikasi"), "Karyawan harus memahami tautan diberikan setelah verifikasi Admin.");
+assert(!login.includes("statusEmailPemulihan"), "Form tidak boleh terkunci hanya karena layanan email belum dikonfigurasi.");
 assert(login.includes('sessionStorage.setItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA'), "Email yang diuji harus tetap terisi ketika halaman di-refresh.");
 assert(resetPasswordPage.includes('/auth/reset-password'), "Halaman set password baru harus memanggil endpoint reset token.");
 assert(resetPasswordPage.includes('passwordBaru !== konfirmasi'), "Halaman reset harus memeriksa konfirmasi password.");
