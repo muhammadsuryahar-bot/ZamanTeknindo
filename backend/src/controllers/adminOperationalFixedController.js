@@ -184,7 +184,7 @@ async function notifikasiAdminFixed(req, res) {
   }
 
   try {
-    const [jumlahAkunBaru, jumlahIzinMenunggu, jumlahManualPending] =
+    const [jumlahAkunBaru, jumlahIzinMenunggu, jumlahManualPending, jumlahPemulihanPassword] =
       await Promise.all([
         prisma.pengguna.count({
           where: {
@@ -199,6 +199,9 @@ async function notifikasiAdminFixed(req, res) {
         prisma.manualAbsenRequest.count({
           where: { status: "PENDING" },
         }),
+        prisma.permintaanResetPassword.count({
+          where: { status: { in: ["menunggu_verifikasi", "tautan_dibuat"] } },
+        }),
       ]);
 
     const data = {
@@ -206,7 +209,8 @@ async function notifikasiAdminFixed(req, res) {
       izinBaru: jumlahIzinMenunggu,
       manualPending: jumlahManualPending,
       manualBaru: jumlahManualPending,
-      total: jumlahAkunBaru + jumlahIzinMenunggu + jumlahManualPending,
+      resetPasswordPending: jumlahPemulihanPassword,
+      total: jumlahAkunBaru + jumlahIzinMenunggu + jumlahManualPending + jumlahPemulihanPassword,
     };
 
     cacheNotifikasi = { dibuatPada: Date.now(), data };
