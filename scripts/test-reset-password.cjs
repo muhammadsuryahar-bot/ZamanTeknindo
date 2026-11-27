@@ -50,6 +50,11 @@ assert(recoveryAdminController.includes('expiresIn: "20m"'), "Tautan yang diterb
 assert(recoveryAdminController.includes("requestId: permintaan.id"), "Token pemulihan Admin harus terikat ke permintaan yang benar.");
 assert(recoveryAdminController.includes("tokenJti"), "Tautan lama harus gugur ketika Admin menerbitkan tautan baru.");
 assert(adminRoutes.includes('router.get("/permintaan-reset-password", daftarPermintaanResetPassword);'), "Admin harus dapat melihat daftar permintaan.");
+const posisiKaryawan = dashboardAdmin.indexOf('label: "Karyawan"');
+const posisiPemulihan = dashboardAdmin.indexOf('{ id: "reset-password", label: "Pemulihan Password"');
+assert(posisiKaryawan >= 0 && posisiPemulihan > posisiKaryawan, "Menu Pemulihan Password harus berada setelah Karyawan pada daftar tab Admin.");
+const grupPeople = dashboardAdmin.match(/label: "PEOPLE", idTab: \[(.*?)\]/)?.[1] || "";
+assert(grupPeople.includes('"karyawan", "reset-password"'), "Menu Pemulihan Password harus tepat di bawah Karyawan pada sidebar PEOPLE.");
 assert(adminRoutes.includes('router.post("/permintaan-reset-password/:id/tautan", buatTautanPemulihanAdmin);'), "Endpoint penerbitan tautan harus berada di bawah proteksi Admin.");
 assert(adminOperational.includes("resetPasswordPending: jumlahPemulihanPassword"), "Jumlah permintaan aktif harus masuk ke notifikasi Admin.");
 assert(adminRecoveryPage.includes("Buat tautan pemulihan"), "Halaman Admin harus menyediakan tindakan penerbitan tautan.");
