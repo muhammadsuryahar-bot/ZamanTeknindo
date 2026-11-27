@@ -60,7 +60,7 @@ assert(prismaSchema.includes('@@map("permintaan_reset_password")'), "Model Prism
 assert(controller.includes('expiresIn: "20m"'), "Tautan reset harus berlaku maksimal 20 menit.");
 assert(controller.includes('purpose: "password_reset"'), "Token harus memiliki purpose khusus reset password.");
 assert(controller.includes('sidikJariPassword(pengguna.kataSandi) !== dataToken.ver'), "Token lama harus gugur setelah password berubah.");
-assert(controller.includes('await prisma.pengguna.updateMany({'), "Reset harus memakai update kondisional agar token sekali pakai.");
+assert(controller.includes('await tx.pengguna.updateMany({'), "Reset harus memakai update kondisional agar token sekali pakai.");
 assert(controller.includes('if (hasilUpdate.count !== 1)'), "Hanya satu permintaan reset boleh berhasil dengan token yang sama.");
 assert(!controller.includes("RESEND_API_KEY"), "Permintaan pemulihan tidak boleh bergantung pada konfigurasi email agar notifikasi Admin tetap berfungsi.");
 assert(!controller.includes("buatPasswordSementara"), "Admin tidak boleh membuat password sementara.");
@@ -75,7 +75,7 @@ assert(login.includes('/auth/lupa-password'), "Halaman login harus memanggil API
 assert(login.includes("membuat password baru sendiri"), "Copy harus menjelaskan bahwa pemilik akun membuat password baru sendiri.");
 assert(authRoutes.includes('router.get("/lupa-password/status", statusPemulihanPassword);'), "Status kesiapan layanan email harus dapat diperiksa oleh halaman Lupa Password.");
 assert(controller.includes("async function statusPemulihanPassword(req, res)"), "Endpoint status pemulihan harus tersedia.");
-assert(controller.includes("return res.json({ tersedia });"), "Endpoint status hanya boleh mengembalikan status ketersediaan, bukan kredensial.");
+assert(controller.includes('return res.json({ tersedia: true, metode: "verifikasi_admin" });'), "Status pemulihan harus mengaktifkan formulir permintaan melalui Admin.");
 assert(login.includes('new URLSearchParams(location.search).get("mode") === "lupa-password"'), "Mode Lupa Password harus dipulihkan dari URL setelah refresh.");
 assert(login.includes('params.set("mode", "lupa-password")'), "Masuk ke mode Lupa Password harus menyimpan status di URL.");
 assert(login.includes("Permintaan akan diteruskan ke HR/Admin untuk diverifikasi"), "Form harus menjelaskan permintaan diteruskan kepada Admin.");
