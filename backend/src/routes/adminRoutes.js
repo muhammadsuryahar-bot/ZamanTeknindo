@@ -21,6 +21,10 @@ const {
   ubahStatusKaryawanFixed,
 } = require("../controllers/adminOperationalFixedController");
 const { aktifkanAkunFixed } = require("../controllers/aktivasiAkunFixedController");
+const {
+  daftarPermintaanResetPassword,
+  buatTautanPemulihanAdmin,
+} = require("../controllers/passwordRecoveryAdminController");
 const { daftarKaryawanFixed } = require("../controllers/adminKaryawanFixedController");
 const {
   rekapHariIniFixed,
@@ -138,6 +142,8 @@ const uploadExcelGaji = multer({
 
 router.get("/akun-menunggu", daftarMenungguKonfirmasiFixed);
 router.get("/notifikasi", notifikasiAdminFixed);
+router.get("/permintaan-reset-password", daftarPermintaanResetPassword);
+router.post("/permintaan-reset-password/:id/tautan", buatTautanPemulihanAdmin);
 router.put("/akun/:id/aktifkan", aktifkanAkunFixed);
 
 router.get("/karyawan", daftarKaryawanFixed);
