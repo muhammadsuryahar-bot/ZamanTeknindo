@@ -59,8 +59,6 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
       return "";
     }
   });
-  const [statusEmailPemulihan, setStatusEmailPemulihan] = useState(null);
-  const [memeriksaStatusEmail, setMemeriksaStatusEmail] = useState(() => modeLupaPassword);
   const [loadingPemulihan, setLoadingPemulihan] = useState(false);
   const [pesanPemulihan, setPesanPemulihan] = useState("");
   const [errorPemulihan, setErrorPemulihan] = useState("");
@@ -82,37 +80,6 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
       console.warn("Storage browser tidak tersedia:", error);
     }
   }, []);
-
-  useEffect(() => {
-    if (!modeLupaPassword) {
-      setStatusEmailPemulihan(null);
-      setMemeriksaStatusEmail(false);
-      return undefined;
-    }
-
-    let masihAktif = true;
-    setMemeriksaStatusEmail(true);
-    fetch(`${API_URL}/auth/lupa-password/status`, { cache: "no-store" })
-      .then(async (res) => {
-        const data = await res.json();
-        if (!res.ok) throw new Error(data?.pesan || "Status layanan email tidak dapat diperiksa.");
-        return data;
-      })
-      .then((data) => {
-        if (masihAktif) setStatusEmailPemulihan(data?.tersedia === true);
-      })
-      .catch((error) => {
-        console.warn("Status layanan email pemulihan tidak dapat diperiksa:", error);
-        if (masihAktif) setStatusEmailPemulihan(null);
-      })
-      .finally(() => {
-        if (masihAktif) setMemeriksaStatusEmail(false);
-      });
-
-    return () => {
-      masihAktif = false;
-    };
-  }, [modeLupaPassword]);
 
   async function handleLogin(e) {
     e.preventDefault();
@@ -170,11 +137,6 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
       return;
     }
 
-    if (statusEmailPemulihan !== true) {
-      setErrorPemulihan("Layanan email pemulihan belum siap. Permintaan belum dikirim. Hubungi HR/IT untuk mengaktifkan layanan email.");
-      return;
-    }
-
     setLoadingPemulihan(true);
     try {
       const res = await fetch(`${API_URL}/auth/lupa-password`, {
@@ -187,7 +149,7 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
         setErrorPemulihan(data?.pesan || "Permintaan pemulihan password gagal.");
         return;
       }
-      setPesanPemulihan(data?.pesan || "Periksa email Anda untuk tautan pemulihan password.");
+      setPesanPemulihan(data?.pesan || "Permintaan pemulihan sudah diteruskan kepada HR/Admin.");
     } catch (error) {
       console.error("Permintaan lupa password gagal:", error);
       setErrorPemulihan("Tidak bisa terhubung ke server. Coba lagi atau hubungi HR/IT jika kamu tidak dapat mengakses email akun.");
@@ -205,110 +167,84 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
       tagline="Kelola kehadiran karyawan dengan lebih tertib, cepat, dan terintegrasi — di mana pun karyawan bertugas."
       formTitle={modeLupaPassword ? "Lupa Password" : "Masuk ke Akun"}
       formSubtitle={modeLupaPassword
-        ? (statusEmailPemulihan === false
-          ? "Pemulihan password mandiri belum dapat digunakan karena layanan email belum diaktifkan."
-          : "Masukkan email akun yang terdaftar. Tautan pemulihan akan dikirim ke email tersebut agar kamu dapat membuat password baru sendiri.")
+        ? "Masukkan email akun yang terdaftar. Permintaan akan diteruskan ke HR/Admin untuk diverifikasi sebelum tautan pemulihan diberikan."
         : "Gunakan email dan password akun kamu untuk mengakses sistem absensi."}
     >
       <form onSubmit={modeLupaPassword ? handleMintaResetPassword : handleLogin} noValidate name="login" className="login-form">
         {modeLupaPassword ? (<>
-        {memeriksaStatusEmail ? (
-          <div className="message message-info" role="status">
-            <LoaderCircle size={18} className="auth-loading-icon" />
-            <span>Memeriksa kesiapan layanan email pemulihan...</span>
-          </div>
-        ) : statusEmailPemulihan === true ? (
-          <>
-            <div className="field">
-              <label htmlFor="emailPemulihan" className="field-label">Email Akun</label>
-              <div className="input-wrap">
-                <Mail size={18} className="input-icon" />
-                <input
-                  id="emailPemulihan"
-                  name="email"
-                  type="email"
-                  value={emailPemulihan}
-                  onChange={(e) => {
-                    setEmailPemulihan(e.target.value);
-                    setErrorPemulihan("");
-                    setPesanPemulihan("");
-                    try {
-                      if (e.target.value) sessionStorage.setItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA, e.target.value);
-                      else sessionStorage.removeItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA);
-                    } catch { /* Penyimpanan sesi tidak tersedia; lanjutkan tanpa menyimpan email. */ }
-                  }}
-                  placeholder="nama@zamanteknindo.com"
-                  className="auth-input auth-input-tanpa-tombol"
-                  autoComplete="email"
-                  inputMode="email"
-                  disabled={loadingPemulihan}
-                  required
-                />
-              </div>
+          <div className="field">
+            <label htmlFor="emailPemulihan" className="field-label">Email Akun</label>
+            <div className="input-wrap">
+              <Mail size={18} className="input-icon" />
+              <input
+                id="emailPemulihan"
+                name="email"
+                type="email"
+                value={emailPemulihan}
+                onChange={(e) => {
+                  setEmailPemulihan(e.target.value);
+                  setErrorPemulihan("");
+                  setPesanPemulihan("");
+                  try {
+                    if (e.target.value) sessionStorage.setItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA, e.target.value);
+                    else sessionStorage.removeItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA);
+                  } catch { /* Penyimpanan sesi tidak tersedia; lanjutkan tanpa menyimpan email. */ }
+                }}
+                placeholder="nama@zamanteknindo.com"
+                className="auth-input auth-input-tanpa-tombol"
+                autoComplete="email"
+                inputMode="email"
+                disabled={loadingPemulihan}
+                required
+              />
             </div>
-
-            <p style={{ margin: "2px 0 14px", color: "#64748b", fontSize: 12, lineHeight: 1.5 }}>
-              Masukkan email akun yang aktif. Tautan pemulihan berlaku 20 menit dan hanya dapat digunakan sekali.
-            </p>
-
-            {errorPemulihan && (
-              <div className="message message-error" role="alert">
-                <AlertCircle size={18} />
-                <span>{errorPemulihan}</span>
-              </div>
-            )}
-            {pesanPemulihan && (
-              <div className="message message-info" role="status">
-                <Info size={18} />
-                <span>{pesanPemulihan}</span>
-              </div>
-            )}
-
-            <button type="submit" className="auth-button" disabled={loadingPemulihan}>
-              {loadingPemulihan ? (
-                <>
-                  <LoaderCircle size={18} className="auth-loading-icon" />
-                  Mengirim tautan...
-                </>
-              ) : (
-                <>
-                  Kirim Tautan Pemulihan
-                  <ArrowRight size={18} />
-                </>
-              )}
-            </button>
-          </>
-        ) : statusEmailPemulihan === false ? (
-          <div className="message message-warning" role="status">
-            <AlertCircle size={18} />
-            <span>
-              Fitur Lupa Password belum dapat digunakan karena pengiriman email perusahaan belum diaktifkan.
-              Belum ada permintaan yang dikirim. Karyawan tidak perlu memasukkan email atau menekan tombol apa pun.
-              Hubungi HR/IT untuk mengaktifkan layanan email pemulihan.
-            </span>
           </div>
-        ) : (
-          <div className="message message-error" role="alert">
-            <AlertCircle size={18} />
-            <span>Status layanan email tidak dapat diperiksa. Belum ada permintaan yang dikirim. Muat ulang halaman atau hubungi HR/IT.</span>
-          </div>
-        )}
 
-        <button
-          type="button"
-          className="auth-switch-button"
-          onClick={() => {
-            setErrorPemulihan("");
-            setPesanPemulihan("");
-            setStatusEmailPemulihan(null);
-            try { sessionStorage.removeItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA); } catch { /* Penyimpanan sesi tidak tersedia; lanjutkan tanpa menyimpan email. */ }
-            ubahModeLupaPassword(false);
-          }}
-          disabled={loadingPemulihan}
-          style={{ display: "block", width: "100%", marginTop: 14, textAlign: "center" }}
-        >
-          Kembali ke halaman login
-        </button>
+          <p style={{ margin: "2px 0 14px", color: "#64748b", fontSize: 12, lineHeight: 1.5 }}>
+            HR/Admin akan memverifikasi permintaan. Setelah itu, karyawan menerima tautan khusus untuk membuat password baru sendiri. Tautan berlaku 20 menit dan hanya dapat digunakan sekali.
+          </p>
+
+          {errorPemulihan && (
+            <div className="message message-error" role="alert">
+              <AlertCircle size={18} />
+              <span>{errorPemulihan}</span>
+            </div>
+          )}
+          {pesanPemulihan && (
+            <div className="message message-info" role="status">
+              <Info size={18} />
+              <span>{pesanPemulihan}</span>
+            </div>
+          )}
+
+          <button type="submit" className="auth-button" disabled={loadingPemulihan}>
+            {loadingPemulihan ? (
+              <>
+                <LoaderCircle size={18} className="auth-loading-icon" />
+                Mengirim permintaan...
+              </>
+            ) : (
+              <>
+                Kirim Permintaan Pemulihan
+                <ArrowRight size={18} />
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            className="auth-switch-button"
+            onClick={() => {
+              setErrorPemulihan("");
+              setPesanPemulihan("");
+              try { sessionStorage.removeItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA); } catch { /* Penyimpanan sesi tidak tersedia; lanjutkan tanpa menyimpan email. */ }
+              ubahModeLupaPassword(false);
+            }}
+            disabled={loadingPemulihan}
+            style={{ display: "block", width: "100%", marginTop: 14, textAlign: "center" }}
+          >
+            Kembali ke halaman login
+          </button>
         </>) : (<>        <div className="field">
           <label htmlFor="email" className="field-label">Email</label>
           <div className={`input-wrap ${emailFokus ? "focused" : ""}`}>
