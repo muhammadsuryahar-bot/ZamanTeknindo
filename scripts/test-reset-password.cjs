@@ -16,7 +16,6 @@ const app = baca("src/App.jsx");
 const dashboardAdmin = baca("src/pages/DashboardAdmin.jsx");
 const dashboardKaryawan = baca("src/pages/DashboardKaryawan.jsx");
 const packageJson = JSON.parse(baca("package.json"));
-const envExample = baca(".env.example");
 const recoveryAdminController = baca("backend/src/controllers/passwordRecoveryAdminController.js");
 const adminOperational = baca("backend/src/controllers/adminOperationalFixedController.js");
 const adminRecoveryPage = baca("src/pages/AdminPermintaanResetPassword.jsx");
@@ -57,8 +56,8 @@ assert(adminRecoveryPage.includes("Buat tautan pemulihan"), "Halaman Admin harus
 assert(adminRecoveryPage.includes("Admin tidak mengatur atau mengetahui password baru"), "Admin tidak boleh melihat atau menentukan password baru.");
 assert(prismaSchema.includes("model PermintaanResetPassword"), "Schema Prisma harus memiliki tabel permintaan pemulihan.");
 assert(prismaSchema.includes('@@map("permintaan_reset_password")'), "Model Prisma harus terhubung ke tabel yang benar.");
-assert(controller.includes('expiresIn: "20m"'), "Tautan reset harus berlaku maksimal 20 menit.");
-assert(controller.includes('purpose: "password_reset"'), "Token harus memiliki purpose khusus reset password.");
+assert(recoveryAdminController.includes('expiresIn: "20m"'), "Tautan reset yang diterbitkan Admin harus berlaku maksimal 20 menit.");
+assert(recoveryAdminController.includes('purpose: "password_reset"'), "Token harus memiliki purpose khusus reset password.");
 assert(controller.includes('sidikJariPassword(pengguna.kataSandi) !== dataToken.ver'), "Token lama harus gugur setelah password berubah.");
 assert(controller.includes('await tx.pengguna.updateMany({'), "Reset harus memakai update kondisional agar token sekali pakai.");
 assert(controller.includes('if (hasilUpdate.count !== 1)'), "Hanya satu permintaan reset boleh berhasil dengan token yang sama.");
