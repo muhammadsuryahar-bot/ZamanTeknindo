@@ -436,6 +436,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
       "izin",
       "wajah",
       "manual",
+      "reset-password",
       "gaji",
       "gaji-massal",
       "kantor",
