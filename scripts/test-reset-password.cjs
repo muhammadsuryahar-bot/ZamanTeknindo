@@ -79,7 +79,7 @@ assert(login.includes('new URLSearchParams(location.search).get("mode") === "lup
 assert(login.includes('params.set("mode", "lupa-password")'), "Masuk ke mode Lupa Password harus menyimpan status di URL.");
 assert(login.includes("Permintaan akan diteruskan ke HR/Admin untuk diverifikasi"), "Form harus menjelaskan permintaan diteruskan kepada Admin.");
 assert(login.includes("Kirim Permintaan Pemulihan"), "Karyawan harus dapat mengirim permintaan dari halaman Login.");
-assert(login.includes("Setelah identitas diverifikasi"), "Karyawan harus memahami tautan diberikan setelah verifikasi Admin.");
+assert(login.includes("HR/Admin akan memverifikasi permintaan. Setelah itu, karyawan menerima tautan khusus"), "Karyawan harus memahami tautan diberikan setelah verifikasi Admin.");
 assert(!login.includes("statusEmailPemulihan"), "Form tidak boleh terkunci hanya karena layanan email belum dikonfigurasi.");
 assert(login.includes('sessionStorage.setItem(KUNCI_EMAIL_PEMULIHAN_SEMENTARA'), "Email yang diuji harus tetap terisi ketika halaman di-refresh.");
 assert(resetPasswordPage.includes('/auth/reset-password'), "Halaman set password baru harus memanggil endpoint reset token.");
