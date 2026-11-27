@@ -152,7 +152,7 @@ export default function Login({ onLoginBerhasil, kePendaftaran }) {
       setPesanPemulihan(data?.pesan || "Permintaan pemulihan sudah diteruskan kepada HR/Admin.");
     } catch (error) {
       console.error("Permintaan lupa password gagal:", error);
-      setErrorPemulihan("Tidak bisa terhubung ke server. Coba lagi atau hubungi HR/IT jika kamu tidak dapat mengakses email akun.");
+      setErrorPemulihan("Tidak bisa terhubung ke server. Permintaan belum tercatat. Silakan coba lagi atau hubungi HR/Admin.");
     } finally {
       setLoadingPemulihan(false);
     }
