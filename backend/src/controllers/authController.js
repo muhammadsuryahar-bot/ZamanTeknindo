@@ -113,100 +113,86 @@ function escapeHtml(value) {
 
 async function statusPemulihanPassword(req, res) {
   setNoCacheAuth(res);
-  const tersedia = Boolean(
-    String(process.env.RESEND_API_KEY || "").trim() &&
-    String(process.env.RESET_PASSWORD_FROM_EMAIL || "").trim(),
-  );
-  // Hanya status kesiapan yang dibuka ke publik; kredensial email tidak pernah dikirim.
-  return res.json({ tersedia });
+  // Permintaan pemulihan dicatat di sistem dan diteruskan ke Admin.
+  // Pengiriman email eksternal tidak menjadi prasyarat.
+  return res.json({ tersedia: true, metode: "verifikasi_admin" });
 }
 
 async function mintaResetPassword(req, res) {
   setNoCacheAuth(res);
   try {
     const emailBersih = String(req.body?.email || "").trim().toLowerCase();
-    if (!emailBersih || !/^\S+@\S+\.\S+$/.test(emailBersih)) {
+    if (!emailBersih || !/^\\S+@\\S+\\.\\S+$/.test(emailBersih)) {
       return res.status(400).json({ pesan: "Masukkan alamat email yang valid." });
     }
 
-    const emailTersedia = Boolean(
-      String(process.env.RESEND_API_KEY || "").trim() &&
-      String(process.env.RESET_PASSWORD_FROM_EMAIL || "").trim(),
-    );
-    const pesanEmail = "Jika email terdaftar dan akun aktif, tautan pemulihan password akan dikirim. Periksa kotak masuk atau folder spam.";
+    const pesanUmum =
+      "Jika email terdaftar, permintaan pemulihan sudah diteruskan ke HR/Admin. Setelah identitas diverifikasi, tautan pemulihan akan diberikan agar Anda membuat password baru sendiri.";
 
-    // Pemilik akun harus membuat password barunya sendiri melalui tautan email.
-    // Admin tidak membuat password sementara dan tidak mengatur password karyawan.
-    if (!emailTersedia) {
-      return res.status(503).json({
-        pesan: "Pemulihan password otomatis belum tersedia karena layanan email belum dikonfigurasi. Hubungi HR/IT untuk bantuan memastikan akses ke email akun terdaftar. Admin tidak akan membuat atau mengetahui password baru Anda.",
-      });
-    }
-
-    if (!emailLoginDiizinkan(emailBersih)) {
-      return res.json({ pesan: pesanEmail });
+    // Jangan membocorkan apakah suatu email terdaftar.
+    if (!emailKaryawanValid(emailBersih)) {
+      return res.json({ pesan: pesanUmum });
     }
 
     const pengguna = await prisma.pengguna.findUnique({
       where: { email: emailBersih },
-      select: { id: true, nama: true, email: true, kataSandi: true, statusAkun: true },
+      select: { id: true, nama: true, email: true, peran: true, statusAkun: true },
     });
-    if (!pengguna || pengguna.statusAkun !== "aktif") {
-      return res.json({ pesan: pesanEmail });
+    if (!pengguna || pengguna.peran !== "karyawan" || pengguna.statusAkun !== "aktif") {
+      return res.json({ pesan: pesanUmum });
     }
 
-    const token = jwt.sign(
-      {
-        id: pengguna.id,
-        purpose: "password_reset",
-        ver: sidikJariPassword(pengguna.kataSandi),
+    // Satu permintaan aktif per karyawan. Jika karyawan menekan tombol beberapa
+    // kali, permintaan yang sama dipakai kembali agar Admin tidak menerima spam.
+    let permintaan = await prisma.permintaanResetPassword.findFirst({
+      where: {
+        penggunaId: pengguna.id,
+        status: { in: ["menunggu_verifikasi", "tautan_dibuat"] },
       },
-      process.env.JWT_SECRET,
-      { expiresIn: "20m", jwtid: crypto.randomUUID() },
-    );
-
-    const baseUrl = String(
-      process.env.RESET_PASSWORD_URL || "https://zaman-teknindo.vercel.app",
-    ).trim();
-    const resetUrl = new URL("/reset-password", baseUrl);
-    resetUrl.searchParams.set("token", token);
-
-    const namaAman = escapeHtml(pengguna.nama);
-    const linkAman = escapeHtml(resetUrl.toString());
-    const bodyEmail = {
-      from: String(process.env.RESET_PASSWORD_FROM_EMAIL).trim(),
-      to: [pengguna.email],
-      subject: "Pemulihan Password — Absensi Zaman Teknindo",
-      html: `
-        <div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#243247;line-height:1.6">
-          <h2 style="color:#1f3864">Pemulihan Password</h2>
-          <p>Halo ${namaAman},</p>
-          <p>Kami menerima permintaan untuk mengatur ulang password akun Absensi Zaman Teknindo.</p>
-          <p><a href="${linkAman}" style="display:inline-block;padding:12px 18px;background:#1f8f5f;color:#fff;text-decoration:none;border-radius:8px">Atur Password Baru</a></p>
-          <p>Tautan hanya berlaku selama 20 menit dan hanya dapat digunakan sekali. Abaikan email ini jika Anda tidak meminta pemulihan password.</p>
-          <p style="font-size:12px;color:#64748b">Jangan bagikan tautan ini kepada siapa pun.</p>
-        </div>`,
-      text: `Halo ${pengguna.nama}, gunakan tautan berikut untuk mengatur ulang password Absensi Zaman Teknindo (berlaku 20 menit dan sekali pakai): ${resetUrl.toString()} . Abaikan email ini jika Anda tidak meminta pemulihan password.`,
-    };
-
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${String(process.env.RESEND_API_KEY).trim()}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(bodyEmail),
+      orderBy: { dibuatPada: "desc" },
+      select: { id: true, status: true },
     });
-    if (!response.ok) {
-      const detail = await response.text().catch(() => "");
-      console.error("Pengiriman email pemulihan gagal:", response.status, detail.slice(0, 300));
-      return res.status(502).json({ pesan: "Email pemulihan belum berhasil dikirim. Coba lagi atau hubungi HR/IT untuk bantuan akses ke email akun." });
+
+    if (!permintaan) {
+      try {
+        permintaan = await prisma.permintaanResetPassword.create({
+          data: { penggunaId: pengguna.id },
+          select: { id: true, status: true },
+        });
+      } catch (error) {
+        // Menangani dua request bersamaan yang bertemu pada unique partial index.
+        if (error?.code !== "P2002") throw error;
+        permintaan = await prisma.permintaanResetPassword.findFirst({
+          where: {
+            penggunaId: pengguna.id,
+            status: { in: ["menunggu_verifikasi", "tautan_dibuat"] },
+          },
+          orderBy: { dibuatPada: "desc" },
+          select: { id: true, status: true },
+        });
+        if (!permintaan) throw error;
+      }
     }
 
-    return res.json({ pesan: pesanEmail });
+    // Push adalah tambahan. Badge di dashboard Admin tetap mengambil data
+    // dari tabel sehingga permintaan tidak hilang bila perangkat offline.
+    try {
+      const hasilPush = await kirimPushKeSemuaAdmin({
+        title: "Zaman Teknindo — Permintaan Lupa Password",
+        body: `${pengguna.nama} meminta bantuan pemulihan password.`,
+        tag: `admin-reset-password-${permintaan.id}`,
+        url: "/admin",
+        renotify: true,
+      });
+      console.info("Push permintaan pemulihan password:", hasilPush);
+    } catch (error) {
+      console.error("Push permintaan pemulihan password gagal:", error?.message || error);
+    }
+
+    return res.json({ pesan: pesanUmum });
   } catch (error) {
-    console.error("Gagal meminta reset password:", error?.message || error);
-    return res.status(500).json({ pesan: "Permintaan pemulihan password gagal diproses." });
+    console.error("Gagal mencatat permintaan pemulihan password:", error?.message || error);
+    return res.status(500).json({ pesan: "Permintaan pemulihan password gagal dicatat. Silakan coba lagi." });
   }
 }
 
@@ -241,6 +227,26 @@ async function resetPasswordDenganToken(req, res) {
       where: { id: Number(dataToken.id) },
       select: { id: true, kataSandi: true, statusAkun: true },
     });
+
+    let permintaanReset = null;
+    if (dataToken.requestId !== undefined) {
+      const requestId = Number(dataToken.requestId);
+      if (!Number.isInteger(requestId) || typeof dataToken.jti !== "string") {
+        return res.status(400).json({ pesan: "Tautan pemulihan tidak valid. Minta tautan baru kepada HR/Admin." });
+      }
+      permintaanReset = await prisma.permintaanResetPassword.findUnique({
+        where: { id: requestId },
+        select: { id: true, penggunaId: true, status: true, tokenJti: true },
+      });
+      if (
+        !permintaanReset ||
+        permintaanReset.penggunaId !== pengguna.id ||
+        permintaanReset.status !== "tautan_dibuat" ||
+        permintaanReset.tokenJti !== dataToken.jti
+      ) {
+        return res.status(400).json({ pesan: "Tautan pemulihan sudah tidak berlaku. Hubungi HR/Admin untuk meminta tautan baru." });
+      }
+    }
     if (
       !pengguna ||
       pengguna.statusAkun !== "aktif" ||
@@ -250,18 +256,41 @@ async function resetPasswordDenganToken(req, res) {
     }
 
     const passwordHashBaru = await bcrypt.hash(passwordBaru, 10);
-    // Update bersyarat pada hash lama membuat token hanya dapat dipakai
-    // sekali, termasuk ketika dua permintaan reset masuk hampir bersamaan.
-    const hasilUpdate = await prisma.pengguna.updateMany({
-      where: {
-        id: pengguna.id,
-        kataSandi: pengguna.kataSandi,
-        statusAkun: "aktif",
-      },
-      data: { kataSandi: passwordHashBaru },
+    // Perubahan password dan penutupan permintaan dilakukan dalam satu transaksi.
+    // Token admin wajib cocok dengan JTI terakhir agar tautan lama gugur saat diterbitkan ulang.
+    const berhasil = await prisma.$transaction(async (tx) => {
+      const hasilUpdate = await tx.pengguna.updateMany({
+        where: {
+          id: pengguna.id,
+          kataSandi: pengguna.kataSandi,
+          statusAkun: "aktif",
+        },
+        data: { kataSandi: passwordHashBaru },
+      });
+      if (hasilUpdate.count !== 1) return false;
+
+      if (permintaanReset) {
+        const selesai = await tx.permintaanResetPassword.updateMany({
+          where: {
+            id: permintaanReset.id,
+            penggunaId: pengguna.id,
+            status: "tautan_dibuat",
+            tokenJti: dataToken.jti,
+          },
+          data: {
+            status: "selesai",
+            selesaiPada: new Date(),
+            tokenJti: null,
+          },
+        });
+        if (selesai.count !== 1) {
+          throw new Error("Permintaan pemulihan sudah berubah atau tautan bukan yang terbaru.");
+        }
+      }
+      return true;
     });
-    if (hasilUpdate.count !== 1) {
-      return res.status(400).json({ pesan: "Tautan pemulihan sudah digunakan. Minta tautan baru." });
+    if (!berhasil) {
+      return res.status(400).json({ pesan: "Tautan pemulihan sudah digunakan. Minta tautan baru kepada HR/Admin." });
     }
 
     return res.json({ pesan: "Password berhasil diperbarui. Silakan login menggunakan password baru." });
