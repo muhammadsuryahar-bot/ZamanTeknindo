@@ -101,15 +101,6 @@ function setNoCacheAuth(res) {
   });
 }
 
-function escapeHtml(value) {
-  return String(value || "").replace(/[&<>"']/g, (character) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;",
-  })[character]);
-}
 
 async function statusPemulihanPassword(req, res) {
   setNoCacheAuth(res);
@@ -122,7 +113,7 @@ async function mintaResetPassword(req, res) {
   setNoCacheAuth(res);
   try {
     const emailBersih = String(req.body?.email || "").trim().toLowerCase();
-    if (!emailBersih || !/^\\S+@\\S+\\.\\S+$/.test(emailBersih)) {
+    if (!emailBersih || !/^\S+@\S+\.\S+$/.test(emailBersih)) {
       return res.status(400).json({ pesan: "Masukkan alamat email yang valid." });
     }
 
