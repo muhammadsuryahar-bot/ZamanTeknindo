@@ -227,6 +227,13 @@ async function resetPasswordDenganToken(req, res) {
       where: { id: Number(dataToken.id) },
       select: { id: true, kataSandi: true, statusAkun: true },
     });
+    if (
+      !pengguna ||
+      pengguna.statusAkun !== "aktif" ||
+      sidikJariPassword(pengguna.kataSandi) !== dataToken.ver
+    ) {
+      return res.status(400).json({ pesan: "Tautan pemulihan sudah digunakan atau tidak lagi berlaku. Minta tautan baru." });
+    }
 
     let permintaanReset = null;
     if (dataToken.requestId !== undefined) {
@@ -246,13 +253,6 @@ async function resetPasswordDenganToken(req, res) {
       ) {
         return res.status(400).json({ pesan: "Tautan pemulihan sudah tidak berlaku. Hubungi HR/Admin untuk meminta tautan baru." });
       }
-    }
-    if (
-      !pengguna ||
-      pengguna.statusAkun !== "aktif" ||
-      sidikJariPassword(pengguna.kataSandi) !== dataToken.ver
-    ) {
-      return res.status(400).json({ pesan: "Tautan pemulihan sudah digunakan atau tidak lagi berlaku. Minta tautan baru." });
     }
 
     const passwordHashBaru = await bcrypt.hash(passwordBaru, 10);
