@@ -10,6 +10,7 @@ const AdminIzin = lazy(() => import("./AdminIzin"));
 const PengaturanGaji = lazy(() => import("./PengaturanGaji"));
 const AdminGajiMassal = lazy(() => import("./AdminGajiMassal"));
 const AdminManual = lazy(() => import("./AdminManual"));
+const AdminPermintaanResetPassword = lazy(() => import("./AdminPermintaanResetPassword"));
 import { labelStatusKehadiran } from "../utils/statusKehadiran";
 import { formatAlamatPresensi } from "../utils/alamatPresensi";
 import {
@@ -30,6 +31,7 @@ import {
   UserX,
   Bell,
   UserPlus,
+  KeyRound,
   FileCheck2,
   FileDown,
   X,
@@ -342,6 +344,7 @@ const IKON_TAB = {
   izin: FileEdit,
   wajah: UserPlus,
   manual: AlertTriangle,
+  "reset-password": KeyRound,
   gaji: Wallet,
   "gaji-massal": Wallet,
   kantor: Building2,
@@ -381,6 +384,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
       "izin",
       "wajah",
       "manual",
+      "reset-password",
       "gaji",
       "gaji-massal",
       "kantor",
@@ -446,6 +450,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
       izin: tabAwal === "izin",
       wajah: tabAwal === "wajah",
       manual: tabAwal === "manual",
+      "reset-password": tabAwal === "reset-password",
       gaji: tabAwal === "gaji",
       "gaji-massal": tabAwal === "gaji-massal",
       kantor: tabAwal === "kantor",
@@ -513,6 +518,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
     izinBaru: 0,
     manualPending: 0,
     manualBaru: 0,
+    resetPasswordPending: 0,
     total: 0,
   });
   const [notifikasiTerbuka, setNotifikasiTerbuka] = useState(false);
@@ -806,6 +812,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
         akunBaru: Number(data.data.akunBaru) || 0,
         izinBaru: Number(data.data.izinBaru) || 0,
         manualPending: Number(data.data.manualPending || data.data.manualBaru || 0) || 0,
+        resetPasswordPending: Number(data.data.resetPasswordPending) || 0,
         total: Number(data.data.total) || 0,
       });
       setManualPendingCount(Number(data.data.manualPending || data.data.manualBaru || 0) || 0);
@@ -1517,6 +1524,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
     { id: "izin", label: "Izin", badge: notifikasi.izinBaru || null },
     { id: "wajah", label: "Kelola Wajah" },
     { id: "manual", label: "Verifikasi Manual", badge: manualPendingCount || notifikasi.manualPending || null },
+    { id: "reset-password", label: "Pemulihan Password", badge: notifikasi.resetPasswordPending || null },
     { id: "gaji", label: "Gaji" },
     { id: "gaji-massal", label: "Gaji Massal" },
     { id: "kantor", label: "Kantor Pusat" },
@@ -1527,7 +1535,7 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
   // sekali (itu masih dipakai apa adanya untuk judul halaman & badge).
   const grupSidebar = [
     { label: "WORKSPACE", idTab: ["rekap", "approval"] },
-    { label: "PEOPLE", idTab: ["karyawan", "izin", "wajah", "manual"] },
+    { label: "PEOPLE", idTab: ["karyawan", "izin", "wajah", "manual", "reset-password"] },
     { label: "FINANCE", idTab: ["gaji", "gaji-massal"] },
     { label: "SYSTEM", idTab: ["kantor"] },
   ];
@@ -1828,6 +1836,30 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
                           </strong>
                           <span style={styles.notifikasiItemSub}>
                             Menunggu persetujuan Admin.
+                          </span>
+                        </div>
+                        <ArrowRight size={15} style={styles.notifikasiArrow} />
+                      </button>
+                    )}
+
+                    {notifikasi.resetPasswordPending > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNotifikasiTerbuka(false);
+                          pindahTab("reset-password");
+                        }}
+                        style={styles.notifikasiItem}
+                      >
+                        <div style={{ ...styles.notifikasiItemIcon, color: warna.aksen, background: warna.aksenLembut }}>
+                          <KeyRound size={17} />
+                        </div>
+                        <div style={styles.notifikasiItemContent}>
+                          <strong style={styles.notifikasiItemJudul}>
+                            {notifikasi.resetPasswordPending} permintaan Lupa Password
+                          </strong>
+                          <span style={styles.notifikasiItemSub}>
+                            Karyawan menunggu verifikasi dan tautan pemulihan dari Admin.
                           </span>
                         </div>
                         <ArrowRight size={15} style={styles.notifikasiArrow} />
@@ -3135,6 +3167,14 @@ export default function DashboardAdmin({ pengguna, onLogout, tanggalRekap, rekap
             <div style={{ display: tab === "manual" ? "block" : "none" }}>
               <Suspense fallback={<div style={{ ...styles.kosongBox, minHeight: 160, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>Memuat verifikasi manual…</div>}>
                 <AdminManual />
+              </Suspense>
+            </div>
+          )}
+
+          {tabPernahDibuka["reset-password"] && (
+            <div style={{ display: tab === "reset-password" ? "block" : "none" }}>
+              <Suspense fallback={<div style={{ ...styles.kosongBox, minHeight: 160, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>Memuat permintaan pemulihan password…</div>}>
+                <AdminPermintaanResetPassword />
               </Suspense>
             </div>
           )}
